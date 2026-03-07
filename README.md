@@ -12,10 +12,9 @@ python3 -m http.server 4173
 
 ## Vercel 배포
 
-이 프로젝트는 정적 파일로 구성되어 있어 Vercel에 바로 배포할 수 있습니다.
+이 프로젝트는 정적 파일이라 Vercel에 바로 배포할 수 있습니다.
 
 1. GitHub 저장소 연결
 2. Framework Preset: `Other`
 3. Build Command: 비워두기
 4. Output Directory: `.`
-
