@@ -49,37 +49,25 @@ function App() {
         <h1>소금빵 포스기</h1>
         <div className="summary-count">총 주문 빵 개수: {totalCount}개</div>
         <div className="summary-total">{KRW.format(totalPrice)}원</div>
-        <p className="summary-help">메뉴 카드를 누르면 해당 빵이 1개씩 추가됩니다.</p>
         <button className="reset-btn" onClick={resetOrder}>
           주문 초기화
         </button>
       </header>
 
       <section className="menu-grid" aria-label="메뉴 목록">
-        {MENU_ITEMS.map((item) => {
-          const count = counts[item.id];
-          return (
-            <article key={item.id} className={`menu-card ${count > 0 ? 'active' : ''}`}>
-              <button className="card-add-btn" onClick={() => increase(item.id)}>
-                <h2>
-                  <span>{item.emoji}</span> {item.name}
-                </h2>
-                <p className="price">{KRW.format(item.price)}원</p>
-                <p className="tap-hint">카드 클릭 +1</p>
-              </button>
-
-              <div className="counter-row">
-                <button onClick={() => decrease(item.id)} aria-label={`${item.name} 수량 감소`}>
-                  -
-                </button>
-                <strong>{count}개</strong>
-                <button onClick={() => increase(item.id)} aria-label={`${item.name} 수량 증가`}>
-                  +
-                </button>
-              </div>
-            </article>
-          );
-        })}
+        {MENU_ITEMS.map((item) => (
+          <article key={item.id} className="menu-card">
+            <h2>
+              <span>{item.emoji}</span> {item.name}
+            </h2>
+            <p className="price">{KRW.format(item.price)}원</p>
+            <div className="counter-row">
+              <button onClick={() => decrease(item.id)}>-</button>
+              <strong>{counts[item.id]}개</strong>
+              <button onClick={() => increase(item.id)}>+</button>
+            </div>
+          </article>
+        ))}
       </section>
     </main>
   );
