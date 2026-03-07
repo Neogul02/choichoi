@@ -38,11 +38,17 @@ body {
 }
 
 .summary-total {
-  font-size: clamp(42px, 7vw, 72px);
+  font-size: clamp(46px, 8vw, 84px);
   font-weight: 900;
   color: #e63946;
   line-height: 1.1;
   margin-top: 12px;
+}
+
+.summary-help {
+  margin: 6px 0 0;
+  color: #555;
+  font-size: 15px;
 }
 
 .reset-btn {
@@ -64,9 +70,23 @@ body {
 
 .menu-card {
   background: white;
-  border: 1px solid #e2e2e2;
+  border: 2px solid #e2e2e2;
   border-radius: 12px;
-  padding: 16px;
+  padding: 12px;
+}
+
+.menu-card.active {
+  border-color: #e63946;
+  box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.12);
+}
+
+.card-add-btn {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
 }
 
 .menu-card h2 {
@@ -75,9 +95,15 @@ body {
 }
 
 .price {
-  margin: 8px 0 14px;
+  margin: 8px 0 6px;
   font-size: 30px;
   font-weight: 800;
+}
+
+.tap-hint {
+  margin: 0 0 10px;
+  color: #666;
+  font-weight: 600;
 }
 
 .counter-row {
@@ -100,6 +126,40 @@ body {
   font-size: 26px;
   min-width: 70px;
   text-align: center;
+}
+
+.order-summary {
+  margin-top: 18px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #ddd;
+}
+
+.order-summary h2 {
+  margin: 0 0 12px;
+}
+
+.empty-order {
+  margin: 0;
+  color: #666;
+}
+
+.order-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-list li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed #ddd;
+  padding: 8px 0;
+}
+
+.order-list li:last-child {
+  border-bottom: 0;
 }
 
 @media (max-width: 760px) {
