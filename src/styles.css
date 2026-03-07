@@ -1,5 +1,5 @@
 :root {
-  font-family: 'Pretendard', 'Noto Sans KR', system-ui, sans-serif;
+  font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
   color: #161616;
   background: #f5f6f7;
 }
@@ -10,6 +10,7 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
 }
 
 .pos-wrap {
@@ -65,19 +66,20 @@ body {
 .menu-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .menu-card {
   background: white;
-  border: 2px solid #e2e2e2;
-  border-radius: 12px;
-  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .menu-card.active {
-  border-color: #e63946;
-  box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.12);
+  background: #fff5f5;
+  box-shadow: 0 0 0 3px #e63946;
 }
 
 .card-add-btn {
@@ -162,12 +164,128 @@ body {
   border-bottom: 0;
 }
 
+/* 모바일 최적화: 스크롤 없이 한 화면에 모든 컴포넌트 */
 @media (max-width: 760px) {
+  body {
+    overflow: hidden;
+  }
+
   .pos-wrap {
-    padding: 14px;
+    height: 100vh;
+    height: 100dvh; /* 동적 뷰포트 높이 */
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .summary {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .summary h1 {
+    font-size: 18px;
+    margin: 0 0 4px;
+  }
+
+  .summary-count {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .summary-total {
+    font-size: 32px;
+    margin-top: 2px;
+    line-height: 1;
+  }
+
+  .summary-help {
+    display: none;
+  }
+
+  .reset-btn {
+    margin-top: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: 8px;
   }
 
   .menu-grid {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-4px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
+
+  .menu-card {
+    padding: 10px;
+    border-radius: 6
+    border-radius: 10px;
+    height: fit-content;
+  }
+
+  .menu-card h2 {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .price {
+    margin: 4px 0;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .tap-hint {
+    font-size: 11px;
+    margin: 0 0 6px;
+  }
+
+  .counter-row {
+    gap: 6px;
+  }
+
+  .counter-row button {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+    border-radius: 8px;
+  }
+
+  .counter-row strong {
+    font-size: 16px;
+    min-width: auto;
+    flex: 1;
+  }
+
+  .order-summary {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .order-summary h2 {
+    font-size: 14px;
+    margin: 0 0 8px;
+  }
+
+  .empty-order {
+    font-size: 13px;
+  }
+
+  .order-list li {
+    padding: 6px 0;
+    font-size: 13px;
+  }
+
+  .order-list li strong {
+    font-size: 14px;
   }
 }
