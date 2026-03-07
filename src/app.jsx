@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 
 const MENU_ITEMS = [
-  { id: 1, name: "고메버터 소금빵", price: 3300, color: "brown" },
-  { id: 2, name: "명란마요 소금빵", price: 4900, color: "orange" },
-  { id: 3, name: "쪽파크림치즈 소금빵", price: 4900, color: "green" },
-  { id: 4, name: "초코 소금빵", price: 4600, color: "chocolate" },
-  { id: 5, name: "우유크림 소금빵", price: 4600, color: "white" },
-  { id: 6, name: "모찌 소금빵", price: 4900, color: "beige" },
-  { id: 7, name: "잠봉뵈르 소금빵", price: 6900, color: "red" },
-  { id: 8, name: "생딸기 우유모찌 소금빵", price: 5900, color: "pink" },
+  { id: 1, name: "고메버터 소금빵", price: 3300, color: "#FFD966" },
+  { id: 2, name: "명란마요 소금빵", price: 4900, color: "#FF8A80" },
+  { id: 3, name: "쪽파크림치즈 소금빵", price: 4900, color: "#69DB7C" },
+  { id: 4, name: "초코 소금빵", price: 4600, color: "#8B5A3C" },
+  { id: 5, name: "우유크림 소금빵", price: 4600, color: "#E7F5FF" },
+  { id: 6, name: "생딸기 우유모찌 소금빵", price: 5900, color: "#FF6B9D" },
+  { id: 7, name: "잠봉뵈르 소금빵", price: 6900, color: "#E64980" },
+  { id: 8, name: "모찌 소금빵", price: 4900, color: "#FAE5D3" },
 ];
 
 const KRW = new Intl.NumberFormat("ko-KR");
@@ -75,13 +75,18 @@ function App() {
             <article
               key={item.id}
               className={`menu-card ${count > 0 ? "active" : ""}`}
-              data-color={item.color}
             >
               <button
                 className="card-add-btn"
                 onClick={() => increase(item.id)}
               >
-                <h2>{item.name}</h2>
+                <div className="menu-header">
+                  <span
+                    className="color-indicator"
+                    style={{ backgroundColor: item.color }}
+                  ></span>
+                  <h2>{item.name}</h2>
+                </div>
                 <p className="price">{KRW.format(item.price)}원</p>
               </button>
 
