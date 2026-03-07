@@ -46,11 +46,13 @@ function App() {
   return (
     <main className="pos-wrap">
       <header className="summary">
-        <h1>소금빵 포스기</h1>
-        <div className="summary-count">총 주문 빵 개수: {totalCount}개</div>
-        <div className="summary-total">{KRW.format(totalPrice)}원</div>
+        <h1>🧂 소금빵</h1>
+        <div className="summary-info">
+          <div className="summary-count">총 {totalCount}개</div>
+          <div className="summary-total">{KRW.format(totalPrice)}원</div>
+        </div>
         <button className="reset-btn" onClick={resetOrder}>
-          주문 초기화
+          초기화
         </button>
       </header>
 
