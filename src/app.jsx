@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 
 const MENU_ITEMS = [
-  { id: 1, name: "고메버터 소금빵", price: 3300, emoji: "🧀" },
-  { id: 2, name: "명란마요 소금빵", price: 4900, emoji: "🧈" },
-  { id: 3, name: "쪽파크림치즈 소금빵", price: 4900, emoji: "🧅" },
-  { id: 4, name: "초코 소금빵", price: 4600, emoji: "🍫" },
-  { id: 5, name: "우유크림 소금빵", price: 4600, emoji: "🥛" },
-  { id: 6, name: "생딸기 우유모찌 소금빵", price: 5900, emoji: "�" },
-  { id: 7, name: "잠봉뵈르 소금빵", price: 6900, emoji: "🥓" },
-  { id: 8, name: "모찌 소금빵", price: 4900, emoji: "�" },
+  { id: 1, name: "고메버터 소금빵", price: 3300, color: "brown" },
+  { id: 2, name: "명란마요 소금빵", price: 4900, color: "orange" },
+  { id: 3, name: "쪽파크림치즈 소금빵", price: 4900, color: "green" },
+  { id: 4, name: "초코 소금빵", price: 4600, color: "chocolate" },
+  { id: 5, name: "우유크림 소금빵", price: 4600, color: "white" },
+  { id: 6, name: "모찌 소금빵", price: 4900, color: "beige" },
+  { id: 7, name: "잠봉뵈르 소금빵", price: 6900, color: "red" },
+  { id: 8, name: "생딸기 우유모찌 소금빵", price: 5900, color: "pink" },
 ];
 
 const KRW = new Intl.NumberFormat("ko-KR");
@@ -75,14 +75,13 @@ function App() {
             <article
               key={item.id}
               className={`menu-card ${count > 0 ? "active" : ""}`}
+              data-color={item.color}
             >
               <button
                 className="card-add-btn"
                 onClick={() => increase(item.id)}
               >
-                <h2>
-                  <span>{item.emoji}</span> {item.name}
-                </h2>
+                <h2>{item.name}</h2>
                 <p className="price">{KRW.format(item.price)}원</p>
               </button>
 

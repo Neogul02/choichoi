@@ -66,20 +66,65 @@ body {
 .menu-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 5px;
 }
 
 .menu-card {
   background: white;
   border: none;
   border-radius: 8px;
-  padding: 14px;
+  padding: 15px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+/* 각 메뉴별 색상 */
+.menu-card[data-color="brown"] {
+  background: #ebc7ad;
+  color: white;
+}
+
+.menu-card[data-color="orange"] {
+  background: #ff9f5a;
+  color: white;
+}
+
+.menu-card[data-color="green"] {
+  background: #7cb342;
+  color: white;
+}
+
+.menu-card[data-color="chocolate"] {
+  background: #6d4c41;
+  color: white;
+}
+
+.menu-card[data-color="white"] {
+  background: #ffffff;
+  color: #161616;
+  border: 2px solid #e0e0e0;
+}
+
+.menu-card[data-color="beige"] {
+  background: #f5deb3;
+  color: #161616;
+}
+
+.menu-card[data-color="red"] {
+  background: #d32f2f;
+  color: white;
+}
+
+.menu-card[data-color="pink"] {
+  background: #ff90b3;
+  color: white;
 }
 
 .menu-card.active {
-  background: #fff5f5;
-  box-shadow: 0 0 0 3px #e63946;
+  box-shadow:
+    0 0 0 4px rgba(230, 57, 70, 0.6),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
 }
 
 .card-add-btn {
@@ -100,6 +145,7 @@ body {
   margin: 8px 0 6px;
   font-size: 30px;
   font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .tap-hint {
@@ -112,16 +158,41 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-top: 20px;
 }
 
 .counter-row button {
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  border: 1px solid #999;
+  border: 2px solid rgba(255, 255, 255, 0.5);
   font-size: 28px;
   cursor: pointer;
-  background: #fafafa;
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.counter-row button:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(1.05);
+}
+
+.counter-row button:active {
+  transform: scale(0.95);
+}
+
+/* 흰색/베이지 카드용 버튼 스타일 */
+.menu-card[data-color="white"] .counter-row button,
+.menu-card[data-color="beige"] .counter-row button {
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.menu-card[data-color="white"] .counter-row button:hover,
+.menu-card[data-color="beige"] .counter-row button:hover {
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .counter-row strong {
@@ -215,7 +286,8 @@ body {
 
   .menu-grid {
     display: grid;
-    grid-4px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
@@ -224,9 +296,10 @@ body {
 
   .menu-card {
     padding: 10px;
-    border-radius: 6
-    border-radius: 10px;
-    height: fit-content;
+    border-radius: 6px;
+    height: 80%;
+    justify-content: center;
+
   }
 
   .menu-card h2 {
