@@ -1,26 +1,36 @@
-# 소금빵 포스기 (React)
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-8개 메뉴 카드(소금빵)를 눌러 주문을 쌓는 간단한 포스기 화면입니다.
+## Getting Started
 
-- 메뉴 카드 클릭: 해당 빵 +1
-- `+ / -` 버튼: 수량 미세 조정
-- 상단에 **총 주문 빵 개수**와 **합산 가격(큰 글씨)** 실시간 표시
-- 하단에 선택 메뉴별 수량/소계가 보이는 **주문 상세** 표시
-8개 메뉴를 클릭해 수량을 올리고, **총 주문 빵 개수**와 **합산 가격**을 크게 보여주는 간단한 포스기 화면입니다.
-
-## 실행 방법
+First, run the development server:
 
 ```bash
-python3 -m http.server 4173
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-브라우저에서 `http://localhost:4173` 접속.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Vercel 배포
+You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
-이 프로젝트는 정적 파일이라 Vercel에 바로 배포할 수 있습니다.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-1. GitHub 저장소 연결
-2. Framework Preset: `Other`
-3. Build Command: 비워두기
-4. Output Directory: `.`
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
