@@ -2,49 +2,55 @@
 
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchMenuItems, saveOrder, fetchTodaysSales } from './actions';
 
 const KRW = new Intl.NumberFormat('ko-KR');
 
 export default function Home() {
-  const [menuItems, setMenuItems] = useState([]);
   const [counts, setCounts] = useState({});
-  const [sales, setSales] = useState({ totalOrders: 0, totalRevenue: 0 });
   const [isLoading, setIsLoading] = useState(false);
-  const [isSalesLoading, setIsSalesLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const queryClient = useQueryClient();
 
-  // Load menu items on mount
-  useEffect(() => {
-    async function loadMenu() {
+  const menuQuery = useQuery({
+    queryKey: ['menu-items'],
+    queryFn: async () => {
       const result = await fetchMenuItems();
-      if (result.success) {
-        setMenuItems(result.data);
-        // Initialize counts
-        const initialCounts = {};
-        result.data.forEach(item => {
-          initialCounts[item.id] = 0;
-        });
-        setCounts(initialCounts);
-      }
-    }
-    loadMenu();
-  }, []);
+      if (!result.success) throw new Error(result.error || '메뉴 로딩 실패');
+      return result.data;
+    },
+    placeholderData: (previousData) => previousData,
+  });
 
-  // Load today's sales on mount and periodically
-  useEffect(() => {
-    async function loadSales() {
-      setIsSalesLoading(true);
+  const salesQuery = useQuery({
+    queryKey: ['today-sales'],
+    queryFn: async () => {
       const result = await fetchTodaysSales();
-      if (result.success) {
-        setSales(result.data);
+      if (!result.success) throw new Error(result.error || '매출 로딩 실패');
+      return result.data;
+    },
+    refetchInterval: 5000,
+    placeholderData: (previousData) => previousData,
+  });
+
+  const menuItems = menuQuery.data || [];
+  const sales = salesQuery.data || { totalOrders: 0, totalRevenue: 0 };
+  const isSalesLoading = salesQuery.isLoading;
+
+  useEffect(() => {
+    if (!menuItems.length) return;
+
+    setCounts((prev) => {
+      const next = { ...prev };
+      for (const item of menuItems) {
+        if (typeof next[item.id] !== 'number') {
+          next[item.id] = 0;
+        }
       }
-      setIsSalesLoading(false);
-    }
-    loadSales();
-    const interval = setInterval(loadSales, 5000);
-    return () => clearInterval(interval);
-  }, []);
+      return next;
+    });
+  }, [menuItems]);
 
   const totalCount = useMemo(
     () => Object.values(counts).reduce((sum, count) => sum + count, 0),
@@ -77,6 +83,23 @@ export default function Home() {
     setCounts(newCounts);
   };
 
+  const checkoutMutation = useMutation({
+    mutationFn: async ({ items, totalPrice }) => saveOrder(items, totalPrice),
+    onSuccess: async (result) => {
+      if (result.success) {
+        setMessage(`주문 완료! 주문번호: ${result.orderId}`);
+        resetOrder();
+        setTimeout(() => setMessage(''), 3000);
+        await queryClient.invalidateQueries({ queryKey: ['today-sales'] });
+      } else {
+        setMessage(`오류 발생: ${result.error}`);
+      }
+    },
+    onError: (error) => {
+      setMessage(`오류 발생: ${error.message}`);
+    },
+  });
+
   const handleCheckout = async () => {
     if (totalPrice === 0) {
       setMessage('주문하신 항목이 없습니다');
@@ -96,16 +119,10 @@ export default function Home() {
           count: counts[item.id],
         }));
 
-      const result = await saveOrder(orderedItemsData, totalPrice);
-
-      if (result.success) {
-        setMessage(`주문 완료! 주문번호: ${result.orderId}`);
-        setSales(result.sales);
-        resetOrder();
-        setTimeout(() => setMessage(''), 3000);
-      } else {
-        setMessage(`오류 발생: ${result.error}`);
-      }
+      await checkoutMutation.mutateAsync({
+        items: orderedItemsData,
+        totalPrice,
+      });
     } catch (error) {
       setMessage(`오류 발생: ${error.message}`);
     } finally {
@@ -151,6 +168,9 @@ export default function Home() {
         )}
 
         <section className="menu-grid" aria-label="메뉴 목록">
+          {menuQuery.isLoading && menuItems.length === 0 ? (
+            <p className="empty-order">메뉴를 불러오는 중입니다...</p>
+          ) : null}
           {menuItems.map((item) => {
             const count = counts[item.id];
             return (
