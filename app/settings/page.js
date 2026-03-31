@@ -212,6 +212,33 @@ export default function SettingsPage() {
     setDragOverId(null);
   };
 
+  const handleTouchDragStart = (e, id) => {
+    e.preventDefault();
+    setDraggedId(id);
+  };
+
+  const handleTouchDragMove = (e) => {
+    if (!draggedId) return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    const dropItem = target?.closest?.('[data-menu-id]');
+    const overId = Number(dropItem?.getAttribute('data-menu-id'));
+
+    if (overId && overId !== draggedId) {
+      setDragOverId(overId);
+    }
+  };
+
+  const handleTouchDragEnd = async () => {
+    if (draggedId && dragOverId && draggedId !== dragOverId) {
+      await handleReorder(draggedId, dragOverId);
+    }
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
   const activeMenuItems = menuItems.filter((item) => item.is_active);
   const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total_price || 0), 0);
 
@@ -365,6 +392,7 @@ export default function SettingsPage() {
               {activeMenuItems.map((item) => (
                   <li
                     key={item.id}
+                    data-menu-id={item.id}
                     className={`menu-item draggable ${dragOverId === item.id ? 'drag-over' : ''}`}
                     draggable
                     onDragStart={() => handleDragStart(item.id)}
@@ -374,13 +402,24 @@ export default function SettingsPage() {
                   >
                     <div className="menu-item-info">
                       <div
+                        className="drag-handle"
+                        role="button"
+                        aria-label="순서 이동 핸들"
+                        onTouchStart={(e) => handleTouchDragStart(e, item.id)}
+                        onTouchMove={handleTouchDragMove}
+                        onTouchEnd={handleTouchDragEnd}
+                        onTouchCancel={handleTouchDragEnd}
+                      >
+                        ⠿
+                      </div>
+                      <div
                         className="menu-item-color"
                         style={{ backgroundColor: item.color }}
                       ></div>
                       <div className="menu-item-details">
                         <h3>{item.name}</h3>
                         <p>₩{item.price.toLocaleString('ko-KR')}</p>
-                        <p className="drag-hint">드래그해서 순서 변경</p>
+                        <p className="drag-hint">데스크톱: 드래그 / 모바일: 핸들 터치 이동</p>
                       </div>
                     </div>
                     <div className="menu-item-actions">

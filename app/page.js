@@ -150,11 +150,10 @@ export default function Home() {
 
       <main className="pos-wrap">
         <header className="summary">
-          <h1>ChoiChoi</h1>
-          <div className="summary-count">총 주문 빵 개수: {totalCount}개</div>
+          <div className="summary-count">총 주문 개수: {totalCount}개</div>
           <div className="summary-total">{KRW.format(totalPrice)}원</div>
           <p className="summary-help">
-            메뉴 카드를 누르면 해당 빵이 1개씩 추가됩니다.
+            메뉴 카드를 누르면 1개씩 추가됩니다.
           </p>
           <button className="reset-btn" onClick={resetOrder}>
             주문 초기화
@@ -235,7 +234,7 @@ export default function Home() {
             onClick={handleCheckout}
             disabled={orderedItems.length === 0 || isLoading}
           >
-            {isLoading ? '처리 중...' : '결제완료'}
+            {isLoading ? '처리 중...' : '결제하기'}
           </button>
         </section>
       </main>
