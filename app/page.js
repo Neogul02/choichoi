@@ -7,6 +7,39 @@ import { fetchMenuItems, saveOrder, fetchTodaysSales } from './actions';
 
 const KRW = new Intl.NumberFormat('ko-KR');
 
+function getShortcutBadgeColors(color) {
+  if (!color || typeof color !== 'string') {
+    return { backgroundColor: '#111', color: '#fff' };
+  }
+
+  const hex = color.trim();
+  const match = hex.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+
+  if (!match) {
+    return { backgroundColor: color, color: '#fff' };
+  }
+
+  let normalized = match[1];
+  if (normalized.length === 3) {
+    normalized = normalized
+      .split('')
+      .map((ch) => ch + ch)
+      .join('');
+  }
+
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  const textColor = luminance > 0.62 ? '#111' : '#fff';
+
+  return {
+    backgroundColor: `#${normalized}`,
+    color: textColor,
+  };
+}
+
 export default function Home() {
   const [counts, setCounts] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -207,13 +240,25 @@ export default function Home() {
           {menuQuery.isLoading && menuItems.length === 0 ? (
             <p className="empty-order">메뉴를 불러오는 중입니다...</p>
           ) : null}
-          {menuItems.map((item) => {
+          {menuItems.map((item, index) => {
             const count = counts[item.id];
+            const shortcutNumber = index + 1;
+            const hasShortcut = shortcutNumber <= 9;
+            const shortcutBadgeStyle = getShortcutBadgeColors(item.color);
             return (
               <article
                 key={item.id}
                 className={`menu-card ${count > 0 ? 'active' : ''}`}
               >
+                {hasShortcut ? (
+                  <strong
+                    className="shortcut-badge"
+                    style={shortcutBadgeStyle}
+                    aria-label={`${item.name} 단축키 ${shortcutNumber}번`}
+                  >
+                    {shortcutNumber}
+                  </strong>
+                ) : null}
                 <button className="card-add-btn" onClick={() => increase(item.id)}>
                   <div className="menu-header">
                     <span
