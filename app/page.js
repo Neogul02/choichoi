@@ -70,10 +70,10 @@ export default function Home() {
   );
 
   const increase = (id) =>
-    setCounts((prev) => ({ ...prev, [id]: prev[id] + 1 }));
+    setCounts((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
 
   const decrease = (id) =>
-    setCounts((prev) => ({ ...prev, [id]: Math.max(0, prev[id] - 1) }));
+    setCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) }));
 
   const resetOrder = () => {
     const newCounts = {};
@@ -82,6 +82,43 @@ export default function Home() {
     });
     setCounts(newCounts);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const activeElement = document.activeElement;
+      const isTypingTarget =
+        activeElement &&
+        (activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.isContentEditable);
+
+      if (isTypingTarget) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        resetOrder();
+        return;
+      }
+
+      if (/^[1-9]$/.test(event.key)) {
+        const index = Number(event.key) - 1;
+        const targetItem = menuItems[index];
+        if (!targetItem) {
+          return;
+        }
+
+        event.preventDefault();
+        increase(targetItem.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuItems]);
 
   const checkoutMutation = useMutation({
     mutationFn: async ({ items, totalPrice }) => saveOrder(items, totalPrice),
@@ -153,7 +190,7 @@ export default function Home() {
           <div className="summary-count">총 주문 개수: {totalCount}개</div>
           <div className="summary-total">{KRW.format(totalPrice)}원</div>
           <p className="summary-help">
-            메뉴 카드를 누르면 1개씩 추가됩니다.
+            메뉴 카드를 누르면 1개씩 추가됩니다. 숫자키 1~9로 메뉴를 추가하고, Esc로 초기화할 수 있습니다.
           </p>
           <button className="reset-btn" onClick={resetOrder}>
             주문 초기화
