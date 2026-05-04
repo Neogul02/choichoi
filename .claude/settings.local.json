@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash *)",
+      "Bash(node -e ' *)",
+      "Bash(npm view *)",
+      "Bash(node *)",
+      "Bash(npm install *)",
+      "Bash(omc --version)",
+      "Bash(claude mcp *)",
+      "Bash(gh auth *)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(yarn lint *)"
+    ]
+  }
+}
