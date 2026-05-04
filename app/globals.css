@@ -968,4 +968,236 @@ body {
   .form-row {
     grid-template-columns: 1fr;
   }
+
+  .summary-panels {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .summary-panel .summary-total,
+  .summary-completed-amount {
+    font-size: clamp(28px, 8vw, 44px);
+  }
+
+  .stats-summary-row {
+    flex-direction: column;
+  }
+
+  .breakdown-stats {
+    flex-wrap: wrap;
+  }
+
+  .breakdown-bar-wrap {
+    flex: 1 0 100%;
+    order: -1;
+  }
+}
+
+/* POS Summary Panels — pending vs completed */
+.summary-panels {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.summary-panel {
+  flex: 1;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.summary-panel.pending {
+  background: #fff5f5;
+  border: 2px solid #e63946;
+}
+
+.summary-panel.completed {
+  background: #f0faf4;
+  border: 2px solid #2ecc71;
+}
+
+.summary-panel-label {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+}
+
+.summary-panel.pending .summary-panel-label {
+  background: #e63946;
+  color: white;
+}
+
+.summary-panel.completed .summary-panel-label {
+  background: #2ecc71;
+  color: white;
+}
+
+.summary-panel .summary-count {
+  margin-top: 2px;
+}
+
+.summary-panel .summary-total {
+  font-size: clamp(32px, 5vw, 56px);
+  margin: 4px 0;
+}
+
+.summary-completed-amount {
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 900;
+  color: #2ecc71;
+  line-height: 1.1;
+  margin: 4px 0;
+}
+
+/* Stats Page */
+.stats-wrap {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.stats-wrap h2 {
+  margin: 0 0 20px;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.stats-section {
+  margin-bottom: 16px;
+}
+
+.stats-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stats-section-header h3 {
+  margin: 0;
+}
+
+.stats-section > h3 {
+  margin: 0 0 12px;
+}
+
+.stats-summary-row {
+  display: flex;
+  gap: 12px;
+}
+
+.stats-summary-card {
+  flex: 1;
+  background: #f9f9f9;
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stats-summary-card.highlight {
+  border-color: #e63946;
+  background: #fff5f5;
+}
+
+.stats-card-label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 600;
+}
+
+.stats-card-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #161616;
+}
+
+.stats-summary-card.highlight .stats-card-value {
+  color: #e63946;
+}
+
+/* Menu Breakdown */
+.breakdown-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.breakdown-item {
+  background: white;
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid #eee;
+}
+
+.breakdown-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.breakdown-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  display: inline-block;
+}
+
+.breakdown-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.breakdown-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.breakdown-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: #eee;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.breakdown-bar {
+  height: 100%;
+  background: #e63946;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+.breakdown-qty {
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 36px;
+  text-align: right;
+  color: #333;
+  flex-shrink: 0;
+}
+
+.breakdown-revenue {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e63946;
+  min-width: 90px;
+  text-align: right;
+  flex-shrink: 0;
 }

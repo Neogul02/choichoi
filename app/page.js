@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchMenuItems, saveOrder, fetchTodaysSales } from './actions';
 
@@ -45,6 +45,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const queryClient = useQueryClient();
+
+  // Ref pattern: always points to the latest handleCheckout without stale closure
+  const checkoutFnRef = useRef(null);
+  const checkoutDebouncingRef = useRef(false);
 
   const menuQuery = useQuery({
     queryKey: ['menu-items'],
@@ -135,6 +139,15 @@ export default function Home() {
         return;
       }
 
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (checkoutDebouncingRef.current) return;
+        checkoutDebouncingRef.current = true;
+        setTimeout(() => { checkoutDebouncingRef.current = false; }, 2000);
+        checkoutFnRef.current?.();
+        return;
+      }
+
       if (/^[1-9]$/.test(event.key)) {
         const index = Number(event.key) - 1;
         const targetItem = menuItems[index];
@@ -200,6 +213,9 @@ export default function Home() {
     }
   };
 
+  // Sync ref every render so the keydown listener always calls the latest version
+  checkoutFnRef.current = handleCheckout;
+
   return (
     <>
       <header className="header-nav">
@@ -212,6 +228,9 @@ export default function Home() {
               </Link>
             </li>
             <li>
+              <Link href="/stats">매출 통계</Link>
+            </li>
+            <li>
               <Link href="/settings">설정</Link>
             </li>
           </ul>
@@ -220,10 +239,20 @@ export default function Home() {
 
       <main className="pos-wrap">
         <header className="summary">
-          <div className="summary-count">총 주문 개수: {totalCount}개</div>
-          <div className="summary-total">{KRW.format(totalPrice)}원</div>
+          <div className="summary-panels">
+            <div className="summary-panel pending">
+              <span className="summary-panel-label">결제 대기</span>
+              <div className="summary-count">{totalCount}개</div>
+              <div className="summary-total">{KRW.format(totalPrice)}원</div>
+            </div>
+            <div className="summary-panel completed">
+              <span className="summary-panel-label">오늘 완료</span>
+              <div className="summary-count">{sales.totalOrders}건</div>
+              <div className="summary-completed-amount">{KRW.format(sales.totalRevenue)}원</div>
+            </div>
+          </div>
           <p className="summary-help">
-            메뉴 카드를 누르면 1개씩 추가됩니다. 숫자키 1~9로 메뉴를 추가하고, Esc로 초기화할 수 있습니다.
+            숫자키 1~9: 메뉴 추가&nbsp;&nbsp;|&nbsp;&nbsp;Enter: 결제&nbsp;&nbsp;|&nbsp;&nbsp;Esc: 초기화
           </p>
           <button className="reset-btn" onClick={resetOrder}>
             주문 초기화

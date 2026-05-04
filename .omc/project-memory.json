@@ -1,0 +1,288 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777883432918,
+  "projectRoot": "C:\\Users\\SSAFY\\Desktop\\choichoi",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      },
+      {
+        "name": "JavaScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "jsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "next",
+        "version": "16.2.1",
+        "category": "fullstack"
+      },
+      {
+        "name": "react",
+        "version": "19.2.4",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.4",
+        "category": "frontend"
+      }
+    ],
+    "packageManager": "yarn",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "yarn build",
+    "testCommand": null,
+    "lintCommand": "yarn lint",
+    "devCommand": "yarn dev",
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "eslint"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": "ES modules",
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "app",
+      "components",
+      "lib",
+      "public"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "app": {
+      "path": "app",
+      "purpose": "Application code",
+      "fileCount": 8,
+      "lastAccessed": 1777883432874,
+      "keyFiles": [
+        "actions.ts",
+        "favicon.ico",
+        "globals.css",
+        "layout.js",
+        "page.js"
+      ]
+    },
+    "components": {
+      "path": "components",
+      "purpose": "UI components",
+      "fileCount": 4,
+      "lastAccessed": 1777883432875,
+      "keyFiles": [
+        "MenuGrid.jsx",
+        "MenuItem.jsx",
+        "OrderSummary.jsx",
+        "SalesDisplay.jsx"
+      ]
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 1,
+      "lastAccessed": 1777883432885,
+      "keyFiles": [
+        "supabase.js"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 5,
+      "lastAccessed": 1777883432887,
+      "keyFiles": [
+        "file.svg",
+        "globe.svg",
+        "next.svg",
+        "vercel.svg",
+        "window.svg"
+      ]
+    },
+    "app\\api": {
+      "path": "app\\api",
+      "purpose": "API routes",
+      "fileCount": 0,
+      "lastAccessed": 1777883432888,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "app\\page.js",
+      "accessCount": 10,
+      "lastAccessed": 1777885052360,
+      "type": "file"
+    },
+    {
+      "path": "app\\actions.ts",
+      "accessCount": 4,
+      "lastAccessed": 1777885165918,
+      "type": "file"
+    },
+    {
+      "path": "app\\globals.css",
+      "accessCount": 3,
+      "lastAccessed": 1777885045542,
+      "type": "file"
+    },
+    {
+      "path": "lib\\supabase.js",
+      "accessCount": 3,
+      "lastAccessed": 1777885166486,
+      "type": "file"
+    },
+    {
+      "path": "AGENTS.md",
+      "accessCount": 2,
+      "lastAccessed": 1777884191413,
+      "type": "file"
+    },
+    {
+      "path": "app\\settings\\page.js",
+      "accessCount": 2,
+      "lastAccessed": 1777884959468,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1777884118995,
+      "type": "file"
+    },
+    {
+      "path": "app\\layout.js",
+      "accessCount": 1,
+      "lastAccessed": 1777884119319,
+      "type": "file"
+    },
+    {
+      "path": "app\\password-gate.js",
+      "accessCount": 1,
+      "lastAccessed": 1777884125329,
+      "type": "file"
+    },
+    {
+      "path": "app\\providers.js",
+      "accessCount": 1,
+      "lastAccessed": 1777884125713,
+      "type": "file"
+    },
+    {
+      "path": "app\\api\\auth\\verify\\route.js",
+      "accessCount": 1,
+      "lastAccessed": 1777884126851,
+      "type": "file"
+    },
+    {
+      "path": "components\\MenuGrid.jsx",
+      "accessCount": 1,
+      "lastAccessed": 1777884128022,
+      "type": "file"
+    },
+    {
+      "path": "components\\OrderSummary.jsx",
+      "accessCount": 1,
+      "lastAccessed": 1777884128302,
+      "type": "file"
+    },
+    {
+      "path": "components\\MenuItem.jsx",
+      "accessCount": 1,
+      "lastAccessed": 1777884133953,
+      "type": "file"
+    },
+    {
+      "path": "components\\SalesDisplay.jsx",
+      "accessCount": 1,
+      "lastAccessed": 1777884134612,
+      "type": "file"
+    },
+    {
+      "path": "next.config.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1777884134819,
+      "type": "file"
+    },
+    {
+      "path": "app\\AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1777884215936,
+      "type": "file"
+    },
+    {
+      "path": "components\\AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1777884232097,
+      "type": "file"
+    },
+    {
+      "path": "lib\\AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1777884249796,
+      "type": "file"
+    },
+    {
+      "path": "app\\api\\AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1777884259027,
+      "type": "file"
+    },
+    {
+      "path": "app\\settings\\AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1777884279322,
+      "type": "file"
+    },
+    {
+      "path": "app\\api\\auth\\AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1777884285493,
+      "type": "file"
+    },
+    {
+      "path": "app\\api\\auth\\verify\\AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1777884297267,
+      "type": "file"
+    },
+    {
+      "path": "app\\stats\\page.js",
+      "accessCount": 1,
+      "lastAccessed": 1777885004914,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

@@ -1,6 +1,6 @@
 'use server';
 
-import { createOrder, getTodaysSales, getTodaysOrderList, getMonthlySalesByDate, clearTodaysOrders, getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, getAllMenuItems, updateMenuOrder } from '@/lib/supabase';
+import { createOrder, getTodaysSales, getTodaysOrderList, getMonthlySalesByDate, clearTodaysOrders, getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, getAllMenuItems, updateMenuOrder, getMenuSalesByPeriod } from '@/lib/supabase';
 
 export async function saveOrder(items, totalPrice) {
   try {
@@ -174,6 +174,23 @@ export async function fetchMonthlySalesCalendar(year, month) {
     return {
       success: false,
       error: error.message,
+    };
+  }
+}
+
+export async function fetchMenuSalesBreakdown(startISO, endISO) {
+  try {
+    const data = await getMenuSalesByPeriod(startISO, endISO);
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error('Failed to fetch menu sales breakdown:', error);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
     };
   }
 }
