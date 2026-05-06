@@ -50,7 +50,7 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "yarn build",
+    "buildCommand": "cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\" && yarn lint 2>&1 && yarn build 2>&1",
     "testCommand": null,
     "lintCommand": "yarn lint",
     "devCommand": "yarn dev",
@@ -144,69 +144,111 @@
   },
   "hotPaths": [
     {
+      "path": "app\\page.js",
+      "accessCount": 26,
+      "lastAccessed": 1778055366879,
+      "type": "file"
+    },
+    {
       "path": "app\\globals.css",
       "accessCount": 25,
       "lastAccessed": 1778032546789,
       "type": "file"
     },
     {
-      "path": "app\\page.js",
-      "accessCount": 24,
-      "lastAccessed": 1778032527222,
-      "type": "file"
-    },
-    {
       "path": "app\\actions.ts",
-      "accessCount": 12,
-      "lastAccessed": 1778031214845,
+      "accessCount": 18,
+      "lastAccessed": 1778109506317,
       "type": "file"
     },
     {
       "path": "app\\stats\\page.js",
-      "accessCount": 10,
-      "lastAccessed": 1778032532162,
+      "accessCount": 12,
+      "lastAccessed": 1778055391919,
       "type": "file"
     },
     {
       "path": "lib\\supabase.js",
-      "accessCount": 8,
-      "lastAccessed": 1778030971331,
+      "accessCount": 10,
+      "lastAccessed": 1778055365991,
       "type": "file"
     },
     {
       "path": "app\\settings\\page.js",
-      "accessCount": 8,
-      "lastAccessed": 1778032532348,
+      "accessCount": 10,
+      "lastAccessed": 1778055392297,
       "type": "file"
     },
     {
       "path": "app\\memo\\page.js",
-      "accessCount": 6,
-      "lastAccessed": 1778032536176,
+      "accessCount": 8,
+      "lastAccessed": 1778055393062,
       "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 8,
+      "lastAccessed": 1778109566027,
+      "type": "directory"
     },
     {
       "path": "app\\schedule\\page.js",
-      "accessCount": 5,
-      "lastAccessed": 1778032535833,
-      "type": "file"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 3,
-      "lastAccessed": 1778032521371,
+      "accessCount": 7,
+      "lastAccessed": 1778055393127,
       "type": "file"
     },
     {
       "path": "app\\layout.js",
-      "accessCount": 3,
-      "lastAccessed": 1778032526952,
+      "accessCount": 5,
+      "lastAccessed": 1778055385880,
       "type": "file"
     },
     {
       "path": "app\\password-gate.js",
-      "accessCount": 3,
-      "lastAccessed": 1778032542273,
+      "accessCount": 5,
+      "lastAccessed": 1778055386991,
+      "type": "file"
+    },
+    {
+      "path": "app\\password-gate.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1778109451584,
+      "type": "file"
+    },
+    {
+      "path": "tsconfig.json",
+      "accessCount": 5,
+      "lastAccessed": 1778109465461,
+      "type": "file"
+    },
+    {
+      "path": "lib\\utils.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778109577259,
+      "type": "file"
+    },
+    {
+      "path": "app\\providers.js",
+      "accessCount": 4,
+      "lastAccessed": 1778055386245,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 4,
+      "lastAccessed": 1778109186971,
+      "type": "file"
+    },
+    {
+      "path": "app\\page.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1778109447096,
+      "type": "file"
+    },
+    {
+      "path": "eslint.config.mjs",
+      "accessCount": 4,
+      "lastAccessed": 1778109452357,
       "type": "file"
     },
     {
@@ -234,15 +276,69 @@
       "type": "file"
     },
     {
-      "path": "AGENTS.md",
-      "accessCount": 2,
-      "lastAccessed": 1777884191413,
+      "path": "app\\api\\auth\\verify\\route.js",
+      "accessCount": 3,
+      "lastAccessed": 1778055387374,
       "type": "file"
     },
     {
-      "path": "app\\providers.js",
+      "path": "app\\memo\\page.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1778109068304,
+      "type": "file"
+    },
+    {
+      "path": "app\\schedule\\page.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1778109070572,
+      "type": "file"
+    },
+    {
+      "path": "app\\settings\\page.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1778109072897,
+      "type": "file"
+    },
+    {
+      "path": "app\\stats\\page.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1778109080994,
+      "type": "file"
+    },
+    {
+      "path": "postcss.config.mjs",
+      "accessCount": 3,
+      "lastAccessed": 1778109082205,
+      "type": "file"
+    },
+    {
+      "path": "lib\\supabase.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778109447492,
+      "type": "file"
+    },
+    {
+      "path": "types\\api.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778109552765,
+      "type": "file"
+    },
+    {
+      "path": "types\\database.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778109553132,
+      "type": "file"
+    },
+    {
+      "path": "app",
+      "accessCount": 3,
+      "lastAccessed": 1778109585129,
+      "type": "directory"
+    },
+    {
+      "path": "AGENTS.md",
       "accessCount": 2,
-      "lastAccessed": 1778026615566,
+      "lastAccessed": 1777884191413,
       "type": "file"
     },
     {
@@ -252,9 +348,15 @@
       "type": "file"
     },
     {
-      "path": "app\\api\\auth\\verify\\route.js",
-      "accessCount": 1,
-      "lastAccessed": 1777884126851,
+      "path": "components\\NavBar.jsx",
+      "accessCount": 2,
+      "lastAccessed": 1778055387819,
+      "type": "file"
+    },
+    {
+      "path": "components\\NavBar.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1778109553626,
       "type": "file"
     },
     {
@@ -306,9 +408,33 @@
       "type": "file"
     },
     {
-      "path": "",
+      "path": "app\\layout.tsx",
       "accessCount": 1,
-      "lastAccessed": 1778032551577,
+      "lastAccessed": 1778055708803,
+      "type": "file"
+    },
+    {
+      "path": "app\\providers.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1778055709355,
+      "type": "file"
+    },
+    {
+      "path": "app\\api\\auth\\verify\\route.ts",
+      "accessCount": 1,
+      "lastAccessed": 1778055721217,
+      "type": "file"
+    },
+    {
+      "path": "components",
+      "accessCount": 1,
+      "lastAccessed": 1778109458219,
+      "type": "directory"
+    },
+    {
+      "path": "lib",
+      "accessCount": 1,
+      "lastAccessed": 1778109458630,
       "type": "directory"
     }
   ],

@@ -1,7 +1,7 @@
 {
-  "tool_name": "PowerShell",
-  "tool_input_preview": "{\"command\":\"cd \\\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\"; & \\\"C:\\\\Program Files\\\\nodejs\\\\node.exe\\\" node_modules\\\\next\\\\dist\\\\bin\\\\next build 2>&1 | Select-Object -First 100\",\"timeout\":120000,\"descripti...",
-  "error": "Exit code 1\nnode.exe : node:internal/modules/cjs/loader:1459\r\nAt line:1 char:39\r\n+ ... \\choichoi\"; & \"C:\\Program Files\\nodejs\\node.exe\" node_modules\\next\\di ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (node:internal/modules/cjs/loader:1459:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n  throw err;\r\n  ^\r\nError: Cannot find module 'C:\\Users\\SSAFY\\Desktop\\choichoi\\node_modules\\next\\...",
-  "timestamp": "2026-05-06T00:28:52.112Z",
-  "retry_count": 4
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd \\\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\" && yarn lint 2>&1\",\"timeout\":60000,\"description\":\"Run ESLint to verify all lint errors are resolved\"}",
+  "error": "Exit code 1\nyarn run v1.22.22\n$ eslint\n\nC:\\Users\\SSAFY\\Desktop\\choichoi\\app\\memo\\page.tsx\n  37:21  error  Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscrib...",
+  "timestamp": "2026-05-06T23:12:12.143Z",
+  "retry_count": 1
 }
