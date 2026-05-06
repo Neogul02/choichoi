@@ -192,7 +192,7 @@ export default function StatsPage() {
           <ul className="nav-links">
             <li><Link href="/">POS</Link></li>
             <li><Link href="/stats" className="active">통계</Link></li>
-            <li><Link href="/schedule">일정 관리</Link></li>
+            <li><Link href="/schedule">일정</Link></li>
             <li><Link href="/memo">메모장</Link></li>
             <li><Link href="/settings">설정</Link></li>
           </ul>
@@ -201,7 +201,7 @@ export default function StatsPage() {
 
       <main className="pos-wrap">
         <div className="stats-wrap">
-          <h2>매출 통계</h2>
+          <h2>매출</h2>
 
           {message && (
             <div className={`message ${message.includes('오류') ? 'error' : 'success'}`}>
