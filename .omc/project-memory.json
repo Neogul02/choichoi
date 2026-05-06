@@ -144,15 +144,15 @@
   },
   "hotPaths": [
     {
-      "path": "app\\page.js",
-      "accessCount": 23,
-      "lastAccessed": 1778031045330,
+      "path": "app\\globals.css",
+      "accessCount": 25,
+      "lastAccessed": 1778032546789,
       "type": "file"
     },
     {
-      "path": "app\\globals.css",
-      "accessCount": 20,
-      "lastAccessed": 1778031207525,
+      "path": "app\\page.js",
+      "accessCount": 24,
+      "lastAccessed": 1778032527222,
       "type": "file"
     },
     {
@@ -163,8 +163,8 @@
     },
     {
       "path": "app\\stats\\page.js",
-      "accessCount": 9,
-      "lastAccessed": 1778031061178,
+      "accessCount": 10,
+      "lastAccessed": 1778032532162,
       "type": "file"
     },
     {
@@ -175,20 +175,62 @@
     },
     {
       "path": "app\\settings\\page.js",
-      "accessCount": 7,
-      "lastAccessed": 1778031050214,
+      "accessCount": 8,
+      "lastAccessed": 1778032532348,
       "type": "file"
     },
     {
       "path": "app\\memo\\page.js",
-      "accessCount": 5,
-      "lastAccessed": 1778031075116,
+      "accessCount": 6,
+      "lastAccessed": 1778032536176,
       "type": "file"
     },
     {
       "path": "app\\schedule\\page.js",
-      "accessCount": 4,
-      "lastAccessed": 1778031218303,
+      "accessCount": 5,
+      "lastAccessed": 1778032535833,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 3,
+      "lastAccessed": 1778032521371,
+      "type": "file"
+    },
+    {
+      "path": "app\\layout.js",
+      "accessCount": 3,
+      "lastAccessed": 1778032526952,
+      "type": "file"
+    },
+    {
+      "path": "app\\password-gate.js",
+      "accessCount": 3,
+      "lastAccessed": 1778032542273,
+      "type": "file"
+    },
+    {
+      "path": "components\\MenuGrid.jsx",
+      "accessCount": 3,
+      "lastAccessed": 1778032547695,
+      "type": "file"
+    },
+    {
+      "path": "components\\OrderSummary.jsx",
+      "accessCount": 3,
+      "lastAccessed": 1778032547830,
+      "type": "file"
+    },
+    {
+      "path": "components\\MenuItem.jsx",
+      "accessCount": 3,
+      "lastAccessed": 1778032551684,
+      "type": "file"
+    },
+    {
+      "path": "components\\SalesDisplay.jsx",
+      "accessCount": 3,
+      "lastAccessed": 1778032552026,
       "type": "file"
     },
     {
@@ -198,63 +240,21 @@
       "type": "file"
     },
     {
-      "path": "app\\layout.js",
-      "accessCount": 2,
-      "lastAccessed": 1778026611297,
-      "type": "file"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 2,
-      "lastAccessed": 1778026611357,
-      "type": "file"
-    },
-    {
-      "path": "components\\MenuItem.jsx",
-      "accessCount": 2,
-      "lastAccessed": 1778026614782,
-      "type": "file"
-    },
-    {
-      "path": "components\\MenuGrid.jsx",
-      "accessCount": 2,
-      "lastAccessed": 1778026614812,
-      "type": "file"
-    },
-    {
-      "path": "components\\OrderSummary.jsx",
-      "accessCount": 2,
-      "lastAccessed": 1778026615082,
-      "type": "file"
-    },
-    {
-      "path": "components\\SalesDisplay.jsx",
-      "accessCount": 2,
-      "lastAccessed": 1778026615249,
-      "type": "file"
-    },
-    {
       "path": "app\\providers.js",
       "accessCount": 2,
       "lastAccessed": 1778026615566,
       "type": "file"
     },
     {
-      "path": "app\\password-gate.js",
+      "path": "next.config.mjs",
       "accessCount": 2,
-      "lastAccessed": 1778026618374,
+      "lastAccessed": 1778032542440,
       "type": "file"
     },
     {
       "path": "app\\api\\auth\\verify\\route.js",
       "accessCount": 1,
       "lastAccessed": 1777884126851,
-      "type": "file"
-    },
-    {
-      "path": "next.config.mjs",
-      "accessCount": 1,
-      "lastAccessed": 1777884134819,
       "type": "file"
     },
     {
@@ -304,6 +304,12 @@
       "accessCount": 1,
       "lastAccessed": 1778026618468,
       "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 1,
+      "lastAccessed": 1778032551577,
+      "type": "directory"
     }
   ],
   "userDirectives": []

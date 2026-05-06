@@ -188,7 +188,7 @@ export default function SettingsPage() {
         <nav>
           <ul className="nav-links">
             <li><Link href="/">POS</Link></li>
-            <li><Link href="/stats">매출 통계</Link></li>
+            <li><Link href="/stats">매출</Link></li>
             <li><Link href="/schedule">일정</Link></li>
             <li><Link href="/memo">메모</Link></li>
             <li><Link href="/settings" className="active">설정</Link></li>
