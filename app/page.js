@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMenuItems, saveOrder, fetchTodaysSales } from './actions';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { fetchMenuItems, saveOrder } from './actions';
 
 const KRW = new Intl.NumberFormat('ko-KR');
 
@@ -44,7 +44,6 @@ export default function Home() {
   const [counts, setCounts] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const queryClient = useQueryClient();
 
   // Ref pattern: always points to the latest handleCheckout without stale closure
   const checkoutFnRef = useRef(null);
@@ -60,20 +59,7 @@ export default function Home() {
     placeholderData: (previousData) => previousData,
   });
 
-  const salesQuery = useQuery({
-    queryKey: ['today-sales'],
-    queryFn: async () => {
-      const result = await fetchTodaysSales();
-      if (!result.success) throw new Error(result.error || '매출 로딩 실패');
-      return result.data;
-    },
-    refetchInterval: 5000,
-    placeholderData: (previousData) => previousData,
-  });
-
   const menuItems = menuQuery.data || [];
-  const sales = salesQuery.data || { totalOrders: 0, totalRevenue: 0 };
-  const isSalesLoading = salesQuery.isLoading;
 
   useEffect(() => {
     if (!menuItems.length) return;
@@ -168,12 +154,11 @@ export default function Home() {
 
   const checkoutMutation = useMutation({
     mutationFn: async ({ items, totalPrice }) => saveOrder(items, totalPrice),
-    onSuccess: async (result) => {
+    onSuccess: (result) => {
       if (result.success) {
         setMessage(`주문 완료! 주문번호: ${result.orderId}`);
         resetOrder();
         setTimeout(() => setMessage(''), 3000);
-        await queryClient.invalidateQueries({ queryKey: ['today-sales'] });
       } else {
         setMessage(`오류 발생: ${result.error}`);
       }
@@ -222,17 +207,11 @@ export default function Home() {
         <h1>ChoiChoi</h1>
         <nav>
           <ul className="nav-links">
-            <li>
-              <Link href="/" className="active">
-                POS
-              </Link>
-            </li>
-            <li>
-              <Link href="/stats">매출 통계</Link>
-            </li>
-            <li>
-              <Link href="/settings">설정</Link>
-            </li>
+            <li><Link href="/" className="active">POS</Link></li>
+            <li><Link href="/stats">통계</Link></li>
+            <li><Link href="/schedule">일정</Link></li>
+            <li><Link href="/memo">메모</Link></li>
+            <li><Link href="/settings">설정</Link></li>
           </ul>
         </nav>
       </header>
@@ -244,11 +223,6 @@ export default function Home() {
               <span className="summary-panel-label">결제 대기</span>
               <div className="summary-count">{totalCount}개</div>
               <div className="summary-total">{KRW.format(totalPrice)}원</div>
-            </div>
-            <div className="summary-panel completed">
-              <span className="summary-panel-label">오늘 완료</span>
-              <div className="summary-count">{sales.totalOrders}건</div>
-              <div className="summary-completed-amount">{KRW.format(sales.totalRevenue)}원</div>
             </div>
           </div>
           <p className="summary-help">

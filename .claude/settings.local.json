@@ -10,7 +10,8 @@
       "Bash(claude mcp *)",
       "Bash(gh auth *)",
       "PowerShell(Get-ChildItem *)",
-      "Bash(yarn lint *)"
+      "Bash(yarn lint *)",
+      "Bash(yarn build *)"
     ]
   }
 }

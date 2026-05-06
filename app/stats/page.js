@@ -12,11 +12,44 @@ import {
 
 const KRW = new Intl.NumberFormat('ko-KR');
 
-function getTodayISOBounds() {
-  const todayStr = new Date().toISOString().split('T')[0];
+function toLocalDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getPeriodBounds(period) {
+  const now = new Date();
+  const todayStr = toLocalDateStr(now);
+
+  if (period === 'today') {
+    return {
+      startISO: `${todayStr}T00:00:00.000Z`,
+      endISO: `${todayStr}T23:59:59.999Z`,
+      label: '오늘',
+    };
+  }
+
+  if (period === 'week') {
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diff);
+    const mondayStr = toLocalDateStr(monday);
+    return {
+      startISO: `${mondayStr}T00:00:00.000Z`,
+      endISO: `${todayStr}T23:59:59.999Z`,
+      label: '이번 주',
+    };
+  }
+
+  // month
+  const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   return {
-    startISO: `${todayStr}T00:00:00.000Z`,
+    startISO: `${monthStr}-01T00:00:00.000Z`,
     endISO: `${todayStr}T23:59:59.999Z`,
+    label: '이번 달',
   };
 }
 
@@ -24,6 +57,7 @@ export default function StatsPage() {
   const today = new Date();
   const [summary, setSummary] = useState({ totalOrders: 0, totalRevenue: 0 });
   const [breakdown, setBreakdown] = useState([]);
+  const [breakdownPeriod, setBreakdownPeriod] = useState('today');
   const [todayOrders, setTodayOrders] = useState([]);
   const [calendarMonth, setCalendarMonth] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1)
@@ -34,6 +68,7 @@ export default function StatsPage() {
     totalOrders: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isBreakdownLoading, setIsBreakdownLoading] = useState(false);
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
   const [isResettingSales, setIsResettingSales] = useState(false);
   const [message, setMessage] = useState('');
@@ -46,22 +81,30 @@ export default function StatsPage() {
     loadMonthlyCalendar(calendarMonth);
   }, [calendarMonth]);
 
+  useEffect(() => {
+    loadBreakdown(breakdownPeriod);
+  }, [breakdownPeriod]);
+
   const loadTodayData = async () => {
     setIsLoading(true);
-    const { startISO, endISO } = getTodayISOBounds();
 
-    const [summaryResult, breakdownResult, ordersResult] = await Promise.all([
+    const [summaryResult, ordersResult] = await Promise.all([
       fetchTodaysSales(),
-      fetchMenuSalesBreakdown(startISO, endISO),
       fetchTodaysOrders(),
     ]);
 
     if (summaryResult.success) setSummary(summaryResult.data);
-    if (breakdownResult.success) setBreakdown(breakdownResult.data);
-    else setBreakdown([]);
     if (ordersResult.success) setTodayOrders(ordersResult.data);
-
     setIsLoading(false);
+  };
+
+  const loadBreakdown = async (period) => {
+    setIsBreakdownLoading(true);
+    const { startISO, endISO } = getPeriodBounds(period);
+    const result = await fetchMenuSalesBreakdown(startISO, endISO);
+    if (result.success) setBreakdown(result.data);
+    else setBreakdown([]);
+    setIsBreakdownLoading(false);
   };
 
   const loadMonthlyCalendar = async (dateCursor) => {
@@ -135,6 +178,12 @@ export default function StatsPage() {
   const buildDateKey = (year, monthIndex, day) =>
     `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+  const PERIODS = [
+    { key: 'today', label: '오늘' },
+    { key: 'week', label: '이번 주' },
+    { key: 'month', label: '이번 달' },
+  ];
+
   return (
     <>
       <header className="header-nav">
@@ -142,7 +191,9 @@ export default function StatsPage() {
         <nav>
           <ul className="nav-links">
             <li><Link href="/">POS</Link></li>
-            <li><Link href="/stats" className="active">매출 통계</Link></li>
+            <li><Link href="/stats" className="active">통계</Link></li>
+            <li><Link href="/schedule">일정 관리</Link></li>
+            <li><Link href="/memo">메모장</Link></li>
             <li><Link href="/settings">설정</Link></li>
           </ul>
         </nav>
@@ -178,13 +229,26 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {/* 메뉴별 판매 현황 */}
+          {/* 메뉴별 판매 현황 — 기간 탭 */}
           <div className="stats-section">
-            <h3>메뉴별 판매 현황 (오늘)</h3>
-            {isLoading ? (
+            <div className="stats-section-header">
+              <h3>메뉴별 판매 현황 ({getPeriodBounds(breakdownPeriod).label})</h3>
+            </div>
+            <div className="period-tabs">
+              {PERIODS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  className={`period-tab ${breakdownPeriod === key ? 'active' : ''}`}
+                  onClick={() => setBreakdownPeriod(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {isBreakdownLoading ? (
               <p>불러오는 중...</p>
             ) : breakdown.length === 0 ? (
-              <p className="empty-order">오늘 판매 내역이 없습니다.</p>
+              <p className="empty-order">해당 기간 판매 내역이 없습니다.</p>
             ) : (
               <ul className="breakdown-list">
                 {breakdown.map((item) => (

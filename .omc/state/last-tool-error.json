@@ -1,7 +1,7 @@
 {
   "tool_name": "PowerShell",
-  "tool_input_preview": "{\"command\":\"cd \\\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\"; npx eslint app/page.js app/stats/page.js app/settings/page.js app/actions.ts lib/supabase.js --max-warnings=0 2>&1 | Select-Object -First 80\",\"t...",
-  "error": "Exit code 1\nnpx : File C:\\Program Files\\nodejs\\npx.ps1 cannot be loaded because running scripts is disabled on this system. For mor\r\ne information, see about_Execution_Policies at https:/go.microsoft.com/fwlink/?LinkID=135170.\r\nAt line:1 char:39\r\n+ cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\"; npx eslint app/page.js app/stat ...\r\n+                                       ~~~\r\n    + CategoryInfo          : SecurityError: (:) [], PSSecurityException\r\n    + FullyQualifiedErrorId : UnauthorizedAccess",
-  "timestamp": "2026-05-04T08:58:54.855Z",
-  "retry_count": 2
+  "tool_input_preview": "{\"command\":\"cd \\\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\"; & \\\"C:\\\\Program Files\\\\nodejs\\\\node.exe\\\" node_modules\\\\next\\\\dist\\\\bin\\\\next build 2>&1 | Select-Object -First 100\",\"timeout\":120000,\"descripti...",
+  "error": "Exit code 1\nnode.exe : node:internal/modules/cjs/loader:1459\r\nAt line:1 char:39\r\n+ ... \\choichoi\"; & \"C:\\Program Files\\nodejs\\node.exe\" node_modules\\next\\di ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (node:internal/modules/cjs/loader:1459:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n  throw err;\r\n  ^\r\nError: Cannot find module 'C:\\Users\\SSAFY\\Desktop\\choichoi\\node_modules\\next\\...",
+  "timestamp": "2026-05-06T00:28:52.112Z",
+  "retry_count": 4
 }

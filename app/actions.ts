@@ -1,6 +1,6 @@
 'use server';
 
-import { createOrder, getTodaysSales, getTodaysOrderList, getMonthlySalesByDate, clearTodaysOrders, getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, getAllMenuItems, updateMenuOrder, getMenuSalesByPeriod } from '@/lib/supabase';
+import { createOrder, getTodaysSales, getTodaysOrderList, getMonthlySalesByDate, clearTodaysOrders, getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, getAllMenuItems, updateMenuOrder, getMenuSalesByPeriod, getPopupEvents, createPopupEvent, deletePopupEvent, getScheduleByEvent, addScheduleSlot, removeScheduleSlot, moveScheduleSlot, getAllMemos, createMemo, updateMemo, deleteMemo } from '@/lib/supabase';
 
 export async function saveOrder(items, totalPrice) {
   try {
@@ -192,5 +192,121 @@ export async function fetchMenuSalesBreakdown(startISO, endISO) {
       error: error.message,
       data: [],
     };
+  }
+}
+
+// ── Popup Event actions ───────────────────────────────────────────────────────
+
+export async function fetchPopupEvents() {
+  try {
+    const data = await getPopupEvents();
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to fetch popup events:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function createNewPopupEvent(name: string, startDate: string, endDate: string) {
+  try {
+    const data = await createPopupEvent(name, startDate, endDate);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to create popup event:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function removePopupEvent(id: number) {
+  try {
+    await deletePopupEvent(id);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete popup event:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ── Schedule Slot actions ─────────────────────────────────────────────────────
+
+export async function fetchScheduleByEvent(eventId: number) {
+  try {
+    const data = await getScheduleByEvent(eventId);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to fetch schedule:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function addScheduleEntry(eventId: number, scheduleDate: string, role: string, personName: string, workTime: string) {
+  try {
+    const data = await addScheduleSlot(eventId, scheduleDate, role, personName, workTime);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to add schedule entry:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function removeScheduleEntry(id: number) {
+  try {
+    await removeScheduleSlot(id);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to remove schedule entry:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function moveScheduleEntry(id: number, newDate: string, newRole: string) {
+  try {
+    const data = await moveScheduleSlot(id, newDate, newRole);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to move schedule entry:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ── Memo actions ──────────────────────────────────────────────────────────────
+
+export async function fetchAllMemos() {
+  try {
+    const data = await getAllMemos();
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to fetch memos:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function createNewMemo(title: string, content: string, color: string) {
+  try {
+    const data = await createMemo(title, content, color);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to create memo:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function editMemo(id: number, title: string, content: string, color: string) {
+  try {
+    const data = await updateMemo(id, title, content, color);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to edit memo:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function removeMemo(id: number) {
+  try {
+    await deleteMemo(id);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to remove memo:', error);
+    return { success: false, error: error.message };
   }
 }
