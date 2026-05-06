@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1777883432918,
+  "lastScanned": 1778025945470,
   "projectRoot": "C:\\Users\\SSAFY\\Desktop\\choichoi",
   "techStack": {
     "languages": [
@@ -86,22 +86,23 @@
     "app": {
       "path": "app",
       "purpose": "Application code",
-      "fileCount": 8,
-      "lastAccessed": 1777883432874,
+      "fileCount": 9,
+      "lastAccessed": 1778025945413,
       "keyFiles": [
         "actions.ts",
+        "AGENTS.md",
         "favicon.ico",
         "globals.css",
-        "layout.js",
-        "page.js"
+        "layout.js"
       ]
     },
     "components": {
       "path": "components",
       "purpose": "UI components",
-      "fileCount": 4,
-      "lastAccessed": 1777883432875,
+      "fileCount": 5,
+      "lastAccessed": 1778025945414,
       "keyFiles": [
+        "AGENTS.md",
         "MenuGrid.jsx",
         "MenuItem.jsx",
         "OrderSummary.jsx",
@@ -111,9 +112,10 @@
     "lib": {
       "path": "lib",
       "purpose": "Library code",
-      "fileCount": 1,
-      "lastAccessed": 1777883432885,
+      "fileCount": 2,
+      "lastAccessed": 1778025945415,
       "keyFiles": [
+        "AGENTS.md",
         "supabase.js"
       ]
     },
@@ -121,7 +123,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 5,
-      "lastAccessed": 1777883432887,
+      "lastAccessed": 1778025945426,
       "keyFiles": [
         "file.svg",
         "globe.svg",
@@ -133,34 +135,60 @@
     "app\\api": {
       "path": "app\\api",
       "purpose": "API routes",
-      "fileCount": 0,
-      "lastAccessed": 1777883432888,
-      "keyFiles": []
+      "fileCount": 1,
+      "lastAccessed": 1778025945427,
+      "keyFiles": [
+        "AGENTS.md"
+      ]
     }
   },
   "hotPaths": [
     {
       "path": "app\\page.js",
-      "accessCount": 10,
-      "lastAccessed": 1777885052360,
-      "type": "file"
-    },
-    {
-      "path": "app\\actions.ts",
-      "accessCount": 4,
-      "lastAccessed": 1777885165918,
+      "accessCount": 23,
+      "lastAccessed": 1778031045330,
       "type": "file"
     },
     {
       "path": "app\\globals.css",
-      "accessCount": 3,
-      "lastAccessed": 1777885045542,
+      "accessCount": 20,
+      "lastAccessed": 1778031207525,
+      "type": "file"
+    },
+    {
+      "path": "app\\actions.ts",
+      "accessCount": 12,
+      "lastAccessed": 1778031214845,
+      "type": "file"
+    },
+    {
+      "path": "app\\stats\\page.js",
+      "accessCount": 9,
+      "lastAccessed": 1778031061178,
       "type": "file"
     },
     {
       "path": "lib\\supabase.js",
-      "accessCount": 3,
-      "lastAccessed": 1777885166486,
+      "accessCount": 8,
+      "lastAccessed": 1778030971331,
+      "type": "file"
+    },
+    {
+      "path": "app\\settings\\page.js",
+      "accessCount": 7,
+      "lastAccessed": 1778031050214,
+      "type": "file"
+    },
+    {
+      "path": "app\\memo\\page.js",
+      "accessCount": 5,
+      "lastAccessed": 1778031075116,
+      "type": "file"
+    },
+    {
+      "path": "app\\schedule\\page.js",
+      "accessCount": 4,
+      "lastAccessed": 1778031218303,
       "type": "file"
     },
     {
@@ -170,63 +198,57 @@
       "type": "file"
     },
     {
-      "path": "app\\settings\\page.js",
+      "path": "app\\layout.js",
       "accessCount": 2,
-      "lastAccessed": 1777884959468,
+      "lastAccessed": 1778026611297,
       "type": "file"
     },
     {
       "path": "package.json",
-      "accessCount": 1,
-      "lastAccessed": 1777884118995,
+      "accessCount": 2,
+      "lastAccessed": 1778026611357,
       "type": "file"
     },
     {
-      "path": "app\\layout.js",
-      "accessCount": 1,
-      "lastAccessed": 1777884119319,
+      "path": "components\\MenuItem.jsx",
+      "accessCount": 2,
+      "lastAccessed": 1778026614782,
       "type": "file"
     },
     {
-      "path": "app\\password-gate.js",
-      "accessCount": 1,
-      "lastAccessed": 1777884125329,
+      "path": "components\\MenuGrid.jsx",
+      "accessCount": 2,
+      "lastAccessed": 1778026614812,
+      "type": "file"
+    },
+    {
+      "path": "components\\OrderSummary.jsx",
+      "accessCount": 2,
+      "lastAccessed": 1778026615082,
+      "type": "file"
+    },
+    {
+      "path": "components\\SalesDisplay.jsx",
+      "accessCount": 2,
+      "lastAccessed": 1778026615249,
       "type": "file"
     },
     {
       "path": "app\\providers.js",
-      "accessCount": 1,
-      "lastAccessed": 1777884125713,
+      "accessCount": 2,
+      "lastAccessed": 1778026615566,
+      "type": "file"
+    },
+    {
+      "path": "app\\password-gate.js",
+      "accessCount": 2,
+      "lastAccessed": 1778026618374,
       "type": "file"
     },
     {
       "path": "app\\api\\auth\\verify\\route.js",
       "accessCount": 1,
       "lastAccessed": 1777884126851,
-      "type": "file"
-    },
-    {
-      "path": "components\\MenuGrid.jsx",
-      "accessCount": 1,
-      "lastAccessed": 1777884128022,
-      "type": "file"
-    },
-    {
-      "path": "components\\OrderSummary.jsx",
-      "accessCount": 1,
-      "lastAccessed": 1777884128302,
-      "type": "file"
-    },
-    {
-      "path": "components\\MenuItem.jsx",
-      "accessCount": 1,
-      "lastAccessed": 1777884133953,
-      "type": "file"
-    },
-    {
-      "path": "components\\SalesDisplay.jsx",
-      "accessCount": 1,
-      "lastAccessed": 1777884134612,
       "type": "file"
     },
     {
@@ -278,9 +300,9 @@
       "type": "file"
     },
     {
-      "path": "app\\stats\\page.js",
+      "path": "CLAUDE.md",
       "accessCount": 1,
-      "lastAccessed": 1777885004914,
+      "lastAccessed": 1778026618468,
       "type": "file"
     }
   ],
