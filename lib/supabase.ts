@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import type { MenuItem, Order, OrderItem, PopupEvent, ScheduleSlot, Memo } from '@/types/database';
+import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord } from '@/types/api';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Utility functions for POS operations
-
-export async function getMenuItems() {
+export async function getMenuItems(): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from('menu_items')
     .select('*')
@@ -16,28 +16,28 @@ export async function getMenuItems() {
     .order('id', { ascending: true });
 
   if (error) throw error;
-  return data;
+  return data ?? [];
 }
 
-export async function getTodaysSales() {
+export async function getTodaysSales(): Promise<TodaysSales> {
+  const today = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('orders')
     .select('total_price')
-    .gte('created_at', new Date().toISOString().split('T')[0])
-    .lte('created_at', new Date().toISOString().split('T')[0] + 'T23:59:59Z');
+    .gte('created_at', today)
+    .lte('created_at', `${today}T23:59:59Z`);
 
   if (error) throw error;
-  
-  const totalRevenue = data?.reduce((sum, order) => sum + parseFloat(order.total_price), 0) || 0;
+
+  const totalRevenue = data?.reduce((sum, order) => sum + parseFloat(String(order.total_price)), 0) ?? 0;
   return {
-    totalOrders: data?.length || 0,
-    totalRevenue: totalRevenue,
+    totalOrders: data?.length ?? 0,
+    totalRevenue,
   };
 }
 
-export async function getTodaysOrderList() {
+export async function getTodaysOrderList(): Promise<OrderRecord[]> {
   const today = new Date().toISOString().split('T')[0];
-
   const { data, error } = await supabase
     .from('orders')
     .select('id,total_price,created_at,payment_status')
@@ -46,10 +46,10 @@ export async function getTodaysOrderList() {
     .order('id', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return data ?? [];
 }
 
-export async function clearTodaysOrders() {
+export async function clearTodaysOrders(): Promise<{ deletedCount: number }> {
   const today = new Date().toISOString().split('T')[0];
 
   const { data: todayOrders, error: fetchError } = await supabase
@@ -59,12 +59,9 @@ export async function clearTodaysOrders() {
     .lte('created_at', `${today}T23:59:59Z`);
 
   if (fetchError) throw fetchError;
+  if (!todayOrders || todayOrders.length === 0) return { deletedCount: 0 };
 
-  if (!todayOrders || todayOrders.length === 0) {
-    return { deletedCount: 0 };
-  }
-
-  const orderIds = todayOrders.map((order) => order.id);
+  const orderIds = todayOrders.map((order) => order.id as number);
 
   const { error: deleteError } = await supabase
     .from('orders')
@@ -72,30 +69,28 @@ export async function clearTodaysOrders() {
     .in('id', orderIds);
 
   if (deleteError) throw deleteError;
-
   return { deletedCount: orderIds.length };
 }
 
-export async function createOrder(items, totalPrice) {
-  // Insert order
+export interface OrderItemInput {
+  id: number;
+  name: string;
+  price: number;
+  count: number;
+}
+
+export async function createOrder(items: OrderItemInput[], totalPrice: number): Promise<Order> {
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .insert([
-      {
-        total_price: totalPrice,
-        payment_method: 'cash',
-        payment_status: 'completed',
-      },
-    ])
+    .insert([{ total_price: totalPrice, payment_method: 'cash', payment_status: 'completed' }])
     .select()
     .single();
 
   if (orderError) throw orderError;
 
-  // Insert order items
   const orderItems = items
-    .filter(item => item.count > 0)
-    .map(item => ({
+    .filter((item) => item.count > 0)
+    .map((item) => ({
       order_id: order.id,
       menu_item_id: item.id,
       quantity: item.count,
@@ -104,17 +99,14 @@ export async function createOrder(items, totalPrice) {
     }));
 
   if (orderItems.length > 0) {
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
+    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
     if (itemsError) throw itemsError;
   }
 
-  return order;
+  return order as Order;
 }
 
-export async function addMenuItem(name, price, color) {
+export async function addMenuItem(name: string, price: number, color: string): Promise<MenuItem> {
   const { data: lastItem, error: lastItemError } = await supabase
     .from('menu_items')
     .select('display_order')
@@ -124,54 +116,36 @@ export async function addMenuItem(name, price, color) {
 
   if (lastItemError) throw lastItemError;
 
-  const nextDisplayOrder = (lastItem?.display_order || 0) + 1;
+  const nextDisplayOrder = ((lastItem?.display_order as number) || 0) + 1;
 
   const { data, error } = await supabase
     .from('menu_items')
-    .insert([
-      {
-        name,
-        price,
-        color,
-        stock: 999,
-        is_active: true,
-        display_order: nextDisplayOrder,
-      },
-    ])
+    .insert([{ name, price, color, stock: 999, is_active: true, display_order: nextDisplayOrder }])
     .select()
     .single();
 
   if (error) throw error;
-  return data;
+  return data as MenuItem;
 }
 
-export async function updateMenuItem(id, name, price, color) {
+export async function updateMenuItem(id: number, name: string, price: number, color: string): Promise<MenuItem> {
   const { data, error } = await supabase
     .from('menu_items')
-    .update({
-      name,
-      price,
-      color,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ name, price, color, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single();
 
   if (error) throw error;
-  return data;
+  return data as MenuItem;
 }
 
-export async function deleteMenuItem(id) {
-  const { error } = await supabase
-    .from('menu_items')
-    .update({ is_active: false })
-    .eq('id', id);
-
+export async function deleteMenuItem(id: number): Promise<void> {
+  const { error } = await supabase.from('menu_items').update({ is_active: false }).eq('id', id);
   if (error) throw error;
 }
 
-export async function getAllMenuItems() {
+export async function getAllMenuItems(): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from('menu_items')
     .select('*')
@@ -179,10 +153,10 @@ export async function getAllMenuItems() {
     .order('id', { ascending: true });
 
   if (error) throw error;
-  return data;
+  return data ?? [];
 }
 
-export async function getMonthlySalesByDate(year, month) {
+export async function getMonthlySalesByDate(year: number, month: number): Promise<CalendarSalesData> {
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
@@ -195,24 +169,20 @@ export async function getMonthlySalesByDate(year, month) {
 
   if (error) throw error;
 
-  const byDate = {};
+  const byDate: Record<string, number> = {};
   let monthTotal = 0;
 
-  for (const order of data || []) {
-    const dateKey = new Date(order.created_at).toISOString().slice(0, 10);
+  for (const order of data ?? []) {
+    const dateKey = new Date(order.created_at as string).toISOString().slice(0, 10);
     const amount = Number(order.total_price || 0);
     byDate[dateKey] = (byDate[dateKey] || 0) + amount;
     monthTotal += amount;
   }
 
-  return {
-    byDate,
-    monthTotal,
-    totalOrders: (data || []).length,
-  };
+  return { byDate, monthTotal, totalOrders: (data ?? []).length };
 }
 
-export async function updateMenuOrder(orderedIds) {
+export async function updateMenuOrder(orderedIds: number[]): Promise<void> {
   const updates = orderedIds.map((id, index) =>
     supabase
       .from('menu_items')
@@ -222,65 +192,76 @@ export async function updateMenuOrder(orderedIds) {
 
   const results = await Promise.all(updates);
   const failed = results.find((result) => result.error);
-
   if (failed?.error) throw failed.error;
 }
 
-// ── Popup Events ──────────────────────────────────────────────────────────
+// ── Popup Events ──────────────────────────────────────────────────────────────
 
-export async function getPopupEvents() {
+export async function getPopupEvents(): Promise<PopupEvent[]> {
   const { data, error } = await supabase
     .from('popup_events')
     .select('*')
     .order('start_date', { ascending: false });
   if (error) throw error;
-  return data || [];
+  return data ?? [];
 }
 
-export async function createPopupEvent(name, startDate, endDate) {
+export async function createPopupEvent(name: string, startDate: string, endDate: string): Promise<PopupEvent> {
   const { data, error } = await supabase
     .from('popup_events')
     .insert([{ name, start_date: startDate, end_date: endDate }])
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return data as PopupEvent;
 }
 
-export async function deletePopupEvent(id) {
+export async function deletePopupEvent(id: number): Promise<void> {
   await supabase.from('schedule_slots').delete().eq('event_id', id);
   const { error } = await supabase.from('popup_events').delete().eq('id', id);
   if (error) throw error;
 }
 
-// ── Schedule Slots ────────────────────────────────────────────────────────
+// ── Schedule Slots ────────────────────────────────────────────────────────────
 
-export async function getScheduleByEvent(eventId) {
+export async function getScheduleByEvent(eventId: number): Promise<ScheduleSlot[]> {
   const { data, error } = await supabase
     .from('schedule_slots')
     .select('*')
     .eq('event_id', eventId)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  return data || [];
+  return data ?? [];
 }
 
-export async function addScheduleSlot(eventId, scheduleDate, role, personName, workTime) {
+export async function addScheduleSlot(
+  eventId: number,
+  scheduleDate: string,
+  role: string,
+  personName: string,
+  workTime: string
+): Promise<ScheduleSlot> {
   const { data, error } = await supabase
     .from('schedule_slots')
-    .insert([{ event_id: eventId, schedule_date: scheduleDate, role, person_name: personName, work_time: workTime || null }])
+    .insert([{
+      event_id: eventId,
+      schedule_date: scheduleDate,
+      role,
+      person_name: personName,
+      work_time: workTime || null,
+    }])
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return data as ScheduleSlot;
 }
 
-export async function removeScheduleSlot(id) {
+export async function removeScheduleSlot(id: number): Promise<void> {
   const { error } = await supabase.from('schedule_slots').delete().eq('id', id);
   if (error) throw error;
 }
 
-export async function moveScheduleSlot(id, newDate, newRole) {
+export async function moveScheduleSlot(id: number, newDate: string, newRole: string): Promise<ScheduleSlot> {
   const { data, error } = await supabase
     .from('schedule_slots')
     .update({ schedule_date: newDate, role: newRole, updated_at: new Date().toISOString() })
@@ -288,52 +269,49 @@ export async function moveScheduleSlot(id, newDate, newRole) {
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return data as ScheduleSlot;
 }
 
-// ── Memos ─────────────────────────────────────────────────────────────────
+// ── Memos ─────────────────────────────────────────────────────────────────────
 
-export async function getAllMemos() {
+export async function getAllMemos(): Promise<Memo[]> {
   const { data, error } = await supabase
     .from('memos')
     .select('*')
     .order('updated_at', { ascending: false });
-
   if (error) throw error;
-  return data || [];
+  return data ?? [];
 }
 
-export async function createMemo(title, content, color) {
+export async function createMemo(title: string, content: string, color: string): Promise<Memo> {
   const { data, error } = await supabase
     .from('memos')
     .insert([{ title: title || null, content, color: color || '#fff9c4' }])
     .select()
     .single();
-
   if (error) throw error;
-  return data;
+  return data as Memo;
 }
 
-export async function updateMemo(id, title, content, color) {
+export async function updateMemo(id: number, title: string, content: string, color: string): Promise<Memo> {
   const { data, error } = await supabase
     .from('memos')
     .update({ title: title || null, content, color: color || '#fff9c4', updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single();
-
   if (error) throw error;
-  return data;
+  return data as Memo;
 }
 
-export async function deleteMemo(id) {
+export async function deleteMemo(id: number): Promise<void> {
   const { error } = await supabase.from('memos').delete().eq('id', id);
   if (error) throw error;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Menu Sales ────────────────────────────────────────────────────────────────
 
-export async function getMenuSalesByPeriod(startISO, endISO) {
+export async function getMenuSalesByPeriod(startISO: string, endISO: string): Promise<MenuSalesItem[]> {
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
     .select('id')
@@ -343,7 +321,7 @@ export async function getMenuSalesByPeriod(startISO, endISO) {
   if (ordersError) throw ordersError;
   if (!orders || orders.length === 0) return [];
 
-  const orderIds = orders.map((o) => o.id);
+  const orderIds = orders.map((o) => o.id as number);
 
   const { data: items, error: itemsError } = await supabase
     .from('order_items')
@@ -352,20 +330,22 @@ export async function getMenuSalesByPeriod(startISO, endISO) {
 
   if (itemsError) throw itemsError;
 
-  const menuMap = {};
-  for (const item of items || []) {
-    const menuId = item.menu_item_id;
+  const menuMap: Record<number, MenuSalesItem> = {};
+
+  for (const item of items ?? []) {
+    const menuId = item.menu_item_id as number;
+    const menuInfo = item.menu_items as unknown as { id: number; name: string; price: number; color: string } | null;
     if (!menuMap[menuId]) {
       menuMap[menuId] = {
         id: menuId,
-        name: item.menu_items?.name ?? '삭제된 메뉴',
-        price: item.menu_items?.price ?? 0,
-        color: item.menu_items?.color ?? '#ccc',
+        name: menuInfo?.name ?? '삭제된 메뉴',
+        price: menuInfo?.price ?? 0,
+        color: menuInfo?.color ?? '#ccc',
         totalQuantity: 0,
         totalRevenue: 0,
       };
     }
-    menuMap[menuId].totalQuantity += item.quantity;
+    menuMap[menuId].totalQuantity += item.quantity as number;
     menuMap[menuId].totalRevenue += Number(item.subtotal);
   }
 

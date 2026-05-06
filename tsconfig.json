@@ -7,9 +7,10 @@
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": true,
+    "allowJs": false,
     "skipLibCheck": true,
     "strict": false,
+    "noImplicitReturns": true,
     "noEmit": true,
     "incremental": true,
     "module": "esnext",
