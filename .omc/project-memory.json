@@ -151,20 +151,32 @@
     },
     {
       "path": "app\\globals.css",
-      "accessCount": 25,
-      "lastAccessed": 1778032546789,
+      "accessCount": 26,
+      "lastAccessed": 1778112161598,
       "type": "file"
     },
     {
       "path": "app\\actions.ts",
-      "accessCount": 18,
-      "lastAccessed": 1778109506317,
+      "accessCount": 19,
+      "lastAccessed": 1778112422837,
+      "type": "file"
+    },
+    {
+      "path": "app\\page.tsx",
+      "accessCount": 15,
+      "lastAccessed": 1778113092069,
       "type": "file"
     },
     {
       "path": "app\\stats\\page.js",
       "accessCount": 12,
       "lastAccessed": 1778055391919,
+      "type": "file"
+    },
+    {
+      "path": "lib\\supabase.ts",
+      "accessCount": 11,
+      "lastAccessed": 1778112416275,
       "type": "file"
     },
     {
@@ -177,6 +189,12 @@
       "path": "app\\settings\\page.js",
       "accessCount": 10,
       "lastAccessed": 1778055392297,
+      "type": "file"
+    },
+    {
+      "path": "app\\stats\\page.tsx",
+      "accessCount": 10,
+      "lastAccessed": 1778113069158,
       "type": "file"
     },
     {
@@ -228,6 +246,12 @@
       "type": "file"
     },
     {
+      "path": "types\\api.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778112377942,
+      "type": "file"
+    },
+    {
       "path": "app\\providers.js",
       "accessCount": 4,
       "lastAccessed": 1778055386245,
@@ -240,15 +264,27 @@
       "type": "file"
     },
     {
-      "path": "app\\page.tsx",
-      "accessCount": 4,
-      "lastAccessed": 1778109447096,
-      "type": "file"
-    },
-    {
       "path": "eslint.config.mjs",
       "accessCount": 4,
       "lastAccessed": 1778109452357,
+      "type": "file"
+    },
+    {
+      "path": "app\\settings\\page.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1778112324168,
+      "type": "file"
+    },
+    {
+      "path": "app\\memo\\page.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1778112467836,
+      "type": "file"
+    },
+    {
+      "path": "components\\NavBar.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1778113053061,
       "type": "file"
     },
     {
@@ -282,45 +318,15 @@
       "type": "file"
     },
     {
-      "path": "app\\memo\\page.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1778109068304,
-      "type": "file"
-    },
-    {
       "path": "app\\schedule\\page.tsx",
       "accessCount": 3,
       "lastAccessed": 1778109070572,
       "type": "file"
     },
     {
-      "path": "app\\settings\\page.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1778109072897,
-      "type": "file"
-    },
-    {
-      "path": "app\\stats\\page.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1778109080994,
-      "type": "file"
-    },
-    {
       "path": "postcss.config.mjs",
       "accessCount": 3,
       "lastAccessed": 1778109082205,
-      "type": "file"
-    },
-    {
-      "path": "lib\\supabase.ts",
-      "accessCount": 3,
-      "lastAccessed": 1778109447492,
-      "type": "file"
-    },
-    {
-      "path": "types\\api.ts",
-      "accessCount": 3,
-      "lastAccessed": 1778109552765,
       "type": "file"
     },
     {
@@ -334,6 +340,12 @@
       "accessCount": 3,
       "lastAccessed": 1778109585129,
       "type": "directory"
+    },
+    {
+      "path": "app\\providers.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1778111316405,
+      "type": "file"
     },
     {
       "path": "AGENTS.md",
@@ -354,9 +366,9 @@
       "type": "file"
     },
     {
-      "path": "components\\NavBar.tsx",
+      "path": "app\\layout.tsx",
       "accessCount": 2,
-      "lastAccessed": 1778109553626,
+      "lastAccessed": 1778112162566,
       "type": "file"
     },
     {
@@ -405,18 +417,6 @@
       "path": "CLAUDE.md",
       "accessCount": 1,
       "lastAccessed": 1778026618468,
-      "type": "file"
-    },
-    {
-      "path": "app\\layout.tsx",
-      "accessCount": 1,
-      "lastAccessed": 1778055708803,
-      "type": "file"
-    },
-    {
-      "path": "app\\providers.tsx",
-      "accessCount": 1,
-      "lastAccessed": 1778055709355,
       "type": "file"
     },
     {

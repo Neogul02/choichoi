@@ -1,8 +1,9 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { fetchMenuItems, saveOrder } from './actions';
 import type { MenuItem } from '@/types/database';
 import type { OrderItemInput } from '@/lib/supabase';
@@ -11,10 +12,8 @@ import { formatPrice, getShortcutBadgeColors } from '@/lib/utils';
 
 export default function Home() {
   const [counts, setCounts] = useState<Record<number, number>>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
-  const checkoutFnRef = useRef<(() => Promise<void>) | null>(null);
+  const checkoutFnRef = useRef<(() => void) | null>(null);
   const checkoutDebouncingRef = useRef(false);
 
   const menuQuery = useQuery<MenuItem[]>({
@@ -52,6 +51,41 @@ export default function Home() {
 
   const resetOrder = useCallback(() => setCounts({}), []);
 
+  const checkoutMutation = useMutation<
+    SaveOrderResponse,
+    Error,
+    { items: OrderItemInput[]; totalPrice: number },
+    { previousCounts: Record<number, number> }
+  >({
+    mutationFn: ({ items, totalPrice }) => saveOrder(items, totalPrice),
+    onMutate: () => {
+      const previousCounts = { ...counts };
+      resetOrder();
+      return { previousCounts };
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        const label = result.dailyOrderNumber ? `오늘 ${result.dailyOrderNumber}번째 주문` : `주문번호: ${result.orderId}`;
+        toast.success(`결제 완료! ${label}`);
+      } else {
+        toast.error(result.error || '결제 오류가 발생했습니다');
+      }
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previousCounts) setCounts(context.previousCounts);
+      toast.error('네트워크 오류로 결제가 취소되었습니다');
+    },
+  });
+
+  const handleCheckout = () => {
+    if (checkoutMutation.isPending) return;
+    if (totalPrice === 0) { toast.warning('주문하신 항목이 없습니다'); return; }
+    const items = menuItems
+      .filter((item) => counts[item.id] > 0)
+      .map((item) => ({ id: item.id, name: item.name, price: item.price, count: counts[item.id] }));
+    checkoutMutation.mutate({ items, totalPrice });
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const active = document.activeElement;
@@ -85,38 +119,6 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [menuItems, resetOrder, increase]);
 
-  const checkoutMutation = useMutation<SaveOrderResponse, Error, { items: OrderItemInput[]; totalPrice: number }>({
-    mutationFn: ({ items, totalPrice }) => saveOrder(items, totalPrice),
-    onSuccess: (result) => {
-      if (result.success) {
-        setMessage(`주문 완료! 주문번호: ${result.orderId}`);
-        resetOrder();
-        setTimeout(() => setMessage(''), 3000);
-      } else {
-        setMessage(`오류 발생: ${result.error}`);
-      }
-    },
-    onError: (error) => setMessage(`오류 발생: ${error.message}`),
-  });
-
-  const handleCheckout = async () => {
-    if (totalPrice === 0) { setMessage('주문하신 항목이 없습니다'); return; }
-
-    setIsLoading(true);
-    setMessage('');
-
-    try {
-      const items = menuItems
-        .filter((item) => counts[item.id] > 0)
-        .map((item) => ({ id: item.id, name: item.name, price: item.price, count: counts[item.id] }));
-      await checkoutMutation.mutateAsync({ items, totalPrice });
-    } catch (error) {
-      setMessage(`오류 발생: ${(error as Error).message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
     checkoutFnRef.current = handleCheckout;
   });
@@ -127,29 +129,31 @@ export default function Home() {
 
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <header className="bg-white rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
-          <div className="flex flex-col md:flex-row gap-2.5 md:gap-4 mb-3">
+          
+          <div className="flex items-start justify-between mb-3">
+            
             <div className="flex-1 rounded-xl p-3.5 md:p-4 bg-[#fff5f5] border-2 border-rose-500">
-              <span className="inline-block text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full mb-1 bg-rose-500 text-white">결제 대기</span>
-              <div className="text-sm md:text-base font-semibold text-[#555] mt-0.5">{totalCount}개</div>
-              <div className="text-[clamp(28px,8vw,44px)] md:text-[clamp(32px,5vw,56px)] font-black text-rose-500 leading-[1.1] my-1">{formatPrice(totalPrice)}원</div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full bg-rose-500 text-white">결제 대기</span>
+                <span className="text-[11px] font-semibold text-[#aaa]">{totalCount}개</span>
+              </div>
+              <div className="text-[clamp(28px,8vw,44px)] md:text-[clamp(32px,5vw,56px)] font-black text-rose-500 leading-[1.1]">{formatPrice(totalPrice)}원</div>
             </div>
+            
           </div>
-          <p className="mt-1.5 md:mt-1.5 text-[#666] text-[13px] md:text-sm">
-            숫자키 1~9: 메뉴 추가&nbsp;&nbsp;|&nbsp;&nbsp;Enter: 결제&nbsp;&nbsp;|&nbsp;&nbsp;Esc: 초기화
-          </p>
-          <button
-            className="mt-3 border-none rounded-lg px-4 py-2.5 text-sm font-bold bg-primary-700 text-white cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-px active:translate-y-0"
-            onClick={resetOrder}
-          >
-            주문 초기화
-          </button>
+          <div className="flex items-center justify-between gap-3">
+            
+            <p className="m-0 text-[#999] text-[12px] md:text-[13px]">
+              1~9: 추가&nbsp;·&nbsp;Enter: 결제&nbsp;·&nbsp;Esc: 초기화
+            </p>
+            <button
+              className="shrink-0 border-none rounded-lg px-3.5 py-2 text-[13px] font-bold bg-[#f5f6f7] text-[#555] cursor-pointer transition-all duration-200 hover:bg-[#eee] active:scale-95"
+              onClick={resetOrder}
+            >
+              초기화
+            </button>
+          </div>
         </header>
-
-        {message && (
-          <div className={`p-3 mb-4 rounded-lg text-center font-semibold ${message.includes('오류') ? 'bg-[#f8d7da] text-[#721c24] border border-[#f5c6cb]' : 'bg-[#d4edda] text-[#155724] border border-[#c3e6cb]'}`}>
-            {message}
-          </div>
-        )}
 
         <section className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4" aria-label="메뉴 목록">
           {menuQuery.isLoading && menuItems.length === 0 && (
@@ -194,7 +198,7 @@ export default function Home() {
         <section className="bg-white rounded-xl p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] mb-4" aria-label="주문 상세">
           <h2 className="m-0 mb-3 text-base md:text-lg font-bold">주문 상세</h2>
           {orderedItems.length === 0 ? (
-            <p className="m-0 text-[#999] text-sm">선택한 메뉴가 없습니다.</p>
+            <p className="m-0 text-[#999] text-sm">{checkoutMutation.isPending ? '결제 처리 중...' : '선택한 메뉴가 없습니다.'}</p>
           ) : (
             <ul className="m-0 p-0 list-none">
               {orderedItems.map((item, index) => {
@@ -211,9 +215,9 @@ export default function Home() {
           <button
             className="w-full p-4 mt-4 text-lg font-bold bg-primary-700 text-white border-none rounded-lg cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
             onClick={handleCheckout}
-            disabled={orderedItems.length === 0 || isLoading}
+            disabled={checkoutMutation.isPending || orderedItems.length === 0}
           >
-            {isLoading ? '처리 중...' : '결제하기'}
+            {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
           </button>
         </section>
       </main>
