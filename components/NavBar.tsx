@@ -28,7 +28,10 @@ export default function NavBar() {
 
   return (
     <header className="bg-white border-b border-gray-100 px-3 py-3 md:px-5 md:py-3 flex flex-col md:flex-row justify-between md:items-center shadow-[0_2px_8px_rgba(0,0,0,0.06)] mb-4 gap-2 md:gap-0">
+      <div className='flex content-between content-center'>
       <h1 className="m-0 text-xl md:text-2xl font-extrabold text-[#161616]">ChoiChoi</h1>
+      
+      </div>
       <div className="flex items-center gap-3 md:gap-4">
         <nav>
           <ul className="flex gap-2 md:gap-3 m-0 p-0 list-none flex-nowrap overflow-x-auto pb-[2px] md:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -49,11 +52,12 @@ export default function NavBar() {
           </ul>
         </nav>
         {todayLabel && (
-          <span className="text-[11px] font-semibold text-[#bbb] whitespace-nowrap border-l border-[#eee] pl-4">
+          <span className="md:block md:relative md:top-0 md:right-0 absolute top-5 right-5 text-[11px] font-semibold text-[#bbb] md:whitespace-nowrap md:border-l md:border-[#eee] pl-4">
             {todayLabel}
           </span>
         )}
       </div>
+      
     </header>
   );
 }
