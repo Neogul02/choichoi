@@ -2,6 +2,7 @@
 
 import NavBar from '@/components/NavBar';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   fetchTodaysSales,
   fetchMenuSalesBreakdown,
@@ -25,7 +26,7 @@ function getPeriodBounds(period: Period): { startISO: string; endISO: string; la
   const todayStr = toLocalDateStr(now);
 
   if (period === 'today') {
-    return { startISO: `${todayStr}T00:00:00.000Z`, endISO: `${todayStr}T23:59:59.999Z`, label: '오늘' };
+    return { startISO: `${todayStr}T00:00:00+09:00`, endISO: `${todayStr}T23:59:59+09:00`, label: '오늘' };
   }
 
   if (period === 'week') {
@@ -33,11 +34,11 @@ function getPeriodBounds(period: Period): { startISO: string; endISO: string; la
     const diff = day === 0 ? -6 : 1 - day;
     const monday = new Date(now);
     monday.setDate(now.getDate() + diff);
-    return { startISO: `${toLocalDateStr(monday)}T00:00:00.000Z`, endISO: `${todayStr}T23:59:59.999Z`, label: '이번 주' };
+    return { startISO: `${toLocalDateStr(monday)}T00:00:00+09:00`, endISO: `${todayStr}T23:59:59+09:00`, label: '이번 주' };
   }
 
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return { startISO: `${monthStr}-01T00:00:00.000Z`, endISO: `${todayStr}T23:59:59.999Z`, label: '이번 달' };
+  return { startISO: `${monthStr}-01T00:00:00+09:00`, endISO: `${todayStr}T23:59:59+09:00`, label: '이번 달' };
 }
 
 export default function StatsPage() {
@@ -52,7 +53,6 @@ export default function StatsPage() {
   const [isBreakdownLoading, setIsBreakdownLoading] = useState(false);
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
   const [isResettingSales, setIsResettingSales] = useState(false);
-  const [message, setMessage] = useState('');
 
   const loadTodayData = async () => {
     setIsLoading(true);
@@ -82,22 +82,22 @@ export default function StatsPage() {
   useEffect(() => { loadBreakdown(breakdownPeriod); }, [breakdownPeriod]);
 
   const handleResetTodaysSales = async () => {
-    if (todayOrders.length === 0) { setMessage('오늘 삭제할 매출이 없습니다'); return; }
+    if (todayOrders.length === 0) { toast.warning('오늘 삭제할 매출이 없습니다'); return; }
 
     const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total_price || 0), 0);
     if (!window.confirm(`정말 오늘 매출(${todayOrders.length}건, ₩${todayRevenue.toLocaleString('ko-KR')})을 모두 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
     if (window.prompt('안전 확인: "초기화"를 정확히 입력하면 오늘 매출이 전부 삭제됩니다.') !== '초기화') {
-      setMessage('초기화가 취소되었습니다. 확인 문구가 일치하지 않습니다.');
+      toast.error('초기화가 취소되었습니다. 확인 문구가 일치하지 않습니다.');
       return;
     }
 
     setIsResettingSales(true);
     const result = await resetTodaysSales();
     if (result.success) {
-      setMessage(`오늘 매출 ${result.deletedCount ?? 0}건이 초기화되었습니다.`);
+      toast.success(`오늘 매출 ${result.deletedCount ?? 0}건이 초기화되었습니다.`);
       await loadTodayData();
     } else {
-      setMessage(`오류: ${result.error}`);
+      toast.error(`오류: ${result.error}`);
     }
     setIsResettingSales(false);
   };
@@ -120,12 +120,6 @@ export default function StatsPage() {
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="bg-white rounded-2xl p-4 md:p-5 max-w-[800px] mx-auto">
           <h2 className="m-0 mb-5 text-2xl font-extrabold">매출</h2>
-
-          {message && (
-            <div className={`p-3 mb-4 rounded-lg text-center font-semibold ${message.includes('오류') ? 'bg-[#f8d7da] text-[#721c24] border border-[#f5c6cb]' : 'bg-[#d4edda] text-[#155724] border border-[#c3e6cb]'}`}>
-              {message}
-            </div>
-          )}
 
           {/* 오늘 요약 */}
           <div className="mb-4 md:mb-5">
@@ -173,7 +167,7 @@ export default function StatsPage() {
                     </div>
                     <div className="flex flex-wrap md:flex-nowrap items-center gap-2.5">
                       <div className="w-full md:flex-1 h-2 bg-[#eee] rounded-full overflow-hidden order-last md:order-none">
-                        <div className="h-full bg-primary-700 rounded-full transition-[width] duration-400 ease-out min-w-[4px]" style={{ width: `${(item.totalQuantity / maxQuantity) * 100}%` }} />
+                        <div className="h-full rounded-full transition-[width] duration-400 ease-out min-w-[4px]" style={{ width: `${(item.totalQuantity / maxQuantity) * 100}%`, backgroundColor: item.color }} />
                       </div>
                       <span className="text-[13px] font-bold min-w-[36px] text-right text-[#333] shrink-0">{item.totalQuantity}개</span>
                       <span className="text-[13px] font-bold text-primary-700 min-w-[90px] text-right shrink-0">₩{formatPrice(item.totalRevenue)}</span>

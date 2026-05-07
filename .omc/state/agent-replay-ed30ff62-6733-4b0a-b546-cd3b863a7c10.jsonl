@@ -15,3 +15,6 @@
 {"t":0,"agent":"system","event":"skill_invoked","skill_name":"oh-my-claudecode:cancel"}
 {"t":0,"agent":"a7c2b23","agent_type":"unknown","event":"agent_stop","success":true}
 {"t":0,"agent":"ad1c01a","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a2645fb","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"aca7c28","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"ae61f49","agent_type":"unknown","event":"agent_stop","success":true}

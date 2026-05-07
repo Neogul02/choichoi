@@ -14,6 +14,7 @@ export interface TodaysSales {
 export interface SaveOrderResponse {
   success: boolean;
   orderId?: number;
+  dailyOrderNumber?: number;
   sales?: TodaysSales;
   error?: string;
 }

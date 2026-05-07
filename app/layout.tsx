@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'ChoiChoi POS',
-  description: 'ChoiChoi 카페 포인트오브세일',
+  description: 'choichoi POS System',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

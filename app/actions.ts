@@ -49,7 +49,7 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number): Pr
   try {
     const order = await createOrder(items, totalPrice);
     const sales = await getTodaysSales();
-    return { success: true, orderId: order.id, sales };
+    return { success: true, orderId: order.id, dailyOrderNumber: order.dailyOrderNumber, sales };
   } catch (error) {
     console.error('Order save failed:', error);
     return { success: false, error: error instanceof Error ? error.message : String(error) };

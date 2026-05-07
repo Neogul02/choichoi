@@ -1,7 +1,7 @@
 {
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd \\\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\" && yarn lint 2>&1\",\"timeout\":60000,\"description\":\"Run ESLint to verify all lint errors are resolved\"}",
-  "error": "Exit code 1\nyarn run v1.22.22\n$ eslint\n\nC:\\Users\\SSAFY\\Desktop\\choichoi\\app\\memo\\page.tsx\n  37:21  error  Error: Calling setState synchronously within an effect can trigger cascading renders\n\nEffects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:\n* Update external systems with the latest state from React.\n* Subscrib...",
-  "timestamp": "2026-05-06T23:12:12.143Z",
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\\components\\\\NavBar.jsx\"}",
+  "error": "File does not exist. Note: your current working directory is C:\\Users\\SSAFY\\Desktop\\choichoi. Did you mean NavBar.tsx?",
+  "timestamp": "2026-05-07T00:07:47.252Z",
   "retry_count": 1
 }

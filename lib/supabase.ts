@@ -7,6 +7,15 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+function getKSTDateStr(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().split('T')[0];
+}
+
+function getKSTDateBounds(kstDateStr?: string): { start: string; end: string } {
+  const d = kstDateStr ?? getKSTDateStr();
+  return { start: `${d}T00:00:00+09:00`, end: `${d}T23:59:59+09:00` };
+}
+
 export async function getMenuItems(): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from('menu_items')
@@ -20,12 +29,12 @@ export async function getMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function getTodaysSales(): Promise<TodaysSales> {
-  const today = new Date().toISOString().split('T')[0];
+  const { start, end } = getKSTDateBounds();
   const { data, error } = await supabase
     .from('orders')
     .select('total_price')
-    .gte('created_at', today)
-    .lte('created_at', `${today}T23:59:59Z`);
+    .gte('created_at', start)
+    .lte('created_at', end);
 
   if (error) throw error;
 
@@ -37,12 +46,12 @@ export async function getTodaysSales(): Promise<TodaysSales> {
 }
 
 export async function getTodaysOrderList(): Promise<OrderRecord[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const { start, end } = getKSTDateBounds();
   const { data, error } = await supabase
     .from('orders')
     .select('id,total_price,created_at,payment_status')
-    .gte('created_at', `${today}T00:00:00Z`)
-    .lte('created_at', `${today}T23:59:59Z`)
+    .gte('created_at', start)
+    .lte('created_at', end)
     .order('id', { ascending: false });
 
   if (error) throw error;
@@ -50,13 +59,13 @@ export async function getTodaysOrderList(): Promise<OrderRecord[]> {
 }
 
 export async function clearTodaysOrders(): Promise<{ deletedCount: number }> {
-  const today = new Date().toISOString().split('T')[0];
+  const { start, end } = getKSTDateBounds();
 
   const { data: todayOrders, error: fetchError } = await supabase
     .from('orders')
     .select('id')
-    .gte('created_at', `${today}T00:00:00Z`)
-    .lte('created_at', `${today}T23:59:59Z`);
+    .gte('created_at', start)
+    .lte('created_at', end);
 
   if (fetchError) throw fetchError;
   if (!todayOrders || todayOrders.length === 0) return { deletedCount: 0 };
@@ -79,7 +88,7 @@ export interface OrderItemInput {
   count: number;
 }
 
-export async function createOrder(items: OrderItemInput[], totalPrice: number): Promise<Order> {
+export async function createOrder(items: OrderItemInput[], totalPrice: number): Promise<Order & { dailyOrderNumber: number }> {
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert([{ total_price: totalPrice, payment_method: 'cash', payment_status: 'completed' }])
@@ -103,7 +112,14 @@ export async function createOrder(items: OrderItemInput[], totalPrice: number): 
     if (itemsError) throw itemsError;
   }
 
-  return order as Order;
+  const { start, end } = getKSTDateBounds();
+  const { count } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', start)
+    .lte('created_at', end);
+
+  return { ...(order as Order), dailyOrderNumber: count ?? 1 };
 }
 
 export async function addMenuItem(name: string, price: number, color: string): Promise<MenuItem> {
@@ -157,14 +173,17 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function getMonthlySalesByDate(year: number, month: number): Promise<CalendarSalesData> {
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+  const paddedMonth = String(month).padStart(2, '0');
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const paddedLastDay = String(daysInMonth).padStart(2, '0');
+  const start = `${year}-${paddedMonth}-01T00:00:00+09:00`;
+  const end = `${year}-${paddedMonth}-${paddedLastDay}T23:59:59+09:00`;
 
   const { data, error } = await supabase
     .from('orders')
     .select('created_at,total_price')
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString())
+    .gte('created_at', start)
+    .lte('created_at', end)
     .order('created_at', { ascending: true });
 
   if (error) throw error;
@@ -173,7 +192,9 @@ export async function getMonthlySalesByDate(year: number, month: number): Promis
   let monthTotal = 0;
 
   for (const order of data ?? []) {
-    const dateKey = new Date(order.created_at as string).toISOString().slice(0, 10);
+    // Convert stored UTC timestamp to KST date string for grouping
+    const kstMs = new Date(order.created_at as string).getTime() + 9 * 3600 * 1000;
+    const dateKey = new Date(kstMs).toISOString().slice(0, 10);
     const amount = Number(order.total_price || 0);
     byDate[dateKey] = (byDate[dateKey] || 0) + amount;
     monthTotal += amount;
