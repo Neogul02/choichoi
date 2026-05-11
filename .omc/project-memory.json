@@ -50,7 +50,7 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "yarn build 2>&1",
+    "buildCommand": "yarn build 2>&1 | tail -30",
     "testCommand": null,
     "lintCommand": "yarn lint",
     "devCommand": "yarn dev",

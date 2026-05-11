@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { MenuItem, Order, OrderItem, PopupEvent, ScheduleSlot, Memo } from '@/types/database';
+import type { MenuItem, Order, OrderItem, PopupEvent, ScheduleSlot, Memo, Worker } from '@/types/database';
 import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord } from '@/types/api';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -182,29 +182,38 @@ export async function getMonthlySalesByDate(year: number, month: number): Promis
   const start = `${year}-${paddedMonth}-01T00:00:00+09:00`;
   const end = `${year}-${paddedMonth}-${paddedLastDay}T23:59:59+09:00`;
 
-  const { data, error } = await supabase
-    .from('orders')
-    .select('created_at,total_price')
-    .gte('created_at', start)
-    .lte('created_at', end)
-    .order('created_at', { ascending: true })
-    .limit(10000);
+  const PAGE_SIZE = 1000;
+  const allOrders: { created_at: string; total_price: number }[] = [];
+  let from = 0;
 
-  if (error) throw error;
+  while (true) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('created_at,total_price')
+      .gte('created_at', start)
+      .lte('created_at', end)
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allOrders.push(...(data as { created_at: string; total_price: number }[]));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
 
   const byDate: Record<string, number> = {};
   let monthTotal = 0;
 
-  for (const order of data ?? []) {
-    // Convert stored UTC timestamp to KST date string for grouping
-    const kstMs = new Date(order.created_at as string).getTime() + 9 * 3600 * 1000;
+  for (const order of allOrders) {
+    const kstMs = new Date(order.created_at).getTime() + 9 * 3600 * 1000;
     const dateKey = new Date(kstMs).toISOString().slice(0, 10);
     const amount = Number(order.total_price || 0);
     byDate[dateKey] = (byDate[dateKey] || 0) + amount;
     monthTotal += amount;
   }
 
-  return { byDate, monthTotal, totalOrders: (data ?? []).length };
+  return { byDate, monthTotal, totalOrders: allOrders.length };
 }
 
 export async function updateMenuOrder(orderedIds: number[]): Promise<void> {
@@ -264,7 +273,9 @@ export async function addScheduleSlot(
   scheduleDate: string,
   role: string,
   personName: string,
-  workTime: string
+  workTime: string,
+  workerId?: number,
+  breakTime?: boolean
 ): Promise<ScheduleSlot> {
   const { data, error } = await supabase
     .from('schedule_slots')
@@ -274,6 +285,8 @@ export async function addScheduleSlot(
       role,
       person_name: personName,
       work_time: workTime || null,
+      break_time: breakTime ?? false,
+      worker_id: workerId ?? null,
     }])
     .select()
     .single();
@@ -284,6 +297,29 @@ export async function addScheduleSlot(
 export async function removeScheduleSlot(id: number): Promise<void> {
   const { error } = await supabase.from('schedule_slots').delete().eq('id', id);
   if (error) throw error;
+}
+
+export async function updateScheduleSlot(id: number, personName: string, workTime: string, workerId?: number | null, breakTime?: boolean): Promise<ScheduleSlot> {
+  const { data, error } = await supabase
+    .from('schedule_slots')
+    .update({ person_name: personName, work_time: workTime || null, break_time: breakTime ?? false, worker_id: workerId ?? null, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ScheduleSlot;
+}
+
+export async function copyScheduleSlot(sourceId: number, newDate: string, newRole: string): Promise<ScheduleSlot> {
+  const { data: source, error: fetchError } = await supabase
+    .from('schedule_slots').select('*').eq('id', sourceId).single();
+  if (fetchError) throw fetchError;
+  const { data, error } = await supabase
+    .from('schedule_slots')
+    .insert([{ event_id: source.event_id, schedule_date: newDate, role: newRole, person_name: source.person_name, work_time: source.work_time, break_time: source.break_time ?? false, worker_id: source.worker_id }])
+    .select().single();
+  if (error) throw error;
+  return data as ScheduleSlot;
 }
 
 export async function moveScheduleSlot(id: number, newDate: string, newRole: string): Promise<ScheduleSlot> {
@@ -337,17 +373,28 @@ export async function deleteMemo(id: number): Promise<void> {
 // ── Menu Sales ────────────────────────────────────────────────────────────────
 
 export async function getMenuSalesByPeriod(startISO: string, endISO: string): Promise<MenuSalesItem[]> {
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('id')
-    .gte('created_at', startISO)
-    .lte('created_at', endISO)
-    .limit(10000);
+  const PAGE_SIZE = 1000;
+  const allOrderIds: number[] = [];
+  let from = 0;
 
-  if (ordersError) throw ordersError;
-  if (!orders || orders.length === 0) return [];
+  while (true) {
+    const { data, error: ordersError } = await supabase
+      .from('orders')
+      .select('id')
+      .gte('created_at', startISO)
+      .lte('created_at', endISO)
+      .range(from, from + PAGE_SIZE - 1);
 
-  const orderIds = orders.map((o) => o.id as number);
+    if (ordersError) throw ordersError;
+    if (!data || data.length === 0) break;
+    allOrderIds.push(...data.map((o) => o.id as number));
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  if (allOrderIds.length === 0) return [];
+
+  const orderIds = allOrderIds;
 
   const { data: items, error: itemsError } = await supabase
     .from('order_items')
@@ -377,4 +424,51 @@ export async function getMenuSalesByPeriod(startISO: string, endISO: string): Pr
   }
 
   return Object.values(menuMap).sort((a, b) => b.totalQuantity - a.totalQuantity);
+}
+
+// ── Workers ───────────────────────────────────────────────────────────────────
+
+export interface WorkerInput {
+  event_id: number;
+  name: string;
+  phone?: string;
+  bank_name?: string;
+  bank_account?: string;
+  hourly_rate?: number;
+}
+
+export async function getWorkers(eventId: number): Promise<Worker[]> {
+  const { data, error } = await supabase
+    .from('workers')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createWorker(input: WorkerInput): Promise<Worker> {
+  const { data, error } = await supabase
+    .from('workers')
+    .insert([{ event_id: input.event_id, name: input.name, phone: input.phone || null, bank_name: input.bank_name || null, bank_account: input.bank_account || null, hourly_rate: input.hourly_rate ?? 0 }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Worker;
+}
+
+export async function updateWorker(id: number, input: WorkerInput): Promise<Worker> {
+  const { data, error } = await supabase
+    .from('workers')
+    .update({ name: input.name, phone: input.phone || null, bank_name: input.bank_name || null, bank_account: input.bank_account || null, hourly_rate: input.hourly_rate ?? 0, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Worker;
+}
+
+export async function deleteWorker(id: number): Promise<void> {
+  const { error } = await supabase.from('workers').delete().eq('id', id);
+  if (error) throw error;
 }
