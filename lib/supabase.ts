@@ -473,3 +473,14 @@ export async function deleteWorker(id: number): Promise<void> {
   const { error } = await supabase.from('workers').delete().eq('id', id);
   if (error) throw error;
 }
+
+export async function setWorkerPaymentDone(id: number, done: boolean): Promise<Worker> {
+  const { data, error } = await supabase
+    .from('workers')
+    .update({ payment_done: done, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Worker;
+}
