@@ -20,11 +20,18 @@ import {
   addScheduleSlot,
   removeScheduleSlot,
   moveScheduleSlot,
+  updateScheduleSlot,
+  copyScheduleSlot,
+  getWorkers,
+  createWorker,
+  updateWorker,
+  deleteWorker,
   getAllMemos,
   createMemo,
   updateMemo,
   deleteMemo,
   type OrderItemInput,
+  type WorkerInput,
 } from '@/lib/supabase';
 import type {
   ApiResponse,
@@ -42,8 +49,9 @@ import type {
   FetchMemosResponse,
   FetchSlotsResponse,
   FetchEventsResponse,
+  FetchWorkersResponse,
 } from '@/types/api';
-import type { MenuItem, Memo, ScheduleSlot, PopupEvent } from '@/types/database';
+import type { MenuItem, Memo, ScheduleSlot, PopupEvent, Worker } from '@/types/database';
 
 export async function saveOrder(items: OrderItemInput[], totalPrice: number): Promise<SaveOrderResponse> {
   try {
@@ -52,7 +60,7 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number): Pr
     return { success: true, orderId: order.id, dailyOrderNumber: order.dailyOrderNumber, sales };
   } catch (error) {
     console.error('Order save failed:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -62,7 +70,7 @@ export async function fetchTodaysSales(): Promise<FetchTodaysSalesResponse> {
     return { success: true, data: sales };
   } catch (error) {
     console.error('Failed to fetch sales:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -72,7 +80,7 @@ export async function fetchMenuItems(): Promise<FetchMenuItemsResponse> {
     return { success: true, data: items };
   } catch (error) {
     console.error('Failed to fetch menu:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -82,7 +90,7 @@ export async function getAllMenu(): Promise<FetchMenuItemsResponse> {
     return { success: true, data: items };
   } catch (error) {
     console.error('Failed to fetch all menu:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -92,7 +100,7 @@ export async function createNewMenuItem(name: string, price: number, color: stri
     return { success: true, data: item };
   } catch (error) {
     console.error('Failed to create menu item:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -102,7 +110,7 @@ export async function editMenuItem(id: number, name: string, price: number, colo
     return { success: true, data: item };
   } catch (error) {
     console.error('Failed to update menu item:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -112,7 +120,7 @@ export async function removeMenuItem(id: number): Promise<ApiResponse> {
     return { success: true };
   } catch (error) {
     console.error('Failed to delete menu item:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -122,7 +130,7 @@ export async function reorderMenuItems(orderedIds: number[]): Promise<ApiRespons
     return { success: true };
   } catch (error) {
     console.error('Failed to reorder menu items:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -132,7 +140,7 @@ export async function fetchTodaysOrders(): Promise<FetchOrdersResponse> {
     return { success: true, data: orders };
   } catch (error) {
     console.error('Failed to fetch today orders:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -142,7 +150,7 @@ export async function resetTodaysSales(): Promise<ResetSalesResponse> {
     return { success: true, deletedCount: result.deletedCount };
   } catch (error) {
     console.error('Failed to reset today sales:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -152,7 +160,7 @@ export async function fetchMonthlySalesCalendar(year: number, month: number): Pr
     return { success: true, data: calendar };
   } catch (error) {
     console.error('Failed to fetch monthly sales calendar:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -162,7 +170,7 @@ export async function fetchMenuSalesBreakdown(startISO: string, endISO: string):
     return { success: true, data };
   } catch (error) {
     console.error('Failed to fetch menu sales breakdown:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error), data: [] };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)), data: [] };
   }
 }
 
@@ -174,7 +182,7 @@ export async function fetchPopupEvents(): Promise<FetchEventsResponse> {
     return { success: true, data };
   } catch (error) {
     console.error('Failed to fetch popup events:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error), data: [] };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)), data: [] };
   }
 }
 
@@ -184,7 +192,7 @@ export async function createNewPopupEvent(name: string, startDate: string, endDa
     return { success: true, data };
   } catch (error) {
     console.error('Failed to create popup event:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -194,7 +202,7 @@ export async function removePopupEvent(id: number): Promise<ApiResponse> {
     return { success: true };
   } catch (error) {
     console.error('Failed to delete popup event:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -206,7 +214,7 @@ export async function fetchScheduleByEvent(eventId: number): Promise<FetchSlotsR
     return { success: true, data };
   } catch (error) {
     console.error('Failed to fetch schedule:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error), data: [] };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)), data: [] };
   }
 }
 
@@ -215,14 +223,16 @@ export async function addScheduleEntry(
   scheduleDate: string,
   role: string,
   personName: string,
-  workTime: string
+  workTime: string,
+  workerId?: number,
+  breakTime?: boolean
 ): Promise<ApiResponse<ScheduleSlot>> {
   try {
-    const data = await addScheduleSlot(eventId, scheduleDate, role, personName, workTime);
+    const data = await addScheduleSlot(eventId, scheduleDate, role, personName, workTime, workerId, breakTime);
     return { success: true, data };
   } catch (error) {
     console.error('Failed to add schedule entry:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -232,7 +242,7 @@ export async function removeScheduleEntry(id: number): Promise<ApiResponse> {
     return { success: true };
   } catch (error) {
     console.error('Failed to remove schedule entry:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -242,7 +252,69 @@ export async function moveScheduleEntry(id: number, newDate: string, newRole: st
     return { success: true, data };
   } catch (error) {
     console.error('Failed to move schedule entry:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
+  }
+}
+
+export async function editScheduleEntry(id: number, personName: string, workTime: string, workerId?: number | null, breakTime?: boolean): Promise<ApiResponse<ScheduleSlot>> {
+  try {
+    const data = await updateScheduleSlot(id, personName, workTime, workerId, breakTime);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to edit schedule entry:', error);
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
+  }
+}
+
+export async function copyScheduleEntry(id: number, newDate: string, newRole: string): Promise<ApiResponse<ScheduleSlot>> {
+  try {
+    const data = await copyScheduleSlot(id, newDate, newRole);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to copy schedule entry:', error);
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
+  }
+}
+
+// ── Worker actions ────────────────────────────────────────────────────────────
+
+export async function fetchWorkers(eventId: number): Promise<FetchWorkersResponse> {
+  try {
+    const data = await getWorkers(eventId);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to fetch workers:', error);
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)), data: [] };
+  }
+}
+
+export async function createNewWorker(input: WorkerInput): Promise<ApiResponse<Worker>> {
+  try {
+    const data = await createWorker(input);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to create worker:', error);
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
+  }
+}
+
+export async function editWorker(id: number, input: WorkerInput): Promise<ApiResponse<Worker>> {
+  try {
+    const data = await updateWorker(id, input);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to edit worker:', error);
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
+  }
+}
+
+export async function removeWorker(id: number): Promise<ApiResponse> {
+  try {
+    await deleteWorker(id);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to remove worker:', error);
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -254,7 +326,7 @@ export async function fetchAllMemos(): Promise<FetchMemosResponse> {
     return { success: true, data };
   } catch (error) {
     console.error('Failed to fetch memos:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error), data: [] };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)), data: [] };
   }
 }
 
@@ -264,7 +336,7 @@ export async function createNewMemo(title: string, content: string, color: strin
     return { success: true, data };
   } catch (error) {
     console.error('Failed to create memo:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -274,7 +346,7 @@ export async function editMemo(id: number, title: string, content: string, color
     return { success: true, data };
   } catch (error) {
     console.error('Failed to edit memo:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }
 
@@ -284,6 +356,6 @@ export async function removeMemo(id: number): Promise<ApiResponse> {
     return { success: true };
   } catch (error) {
     console.error('Failed to remove memo:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }

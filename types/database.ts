@@ -36,6 +36,18 @@ export interface PopupEvent {
   created_at: string;
 }
 
+export interface Worker {
+  id: number;
+  event_id: number;
+  name: string;
+  phone: string | null;
+  bank_name: string | null;
+  bank_account: string | null;
+  hourly_rate: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ScheduleSlot {
   id: number;
   event_id: number;
@@ -43,6 +55,8 @@ export interface ScheduleSlot {
   role: string;
   person_name: string;
   work_time: string | null;
+  break_time: boolean;
+  worker_id: number | null;
   created_at: string;
   updated_at: string;
 }
