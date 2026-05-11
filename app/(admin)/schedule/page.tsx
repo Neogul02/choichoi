@@ -18,9 +18,10 @@ const LOCAL_RATES_KEY = 'choichoi_local_rates';
 type DragCell = { date: string; role: string };
 type DragMode = 'move' | 'copy';
 type LeftTab = 'events' | 'workers';
-type WorkerForm = { name: string; phone: string; bank_name: string; bank_account: string; hourly_rate: string };
+type WorkerForm = { name: string; color: string; phone: string; bank_name: string; bank_account: string; hourly_rate: string };
 
-const EMPTY_WORKER_FORM: WorkerForm = { name: '', phone: '', bank_name: '', bank_account: '', hourly_rate: '' };
+const WORKER_COLORS = ['#22c55e','#6366f1','#ef4444','#f97316','#64748b'];
+const EMPTY_WORKER_FORM: WorkerForm = { name: '', color: '#22c55e', phone: '', bank_name: '', bank_account: '', hourly_rate: '' };
 
 function getEventDates(startDate: string, endDate: string): Date[] {
   const dates: Date[] = [];
@@ -135,14 +136,14 @@ export default function SchedulePage() {
   // ── Workers ───────────────────────────────────────────────────────────────
   const openWorkerForm = (worker?: Worker) => {
     setEditingWorkerId(worker?.id ?? null);
-    setWorkerForm(worker ? { name: worker.name, phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: String(worker.hourly_rate || '') } : EMPTY_WORKER_FORM);
+    setWorkerForm(worker ? { name: worker.name, color: worker.color || '#6366f1', phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: String(worker.hourly_rate || '') } : EMPTY_WORKER_FORM);
     setShowWorkerForm(true);
   };
 
   const handleSaveWorker = async () => {
     if (!workerForm.name.trim()) { showMsg('이름을 입력하세요'); return; }
     if (!selectedEvent) { showMsg('일정을 먼저 선택하세요'); return; }
-    const input = { event_id: selectedEvent.id, name: workerForm.name.trim(), phone: workerForm.phone.trim(), bank_name: workerForm.bank_name.trim(), bank_account: workerForm.bank_account.trim(), hourly_rate: parseInt(workerForm.hourly_rate) || 0 };
+    const input = { event_id: selectedEvent.id, name: workerForm.name.trim(), color: workerForm.color, phone: workerForm.phone.trim(), bank_name: workerForm.bank_name.trim(), bank_account: workerForm.bank_account.trim(), hourly_rate: parseInt(workerForm.hourly_rate) || 0 };
     if (editingWorkerId) {
       const r = await editWorker(editingWorkerId, input);
       if (r.success && r.data) { setWorkers(p => p.map(w => w.id === editingWorkerId ? r.data! : w)); showMsg('수정되었습니다'); }
@@ -203,7 +204,7 @@ export default function SchedulePage() {
 
   const handleRateChange = async (worker: Worker | null, name: string, rate: number) => {
     if (worker) {
-      const r = await editWorker(worker.id, { event_id: worker.event_id, name: worker.name, phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: rate });
+      const r = await editWorker(worker.id, { event_id: worker.event_id, name: worker.name, color: worker.color, phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: rate });
       if (r.success && r.data) setWorkers(p => p.map(w => w.id === worker.id ? r.data! : w));
     } else {
       setLocalRates(p => { const n = { ...p, [name]: rate }; localStorage.setItem(LOCAL_RATES_KEY, JSON.stringify(n)); return n; });
@@ -355,6 +356,14 @@ export default function SchedulePage() {
                 {showWorkerForm && (
                   <div className="bg-[#f9f9f9] rounded-lg p-2.5 mb-2.5 flex flex-col gap-1.5">
                     <input type="text" placeholder="이름 *" value={workerForm.name} onChange={e => setWorkerForm(p => ({ ...p, name: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
+                    <div>
+                      <p className="text-[10px] font-semibold text-[#666] mb-1">색상</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {WORKER_COLORS.map(c => (
+                          <button key={c} type="button" onClick={() => setWorkerForm(p => ({ ...p, color: c }))} className="w-5 h-5 rounded-full border-2 transition" style={{ backgroundColor: c, borderColor: workerForm.color === c ? '#222' : 'transparent' }} />
+                        ))}
+                      </div>
+                    </div>
                     <input type="tel" placeholder="전화번호" value={workerForm.phone} onChange={e => setWorkerForm(p => ({ ...p, phone: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
                     <input type="text" placeholder="은행 종류 (예: 카카오뱅크)" value={workerForm.bank_name} onChange={e => setWorkerForm(p => ({ ...p, bank_name: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
                     <input type="text" placeholder="계좌번호" value={workerForm.bank_account} onChange={e => setWorkerForm(p => ({ ...p, bank_account: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
@@ -367,7 +376,10 @@ export default function SchedulePage() {
                     {workers.map(w => (
                       <li key={w.id} className="bg-[#f9f9f9] rounded-lg p-2 border border-[#eee]">
                         <div className="flex items-center justify-between mb-0.5">
-                          <strong className="text-[12px] font-bold">{w.name}</strong>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: w.color || '#6366f1' }} />
+                            <strong className="text-[12px] font-bold">{w.name}</strong>
+                          </div>
                           <div className="flex gap-1">
                             <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:bg-[#eee] transition" onClick={() => openWorkerForm(w)}>✎</button>
                             <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:text-red-500 hover:border-red-300 transition" onClick={() => handleDeleteWorker(w.id, w.name)}>×</button>
@@ -461,7 +473,7 @@ export default function SchedulePage() {
                                           </div>
                                         </div>
                                       ) : (
-                                        <div key={slot.id} className={`flex items-center gap-0.5 w-full bg-primary-700 text-white rounded-lg px-1.5 py-1 cursor-grab select-none touch-none transition ${draggedSlotId === slot.id ? 'opacity-30' : ''}`} draggable onDragStart={e => handleDragStart(e, slot.id)} onDragEnd={handleDragEnd} onTouchStart={e => handleTouchStart(e, slot.id)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}>
+                                        <div key={slot.id} className={`flex items-center gap-0.5 w-full text-white rounded-lg px-1.5 py-1 cursor-grab select-none touch-none transition ${draggedSlotId === slot.id ? 'opacity-30' : ''}`} style={{ backgroundColor: workers.find(w => w.id === slot.worker_id)?.color ?? '#6366f1' }} draggable onDragStart={e => handleDragStart(e, slot.id)} onDragEnd={handleDragEnd} onTouchStart={e => handleTouchStart(e, slot.id)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}>
                                           <div className="flex flex-col min-w-0 flex-1">
                                             <span className="text-[11px] font-bold leading-tight whitespace-nowrap">{slot.person_name}</span>
                                             {slot.work_time && <span className="text-[9px] opacity-75 leading-none whitespace-nowrap">{slot.work_time}{slot.break_time && ' -1h'}</span>}

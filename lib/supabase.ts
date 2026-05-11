@@ -431,6 +431,7 @@ export async function getMenuSalesByPeriod(startISO: string, endISO: string): Pr
 export interface WorkerInput {
   event_id: number;
   name: string;
+  color?: string;
   phone?: string;
   bank_name?: string;
   bank_account?: string;
@@ -450,7 +451,7 @@ export async function getWorkers(eventId: number): Promise<Worker[]> {
 export async function createWorker(input: WorkerInput): Promise<Worker> {
   const { data, error } = await supabase
     .from('workers')
-    .insert([{ event_id: input.event_id, name: input.name, phone: input.phone || null, bank_name: input.bank_name || null, bank_account: input.bank_account || null, hourly_rate: input.hourly_rate ?? 0 }])
+    .insert([{ event_id: input.event_id, name: input.name, color: input.color || '#6366f1', phone: input.phone || null, bank_name: input.bank_name || null, bank_account: input.bank_account || null, hourly_rate: input.hourly_rate ?? 0 }])
     .select()
     .single();
   if (error) throw error;
@@ -460,7 +461,7 @@ export async function createWorker(input: WorkerInput): Promise<Worker> {
 export async function updateWorker(id: number, input: WorkerInput): Promise<Worker> {
   const { data, error } = await supabase
     .from('workers')
-    .update({ name: input.name, phone: input.phone || null, bank_name: input.bank_name || null, bank_account: input.bank_account || null, hourly_rate: input.hourly_rate ?? 0, updated_at: new Date().toISOString() })
+    .update({ name: input.name, color: input.color || '#6366f1', phone: input.phone || null, bank_name: input.bank_name || null, bank_account: input.bank_account || null, hourly_rate: input.hourly_rate ?? 0, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single();

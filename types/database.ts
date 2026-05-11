@@ -40,6 +40,7 @@ export interface Worker {
   id: number;
   event_id: number;
   name: string;
+  color: string;
   phone: string | null;
   bank_name: string | null;
   bank_account: string | null;
