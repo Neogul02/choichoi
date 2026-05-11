@@ -26,6 +26,7 @@ import {
   createWorker,
   updateWorker,
   deleteWorker,
+  setWorkerPaymentDone,
   getAllMemos,
   createMemo,
   updateMemo,
@@ -314,6 +315,16 @@ export async function removeWorker(id: number): Promise<ApiResponse> {
     return { success: true };
   } catch (error) {
     console.error('Failed to remove worker:', error);
+    return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
+  }
+}
+
+export async function markWorkerPayment(id: number, done: boolean): Promise<ApiResponse<Worker>> {
+  try {
+    const data = await setWorkerPaymentDone(id, done);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to update payment status:', error);
     return { success: false, error: error instanceof Error ? error.message : ((error as { message?: string })?.message ?? String(error)) };
   }
 }

@@ -6,7 +6,7 @@ import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent,
   fetchScheduleByEvent, addScheduleEntry, removeScheduleEntry,
   moveScheduleEntry, editScheduleEntry, copyScheduleEntry,
-  fetchWorkers, createNewWorker, editWorker, removeWorker,
+  fetchWorkers, createNewWorker, editWorker, removeWorker, markWorkerPayment,
 } from '@/app/actions';
 import type { PopupEvent, ScheduleSlot, Worker } from '@/types/database';
 import { toLocalDateStr } from '@/lib/utils';
@@ -211,6 +211,12 @@ export default function SchedulePage() {
     }
   };
 
+  const handlePaymentToggle = async (worker: Worker) => {
+    const r = await markWorkerPayment(worker.id, !worker.payment_done);
+    if (r.success && r.data) setWorkers(p => p.map(w => w.id === worker.id ? r.data! : w));
+    else showMsg(`오류: ${r.error}`);
+  };
+
   // ── Drag & Drop ───────────────────────────────────────────────────────────
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: number) => {
     if (editingSlotId === id) { e.preventDefault(); return; }
@@ -269,8 +275,15 @@ export default function SchedulePage() {
       if (!map.has(key)) map.set(key, { key, worker, name: worker?.name ?? slot.person_name, entries: [] });
       map.get(key)!.entries.push({ date: slot.schedule_date, role: slot.role, workTime: slot.work_time, breakTime: slot.break_time, hours: parseWorkHours(slot.work_time, slot.break_time) });
     }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [slots, workers]);
+    return Array.from(map.values()).sort((a, b) => {
+      const calcPay = (g: SalaryGroup) => {
+        const h = g.entries.reduce((s, e) => s + e.hours, 0);
+        const rate = g.worker ? g.worker.hourly_rate : (localRates[g.name] ?? 0);
+        return h * rate;
+      };
+      return calcPay(b) - calcPay(a);
+    });
+  }, [slots, workers, localRates]);
 
   const grandTotal = useMemo(() => salaryGroups.reduce((acc, g) => {
     const h = g.entries.reduce((s, e) => s + e.hours, 0);
@@ -435,12 +448,16 @@ export default function SchedulePage() {
                       <thead>
                         <tr>
                           <th className="bg-[#f9f9f9] w-[56px] min-w-[56px] text-[11px] text-[#666] font-semibold text-center sticky left-0 z-[2] border border-[#eee] px-1 py-2">역할</th>
-                          {visibleDates.map((date, i) => (
-                            <th key={i} className="bg-[#f9f9f9] text-center border border-[#eee] px-1 py-1.5" style={{ minWidth: '88px' }}>
-                              <div className="font-bold text-[12px] leading-tight">{DAY_NAMES[date.getDay()]}</div>
-                              <div className="text-[10px] text-[#888]">{date.getMonth() + 1}/{date.getDate()}</div>
+                          {visibleDates.map((date, i) => {
+                            const day = date.getDay();
+                            const isSat = day === 6, isSun = day === 0;
+                            return (
+                            <th key={i} className={`text-center border border-[#eee] px-1 py-1.5 ${isSun ? 'bg-red-50' : isSat ? 'bg-blue-50' : 'bg-[#f9f9f9]'}`} style={{ minWidth: '88px' }}>
+                              <div className={`font-bold text-[12px] leading-tight ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : ''}`}>{DAY_NAMES[day]}</div>
+                              <div className={`text-[10px] ${isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-[#888]'}`}>{date.getMonth() + 1}/{date.getDate()}</div>
                             </th>
-                          ))}
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody>
@@ -452,8 +469,10 @@ export default function SchedulePage() {
                               const cellSlots = getSlotsForCell(dateStr, role);
                               const isOver = dragOverCell?.date === dateStr && dragOverCell?.role === role;
                               const isAdding = addingTo?.date === dateStr && addingTo?.role === role;
+                              const day = date.getDay();
+                              const dayCellBg = isOver ? '' : day === 0 ? 'bg-red-50/60' : day === 6 ? 'bg-blue-50/60' : '';
                               return (
-                                <td key={i} className={`p-1 align-top border border-[#eee] transition duration-150 ${isOver ? 'bg-primary-50 outline-2 outline-dashed outline-primary-700 outline-offset-[-2px]' : ''}`} style={{ minHeight: '60px' }} data-cell data-date={dateStr} data-role={role} onDragOver={e => handleDragOver(e, dateStr, role)} onDragLeave={handleDragLeave} onDrop={e => handleDrop(e, dateStr, role)}>
+                                <td key={i} className={`p-1 align-top border border-[#eee] transition duration-150 ${dayCellBg} ${isOver ? 'bg-primary-50 outline-2 outline-dashed outline-primary-700 outline-offset-[-2px]' : ''}`} style={{ minHeight: '60px' }} data-cell data-date={dateStr} data-role={role} onDragOver={e => handleDragOver(e, dateStr, role)} onDragLeave={handleDragLeave} onDrop={e => handleDrop(e, dateStr, role)}>
                                   <div className="flex flex-col gap-1" style={{ minHeight: '52px' }}>
                                     {cellSlots.map(slot =>
                                       editingSlotId === slot.id ? (
@@ -533,7 +552,7 @@ export default function SchedulePage() {
               <table className="w-full border-collapse text-sm min-w-[600px]">
                 <thead>
                   <tr className="bg-[#f9f9f9]">
-                    {['이름', '근무날짜', '근무시간', '총 근무시간', '시급 (원)', '최종 급여'].map(h => (
+                    {['이름', '근무날짜', '근무시간', '총 근무시간', '시급 (원)', '최종 급여', '송금'].map(h => (
                       <th key={h} className="border border-[#eee] px-3 py-2 text-xs font-semibold text-[#555] text-left whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -547,7 +566,7 @@ export default function SchedulePage() {
                       const d = new Date(entry.date + 'T00:00:00');
                       const dateLabel = `${d.getMonth() + 1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
                       return (
-                        <tr key={`${group.key}-${idx}`} className="hover:bg-[#fafafa]">
+                        <tr key={`${group.key}-${idx}`} className={group.worker?.payment_done ? 'bg-gray-100 text-gray-400' : 'hover:bg-[#fafafa]'}>
                           {idx === 0 && (
                             <td className="border border-[#eee] px-3 py-2 align-top font-bold text-[#222]" rowSpan={group.entries.length}>
                               <div className="text-sm">{group.name}</div>
@@ -579,11 +598,25 @@ export default function SchedulePage() {
                             <td className="border border-[#eee] px-3 py-2 text-right font-bold text-primary-700 align-top" rowSpan={group.entries.length}>
                               <div>{rate > 0 ? `${finalPay.toLocaleString('ko-KR')}원` : '-'}</div>
                               {group.worker && (group.worker.bank_name || group.worker.bank_account) && (
-                                <div className="mt-1 text-[10px] font-normal text-[#888] whitespace-nowrap">
+                                <div className="mt-1 text-xs font-medium text-[#555]">
                                   {[group.worker.bank_name, group.worker.bank_account].filter(Boolean).join(' ')}
                                 </div>
                               )}
                             </td>
+                          )}
+                          {idx === 0 && group.worker && (
+                            <td className="border border-[#eee] px-3 py-2 text-center align-top" rowSpan={group.entries.length}>
+                              <input
+                                type="checkbox"
+                                checked={group.worker.payment_done}
+                                onChange={() => handlePaymentToggle(group.worker!)}
+                                className="w-4 h-4 cursor-pointer accent-green-500"
+                                title={group.worker.payment_done ? '송금 완료' : '송금 전'}
+                              />
+                            </td>
+                          )}
+                          {idx === 0 && !group.worker && (
+                            <td className="border border-[#eee]" rowSpan={group.entries.length} />
                           )}
                         </tr>
                       );
@@ -595,6 +628,7 @@ export default function SchedulePage() {
                     <td className="border border-[#eee] px-3 py-2.5 text-center font-extrabold">{formatHours(grandTotal.hours)}</td>
                     <td className="border border-[#eee] px-3 py-2.5"></td>
                     <td className="border border-[#eee] px-3 py-2.5 text-right font-extrabold text-primary-700">{grandTotal.pay > 0 ? `${grandTotal.pay.toLocaleString('ko-KR')}원` : '-'}</td>
+                    <td className="border border-[#eee] px-3 py-2.5"></td>
                   </tr>
                 </tbody>
               </table>
