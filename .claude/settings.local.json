@@ -18,7 +18,8 @@
       "Bash(Write-Host \"deleted\")",
       "mcp__plugin_oh-my-claudecode_t__state_list_active",
       "mcp__plugin_oh-my-claudecode_t__state_clear",
-      "Bash(yarn add *)"
+      "Bash(yarn add *)",
+      "Bash(git mv *)"
     ]
   }
 }

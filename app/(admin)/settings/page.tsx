@@ -2,7 +2,7 @@
 
 import NavBar from '@/components/NavBar';
 import { useEffect, useState } from 'react';
-import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '../actions';
+import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '@/app/actions';
 import type { MenuItem } from '@/types/database';
 
 type ColorOption = { name: string; value: string };

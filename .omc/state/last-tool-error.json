@@ -1,7 +1,7 @@
 {
   "tool_name": "Read",
-  "tool_input_preview": "{\"file_path\":\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\\components\\\\NavBar.jsx\"}",
-  "error": "File does not exist. Note: your current working directory is C:\\Users\\SSAFY\\Desktop\\choichoi. Did you mean NavBar.tsx?",
-  "timestamp": "2026-05-07T00:07:47.252Z",
+  "tool_input_preview": "{\"file_path\":\"/Library/Programming/choichoi/lib/supabase.js\"}",
+  "error": "File does not exist. Note: your current working directory is /Library/Programming/choichoi. Did you mean supabase.ts?",
+  "timestamp": "2026-05-11T16:00:38.898Z",
   "retry_count": 1
 }

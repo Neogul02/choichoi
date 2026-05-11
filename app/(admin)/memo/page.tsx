@@ -2,7 +2,7 @@
 
 import NavBar from '@/components/NavBar';
 import { useEffect, useState } from 'react';
-import { fetchAllMemos, createNewMemo, editMemo, removeMemo } from '../actions';
+import { fetchAllMemos, createNewMemo, editMemo, removeMemo } from '@/app/actions';
 import type { Memo } from '@/types/database';
 
 type MemoFormData = { title: string; content: string; color: string };

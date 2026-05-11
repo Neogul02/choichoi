@@ -34,7 +34,8 @@ export async function getTodaysSales(): Promise<TodaysSales> {
     .from('orders')
     .select('total_price')
     .gte('created_at', start)
-    .lte('created_at', end);
+    .lte('created_at', end)
+    .limit(10000);
 
   if (error) throw error;
 
@@ -52,7 +53,8 @@ export async function getTodaysOrderList(): Promise<OrderRecord[]> {
     .select('id,total_price,created_at,payment_status')
     .gte('created_at', start)
     .lte('created_at', end)
-    .order('id', { ascending: false });
+    .order('id', { ascending: false })
+    .limit(10000);
 
   if (error) throw error;
   return data ?? [];
@@ -65,7 +67,8 @@ export async function clearTodaysOrders(): Promise<{ deletedCount: number }> {
     .from('orders')
     .select('id')
     .gte('created_at', start)
-    .lte('created_at', end);
+    .lte('created_at', end)
+    .limit(10000);
 
   if (fetchError) throw fetchError;
   if (!todayOrders || todayOrders.length === 0) return { deletedCount: 0 };
@@ -184,7 +187,8 @@ export async function getMonthlySalesByDate(year: number, month: number): Promis
     .select('created_at,total_price')
     .gte('created_at', start)
     .lte('created_at', end)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(10000);
 
   if (error) throw error;
 
@@ -337,7 +341,8 @@ export async function getMenuSalesByPeriod(startISO: string, endISO: string): Pr
     .from('orders')
     .select('id')
     .gte('created_at', startISO)
-    .lte('created_at', endISO);
+    .lte('created_at', endISO)
+    .limit(10000);
 
   if (ordersError) throw ordersError;
   if (!orders || orders.length === 0) return [];
@@ -347,7 +352,8 @@ export async function getMenuSalesByPeriod(startISO: string, endISO: string): Pr
   const { data: items, error: itemsError } = await supabase
     .from('order_items')
     .select('quantity, subtotal, menu_item_id, menu_items(id, name, price, color)')
-    .in('order_id', orderIds);
+    .in('order_id', orderIds)
+    .limit(100000);
 
   if (itemsError) throw itemsError;
 
