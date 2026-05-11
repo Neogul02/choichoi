@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1778025945470,
-  "projectRoot": "C:\\Users\\SSAFY\\Desktop\\choichoi",
+  "lastScanned": 1778513889170,
+  "projectRoot": "/Library/Programming/choichoi",
   "techStack": {
     "languages": [
       {
@@ -50,7 +50,7 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\" && yarn lint 2>&1 && yarn build 2>&1",
+    "buildCommand": "yarn build 2>&1",
     "testCommand": null,
     "lintCommand": "yarn lint",
     "devCommand": "yarn dev",
@@ -87,43 +87,41 @@
       "path": "app",
       "purpose": "Application code",
       "fileCount": 9,
-      "lastAccessed": 1778025945413,
+      "lastAccessed": 1778513889160,
       "keyFiles": [
-        "actions.ts",
         "AGENTS.md",
+        "actions.ts",
         "favicon.ico",
         "globals.css",
-        "layout.js"
+        "layout.tsx"
       ]
     },
     "components": {
       "path": "components",
       "purpose": "UI components",
-      "fileCount": 5,
-      "lastAccessed": 1778025945414,
+      "fileCount": 2,
+      "lastAccessed": 1778513889163,
       "keyFiles": [
         "AGENTS.md",
-        "MenuGrid.jsx",
-        "MenuItem.jsx",
-        "OrderSummary.jsx",
-        "SalesDisplay.jsx"
+        "NavBar.tsx"
       ]
     },
     "lib": {
       "path": "lib",
       "purpose": "Library code",
-      "fileCount": 2,
-      "lastAccessed": 1778025945415,
+      "fileCount": 3,
+      "lastAccessed": 1778513889163,
       "keyFiles": [
         "AGENTS.md",
-        "supabase.js"
+        "supabase.ts",
+        "utils.ts"
       ]
     },
     "public": {
       "path": "public",
       "purpose": "Public files",
       "fileCount": 5,
-      "lastAccessed": 1778025945426,
+      "lastAccessed": 1778513889163,
       "keyFiles": [
         "file.svg",
         "globe.svg",
@@ -132,11 +130,21 @@
         "window.svg"
       ]
     },
-    "app\\api": {
-      "path": "app\\api",
+    "types": {
+      "path": "types",
+      "purpose": "Type definitions",
+      "fileCount": 2,
+      "lastAccessed": 1778513889164,
+      "keyFiles": [
+        "api.ts",
+        "database.ts"
+      ]
+    },
+    "app/api": {
+      "path": "app/api",
       "purpose": "API routes",
       "fileCount": 1,
-      "lastAccessed": 1778025945427,
+      "lastAccessed": 1778513889164,
       "keyFiles": [
         "AGENTS.md"
       ]
@@ -436,6 +444,12 @@
       "accessCount": 1,
       "lastAccessed": 1778109458630,
       "type": "directory"
+    },
+    {
+      "path": "app/password-gate.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1778514016294,
+      "type": "file"
     }
   ],
   "userDirectives": []

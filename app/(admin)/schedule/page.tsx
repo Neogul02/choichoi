@@ -10,7 +10,7 @@ import {
   addScheduleEntry,
   removeScheduleEntry,
   moveScheduleEntry,
-} from '../actions';
+} from '@/app/actions';
 import type { PopupEvent, ScheduleSlot } from '@/types/database';
 import { toLocalDateStr } from '@/lib/utils';
 

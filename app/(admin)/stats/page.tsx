@@ -9,7 +9,7 @@ import {
   fetchTodaysOrders,
   resetTodaysSales,
   fetchMonthlySalesCalendar,
-} from '../actions';
+} from '@/app/actions';
 import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord } from '@/types/api';
 import { toLocalDateStr, formatPrice } from '@/lib/utils';
 
