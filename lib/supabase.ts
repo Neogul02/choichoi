@@ -176,44 +176,22 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function getMonthlySalesByDate(year: number, month: number): Promise<CalendarSalesData> {
-  const paddedMonth = String(month).padStart(2, '0');
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const paddedLastDay = String(daysInMonth).padStart(2, '0');
-  const start = `${year}-${paddedMonth}-01T00:00:00+09:00`;
-  const end = `${year}-${paddedMonth}-${paddedLastDay}T23:59:59+09:00`;
+  const { data, error } = await supabase
+    .rpc('get_monthly_sales_by_date', { p_year: year, p_month: month });
 
-  const PAGE_SIZE = 1000;
-  const allOrders: { created_at: string; total_price: number }[] = [];
-  let from = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('created_at,total_price')
-      .gte('created_at', start)
-      .lte('created_at', end)
-      .order('created_at', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    allOrders.push(...(data as { created_at: string; total_price: number }[]));
-    if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
+  if (error) throw error;
 
   const byDate: Record<string, number> = {};
   let monthTotal = 0;
+  let totalOrders = 0;
 
-  for (const order of allOrders) {
-    const kstMs = new Date(order.created_at).getTime() + 9 * 3600 * 1000;
-    const dateKey = new Date(kstMs).toISOString().slice(0, 10);
-    const amount = Number(order.total_price || 0);
-    byDate[dateKey] = (byDate[dateKey] || 0) + amount;
-    monthTotal += amount;
+  for (const row of (data ?? []) as Array<{ sale_date: string; total_revenue: number; order_count: number }>) {
+    byDate[row.sale_date] = Number(row.total_revenue);
+    monthTotal += Number(row.total_revenue);
+    totalOrders += Number(row.order_count);
   }
 
-  return { byDate, monthTotal, totalOrders: allOrders.length };
+  return { byDate, monthTotal, totalOrders };
 }
 
 export async function updateMenuOrder(orderedIds: number[]): Promise<void> {
