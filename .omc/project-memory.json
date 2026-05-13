@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1778513889170,
-  "projectRoot": "/Library/Programming/choichoi",
+  "lastScanned": 1778654017442,
+  "projectRoot": "C:\\Users\\SSAFY\\Desktop\\choichoi",
   "techStack": {
     "languages": [
       {
@@ -50,7 +50,7 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "yarn build 2>&1 | tail -30",
+    "buildCommand": "cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\" && yarn build 2>&1 | tail -40",
     "testCommand": null,
     "lintCommand": "yarn lint",
     "devCommand": "yarn dev",
@@ -86,21 +86,21 @@
     "app": {
       "path": "app",
       "purpose": "Application code",
-      "fileCount": 9,
-      "lastAccessed": 1778513889160,
+      "fileCount": 10,
+      "lastAccessed": 1778654017377,
       "keyFiles": [
-        "AGENTS.md",
         "actions.ts",
+        "admin-gate.tsx",
+        "AGENTS.md",
         "favicon.ico",
-        "globals.css",
-        "layout.tsx"
+        "globals.css"
       ]
     },
     "components": {
       "path": "components",
       "purpose": "UI components",
       "fileCount": 2,
-      "lastAccessed": 1778513889163,
+      "lastAccessed": 1778654017390,
       "keyFiles": [
         "AGENTS.md",
         "NavBar.tsx"
@@ -110,7 +110,7 @@
       "path": "lib",
       "purpose": "Library code",
       "fileCount": 3,
-      "lastAccessed": 1778513889163,
+      "lastAccessed": 1778654017391,
       "keyFiles": [
         "AGENTS.md",
         "supabase.ts",
@@ -121,7 +121,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 5,
-      "lastAccessed": 1778513889163,
+      "lastAccessed": 1778654017392,
       "keyFiles": [
         "file.svg",
         "globe.svg",
@@ -134,17 +134,17 @@
       "path": "types",
       "purpose": "Type definitions",
       "fileCount": 2,
-      "lastAccessed": 1778513889164,
+      "lastAccessed": 1778654017392,
       "keyFiles": [
         "api.ts",
         "database.ts"
       ]
     },
-    "app/api": {
-      "path": "app/api",
+    "app\\api": {
+      "path": "app\\api",
       "purpose": "API routes",
       "fileCount": 1,
-      "lastAccessed": 1778513889164,
+      "lastAccessed": 1778654017393,
       "keyFiles": [
         "AGENTS.md"
       ]
@@ -165,26 +165,26 @@
     },
     {
       "path": "app\\actions.ts",
-      "accessCount": 19,
-      "lastAccessed": 1778112422837,
+      "accessCount": 25,
+      "lastAccessed": 1778654847225,
       "type": "file"
     },
     {
       "path": "app\\page.tsx",
-      "accessCount": 15,
-      "lastAccessed": 1778113092069,
+      "accessCount": 19,
+      "lastAccessed": 1778654836936,
+      "type": "file"
+    },
+    {
+      "path": "lib\\supabase.ts",
+      "accessCount": 18,
+      "lastAccessed": 1778655018188,
       "type": "file"
     },
     {
       "path": "app\\stats\\page.js",
       "accessCount": 12,
       "lastAccessed": 1778055391919,
-      "type": "file"
-    },
-    {
-      "path": "lib\\supabase.ts",
-      "accessCount": 11,
-      "lastAccessed": 1778112416275,
       "type": "file"
     },
     {
@@ -224,6 +224,30 @@
       "type": "file"
     },
     {
+      "path": "lib\\utils.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778654273490,
+      "type": "file"
+    },
+    {
+      "path": "app\\password-gate.tsx",
+      "accessCount": 6,
+      "lastAccessed": 1778654280098,
+      "type": "file"
+    },
+    {
+      "path": "types\\api.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778654285706,
+      "type": "file"
+    },
+    {
+      "path": "tsconfig.json",
+      "accessCount": 6,
+      "lastAccessed": 1778654298963,
+      "type": "file"
+    },
+    {
       "path": "app\\layout.js",
       "accessCount": 5,
       "lastAccessed": 1778055385880,
@@ -236,39 +260,27 @@
       "type": "file"
     },
     {
-      "path": "app\\password-gate.tsx",
+      "path": "package.json",
       "accessCount": 5,
-      "lastAccessed": 1778109451584,
+      "lastAccessed": 1778654272725,
       "type": "file"
     },
     {
-      "path": "tsconfig.json",
+      "path": "components\\NavBar.tsx",
       "accessCount": 5,
-      "lastAccessed": 1778109465461,
+      "lastAccessed": 1778654277547,
       "type": "file"
     },
     {
-      "path": "lib\\utils.ts",
+      "path": "app\\providers.tsx",
       "accessCount": 5,
-      "lastAccessed": 1778109577259,
-      "type": "file"
-    },
-    {
-      "path": "types\\api.ts",
-      "accessCount": 5,
-      "lastAccessed": 1778112377942,
+      "lastAccessed": 1778654684410,
       "type": "file"
     },
     {
       "path": "app\\providers.js",
       "accessCount": 4,
       "lastAccessed": 1778055386245,
-      "type": "file"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 4,
-      "lastAccessed": 1778109186971,
       "type": "file"
     },
     {
@@ -290,9 +302,15 @@
       "type": "file"
     },
     {
-      "path": "components\\NavBar.tsx",
+      "path": "types\\database.ts",
       "accessCount": 4,
-      "lastAccessed": 1778113053061,
+      "lastAccessed": 1778654276928,
+      "type": "file"
+    },
+    {
+      "path": "app\\layout.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1778654666476,
       "type": "file"
     },
     {
@@ -338,21 +356,15 @@
       "type": "file"
     },
     {
-      "path": "types\\database.ts",
-      "accessCount": 3,
-      "lastAccessed": 1778109553132,
-      "type": "file"
-    },
-    {
       "path": "app",
       "accessCount": 3,
       "lastAccessed": 1778109585129,
       "type": "directory"
     },
     {
-      "path": "app\\providers.tsx",
+      "path": "next.config.mjs",
       "accessCount": 3,
-      "lastAccessed": 1778111316405,
+      "lastAccessed": 1778654272962,
       "type": "file"
     },
     {
@@ -362,21 +374,9 @@
       "type": "file"
     },
     {
-      "path": "next.config.mjs",
-      "accessCount": 2,
-      "lastAccessed": 1778032542440,
-      "type": "file"
-    },
-    {
       "path": "components\\NavBar.jsx",
       "accessCount": 2,
       "lastAccessed": 1778055387819,
-      "type": "file"
-    },
-    {
-      "path": "app\\layout.tsx",
-      "accessCount": 2,
-      "lastAccessed": 1778112162566,
       "type": "file"
     },
     {

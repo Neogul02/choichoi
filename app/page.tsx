@@ -63,11 +63,12 @@ export default function Home() {
       resetOrder();
       return { previousCounts };
     },
-    onSuccess: (result) => {
+    onSuccess: (result, _vars, context) => {
       if (result.success) {
         const label = result.dailyOrderNumber ? `오늘 ${result.dailyOrderNumber}번째 주문` : `주문번호: ${result.orderId}`;
         toast.success(`결제 완료! ${label}`);
       } else {
+        if (context?.previousCounts) setCounts(context.previousCounts);
         toast.error(result.error || '결제 오류가 발생했습니다');
       }
     },

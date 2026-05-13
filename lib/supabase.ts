@@ -351,34 +351,21 @@ export async function deleteMemo(id: number): Promise<void> {
 // ── Menu Sales ────────────────────────────────────────────────────────────────
 
 export async function getMenuSalesByPeriod(startISO: string, endISO: string): Promise<MenuSalesItem[]> {
-  const PAGE_SIZE = 1000;
-  const allOrderIds: number[] = [];
-  let from = 0;
+  const { data: orders, error: ordersError } = await supabase
+    .from('orders')
+    .select('id')
+    .gte('created_at', startISO)
+    .lte('created_at', endISO);
 
-  while (true) {
-    const { data, error: ordersError } = await supabase
-      .from('orders')
-      .select('id')
-      .gte('created_at', startISO)
-      .lte('created_at', endISO)
-      .range(from, from + PAGE_SIZE - 1);
+  if (ordersError) throw ordersError;
+  if (!orders || orders.length === 0) return [];
 
-    if (ordersError) throw ordersError;
-    if (!data || data.length === 0) break;
-    allOrderIds.push(...data.map((o) => o.id as number));
-    if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-
-  if (allOrderIds.length === 0) return [];
-
-  const orderIds = allOrderIds;
+  const orderIds = orders.map((o) => o.id as number);
 
   const { data: items, error: itemsError } = await supabase
     .from('order_items')
     .select('quantity, subtotal, menu_item_id, menu_items(id, name, price, color)')
-    .in('order_id', orderIds)
-    .limit(100000);
+    .in('order_id', orderIds);
 
   if (itemsError) throw itemsError;
 

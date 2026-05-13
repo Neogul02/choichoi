@@ -1,7 +1,7 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   fetchTodaysSales,
@@ -14,6 +14,9 @@ import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord } from 
 import { toLocalDateStr, formatPrice } from '@/lib/utils';
 
 type Period = 'today' | 'week' | 'month';
+
+const MATERIAL_COST_KEY = 'choichoi_material_cost';
+const OTHER_COST_KEY = 'choichoi_other_cost';
 
 const PERIODS: Array<{ key: Period; label: string }> = [
   { key: 'today', label: '오늘' },
@@ -65,8 +68,12 @@ export default function StatsPage() {
   const [isBreakdownLoading, setIsBreakdownLoading] = useState(false);
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
   const [isResettingSales, setIsResettingSales] = useState(false);
-  const [materialCost, setMaterialCost] = useState(0);
-  const [otherCost, setOtherCost] = useState(0);
+  const [materialCost, setMaterialCost] = useState(() => {
+    try { const s = localStorage.getItem(MATERIAL_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
+  });
+  const [otherCost, setOtherCost] = useState(() => {
+    try { const s = localStorage.getItem(OTHER_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
+  });
 
   const loadTodayData = async () => {
     setIsLoading(true);
@@ -123,8 +130,8 @@ export default function StatsPage() {
   const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
   const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total_price || 0), 0);
-  const maxQuantity = breakdown.length > 0 ? breakdown[0].totalQuantity : 1;
-  const maxDayRevenue = Math.max(...Object.values(calendarSales.byDate || {}).map(Number), 1);
+  const maxQuantity = useMemo(() => breakdown.length > 0 ? breakdown[0].totalQuantity : 1, [breakdown]);
+  const maxDayRevenue = useMemo(() => Math.max(...Object.values(calendarSales.byDate || {}).map(Number), 1), [calendarSales.byDate]);
 
   const buildDateKey = (year: number, monthIndex: number, day: number) =>
     `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -132,9 +139,11 @@ export default function StatsPage() {
   const afterFee = Math.round(calendarSales.monthTotal * 0.68);
   const estimatedSettlement = afterFee - materialCost - otherCost;
 
-  const handleCostChange = (setter: (v: number) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCostChange = (setter: (v: number) => void, storageKey: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/[^0-9]/g, '');
-    setter(raw ? parseInt(raw, 10) : 0);
+    const value = raw ? parseInt(raw, 10) : 0;
+    setter(value);
+    try { localStorage.setItem(storageKey, String(value)); } catch { /* ignore */ }
   };
 
   const formatCostDisplay = (val: number) => val === 0 ? '' : val.toLocaleString('ko-KR');
@@ -363,7 +372,7 @@ export default function StatsPage() {
                       type="text"
                       inputMode="numeric"
                       value={formatCostDisplay(materialCost)}
-                      onChange={handleCostChange(setMaterialCost)}
+                      onChange={handleCostChange(setMaterialCost, MATERIAL_COST_KEY)}
                       onFocus={(e) => e.target.select()}
                       placeholder="0"
                       className="w-28 md:w-36 text-right text-sm border border-[#ddd] rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-[#fafafa]"
@@ -378,7 +387,7 @@ export default function StatsPage() {
                       type="text"
                       inputMode="numeric"
                       value={formatCostDisplay(otherCost)}
-                      onChange={handleCostChange(setOtherCost)}
+                      onChange={handleCostChange(setOtherCost, OTHER_COST_KEY)}
                       onFocus={(e) => e.target.select()}
                       placeholder="0"
                       className="w-28 md:w-36 text-right text-sm border border-[#ddd] rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-[#fafafa]"
