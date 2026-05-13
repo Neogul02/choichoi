@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { MenuItem, Order, OrderItem, PopupEvent, ScheduleSlot, Memo, Worker } from '@/types/database';
-import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord } from '@/types/api';
+import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord, DailySalesItem } from '@/types/api';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -350,28 +350,86 @@ export async function deleteMemo(id: number): Promise<void> {
 
 // ── Menu Sales ────────────────────────────────────────────────────────────────
 
+export async function getDailySalesByPeriod(startISO: string, endISO: string): Promise<DailySalesItem[]> {
+  const PAGE_SIZE = 1000;
+  const MAX_ROWS = 10000;
+  const allOrders: Array<{ total_price: string | number; created_at: string }> = [];
+
+  for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('total_price, created_at')
+      .gte('created_at', startISO)
+      .lte('created_at', endISO)
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allOrders.push(...data);
+    if (data.length < PAGE_SIZE) break;
+  }
+
+  if (allOrders.length === 0) return [];
+
+  const dayMap: Record<string, { revenue: number; orderCount: number }> = {};
+  for (const order of allOrders) {
+    const utcMs = new Date(order.created_at as string).getTime();
+    const kstDate = new Date(utcMs + 9 * 3600 * 1000).toISOString().split('T')[0];
+    if (!dayMap[kstDate]) dayMap[kstDate] = { revenue: 0, orderCount: 0 };
+    dayMap[kstDate].revenue += parseFloat(String(order.total_price));
+    dayMap[kstDate].orderCount += 1;
+  }
+
+  return Object.entries(dayMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { revenue, orderCount }]) => ({ date, revenue, orderCount }));
+}
+
 export async function getMenuSalesByPeriod(startISO: string, endISO: string): Promise<MenuSalesItem[]> {
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('id')
-    .gte('created_at', startISO)
-    .lte('created_at', endISO);
+  const PAGE_SIZE = 1000;
+  const MAX_ROWS = 10000;
+  const orderIds: number[] = [];
 
-  if (ordersError) throw ordersError;
-  if (!orders || orders.length === 0) return [];
+  for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id')
+      .gte('created_at', startISO)
+      .lte('created_at', endISO)
+      .range(from, from + PAGE_SIZE - 1);
 
-  const orderIds = orders.map((o) => o.id as number);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    orderIds.push(...data.map((o) => o.id as number));
+    if (data.length < PAGE_SIZE) break;
+  }
 
-  const { data: items, error: itemsError } = await supabase
-    .from('order_items')
-    .select('quantity, subtotal, menu_item_id, menu_items(id, name, price, color)')
-    .in('order_id', orderIds);
+  if (orderIds.length === 0) return [];
 
-  if (itemsError) throw itemsError;
+  // 500개씩 배치로 나눠 order_items 조회 (IN 절 URL 길이 제한 방지)
+  const BATCH_SIZE = 500;
+  const allItems: Array<{ quantity: number; subtotal: number; menu_item_id: number; menu_items: unknown }> = [];
+
+  for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
+    const batchIds = orderIds.slice(i, i + BATCH_SIZE);
+    for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('quantity, subtotal, menu_item_id, menu_items(id, name, price, color)')
+        .in('order_id', batchIds)
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      allItems.push(...(data as typeof allItems));
+      if (data.length < PAGE_SIZE) break;
+    }
+  }
 
   const menuMap: Record<number, MenuSalesItem> = {};
 
-  for (const item of items ?? []) {
+  for (const item of allItems) {
     const menuId = item.menu_item_id as number;
     const menuInfo = item.menu_items as unknown as { id: number; name: string; price: number; color: string } | null;
     if (!menuMap[menuId]) {

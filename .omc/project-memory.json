@@ -50,7 +50,7 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\" && yarn build 2>&1 | tail -40",
+    "buildCommand": "cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\" && yarn build 2>&1 | tail -20",
     "testCommand": null,
     "lintCommand": "yarn lint",
     "devCommand": "yarn dev",
@@ -152,6 +152,18 @@
   },
   "hotPaths": [
     {
+      "path": "app\\actions.ts",
+      "accessCount": 30,
+      "lastAccessed": 1778656340420,
+      "type": "file"
+    },
+    {
+      "path": "lib\\supabase.ts",
+      "accessCount": 29,
+      "lastAccessed": 1778657012568,
+      "type": "file"
+    },
+    {
       "path": "app\\page.js",
       "accessCount": 26,
       "lastAccessed": 1778055366879,
@@ -164,21 +176,9 @@
       "type": "file"
     },
     {
-      "path": "app\\actions.ts",
-      "accessCount": 25,
-      "lastAccessed": 1778654847225,
-      "type": "file"
-    },
-    {
       "path": "app\\page.tsx",
       "accessCount": 19,
       "lastAccessed": 1778654836936,
-      "type": "file"
-    },
-    {
-      "path": "lib\\supabase.ts",
-      "accessCount": 18,
-      "lastAccessed": 1778655018188,
       "type": "file"
     },
     {
@@ -206,16 +206,22 @@
       "type": "file"
     },
     {
+      "path": "",
+      "accessCount": 10,
+      "lastAccessed": 1778655940478,
+      "type": "directory"
+    },
+    {
+      "path": "types\\api.ts",
+      "accessCount": 9,
+      "lastAccessed": 1778656315559,
+      "type": "file"
+    },
+    {
       "path": "app\\memo\\page.js",
       "accessCount": 8,
       "lastAccessed": 1778055393062,
       "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 8,
-      "lastAccessed": 1778109566027,
-      "type": "directory"
     },
     {
       "path": "app\\schedule\\page.js",
@@ -233,12 +239,6 @@
       "path": "app\\password-gate.tsx",
       "accessCount": 6,
       "lastAccessed": 1778654280098,
-      "type": "file"
-    },
-    {
-      "path": "types\\api.ts",
-      "accessCount": 6,
-      "lastAccessed": 1778654285706,
       "type": "file"
     },
     {
@@ -278,6 +278,12 @@
       "type": "file"
     },
     {
+      "path": "types\\database.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778656059435,
+      "type": "file"
+    },
+    {
       "path": "app\\providers.js",
       "accessCount": 4,
       "lastAccessed": 1778055386245,
@@ -299,12 +305,6 @@
       "path": "app\\memo\\page.tsx",
       "accessCount": 4,
       "lastAccessed": 1778112467836,
-      "type": "file"
-    },
-    {
-      "path": "types\\database.ts",
-      "accessCount": 4,
-      "lastAccessed": 1778654276928,
       "type": "file"
     },
     {

@@ -19,7 +19,9 @@
       "mcp__plugin_oh-my-claudecode_t__state_list_active",
       "mcp__plugin_oh-my-claudecode_t__state_clear",
       "Bash(yarn add *)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\\app\" -Recurse -File)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

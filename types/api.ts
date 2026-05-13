@@ -47,7 +47,14 @@ export interface OrderRecord {
   payment_status: string;
 }
 
+export interface DailySalesItem {
+  date: string;
+  revenue: number;
+  orderCount: number;
+}
+
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
+export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;
 export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;
 export type FetchMenuSalesResponse = ApiResponse<MenuSalesItem[]>;
 export type FetchCalendarResponse = ApiResponse<CalendarSalesData>;
