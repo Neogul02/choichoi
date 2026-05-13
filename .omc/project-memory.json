@@ -50,7 +50,7 @@
     "runtime": null
   },
   "build": {
-    "buildCommand": "cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\" && yarn build 2>&1 | tail -20",
+    "buildCommand": "cd \"C:\\Users\\SSAFY\\Desktop\\choichoi\" && yarn build 2>&1 | tail -40",
     "testCommand": null,
     "lintCommand": "yarn lint",
     "devCommand": "yarn dev",
@@ -153,14 +153,14 @@
   "hotPaths": [
     {
       "path": "app\\actions.ts",
-      "accessCount": 30,
-      "lastAccessed": 1778656340420,
+      "accessCount": 32,
+      "lastAccessed": 1778657385705,
       "type": "file"
     },
     {
       "path": "lib\\supabase.ts",
-      "accessCount": 29,
-      "lastAccessed": 1778657012568,
+      "accessCount": 30,
+      "lastAccessed": 1778657382364,
       "type": "file"
     },
     {
@@ -177,14 +177,26 @@
     },
     {
       "path": "app\\page.tsx",
-      "accessCount": 19,
-      "lastAccessed": 1778654836936,
+      "accessCount": 20,
+      "lastAccessed": 1778657375987,
       "type": "file"
     },
     {
       "path": "app\\stats\\page.js",
       "accessCount": 12,
       "lastAccessed": 1778055391919,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 11,
+      "lastAccessed": 1778657389496,
+      "type": "directory"
+    },
+    {
+      "path": "lib\\utils.ts",
+      "accessCount": 11,
+      "lastAccessed": 1778659643769,
       "type": "file"
     },
     {
@@ -206,15 +218,9 @@
       "type": "file"
     },
     {
-      "path": "",
-      "accessCount": 10,
-      "lastAccessed": 1778655940478,
-      "type": "directory"
-    },
-    {
       "path": "types\\api.ts",
-      "accessCount": 9,
-      "lastAccessed": 1778656315559,
+      "accessCount": 10,
+      "lastAccessed": 1778657382831,
       "type": "file"
     },
     {
@@ -230,12 +236,6 @@
       "type": "file"
     },
     {
-      "path": "lib\\utils.ts",
-      "accessCount": 7,
-      "lastAccessed": 1778654273490,
-      "type": "file"
-    },
-    {
       "path": "app\\password-gate.tsx",
       "accessCount": 6,
       "lastAccessed": 1778654280098,
@@ -245,6 +245,18 @@
       "path": "tsconfig.json",
       "accessCount": 6,
       "lastAccessed": 1778654298963,
+      "type": "file"
+    },
+    {
+      "path": "components\\NavBar.tsx",
+      "accessCount": 6,
+      "lastAccessed": 1778657379464,
+      "type": "file"
+    },
+    {
+      "path": "types\\database.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778657382635,
       "type": "file"
     },
     {
@@ -266,21 +278,9 @@
       "type": "file"
     },
     {
-      "path": "components\\NavBar.tsx",
-      "accessCount": 5,
-      "lastAccessed": 1778654277547,
-      "type": "file"
-    },
-    {
       "path": "app\\providers.tsx",
       "accessCount": 5,
       "lastAccessed": 1778654684410,
-      "type": "file"
-    },
-    {
-      "path": "types\\database.ts",
-      "accessCount": 5,
-      "lastAccessed": 1778656059435,
       "type": "file"
     },
     {
@@ -312,6 +312,12 @@
       "accessCount": 4,
       "lastAccessed": 1778654666476,
       "type": "file"
+    },
+    {
+      "path": "app",
+      "accessCount": 4,
+      "lastAccessed": 1778657389055,
+      "type": "directory"
     },
     {
       "path": "components\\MenuGrid.jsx",
@@ -354,12 +360,6 @@
       "accessCount": 3,
       "lastAccessed": 1778109082205,
       "type": "file"
-    },
-    {
-      "path": "app",
-      "accessCount": 3,
-      "lastAccessed": 1778109585129,
-      "type": "directory"
     },
     {
       "path": "next.config.mjs",
