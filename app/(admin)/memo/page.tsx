@@ -2,6 +2,7 @@
 
 import NavBar from '@/components/NavBar';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { fetchAllMemos, createNewMemo, editMemo, removeMemo } from '@/app/actions';
 import type { Memo } from '@/types/database';
 
@@ -25,7 +26,6 @@ export default function MemoPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<MemoFormData>(INITIAL_FORM);
-  const [message, setMessage] = useState('');
 
   const loadMemos = async () => {
     setIsLoading(true);
@@ -36,30 +36,25 @@ export default function MemoPage() {
 
   useEffect(() => { loadMemos(); }, []);
 
-  const showMessage = (msg: string) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(''), 2500);
-  };
-
   const handleSave = async () => {
-    if (!formData.content.trim()) { showMessage('내용을 입력해주세요'); return; }
+    if (!formData.content.trim()) { toast.error('내용을 입력해주세요'); return; }
 
     if (editingId !== null) {
       const result = await editMemo(editingId, formData.title, formData.content, formData.color);
       if (result.success && result.data) {
         setMemos((prev) => prev.map((m) => (m.id === editingId ? result.data! : m)));
-        showMessage('메모가 수정되었습니다');
+        toast.success('메모가 수정되었습니다');
       } else {
-        showMessage(`오류: ${result.error}`);
+        toast.error(`오류: ${result.error}`);
         return;
       }
     } else {
       const result = await createNewMemo(formData.title, formData.content, formData.color);
       if (result.success && result.data) {
         setMemos((prev) => [result.data!, ...prev]);
-        showMessage('메모가 추가되었습니다');
+        toast.success('메모가 추가되었습니다');
       } else {
-        showMessage(`오류: ${result.error}`);
+        toast.error(`오류: ${result.error}`);
         return;
       }
     }
@@ -85,9 +80,9 @@ export default function MemoPage() {
     const result = await removeMemo(id);
     if (result.success) {
       setMemos((prev) => prev.filter((m) => m.id !== id));
-      showMessage('메모가 삭제되었습니다');
+      toast.success('메모가 삭제되었습니다');
     } else {
-      showMessage(`오류: ${result.error}`);
+      toast.error(`오류: ${result.error}`);
     }
   };
 
@@ -104,12 +99,6 @@ export default function MemoPage() {
               </button>
             )}
           </div>
-
-          {message && (
-            <div className={`p-3 mb-4 rounded-lg text-center font-semibold ${message.includes('오류') ? 'bg-[#f8d7da] text-[#721c24] border border-[#f5c6cb]' : 'bg-[#d4edda] text-[#155724] border border-[#c3e6cb]'}`}>
-              {message}
-            </div>
-          )}
 
           {showForm && (
             <div className="bg-white rounded-xl p-5 mb-6 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">

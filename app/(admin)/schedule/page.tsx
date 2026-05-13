@@ -1,6 +1,7 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
+import { toast } from 'sonner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent,
@@ -64,7 +65,7 @@ export default function SchedulePage() {
   const [leftTab, setLeftTab] = useState<LeftTab>('events');
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragMode, setDragMode] = useState<DragMode>('move');
-  const [message, setMessage] = useState('');
+  const [draftRates, setDraftRates] = useState<Record<string, string>>({});
 
   // Add slot
   const [addingTo, setAddingTo] = useState<DragCell | null>(null);
@@ -90,7 +91,10 @@ export default function SchedulePage() {
     try { const s = localStorage.getItem(LOCAL_RATES_KEY); if (s) setLocalRates(JSON.parse(s)); } catch { /* ignore */ }
   }, []);
 
-  const showMsg = (msg: string) => { setMessage(msg); setTimeout(() => setMessage(''), 2500); };
+  const showMsg = (msg: string) => {
+    const isError = msg.startsWith('오류') || msg.endsWith('하세요') || msg.includes('앞입니다') || msg.includes('찾을 수 없습니다');
+    if (isError) toast.error(msg); else toast.success(msg);
+  };
 
   const loadEvents = async () => {
     setIsEventsLoading(true);
@@ -114,7 +118,7 @@ export default function SchedulePage() {
   // ── Events ────────────────────────────────────────────────────────────────
   const handleSelectEvent = (event: PopupEvent) => {
     setSelectedEvent(event); setAddingTo(null); setEditingSlotId(null); setWeekOffset(0); setWorkers([]);
-    loadSlots(event.id); loadWorkers(event.id);
+    Promise.all([loadSlots(event.id), loadWorkers(event.id)]);
   };
 
   const handleCreateEvent = async () => {
@@ -172,7 +176,7 @@ export default function SchedulePage() {
     if (addWorkerId === '') { showMsg('근무자를 선택하세요'); return; }
     const wid = addWorkerId as number;
     const name = workers.find(w => w.id === wid)?.name ?? '';
-    if (!name) return;
+    if (!name) { showMsg('근무자 정보를 찾을 수 없습니다'); return; }
     const r = await addScheduleEntry(selectedEvent.id, dateStr, role, name, addWorkTime.trim(), wid, addBreak);
     if (r.success && r.data) { setSlots(p => [...p, r.data!]); showMsg('인원이 추가되었습니다'); }
     else showMsg(`오류: ${r.error}`);
@@ -195,11 +199,15 @@ export default function SchedulePage() {
     if (editWorkerId === '') { showMsg('근무자를 선택하세요'); return; }
     const wid = editWorkerId as number;
     const name = workers.find(w => w.id === wid)?.name ?? '';
-    if (!name) return;
+    if (!name) { showMsg('근무자 정보를 찾을 수 없습니다'); return; }
     const r = await editScheduleEntry(id, name, editWorkTime.trim(), wid, editBreak);
-    if (r.success && r.data) { setSlots(p => p.map(s => s.id === id ? r.data! : s)); showMsg('수정되었습니다'); }
-    else showMsg(`오류: ${r.error}`);
-    setEditingSlotId(null);
+    if (r.success && r.data) {
+      setSlots(p => p.map(s => s.id === id ? r.data! : s));
+      showMsg('수정되었습니다');
+      setEditingSlotId(null);
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
   };
 
   const handleRateChange = async (worker: Worker | null, name: string, rate: number) => {
@@ -298,12 +306,6 @@ export default function SchedulePage() {
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1400px] mx-auto">
-        {message && (
-          <div className={`p-3 mb-4 rounded-lg text-center font-semibold text-sm ${message.includes('오류') ? 'bg-[#f8d7da] text-[#721c24] border border-[#f5c6cb]' : 'bg-[#d4edda] text-[#155724] border border-[#c3e6cb]'}`}>
-            {message}
-          </div>
-        )}
-
         <div className="flex flex-col md:flex-row gap-4 items-start">
           {/* ── 왼쪽 패널 ── */}
           <div className="w-full md:w-[210px] shrink-0">
@@ -587,8 +589,14 @@ export default function SchedulePage() {
                             <td className="border border-[#eee] px-2 py-2 text-center align-top" rowSpan={group.entries.length}>
                               <input
                                 type="number" min={0} step={100}
-                                value={rate || ''}
-                                onChange={e => handleRateChange(group.worker, group.name, parseInt(e.target.value) || 0)}
+                                value={group.key in draftRates ? draftRates[group.key] : (rate || '')}
+                                onChange={e => setDraftRates(p => ({ ...p, [group.key]: e.target.value }))}
+                                onBlur={() => {
+                                  if (group.key in draftRates) {
+                                    handleRateChange(group.worker, group.name, parseInt(draftRates[group.key]) || 0);
+                                    setDraftRates(p => { const n = { ...p }; delete n[group.key]; return n; });
+                                  }
+                                }}
                                 placeholder="시급"
                                 className="w-[88px] px-2 py-1 border border-[#ddd] rounded text-xs text-right focus:outline-none focus:border-primary-700"
                               />

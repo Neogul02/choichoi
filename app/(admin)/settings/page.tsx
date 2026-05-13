@@ -1,7 +1,8 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '@/app/actions';
 import type { MenuItem } from '@/types/database';
 
@@ -24,7 +25,7 @@ const INITIAL_FORM: MenuFormData = { name: '', price: '', color: COLOR_PALETTE[0
 export default function SettingsPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
@@ -40,37 +41,40 @@ export default function SettingsPage() {
   useEffect(() => { loadMenuItems(); }, []);
 
   const validateForm = (): number | null => {
-    if (!formData.name || !formData.price) { setMessage('모든 필드를 입력해주세요'); return null; }
+    if (!formData.name || !formData.price) { toast.error('모든 필드를 입력해주세요'); return null; }
     const price = parseFloat(formData.price);
-    if (isNaN(price) || price <= 0) { setMessage('가격은 0보다 큰 숫자여야 합니다'); return null; }
-    setMessage('');
+    if (isNaN(price) || price <= 0) { toast.error('가격은 0보다 큰 숫자여야 합니다'); return null; }
     return price;
   };
 
   const handleAddMenuItem = async () => {
     const price = validateForm();
     if (price === null) return;
+    setIsSubmitting(true);
     const result = await createNewMenuItem(formData.name, price, formData.color);
-    if (result.success) {
-      setMessage('메뉴가 추가되었습니다');
+    setIsSubmitting(false);
+    if (result.success && result.data) {
+      setMenuItems(p => [...p, result.data!]);
       setFormData(INITIAL_FORM);
-      await loadMenuItems();
+      toast.success('메뉴가 추가되었습니다');
     } else {
-      setMessage(`오류: ${result.error}`);
+      toast.error(`오류: ${result.error}`);
     }
   };
 
   const handleEditMenuItem = async () => {
     const price = validateForm();
     if (price === null || editingId === null) return;
+    setIsSubmitting(true);
     const result = await editMenuItem(editingId, formData.name, price, formData.color);
-    if (result.success) {
-      setMessage('메뉴가 수정되었습니다');
+    setIsSubmitting(false);
+    if (result.success && result.data) {
+      setMenuItems(p => p.map(m => m.id === editingId ? result.data! : m));
       setFormData(INITIAL_FORM);
       setEditingId(null);
-      await loadMenuItems();
+      toast.success('메뉴가 수정되었습니다');
     } else {
-      setMessage(`오류: ${result.error}`);
+      toast.error(`오류: ${result.error}`);
     }
   };
 
@@ -78,10 +82,10 @@ export default function SettingsPage() {
     if (!confirm('정말 삭제하시겠습니까?')) return;
     const result = await removeMenuItem(id);
     if (result.success) {
-      setMessage('메뉴가 삭제되었습니다');
-      await loadMenuItems();
+      setMenuItems(p => p.filter(m => m.id !== id));
+      toast.success('메뉴가 삭제되었습니다');
     } else {
-      setMessage(`오류: ${result.error}`);
+      toast.error(`오류: ${result.error}`);
     }
   };
 
@@ -106,12 +110,17 @@ export default function SettingsPage() {
     const [movedId] = orderedIds.splice(fromIndex, 1);
     orderedIds.splice(toIndex, 0, movedId);
 
+    const previousItems = [...menuItems];
+    const reorderedActive = orderedIds.map(id => menuItems.find(item => item.id === id)!);
+    const inactiveItems = menuItems.filter(item => !item.is_active);
+    setMenuItems([...reorderedActive, ...inactiveItems]);
+
     const result = await reorderMenuItems(orderedIds);
     if (result.success) {
-      setMessage('메뉴 순서가 변경되었습니다');
-      await loadMenuItems();
+      toast.success('메뉴 순서가 변경되었습니다');
     } else {
-      setMessage(`오류: ${result.error}`);
+      setMenuItems(previousItems);
+      toast.error(`오류: ${result.error}`);
     }
   };
 
@@ -152,7 +161,7 @@ export default function SettingsPage() {
     setDragOverId(null);
   };
 
-  const activeMenuItems = menuItems.filter((item) => item.is_active);
+  const activeMenuItems = useMemo(() => menuItems.filter((item) => item.is_active), [menuItems]);
 
   return (
     <>
@@ -160,12 +169,6 @@ export default function SettingsPage() {
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="bg-white rounded-2xl p-4 md:p-5 max-w-[800px] mx-auto">
           <h2 className="m-0 mb-5 text-2xl font-extrabold">메뉴 관리</h2>
-
-          {message && (
-            <div className={`p-3 mb-4 rounded-lg text-center font-semibold ${message.includes('오류') ? 'bg-[#f8d7da] text-[#721c24] border border-[#f5c6cb]' : 'bg-[#d4edda] text-[#155724] border border-[#c3e6cb]'}`}>
-              {message}
-            </div>
-          )}
 
           <div className="bg-[#f9f9f9] rounded-xl p-4 mb-4">
             <h3 className="mt-0 mb-3 text-lg font-bold">{editingId ? '메뉴 수정' : '새 메뉴 추가'}</h3>
@@ -188,11 +191,15 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex gap-2 mt-3">
-              <button className="flex-1 px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-primary-700 text-white hover:bg-primary-800" onClick={editingId ? handleEditMenuItem : handleAddMenuItem}>
-                {editingId ? '수정 완료' : '메뉴 추가'}
+              <button
+                className="flex-1 px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-primary-700 text-white hover:bg-primary-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={editingId ? handleEditMenuItem : handleAddMenuItem}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? '처리 중...' : editingId ? '수정 완료' : '메뉴 추가'}
               </button>
               {editingId && (
-                <button className="px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-[#ddd] text-[#333] hover:bg-[#ccc]" onClick={handleCancel}>취소</button>
+                <button className="px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-[#ddd] text-[#333] hover:bg-[#ccc]" onClick={handleCancel} disabled={isSubmitting}>취소</button>
               )}
             </div>
           </div>
