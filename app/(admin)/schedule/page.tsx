@@ -10,7 +10,9 @@ import {
   fetchWorkers, createNewWorker, editWorker, removeWorker, markWorkerPayment,
 } from '@/app/actions';
 import type { PopupEvent, ScheduleSlot, Worker } from '@/types/database';
-import { toLocalDateStr } from '@/lib/utils';
+import { toLocalDateStr, parseWorkHours, formatHours } from '@/lib/utils';
+import ScheduleSidebar from './_components/ScheduleSidebar';
+import SalaryTable, { type SalaryGroup } from './_components/SalaryTable';
 
 const ROLES = ['프론트', '제조', '기타'] as const;
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -21,7 +23,6 @@ type DragMode = 'move' | 'copy';
 type LeftTab = 'events' | 'workers';
 type WorkerForm = { name: string; color: string; phone: string; bank_name: string; bank_account: string; hourly_rate: string };
 
-const WORKER_COLORS = ['#22c55e','#6366f1','#ef4444','#f97316','#64748b'];
 const EMPTY_WORKER_FORM: WorkerForm = { name: '', color: '#22c55e', phone: '', bank_name: '', bank_account: '', hourly_rate: '' };
 
 function getEventDates(startDate: string, endDate: string): Date[] {
@@ -31,16 +32,6 @@ function getEventDates(startDate: string, endDate: string): Date[] {
   while (cur <= end) { dates.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
   return dates;
 }
-
-function parseWorkHours(workTime: string | null, breakTime = false): number {
-  if (!workTime) return 0;
-  const m = workTime.match(/(\d{1,2})(?::(\d{2}))?[-~](\d{1,2})(?::(\d{2}))?/);
-  if (!m) return 0;
-  const raw = Math.max(0, (parseInt(m[3]) * 60 + parseInt(m[4] ?? '0') - parseInt(m[1]) * 60 - parseInt(m[2] ?? '0')) / 60);
-  return breakTime ? Math.max(0, raw - 1) : raw;
-}
-
-function formatHours(h: number) { return h === 0 ? '-' : Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`; }
 
 export default function SchedulePage() {
   // Events
@@ -65,19 +56,16 @@ export default function SchedulePage() {
   const [leftTab, setLeftTab] = useState<LeftTab>('events');
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragMode, setDragMode] = useState<DragMode>('move');
-  const [draftRates, setDraftRates] = useState<Record<string, string>>({});
 
   // Add slot
   const [addingTo, setAddingTo] = useState<DragCell | null>(null);
   const [addWorkerId, setAddWorkerId] = useState<number | ''>('');
-  const [addManualName, setAddManualName] = useState('');
   const [addWorkTime, setAddWorkTime] = useState('');
   const [addBreak, setAddBreak] = useState(false);
 
   // Edit slot
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
   const [editWorkerId, setEditWorkerId] = useState<number | ''>('');
-  const [editManualName, setEditManualName] = useState('');
   const [editWorkTime, setEditWorkTime] = useState('');
   const [editBreak, setEditBreak] = useState(false);
 
@@ -192,7 +180,7 @@ export default function SchedulePage() {
 
   const handleEditStart = (e: React.MouseEvent, slot: ScheduleSlot) => {
     e.stopPropagation();
-    setEditingSlotId(slot.id); setEditWorkerId(slot.worker_id ?? ''); setEditManualName(slot.person_name); setEditWorkTime(slot.work_time ?? ''); setEditBreak(slot.break_time ?? false); setAddingTo(null);
+    setEditingSlotId(slot.id); setEditWorkerId(slot.worker_id ?? ''); setEditWorkTime(slot.work_time ?? ''); setEditBreak(slot.break_time ?? false); setAddingTo(null);
   };
 
   const handleEditSave = async (id: number) => {
@@ -201,13 +189,8 @@ export default function SchedulePage() {
     const name = workers.find(w => w.id === wid)?.name ?? '';
     if (!name) { showMsg('근무자 정보를 찾을 수 없습니다'); return; }
     const r = await editScheduleEntry(id, name, editWorkTime.trim(), wid, editBreak);
-    if (r.success && r.data) {
-      setSlots(p => p.map(s => s.id === id ? r.data! : s));
-      showMsg('수정되었습니다');
-      setEditingSlotId(null);
-    } else {
-      showMsg(`오류: ${r.error}`);
-    }
+    if (r.success && r.data) { setSlots(p => p.map(s => s.id === id ? r.data! : s)); showMsg('수정되었습니다'); setEditingSlotId(null); }
+    else showMsg(`오류: ${r.error}`);
   };
 
   const handleRateChange = async (worker: Worker | null, name: string, rate: number) => {
@@ -273,7 +256,6 @@ export default function SchedulePage() {
   const totalWeeks = Math.ceil(eventDates.length / 7);
   const visibleDates = useMemo(() => eventDates.slice(weekOffset * 7, weekOffset * 7 + 7), [eventDates, weekOffset]);
 
-  type SalaryGroup = { key: string; worker: Worker | null; name: string; entries: { date: string; role: string; workTime: string | null; breakTime: boolean; hours: number }[] };
   const salaryGroups = useMemo((): SalaryGroup[] => {
     if (!slots.length) return [];
     const map = new Map<string, SalaryGroup>();
@@ -307,110 +289,23 @@ export default function SchedulePage() {
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1400px] mx-auto">
         <div className="flex flex-col md:flex-row gap-4 items-start">
-          {/* ── 왼쪽 패널 ── */}
-          <div className="w-full md:w-[210px] shrink-0">
-            <div className="flex rounded-xl overflow-hidden border border-[#eee] mb-2 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-              {(['events', 'workers'] as const).map(tab => (
-                <button key={tab} className={`flex-1 py-2 text-[11px] font-bold border-none cursor-pointer transition ${leftTab === tab ? 'bg-primary-700 text-white' : 'bg-white text-[#555] hover:bg-[#f5f5f5]'}`} onClick={() => setLeftTab(tab)}>
-                  {tab === 'events' ? '일정 목록' : '근무자 관리'}
-                </button>
-              ))}
-            </div>
-
-            {/* 일정 목록 */}
-            {leftTab === 'events' && (
-              <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                <div className="flex justify-between items-center mb-2.5">
-                  <h2 className="m-0 text-sm font-extrabold">일정 목록</h2>
-                  <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showAddEvent ? 'bg-[#eee] text-[#555]' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => setShowAddEvent(v => !v)}>
-                    {showAddEvent ? '취소' : '+ 추가'}
-                  </button>
-                </div>
-                {showAddEvent && (
-                  <div className="bg-[#f9f9f9] rounded-lg p-2.5 mb-2.5 flex flex-col gap-1.5">
-                    <input type="text" placeholder="일정 이름" value={newEvent.name} onChange={e => setNewEvent(p => ({ ...p, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleCreateEvent()} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] font-semibold text-[#666]">시작일 {startWeekday && <span className="text-primary-700">{startWeekday}요일</span>}</label>
-                      <input type="date" value={newEvent.startDate} onChange={e => setNewEvent(p => ({ ...p, startDate: e.target.value }))} className="w-full px-2 py-1 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] font-semibold text-[#666]">종료일</label>
-                      <input type="date" value={newEvent.endDate} onChange={e => setNewEvent(p => ({ ...p, endDate: e.target.value }))} className="w-full px-2 py-1 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    </div>
-                    <button className="w-full p-1.5 border-none rounded bg-primary-700 text-white text-xs font-bold cursor-pointer hover:bg-primary-800 transition" onClick={handleCreateEvent}>일정 생성</button>
-                  </div>
-                )}
-                {isEventsLoading ? <p className="text-[#999] text-xs m-0">불러오는 중...</p> : events.length === 0 ? <p className="text-[#999] text-xs m-0">일정이 없습니다.</p> : (
-                  <ul className="list-none m-0 p-0 flex flex-col gap-1">
-                    {events.map(event => (
-                      <li key={event.id} className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border-[1.5px] cursor-pointer transition ${selectedEvent?.id === event.id ? 'border-primary-700 bg-primary-50' : 'border-[#eee] hover:border-primary-700 hover:bg-primary-50'}`} onClick={() => handleSelectEvent(event)}>
-                        <div className="flex-1 min-w-0">
-                          <strong className="block text-[12px] font-bold text-[#222] truncate">{event.name}</strong>
-                          <span className="text-[10px] text-[#888]">{event.start_date} ~ {event.end_date}</span>
-                        </div>
-                        <button className="bg-transparent border-none text-[#ccc] text-base cursor-pointer leading-none hover:text-red-500 transition" onClick={e => handleDeleteEvent(e, event)}>×</button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {/* 근무자 관리 */}
-            {leftTab === 'workers' && (
-              <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                {!selectedEvent ? (
-                  <p className="text-[#999] text-xs m-0 text-center py-2">일정을 먼저 선택하세요</p>
-                ) : (<>
-                <div className="flex justify-between items-center mb-2.5">
-                  <h2 className="m-0 text-sm font-extrabold">{selectedEvent.name} 근무자</h2>
-                  <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showWorkerForm ? 'bg-[#eee] text-[#555]' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => showWorkerForm ? setShowWorkerForm(false) : openWorkerForm()}>
-                    {showWorkerForm ? '취소' : '+ 추가'}
-                  </button>
-                </div>
-                {showWorkerForm && (
-                  <div className="bg-[#f9f9f9] rounded-lg p-2.5 mb-2.5 flex flex-col gap-1.5">
-                    <input type="text" placeholder="이름 *" value={workerForm.name} onChange={e => setWorkerForm(p => ({ ...p, name: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    <div>
-                      <p className="text-[10px] font-semibold text-[#666] mb-1">색상</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {WORKER_COLORS.map(c => (
-                          <button key={c} type="button" onClick={() => setWorkerForm(p => ({ ...p, color: c }))} className="w-5 h-5 rounded-full border-2 transition" style={{ backgroundColor: c, borderColor: workerForm.color === c ? '#222' : 'transparent' }} />
-                        ))}
-                      </div>
-                    </div>
-                    <input type="tel" placeholder="전화번호" value={workerForm.phone} onChange={e => setWorkerForm(p => ({ ...p, phone: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    <input type="text" placeholder="은행 종류 (예: 카카오뱅크)" value={workerForm.bank_name} onChange={e => setWorkerForm(p => ({ ...p, bank_name: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    <input type="text" placeholder="계좌번호" value={workerForm.bank_account} onChange={e => setWorkerForm(p => ({ ...p, bank_account: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    <input type="number" placeholder="시급 (원)" value={workerForm.hourly_rate} onChange={e => setWorkerForm(p => ({ ...p, hourly_rate: e.target.value }))} className="w-full px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700" />
-                    <button className="w-full p-1.5 border-none rounded bg-primary-700 text-white text-xs font-bold cursor-pointer hover:bg-primary-800 transition" onClick={handleSaveWorker}>{editingWorkerId ? '수정 완료' : '등록'}</button>
-                  </div>
-                )}
-                {workers.length === 0 ? <p className="text-[#999] text-xs m-0">등록된 근무자가 없습니다.</p> : (
-                  <ul className="list-none m-0 p-0 flex flex-col gap-1.5">
-                    {workers.map(w => (
-                      <li key={w.id} className="bg-[#f9f9f9] rounded-lg p-2 border border-[#eee]">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: w.color || '#6366f1' }} />
-                            <strong className="text-[12px] font-bold">{w.name}</strong>
-                          </div>
-                          <div className="flex gap-1">
-                            <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:bg-[#eee] transition" onClick={() => openWorkerForm(w)}>✎</button>
-                            <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:text-red-500 hover:border-red-300 transition" onClick={() => handleDeleteWorker(w.id, w.name)}>×</button>
-                          </div>
-                        </div>
-                        {w.phone && <p className="m-0 text-[10px] text-[#777]">{w.phone}</p>}
-                        {(w.bank_name || w.bank_account) && <p className="m-0 text-[10px] text-[#777] truncate">{[w.bank_name, w.bank_account].filter(Boolean).join(' ')}</p>}
-                        {w.hourly_rate > 0 && <p className="m-0 text-[10px] font-semibold text-primary-700">{w.hourly_rate.toLocaleString('ko-KR')}원/h</p>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                </>)}
-              </div>
-            )}
-          </div>
+          <ScheduleSidebar
+            events={events} selectedEvent={selectedEvent} isEventsLoading={isEventsLoading} workers={workers}
+            leftTab={leftTab} showAddEvent={showAddEvent} newEvent={newEvent}
+            showWorkerForm={showWorkerForm} workerForm={workerForm} editingWorkerId={editingWorkerId}
+            startWeekday={startWeekday}
+            onTabChange={setLeftTab}
+            onToggleAddEvent={() => setShowAddEvent(v => !v)}
+            onUpdateNewEvent={(updates) => setNewEvent(p => ({ ...p, ...updates }))}
+            onCreateEvent={handleCreateEvent}
+            onSelectEvent={handleSelectEvent}
+            onDeleteEvent={handleDeleteEvent}
+            onOpenWorkerForm={openWorkerForm}
+            onSetShowWorkerForm={setShowWorkerForm}
+            onUpdateWorkerForm={(updates) => setWorkerForm(p => ({ ...p, ...updates }))}
+            onSaveWorker={handleSaveWorker}
+            onDeleteWorker={handleDeleteWorker}
+          />
 
           {/* ── 스케줄 그리드 ── */}
           <div className="flex-1 min-w-0 bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
@@ -454,10 +349,10 @@ export default function SchedulePage() {
                             const day = date.getDay();
                             const isSat = day === 6, isSun = day === 0;
                             return (
-                            <th key={i} className={`text-center border border-[#eee] px-1 py-1.5 ${isSun ? 'bg-red-50' : isSat ? 'bg-blue-50' : 'bg-[#f9f9f9]'}`} style={{ minWidth: '88px' }}>
-                              <div className={`font-bold text-[12px] leading-tight ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : ''}`}>{DAY_NAMES[day]}</div>
-                              <div className={`text-[10px] ${isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-[#888]'}`}>{date.getMonth() + 1}/{date.getDate()}</div>
-                            </th>
+                              <th key={i} className={`text-center border border-[#eee] px-1 py-1.5 ${isSun ? 'bg-red-50' : isSat ? 'bg-blue-50' : 'bg-[#f9f9f9]'}`} style={{ minWidth: '88px' }}>
+                                <div className={`font-bold text-[12px] leading-tight ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : ''}`}>{DAY_NAMES[day]}</div>
+                                <div className={`text-[10px] ${isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-[#888]'}`}>{date.getMonth() + 1}/{date.getDate()}</div>
+                              </th>
                             );
                           })}
                         </tr>
@@ -546,103 +441,15 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        {/* ── 급여 계산서 ── */}
         {selectedEvent && salaryGroups.length > 0 && (
-          <div className="mt-5 bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-            <h3 className="m-0 mb-4 text-lg font-extrabold">급여 계산서 — {selectedEvent.name}</h3>
-            <div className="overflow-x-auto [scrollbar-width:thin]">
-              <table className="w-full border-collapse text-sm min-w-[600px]">
-                <thead>
-                  <tr className="bg-[#f9f9f9]">
-                    {['이름', '근무날짜', '근무시간', '총 근무시간', '시급 (원)', '최종 급여', '송금'].map(h => (
-                      <th key={h} className="border border-[#eee] px-3 py-2 text-xs font-semibold text-[#555] text-left whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {salaryGroups.flatMap(group => {
-                    const totalHours = group.entries.reduce((s, e) => s + e.hours, 0);
-                    const rate = group.worker ? group.worker.hourly_rate : (localRates[group.name] ?? 0);
-                    const finalPay = totalHours * rate;
-                    return group.entries.map((entry, idx) => {
-                      const d = new Date(entry.date + 'T00:00:00');
-                      const dateLabel = `${d.getMonth() + 1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
-                      return (
-                        <tr key={`${group.key}-${idx}`} className={group.worker?.payment_done ? 'bg-gray-100 text-gray-400' : 'hover:bg-[#fafafa]'}>
-                          {idx === 0 && (
-                            <td className="border border-[#eee] px-3 py-2 align-top font-bold text-[#222]" rowSpan={group.entries.length}>
-                              <div className="text-sm">{group.name}</div>
-                              {group.worker?.phone && <div className="text-[10px] text-[#888] font-normal mt-0.5">{group.worker.phone}</div>}
-                            </td>
-                          )}
-                          <td className="border border-[#eee] px-3 py-2 text-xs text-[#555] whitespace-nowrap">{dateLabel}</td>
-                          <td className="border border-[#eee] px-3 py-2 text-xs text-[#555]">
-                            {entry.workTime ?? '-'}
-                            {entry.breakTime && <span className="ml-1 text-[10px] text-orange-500">(-1h)</span>}
-                          </td>
-                          {idx === 0 && (
-                            <td className="border border-[#eee] px-3 py-2 text-center font-bold align-top" rowSpan={group.entries.length}>
-                              {formatHours(totalHours)}
-                            </td>
-                          )}
-                          {idx === 0 && (
-                            <td className="border border-[#eee] px-2 py-2 text-center align-top" rowSpan={group.entries.length}>
-                              <input
-                                type="number" min={0} step={100}
-                                value={group.key in draftRates ? draftRates[group.key] : (rate || '')}
-                                onChange={e => setDraftRates(p => ({ ...p, [group.key]: e.target.value }))}
-                                onBlur={() => {
-                                  if (group.key in draftRates) {
-                                    handleRateChange(group.worker, group.name, parseInt(draftRates[group.key]) || 0);
-                                    setDraftRates(p => { const n = { ...p }; delete n[group.key]; return n; });
-                                  }
-                                }}
-                                placeholder="시급"
-                                className="w-[88px] px-2 py-1 border border-[#ddd] rounded text-xs text-right focus:outline-none focus:border-primary-700"
-                              />
-                            </td>
-                          )}
-                          {idx === 0 && (
-                            <td className="border border-[#eee] px-3 py-2 text-right font-bold text-primary-700 align-top" rowSpan={group.entries.length}>
-                              <div>{rate > 0 ? `${finalPay.toLocaleString('ko-KR')}원` : '-'}</div>
-                              {group.worker && (group.worker.bank_name || group.worker.bank_account) && (
-                                <div className="mt-1 text-xs font-medium text-[#555]">
-                                  {[group.worker.bank_name, group.worker.bank_account].filter(Boolean).join(' ')}
-                                </div>
-                              )}
-                            </td>
-                          )}
-                          {idx === 0 && group.worker && (
-                            <td className="border border-[#eee] px-3 py-2 text-center align-top" rowSpan={group.entries.length}>
-                              <input
-                                type="checkbox"
-                                checked={group.worker.payment_done}
-                                onChange={() => handlePaymentToggle(group.worker!)}
-                                className="w-4 h-4 cursor-pointer accent-green-500"
-                                title={group.worker.payment_done ? '송금 완료' : '송금 전'}
-                              />
-                            </td>
-                          )}
-                          {idx === 0 && !group.worker && (
-                            <td className="border border-[#eee]" rowSpan={group.entries.length} />
-                          )}
-                        </tr>
-                      );
-                    });
-                  })}
-                  <tr className="bg-primary-50">
-                    <td colSpan={2} className="border border-[#eee] px-3 py-2.5 text-right font-extrabold text-[#222] text-sm">전체 합계</td>
-                    <td className="border border-[#eee] px-3 py-2.5"></td>
-                    <td className="border border-[#eee] px-3 py-2.5 text-center font-extrabold">{formatHours(grandTotal.hours)}</td>
-                    <td className="border border-[#eee] px-3 py-2.5"></td>
-                    <td className="border border-[#eee] px-3 py-2.5 text-right font-extrabold text-primary-700">{grandTotal.pay > 0 ? `${grandTotal.pay.toLocaleString('ko-KR')}원` : '-'}</td>
-                    <td className="border border-[#eee] px-3 py-2.5"></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-2 text-[11px] text-[#bbb] m-0">* 등록된 근무자의 시급 변경은 DB에 자동 저장됩니다. 근무시간 형식: 09-18, 10:00-19:00</p>
-          </div>
+          <SalaryTable
+            eventName={selectedEvent.name}
+            salaryGroups={salaryGroups}
+            grandTotal={grandTotal}
+            localRates={localRates}
+            onRateChange={handleRateChange}
+            onPaymentToggle={handlePaymentToggle}
+          />
         )}
       </main>
     </>

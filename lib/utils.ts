@@ -1,5 +1,28 @@
 const KRW_FORMATTER = new Intl.NumberFormat('ko-KR');
 
+export function formatRevenueTick(value: number): string {
+  if (value >= 10000) return `${Math.round(value / 10000)}만`;
+  if (value >= 1000) return `${Math.round(value / 1000)}천`;
+  return String(value);
+}
+
+export function formatDateLabel(dateStr: string): string {
+  const parts = dateStr.split('-');
+  return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+}
+
+export function parseWorkHours(workTime: string | null, breakTime = false): number {
+  if (!workTime) return 0;
+  const m = workTime.match(/(\d{1,2})(?::(\d{2}))?[-~](\d{1,2})(?::(\d{2}))?/);
+  if (!m) return 0;
+  const raw = Math.max(0, (parseInt(m[3]) * 60 + parseInt(m[4] ?? '0') - parseInt(m[1]) * 60 - parseInt(m[2] ?? '0')) / 60);
+  return breakTime ? Math.max(0, raw - 1) : raw;
+}
+
+export function formatHours(h: number): string {
+  return h === 0 ? '-' : Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`;
+}
+
 export function toLocalDateStr(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
