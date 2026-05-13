@@ -1,7 +1,7 @@
 {
-  "tool_name": "Read",
-  "tool_input_preview": "{\"file_path\":\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\\lib\\\\supabase.js\"}",
-  "error": "File does not exist. Note: your current working directory is C:\\Users\\SSAFY\\Desktop\\choichoi. Did you mean supabase.ts?",
-  "timestamp": "2026-05-13T06:44:34.868Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"Get-ChildItem -Path \\\"C:\\\\Users\\\\SSAFY\\\\Desktop\\\\choichoi\\\\app\\\" -Recurse -File | Select-Object FullName\",\"description\":\"List all files in the app directory recursively\"}",
+  "error": "Exit code 127\n/usr/bin/bash: line 1: Get-ChildItem: command not found\n/usr/bin/bash: line 1: Select-Object: command not found",
+  "timestamp": "2026-05-13T07:07:06.792Z",
   "retry_count": 1
 }

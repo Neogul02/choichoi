@@ -20,6 +20,7 @@ import {
   getAllMenuItems,
   updateMenuOrder,
   getMenuSalesByPeriod,
+  getDailySalesByPeriod,
   getPopupEvents,
   createPopupEvent,
   deletePopupEvent,
@@ -58,6 +59,7 @@ import type {
   FetchSlotsResponse,
   FetchEventsResponse,
   FetchWorkersResponse,
+  FetchDailySalesResponse,
 } from '@/types/api';
 import type { MenuItem, Memo, ScheduleSlot, PopupEvent, Worker } from '@/types/database';
 
@@ -178,6 +180,16 @@ export async function fetchMenuSalesBreakdown(startISO: string, endISO: string):
     return { success: true, data };
   } catch (error) {
     console.error('Failed to fetch menu sales breakdown:', error);
+    return { success: false, error: extractErrorMessage(error), data: [] };
+  }
+}
+
+export async function fetchDailySalesByPeriod(startISO: string, endISO: string): Promise<FetchDailySalesResponse> {
+  try {
+    const data = await getDailySalesByPeriod(startISO, endISO);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to fetch daily sales by period:', error);
     return { success: false, error: extractErrorMessage(error), data: [] };
   }
 }

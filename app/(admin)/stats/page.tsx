@@ -9,11 +9,26 @@ import {
   fetchTodaysOrders,
   resetTodaysSales,
   fetchMonthlySalesCalendar,
+  fetchPopupEvents,
+  fetchDailySalesByPeriod,
 } from '@/app/actions';
-import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord } from '@/types/api';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  LabelList,
+} from 'recharts';
+import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord, DailySalesItem } from '@/types/api';
+import type { PopupEvent } from '@/types/database';
 import { toLocalDateStr, formatPrice } from '@/lib/utils';
 
 type Period = 'today' | 'week' | 'month';
+type BreakdownView = 'list' | 'chart';
 
 const MATERIAL_COST_KEY = 'choichoi_material_cost';
 const OTHER_COST_KEY = 'choichoi_other_cost';
@@ -47,11 +62,54 @@ function getPeriodBounds(period: Period): { startISO: string; endISO: string; la
 function getCellBgStyle(revenue: number, maxRevenue: number) {
   if (revenue <= 0 || maxRevenue <= 0) return { backgroundColor: '#f8faf9' };
   const ratio = Math.min(revenue / maxRevenue, 1);
-  // #e6f4ee (primary-50) → #3d9966 (medium brand green)
   const r = Math.round(230 + (61 - 230) * ratio);
   const g = Math.round(244 + (153 - 244) * ratio);
   const b = Math.round(238 + (102 - 238) * ratio);
   return { backgroundColor: `rgb(${r},${g},${b})` };
+}
+
+function formatDateLabel(dateStr: string): string {
+  const parts = dateStr.split('-');
+  return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+}
+
+function formatRevenueTick(value: number): string {
+  if (value >= 10000) return `${Math.round(value / 10000)}만`;
+  if (value >= 1000) return `${Math.round(value / 1000)}천`;
+  return String(value);
+}
+
+interface DailyTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: DailySalesItem & { dateLabel: string } }>;
+  label?: string;
+}
+
+function DailyTooltip({ active, payload, label }: DailyTooltipProps) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-[#e0e0e0] rounded-lg p-2.5 text-xs shadow-md">
+      <p className="font-bold mb-1 text-[#333]">{label}</p>
+      <p className="text-primary-700">₩{payload[0].value.toLocaleString('ko-KR')}</p>
+      <p className="text-[#666]">주문 {payload[0].payload.orderCount}건</p>
+    </div>
+  );
+}
+
+interface MenuTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: MenuSalesItem }>;
+}
+
+function MenuTooltip({ active, payload }: MenuTooltipProps) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-[#e0e0e0] rounded-lg p-2.5 text-xs shadow-md">
+      <p className="font-bold mb-1 text-[#333]">{payload[0].payload.name}</p>
+      <p className="text-[#555]">판매량: {payload[0].value}개</p>
+      <p className="text-primary-700">매출: ₩{payload[0].payload.totalRevenue.toLocaleString('ko-KR')}</p>
+    </div>
+  );
 }
 
 export default function StatsPage() {
@@ -61,6 +119,7 @@ export default function StatsPage() {
   const [summary, setSummary] = useState<TodaysSales>({ totalOrders: 0, totalRevenue: 0 });
   const [breakdown, setBreakdown] = useState<MenuSalesItem[]>([]);
   const [breakdownPeriod, setBreakdownPeriod] = useState<Period>('today');
+  const [breakdownView, setBreakdownView] = useState<BreakdownView>('list');
   const [todayOrders, setTodayOrders] = useState<OrderRecord[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [calendarSales, setCalendarSales] = useState<CalendarSalesData>({ byDate: {}, monthTotal: 0, totalOrders: 0 });
@@ -74,6 +133,14 @@ export default function StatsPage() {
   const [otherCost, setOtherCost] = useState(() => {
     try { const s = localStorage.getItem(OTHER_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
   });
+
+  const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([]);
+  const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null);
+  const [popupMenuBreakdown, setPopupMenuBreakdown] = useState<MenuSalesItem[]>([]);
+  const [popupDailySales, setPopupDailySales] = useState<DailySalesItem[]>([]);
+  const [isPopupStatsLoading, setIsPopupStatsLoading] = useState(false);
+
+  const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
 
   const loadTodayData = async () => {
     setIsLoading(true);
@@ -101,6 +168,28 @@ export default function StatsPage() {
   useEffect(() => { loadTodayData(); }, []);
   useEffect(() => { loadMonthlyCalendar(calendarMonth); }, [calendarMonth]);
   useEffect(() => { loadBreakdown(breakdownPeriod); }, [breakdownPeriod]);
+  useEffect(() => {
+    fetchPopupEvents().then((res) => {
+      if (res.success && res.data) setPopupEvents(res.data);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPopupId) return;
+    const popup = popupEvents.find((p) => p.id === selectedPopupId);
+    if (!popup) return;
+    const startISO = `${popup.start_date}T00:00:00+09:00`;
+    const endISO = `${popup.end_date}T23:59:59+09:00`;
+    setIsPopupStatsLoading(true);
+    Promise.all([
+      fetchMenuSalesBreakdown(startISO, endISO),
+      fetchDailySalesByPeriod(startISO, endISO),
+    ]).then(([menuRes, dailyRes]) => {
+      setPopupMenuBreakdown(menuRes.success && menuRes.data ? menuRes.data : []);
+      setPopupDailySales(dailyRes.success && dailyRes.data ? dailyRes.data : []);
+      setIsPopupStatsLoading(false);
+    });
+  }, [selectedPopupId, popupEvents]);
 
   const handleResetTodaysSales = async () => {
     if (todayOrders.length === 0) { toast.warning('오늘 삭제할 매출이 없습니다'); return; }
@@ -148,6 +237,23 @@ export default function StatsPage() {
 
   const formatCostDisplay = (val: number) => val === 0 ? '' : val.toLocaleString('ko-KR');
 
+  const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
+  const popupTotalOrders = useMemo(() => popupDailySales.reduce((s, d) => s + d.orderCount, 0), [popupDailySales]);
+  const popupDaysCount = useMemo(() => {
+    if (!selectedPopup) return 0;
+    const start = new Date(selectedPopup.start_date);
+    const end = new Date(selectedPopup.end_date);
+    return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  }, [selectedPopup]);
+
+  const menuChartHeight = useMemo(() => Math.max(180, breakdown.length * 38), [breakdown.length]);
+  const popupMenuChartHeight = useMemo(() => Math.max(180, popupMenuBreakdown.length * 38), [popupMenuBreakdown.length]);
+
+  const dailyChartData = useMemo(
+    () => popupDailySales.map((d) => ({ ...d, dateLabel: formatDateLabel(d.date) })),
+    [popupDailySales]
+  );
+
   return (
     <>
       <NavBar />
@@ -179,6 +285,22 @@ export default function StatsPage() {
           <div className="mb-4 md:mb-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="m-0 text-lg font-bold">메뉴별 판매 현황 ({getPeriodBounds(breakdownPeriod).label})</h3>
+              {breakdown.length > 0 && (
+                <div className="flex gap-1">
+                  <button
+                    className={`px-3 py-1.5 rounded-lg border text-[12px] font-semibold transition-all ${breakdownView === 'list' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white border-[#ddd] text-[#555] hover:bg-[#f5f5f5]'}`}
+                    onClick={() => setBreakdownView('list')}
+                  >
+                    리스트
+                  </button>
+                  <button
+                    className={`px-3 py-1.5 rounded-lg border text-[12px] font-semibold transition-all ${breakdownView === 'chart' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white border-[#ddd] text-[#555] hover:bg-[#f5f5f5]'}`}
+                    onClick={() => setBreakdownView('chart')}
+                  >
+                    차트
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5 mb-3">
               {PERIODS.map(({ key, label }) => (
@@ -191,6 +313,27 @@ export default function StatsPage() {
               <p>불러오는 중...</p>
             ) : breakdown.length === 0 ? (
               <p className="m-0 text-[#999] text-sm">해당 기간 판매 내역이 없습니다.</p>
+            ) : breakdownView === 'chart' ? (
+              <div style={{ height: menuChartHeight }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    layout="vertical"
+                    data={breakdown}
+                    margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                    <XAxis type="number" tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12, fill: '#444' }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<MenuTooltip />} />
+                    <Bar dataKey="totalQuantity" radius={[0, 4, 4, 0]}>
+                      {breakdown.map((item) => (
+                        <Cell key={item.id} fill={item.color} />
+                      ))}
+                      <LabelList dataKey="totalQuantity" position="right" formatter={(v: number) => `${v}개`} style={{ fontSize: 11, fill: '#555' }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
               <ul className="flex flex-col gap-2 m-0 p-0 list-none">
                 {breakdown.map((item) => (
@@ -247,8 +390,7 @@ export default function StatsPage() {
           </div>
 
           {/* 월별 달력 */}
-          <div className="bg-[#f4f7f5] rounded-xl p-4">
-            {/* Header */}
+          <div className="bg-[#f4f7f5] rounded-xl p-4 mb-4 md:mb-5">
             <div className="flex justify-between items-center mb-3">
               <h3 className="m-0 text-lg font-bold">날짜별 매출 프리뷰</h3>
               <div className="flex items-center gap-1.5">
@@ -268,7 +410,6 @@ export default function StatsPage() {
               </div>
             </div>
 
-            {/* Monthly totals */}
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div className="bg-white border border-[#e4e4e4] rounded-xl px-3 py-2.5 text-center">
                 <div className="text-[11px] text-[#888] font-medium mb-0.5">월 주문</div>
@@ -284,24 +425,19 @@ export default function StatsPage() {
               <div className="py-10 text-center text-[#999] text-sm">달력 매출을 불러오는 중입니다...</div>
             ) : (
               <div className="grid grid-cols-7 gap-1">
-                {/* Day name headers */}
                 {['일', '월', '화', '수', '목', '금', '토'].map((name, i) => (
                   <div
                     key={name}
-                    className={`text-center text-[11px] font-bold py-1.5 ${
-                      i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-[#888]'
-                    }`}
+                    className={`text-center text-[11px] font-bold py-1.5 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-[#888]'}`}
                   >
                     {name}
                   </div>
                 ))}
 
-                {/* Leading blank cells */}
                 {Array.from({ length: firstDay }).map((_, idx) => (
                   <div key={`blank-${idx}`} className="min-h-[64px]" />
                 ))}
 
-                {/* Day cells */}
                 {Array.from({ length: daysInMonth }).map((_, idx) => {
                   const day = idx + 1;
                   const dayOfWeek = (firstDay + idx) % 7;
@@ -315,30 +451,18 @@ export default function StatsPage() {
                       className="min-h-[64px] rounded-lg p-1.5 transition-shadow"
                       style={{
                         ...getCellBgStyle(dayRevenue, maxDayRevenue),
-                        border: isToday
-                          ? '2px solid #084431'
-                          : '1px solid #dce8e0',
+                        border: isToday ? '2px solid #084431' : '1px solid #dce8e0',
                       }}
                     >
                       <div
                         className={`text-[11px] font-extrabold leading-none ${
-                          dayOfWeek === 0
-                            ? 'text-red-500'
-                            : dayOfWeek === 6
-                              ? 'text-blue-500'
-                              : isToday
-                                ? 'text-primary-700'
-                                : 'text-[#444]'
+                          dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-[#444]'
                         }`}
                       >
                         {day}
                         {isToday && <span className="ml-0.5 text-primary-700">•</span>}
                       </div>
-                      <div
-                        className={`mt-1.5 text-[10px] font-semibold leading-tight ${
-                          dayRevenue > 0 ? 'text-[#1a3d2b]' : 'text-[#ccc]'
-                        }`}
-                      >
+                      <div className={`mt-1.5 text-[10px] font-semibold leading-tight ${dayRevenue > 0 ? 'text-[#1a3d2b]' : 'text-[#ccc]'}`}>
                         {dayRevenue > 0 ? `₩${formatPrice(dayRevenue)}` : '·'}
                       </div>
                     </div>
@@ -402,6 +526,98 @@ export default function StatsPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* 팝업별 매출 분석 */}
+          <div className="bg-[#f4f7f5] rounded-xl p-4">
+            <h3 className="m-0 mb-3 text-lg font-bold">팝업별 매출 분석</h3>
+            {popupEvents.length === 0 ? (
+              <p className="m-0 text-[#999] text-sm">등록된 팝업이 없습니다. 일정 탭에서 팝업을 먼저 생성하세요.</p>
+            ) : (
+              <>
+                <select
+                  value={selectedPopupId ?? ''}
+                  onChange={(e) => setSelectedPopupId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full border border-[#d8e8e0] rounded-lg px-3 py-2.5 text-sm font-semibold bg-white text-[#333] outline-none focus:border-primary-700 mb-4"
+                >
+                  <option value="">팝업을 선택하세요</option>
+                  {popupEvents.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.start_date} ~ {p.end_date})
+                    </option>
+                  ))}
+                </select>
+
+                {selectedPopup && (
+                  isPopupStatsLoading ? (
+                    <p className="text-[#999] text-sm text-center py-6">데이터를 불러오는 중...</p>
+                  ) : (
+                    <>
+                      {/* 팝업 요약 카드 */}
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        <div className="bg-white rounded-xl p-3 border border-[#e4e4e4] text-center">
+                          <div className="text-[11px] text-[#888] font-medium mb-0.5">총 매출</div>
+                          <div className="text-[13px] font-extrabold text-primary-700">₩{formatPrice(popupTotalRevenue)}</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-[#e4e4e4] text-center">
+                          <div className="text-[11px] text-[#888] font-medium mb-0.5">총 주문</div>
+                          <div className="text-[13px] font-extrabold text-[#333]">{popupTotalOrders}건</div>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-[#e4e4e4] text-center">
+                          <div className="text-[11px] text-[#888] font-medium mb-0.5">운영 일수</div>
+                          <div className="text-[13px] font-extrabold text-[#333]">{popupDaysCount}일</div>
+                        </div>
+                      </div>
+
+                      {/* 일별 매출 추이 */}
+                      {popupDailySales.length > 0 ? (
+                        <div className="bg-white rounded-xl p-3 border border-[#e4e4e4] mb-3">
+                          <h4 className="m-0 mb-3 text-sm font-bold text-[#333]">일별 매출 추이</h4>
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={dailyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                              <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                              <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                              <Tooltip content={<DailyTooltip />} />
+                              <Bar dataKey="revenue" fill="#3d9966" radius={[4, 4, 0, 0]}>
+                                <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <p className="text-[#999] text-sm mb-3">해당 팝업 기간에 매출 데이터가 없습니다.</p>
+                      )}
+
+                      {/* 메뉴별 판매 믹스 */}
+                      {popupMenuBreakdown.length > 0 ? (
+                        <div className="bg-white rounded-xl p-3 border border-[#e4e4e4]">
+                          <h4 className="m-0 mb-3 text-sm font-bold text-[#333]">메뉴별 판매</h4>
+                          <div style={{ height: popupMenuChartHeight }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart layout="vertical" data={popupMenuBreakdown} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                                <XAxis type="number" tickFormatter={String} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                                <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12, fill: '#444' }} axisLine={false} tickLine={false} />
+                                <Tooltip content={<MenuTooltip />} />
+                                <Bar dataKey="totalQuantity" radius={[0, 4, 4, 0]}>
+                                  {popupMenuBreakdown.map((item) => (
+                                    <Cell key={item.id} fill={item.color} />
+                                  ))}
+                                  <LabelList dataKey="totalQuantity" position="right" formatter={(v: number) => `${v}개`} style={{ fontSize: 11, fill: '#555' }} />
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[#999] text-sm">메뉴 판매 내역이 없습니다.</p>
+                      )}
+                    </>
+                  )
+                )}
+              </>
+            )}
           </div>
         </div>
       </main>
