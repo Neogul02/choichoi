@@ -125,7 +125,7 @@ export interface OrderItemInput {
   count: number;
 }
 
-export async function createOrder(items: OrderItemInput[], totalPrice: number): Promise<Order & { dailyOrderNumber: number }> {
+export async function createOrder(items: OrderItemInput[], totalPrice: number): Promise<Order> {
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert([{ total_price: totalPrice, payment_method: 'cash', payment_status: 'completed' }])
@@ -149,14 +149,7 @@ export async function createOrder(items: OrderItemInput[], totalPrice: number): 
     if (itemsError) throw itemsError;
   }
 
-  const { start, end } = getKSTDateBounds();
-  const { count } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', start)
-    .lte('created_at', end);
-
-  return { ...(order as Order), dailyOrderNumber: count ?? 1 };
+  return order as Order;
 }
 
 export async function addMenuItem(name: string, price: number, color: string): Promise<MenuItem> {
@@ -421,66 +414,26 @@ export async function getDailySalesByPeriod(startISO: string, endISO: string): P
 }
 
 export async function getMenuSalesByPeriod(startISO: string, endISO: string): Promise<MenuSalesItem[]> {
-  const PAGE_SIZE = 1000;
-  const MAX_ROWS = 10000;
-  const orderIds: number[] = [];
+  const { data, error } = await supabase
+    .rpc('get_menu_sales_by_period', { p_start: startISO, p_end: endISO });
 
-  for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('id')
-      .gte('created_at', startISO)
-      .lte('created_at', endISO)
-      .range(from, from + PAGE_SIZE - 1);
+  if (error) throw error;
 
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    orderIds.push(...data.map((o) => o.id as number));
-    if (data.length < PAGE_SIZE) break;
-  }
-
-  if (orderIds.length === 0) return [];
-
-  // 500개씩 배치로 나눠 order_items 조회 (IN 절 URL 길이 제한 방지)
-  const BATCH_SIZE = 500;
-  const allItems: Array<{ quantity: number; subtotal: number; menu_item_id: number; menu_items: unknown }> = [];
-
-  for (let i = 0; i < orderIds.length; i += BATCH_SIZE) {
-    const batchIds = orderIds.slice(i, i + BATCH_SIZE);
-    for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
-      const { data, error } = await supabase
-        .from('order_items')
-        .select('quantity, subtotal, menu_item_id, menu_items(id, name, price, color)')
-        .in('order_id', batchIds)
-        .range(from, from + PAGE_SIZE - 1);
-
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-      allItems.push(...(data as typeof allItems));
-      if (data.length < PAGE_SIZE) break;
-    }
-  }
-
-  const menuMap: Record<number, MenuSalesItem> = {};
-
-  for (const item of allItems) {
-    const menuId = item.menu_item_id as number;
-    const menuInfo = item.menu_items as unknown as { id: number; name: string; price: number; color: string } | null;
-    if (!menuMap[menuId]) {
-      menuMap[menuId] = {
-        id: menuId,
-        name: menuInfo?.name ?? '삭제된 메뉴',
-        price: menuInfo?.price ?? 0,
-        color: menuInfo?.color ?? '#ccc',
-        totalQuantity: 0,
-        totalRevenue: 0,
-      };
-    }
-    menuMap[menuId].totalQuantity += item.quantity as number;
-    menuMap[menuId].totalRevenue += Number(item.subtotal);
-  }
-
-  return Object.values(menuMap).sort((a, b) => b.totalQuantity - a.totalQuantity);
+  return (data ?? []).map((row: {
+    menu_item_id: number;
+    item_name: string;
+    item_price: number;
+    item_color: string;
+    total_quantity: number;
+    total_revenue: number;
+  }) => ({
+    id: row.menu_item_id,
+    name: row.item_name,
+    price: row.item_price,
+    color: row.item_color,
+    totalQuantity: Number(row.total_quantity),
+    totalRevenue: Number(row.total_revenue),
+  }));
 }
 
 // ── Workers ───────────────────────────────────────────────────────────────────
