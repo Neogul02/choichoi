@@ -1,4 +1,10 @@
+import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+
+function computeToken(password: string): string {
+  const seed = process.env.VERCEL_DEPLOYMENT_ID ?? 'local-dev';
+  return createHash('sha256').update(password + seed).digest('hex');
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (password === expected) {
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, token: computeToken(expected) });
     }
 
     return NextResponse.json(

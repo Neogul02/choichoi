@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-const AUTH_KEY = 'choichoi_popup_auth';
+const AUTH_KEY = 'choichoi_popup_token';
 const AUTH_API_PATH = '/api/auth/verify';
+const VALIDATE_API_PATH = '/api/auth/verify/validate';
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);
@@ -13,8 +14,26 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    setIsAuthed(localStorage.getItem(AUTH_KEY) === 'ok');
-    setChecked(true);
+    const storedToken = localStorage.getItem(AUTH_KEY);
+    if (!storedToken) {
+      setChecked(true);
+      return;
+    }
+    fetch(VALIDATE_API_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: storedToken }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.valid) {
+          setIsAuthed(true);
+        } else {
+          localStorage.removeItem(AUTH_KEY);
+        }
+      })
+      .catch(() => localStorage.removeItem(AUTH_KEY))
+      .finally(() => setChecked(true));
   }, []);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -41,7 +60,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
         return;
       }
 
-      localStorage.setItem(AUTH_KEY, 'ok');
+      localStorage.setItem(AUTH_KEY, data.token);
       setIsAuthed(true);
     } catch {
       setError('검증 중 오류가 발생했습니다. 다시 시도해주세요.');
