@@ -47,6 +47,17 @@ export interface OrderRecord {
   payment_status: string;
 }
 
+export interface OrderItemDetail {
+  menu_item_id: number;
+  name: string;
+  quantity: number;
+  subtotal: number;
+}
+
+export interface OrderRecordWithItems extends OrderRecord {
+  items: OrderItemDetail[];
+}
+
 export interface DailySalesItem {
   date: string;
   revenue: number;
@@ -59,6 +70,7 @@ export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;
 export type FetchMenuSalesResponse = ApiResponse<MenuSalesItem[]>;
 export type FetchCalendarResponse = ApiResponse<CalendarSalesData>;
 export type FetchOrdersResponse = ApiResponse<OrderRecord[]>;
+export type FetchOrdersWithItemsResponse = ApiResponse<OrderRecordWithItems[]>;
 export type FetchMemosResponse = ApiResponse<Memo[]>;
 export type FetchSlotsResponse = ApiResponse<ScheduleSlot[]>;
 export type FetchEventsResponse = ApiResponse<PopupEvent[]>;

@@ -1,13 +1,21 @@
 'use client';
 
-import type { OrderRecord } from '@/types/api';
+import type { OrderRecordWithItems } from '@/types/api';
 
 interface Props {
-  orders: OrderRecord[];
+  orders: OrderRecordWithItems[];
   todayRevenue: number;
   isLoading: boolean;
   isResetting: boolean;
   onReset: () => void;
+}
+
+function formatKSTTime(isoString: string): string {
+  const s = isoString.replace(' ', 'T');
+  const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
+  const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
+  const kst = new Date(utcMs + 9 * 3600 * 1000);
+  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
 }
 
 export default function TodayOrdersSection({ orders, todayRevenue, isLoading, isResetting, onReset }: Props) {
@@ -30,17 +38,22 @@ export default function TodayOrdersSection({ orders, todayRevenue, isLoading, is
           </button>
         </div>
         <div>
-          <h4 className="m-0 mb-2 text-sm">주문 내역 (주문번호 / 가격)</h4>
+          <h4 className="m-0 mb-2 text-sm">주문 내역 (시각 / 메뉴 / 가격)</h4>
           {isLoading ? (
             <p>주문 내역을 불러오는 중입니다...</p>
           ) : orders.length === 0 ? (
             <p className="m-0 text-[#999] text-sm">오늘 주문 내역이 없습니다.</p>
           ) : (
-            <ul className="m-0 p-0 list-none border border-[#ececec] rounded-lg bg-white max-h-[240px] overflow-y-auto">
+            <ul className="m-0 p-0 list-none border border-[#ececec] rounded-lg bg-white max-h-[320px] overflow-y-auto">
               {orders.map((order) => (
-                <li key={order.id} className="flex justify-between items-center p-2.5 md:p-3 border-b border-[#f3f3f3] last:border-b-0 text-sm">
-                  <span>주문번호 #{order.id}</span>
-                  <strong className="font-bold">₩{Number(order.total_price).toLocaleString('ko-KR')}</strong>
+                <li key={order.id} className="p-2.5 md:p-3 border-b border-[#f3f3f3] last:border-b-0">
+                  <div className="flex justify-between items-center mb-0.5">
+                    <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                    <strong className="text-sm font-bold">₩{Number(order.total_price).toLocaleString('ko-KR')}</strong>
+                  </div>
+                  <p className="m-0 text-[#555] text-xs truncate">
+                    {order.items.length > 0 ? order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ') : '-'}
+                  </p>
                 </li>
               ))}
             </ul>

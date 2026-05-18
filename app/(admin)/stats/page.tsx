@@ -4,10 +4,10 @@ import NavBar from '@/components/NavBar';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  fetchTodaysSales, fetchMenuSalesBreakdown, fetchTodaysOrders,
+  fetchTodaysSales, fetchMenuSalesBreakdown, fetchTodaysOrdersWithItems,
   resetTodaysSales, fetchMonthlySalesCalendar, fetchPopupEvents, fetchDailySalesByPeriod,
 } from '@/app/actions';
-import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord, DailySalesItem } from '@/types/api';
+import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecordWithItems, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 import { toLocalDateStr } from '@/lib/utils';
 import TodaySummary from './_components/TodaySummary';
@@ -40,7 +40,7 @@ export default function StatsPage() {
   const [summary, setSummary] = useState<TodaysSales>({ totalOrders: 0, totalRevenue: 0 });
   const [breakdown, setBreakdown] = useState<MenuSalesItem[]>([]);
   const [breakdownPeriod, setBreakdownPeriod] = useState<Period>('today');
-  const [todayOrders, setTodayOrders] = useState<OrderRecord[]>([]);
+  const [todayOrders, setTodayOrders] = useState<OrderRecordWithItems[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [calendarSales, setCalendarSales] = useState<CalendarSalesData>({ byDate: {}, monthTotal: 0, totalOrders: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -55,7 +55,7 @@ export default function StatsPage() {
 
   const loadTodayData = async () => {
     setIsLoading(true);
-    const [summaryResult, ordersResult] = await Promise.all([fetchTodaysSales(), fetchTodaysOrders()]);
+    const [summaryResult, ordersResult] = await Promise.all([fetchTodaysSales(), fetchTodaysOrdersWithItems()]);
     if (summaryResult.success && summaryResult.data) setSummary(summaryResult.data);
     if (ordersResult.success && ordersResult.data) setTodayOrders(ordersResult.data);
     setIsLoading(false);

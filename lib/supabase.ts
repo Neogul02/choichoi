@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { MenuItem, Order, OrderItem, PopupEvent, ScheduleSlot, Memo, Worker } from '@/types/database';
-import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord, DailySalesItem } from '@/types/api';
+import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord, OrderRecordWithItems, DailySalesItem } from '@/types/api';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -58,6 +58,40 @@ export async function getTodaysOrderList(): Promise<OrderRecord[]> {
 
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getTodaysOrderListWithItems(limit?: number): Promise<OrderRecordWithItems[]> {
+  const { start, end } = getKSTDateBounds();
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, total_price, created_at, payment_status, order_items(menu_item_id, quantity, subtotal, menu_items(name))')
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('id', { ascending: false })
+    .limit(limit ?? 10000);
+
+  if (error) throw error;
+
+  return (data ?? []).map((order) => {
+    const rawItems = (order.order_items ?? []) as unknown as Array<{
+      menu_item_id: number;
+      quantity: number;
+      subtotal: number;
+      menu_items: { name: string } | null;
+    }>;
+    return {
+      id: order.id as number,
+      total_price: Number(order.total_price),
+      created_at: order.created_at as string,
+      payment_status: order.payment_status as string,
+      items: rawItems.map((item) => ({
+        menu_item_id: item.menu_item_id,
+        name: item.menu_items?.name ?? '알 수 없음',
+        quantity: item.quantity,
+        subtotal: Number(item.subtotal),
+      })),
+    };
+  });
 }
 
 export async function clearTodaysOrders(): Promise<{ deletedCount: number }> {

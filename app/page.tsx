@@ -1,20 +1,71 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
+import SalesBanner from '@/components/SalesBanner';
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { fetchMenuItems, saveOrder } from './actions';
+import confetti from 'canvas-confetti';
+import { fetchMenuItems, saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from './actions';
 import type { MenuItem } from '@/types/database';
 import type { OrderItemInput } from '@/lib/supabase';
-import type { SaveOrderResponse } from '@/types/api';
+import type { SaveOrderResponse, OrderRecordWithItems, TodaysSales } from '@/types/api';
 import { formatPrice, getShortcutBadgeColors } from '@/lib/utils';
+
+function formatKSTTime(isoString: string): string {
+  const s = isoString.replace(' ', 'T');
+  const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
+  const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
+  const kst = new Date(utcMs + 9 * 3600 * 1000);
+  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+function fireConfetti() {
+  const colors = ['#f43f5e', '#fb7185', '#fda4af', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'];
+  confetti({
+    particleCount: 90,
+    spread: 70,
+    origin: { x: 0.5, y: 0.55 },
+    colors,
+    startVelocity: 42,
+    gravity: 1.1,
+    ticks: 100,
+    scalar: 1.1,
+  });
+  setTimeout(() => {
+    confetti({ particleCount: 55, spread: 58, origin: { x: 0.18, y: 0.62 }, angle: 65, colors, startVelocity: 36, gravity: 1.1, ticks: 80 });
+    confetti({ particleCount: 55, spread: 58, origin: { x: 0.82, y: 0.62 }, angle: 115, colors, startVelocity: 36, gravity: 1.1, ticks: 80 });
+  }, 110);
+  setTimeout(() => {
+    confetti({ particleCount: 35, spread: 100, origin: { x: 0.5, y: 0.48 }, colors, startVelocity: 22, gravity: 0.75, ticks: 70, scalar: 0.85 });
+  }, 240);
+}
 
 export default function Home() {
   const [counts, setCounts] = useState<Record<number, number>>({});
+  const [todaySales, setTodaySales] = useState<TodaysSales>({ totalRevenue: 0, totalOrders: 0 });
+  const [flashKey, setFlashKey] = useState(0);
+  const [lastPayment, setLastPayment] = useState<{ amount: number; id: number } | null>(null);
+  const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const queryClient = useQueryClient();
   const checkoutFnRef = useRef<(() => void) | null>(null);
   const checkoutDebouncingRef = useRef(false);
+
+  // 오늘 매출 초기 로드
+  const salesQuery = useQuery<TodaysSales>({
+    queryKey: ['today-sales'],
+    queryFn: async () => {
+      const result = await fetchTodaysSales();
+      if (!result.success) throw new Error(result.error || '매출 로딩 실패');
+      return result.data ?? { totalRevenue: 0, totalOrders: 0 };
+    },
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (salesQuery.data) setTodaySales(salesQuery.data);
+  }, [salesQuery.data]);
 
   const menuQuery = useQuery<MenuItem[]>({
     queryKey: ['menu-items'],
@@ -27,6 +78,17 @@ export default function Home() {
   });
 
   const menuItems = useMemo(() => menuQuery.data ?? [], [menuQuery.data]);
+
+  const recentOrdersQuery = useQuery<OrderRecordWithItems[]>({
+    queryKey: ['today-orders-recent'],
+    queryFn: async () => {
+      const result = await fetchTodaysOrdersWithItems(10);
+      if (!result.success) throw new Error(result.error || '최근 주문 로딩 실패');
+      return result.data ?? [];
+    },
+    staleTime: 30_000,
+  });
+  const recentOrders = useMemo(() => (recentOrdersQuery.data ?? []).slice(0, 5), [recentOrdersQuery.data]);
 
   const totalCount = useMemo(
     () => Object.values(counts).reduce((sum, count) => sum + count, 0),
@@ -63,10 +125,20 @@ export default function Home() {
       resetOrder();
       return { previousCounts };
     },
-    onSuccess: (result, _vars, context) => {
+    onSuccess: (result, vars, context) => {
       if (result.success) {
         const label = result.dailyOrderNumber ? `오늘 ${result.dailyOrderNumber}번째 주문` : `주문번호: ${result.orderId}`;
         toast.success(`결제 완료! ${label}`);
+
+        if (result.sales) setTodaySales(result.sales);
+        setFlashKey((k) => k + 1);
+
+        if (lastPaymentTimerRef.current) clearTimeout(lastPaymentTimerRef.current);
+        setLastPayment({ amount: vars.totalPrice, id: Date.now() });
+        lastPaymentTimerRef.current = setTimeout(() => setLastPayment(null), 2000);
+
+        fireConfetti();
+        queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] });
       } else {
         if (context?.previousCounts) setCounts(context.previousCounts);
         toast.error(result.error || '결제 오류가 발생했습니다');
@@ -129,10 +201,11 @@ export default function Home() {
       <NavBar />
 
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
+
+
+
         <header className="bg-white rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
-          
           <div className="flex items-start justify-between mb-3">
-            
             <div className="flex-1 rounded-xl p-3.5 md:p-4 bg-[#fff5f5] border-2 border-rose-500">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full bg-rose-500 text-white">결제 대기</span>
@@ -140,10 +213,8 @@ export default function Home() {
               </div>
               <div className="text-[clamp(28px,8vw,44px)] md:text-[clamp(32px,5vw,56px)] font-black text-rose-500 leading-[1.1]">{formatPrice(totalPrice)}원</div>
             </div>
-            
           </div>
           <div className="flex items-center justify-between gap-3">
-            
             <p className="m-0 text-[#999] text-[12px] md:text-[13px]">
               1~9: 추가&nbsp;·&nbsp;Enter: 결제&nbsp;·&nbsp;Esc: 초기화
             </p>
@@ -220,6 +291,36 @@ export default function Home() {
           >
             {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
           </button>
+        </section>
+
+                {/* <SalesBanner
+          totalRevenue={todaySales.totalRevenue}
+          totalOrders={todaySales.totalOrders}
+          flashKey={flashKey}
+          lastPayment={lastPayment}
+        /> */}
+
+        <section className="bg-white rounded-xl p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]" aria-label="최근 주문">
+          <h2 className="m-0 mb-3 text-base md:text-lg font-bold text-[#333]">최근 주문</h2>
+          {recentOrdersQuery.isLoading ? (
+            <p className="m-0 text-[#999] text-sm">불러오는 중...</p>
+          ) : recentOrders.length === 0 ? (
+            <p className="m-0 text-[#999] text-sm">오늘 주문 내역이 없습니다.</p>
+          ) : (
+            <ul className="m-0 p-0 list-none">
+              {recentOrders.map((order, index) => (
+                <li key={order.id} className={`py-2.5 ${index !== recentOrders.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
+                  <div className="flex justify-between items-center mb-0.5">
+                    <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                    <strong className="text-sm font-bold text-primary-700">{formatPrice(order.total_price)}원</strong>
+                  </div>
+                  <p className="m-0 text-[#555] text-xs truncate">
+                    {order.items.length > 0 ? order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ') : '-'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
     </>

@@ -17,6 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'ChoiChoi POS',
   description: 'choichoi POS System',
+  icons: { icon: '/choichoi-logo.png' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
