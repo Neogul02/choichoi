@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '@/app/actions';
 import type { MenuItem } from '@/types/database';
+import DevToolsSection from './_components/DevToolsSection';
+
+type ActiveTab = 'menu' | 'devtools';
 
 type ColorOption = { name: string; value: string };
 type MenuFormData = { name: string; price: string; color: string };
@@ -23,6 +26,7 @@ const COLOR_PALETTE: ColorOption[] = [
 const INITIAL_FORM: MenuFormData = { name: '', price: '', color: COLOR_PALETTE[0].value };
 
 export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('menu');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,7 +172,28 @@ export default function SettingsPage() {
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="bg-white rounded-2xl p-4 md:p-5 max-w-[800px] mx-auto">
-          <h2 className="m-0 mb-5 text-2xl font-extrabold">메뉴 관리</h2>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="m-0 text-2xl font-extrabold">설정</h2>
+            <div className="flex gap-1.5 bg-[#f5f6f7] p-1 rounded-xl">
+              {([['menu', '메뉴 관리'], ['devtools', '개발자 도구']] as [ActiveTab, string][]).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-1.5 text-sm font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 ${
+                    activeTab === tab
+                      ? 'bg-white text-[#161616] shadow-sm'
+                      : 'bg-transparent text-[#888] hover:text-[#333]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {activeTab === 'devtools' ? (
+            <DevToolsSection />
+          ) : (<>
 
           <div className="bg-[#f9f9f9] rounded-xl p-4 mb-4">
             <h3 className="mt-0 mb-3 text-lg font-bold">{editingId ? '메뉴 수정' : '새 메뉴 추가'}</h3>
@@ -228,6 +253,7 @@ export default function SettingsPage() {
               ))}
             </ul>
           )}
+        </>)}
         </div>
       </main>
     </>
