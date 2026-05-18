@@ -7,12 +7,13 @@ const AUTH_API_PATH = '/api/auth/verify';
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);
-  const [isAuthed, setIsAuthed] = useState(() => typeof window !== 'undefined' && localStorage.getItem(AUTH_KEY) === 'ok');
+  const [isAuthed, setIsAuthed] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    setIsAuthed(localStorage.getItem(AUTH_KEY) === 'ok');
     setChecked(true);
   }, []);
 
@@ -49,43 +50,43 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     }
   };
 
+  // 하이드레이션 완료 전 — 빈 화면 (children도 auth form도 렌더링 안 함)
   if (!checked) return null;
 
-  return (
-    <>
-      {children}
-      {!isAuthed && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="auth-title"
-        >
+  // 미인증 — auth form만 렌더링, children 마운트 안 됨 → DB 쿼리 없음
+  if (!isAuthed) {
+    return (
+      <div className="min-h-screen bg-[#f5f6f7] flex items-center justify-center p-4">
+        <div className="w-full max-w-[360px]">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-black text-[#1a1a1a] m-0 mb-1">ChoiChoi POS</h1>
+            <p className="m-0 text-[#888] text-sm">운영 화면 접근을 위해 비밀번호를 입력해주세요.</p>
+          </div>
           <form
-            className="w-full max-w-[360px] bg-white rounded-[14px] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.2)]"
+            className="bg-white rounded-2xl p-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)]"
             onSubmit={onSubmit}
           >
-            <h2 id="auth-title" className="m-0 mb-2 text-[20px] font-bold">접속 비밀번호</h2>
-            <p className="m-0 mb-3 text-[#555] text-[14px]">운영 화면 접근을 위해 비밀번호를 입력해주세요.</p>
             <input
               type="password"
-              className="w-full border border-[#ddd] rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15"
+              className="w-full border border-[#ddd] rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호"
               autoFocus
             />
-            {error && <div className="text-[#b42318] text-[13px] mt-2">{error}</div>}
+            {error && <div className="text-[#b42318] text-[13px] mb-3">{error}</div>}
             <button
               type="submit"
-              className="w-full border-none rounded-lg mt-3 px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
               {isSubmitting ? '확인 중...' : '입장하기'}
             </button>
           </form>
         </div>
-      )}
-    </>
-  );
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }

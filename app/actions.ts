@@ -11,6 +11,7 @@ import {
   createOrder,
   getTodaysSales,
   getTodaysOrderList,
+  getTodaysOrderListWithItems,
   getMonthlySalesByDate,
   clearTodaysOrders,
   getMenuItems,
@@ -55,6 +56,7 @@ import type {
   FetchMenuSalesResponse,
   FetchCalendarResponse,
   FetchOrdersResponse,
+  FetchOrdersWithItemsResponse,
   FetchMemosResponse,
   FetchSlotsResponse,
   FetchEventsResponse,
@@ -150,6 +152,16 @@ export async function fetchTodaysOrders(): Promise<FetchOrdersResponse> {
     return { success: true, data: orders };
   } catch (error) {
     console.error('Failed to fetch today orders:', error);
+    return { success: false, error: extractErrorMessage(error) };
+  }
+}
+
+export async function fetchTodaysOrdersWithItems(limit?: number): Promise<FetchOrdersWithItemsResponse> {
+  try {
+    const orders = await getTodaysOrderListWithItems(limit);
+    return { success: true, data: orders };
+  } catch (error) {
+    console.error('Failed to fetch today orders with items:', error);
     return { success: false, error: extractErrorMessage(error) };
   }
 }
