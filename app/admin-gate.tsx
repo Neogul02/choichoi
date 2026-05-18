@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-const ADMIN_AUTH_KEY = 'choichoi_admin_auth';
+const ADMIN_AUTH_KEY = 'choichoi_admin_token';
 const ADMIN_AUTH_API_PATH = '/api/auth/admin';
+const ADMIN_VALIDATE_API_PATH = '/api/auth/admin/validate';
 
 export default function AdminGate({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);
@@ -13,8 +14,26 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    setIsAuthed(localStorage.getItem(ADMIN_AUTH_KEY) === 'ok');
-    setChecked(true);
+    const storedToken = localStorage.getItem(ADMIN_AUTH_KEY);
+    if (!storedToken) {
+      setChecked(true);
+      return;
+    }
+    fetch(ADMIN_VALIDATE_API_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: storedToken }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.valid) {
+          setIsAuthed(true);
+        } else {
+          localStorage.removeItem(ADMIN_AUTH_KEY);
+        }
+      })
+      .catch(() => localStorage.removeItem(ADMIN_AUTH_KEY))
+      .finally(() => setChecked(true));
   }, []);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -38,7 +57,7 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      localStorage.setItem(ADMIN_AUTH_KEY, 'ok');
+      localStorage.setItem(ADMIN_AUTH_KEY, data.token);
       setIsAuthed(true);
     } catch {
       setError('검증 중 오류가 발생했습니다. 다시 시도해주세요.');
