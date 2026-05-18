@@ -74,6 +74,7 @@ export default function Home() {
       if (!result.success) throw new Error(result.error || '메뉴 로딩 실패');
       return result.data ?? [];
     },
+    staleTime: 5 * 60 * 1000,
     placeholderData: (previousData) => previousData,
   });
 
