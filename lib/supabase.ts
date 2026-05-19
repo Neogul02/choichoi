@@ -21,8 +21,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
     .from('menu_items')
     .select('*')
     .eq('is_active', true)
-    .order('display_order', { ascending: true })
-    .order('id', { ascending: true });
+    .order('display_order', { ascending: true });
 
   if (error) throw error;
   return data ?? [];
@@ -99,25 +98,15 @@ export async function getTodaysOrderListWithItems(limit?: number): Promise<Order
 export async function clearTodaysOrders(): Promise<{ deletedCount: number }> {
   const { start, end } = getKSTDateBounds();
 
-  const { data: todayOrders, error: fetchError } = await supabase
-    .from('orders')
-    .select('id')
-    .gte('created_at', start)
-    .lte('created_at', end)
-    .limit(10000);
-
-  if (fetchError) throw fetchError;
-  if (!todayOrders || todayOrders.length === 0) return { deletedCount: 0 };
-
-  const orderIds = todayOrders.map((order) => order.id as number);
-
-  const { error: deleteError } = await supabase
+  const { data, error } = await supabase
     .from('orders')
     .delete()
-    .in('id', orderIds);
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .select('id');
 
-  if (deleteError) throw deleteError;
-  return { deletedCount: orderIds.length };
+  if (error) throw error;
+  return { deletedCount: data?.length ?? 0 };
 }
 
 export interface OrderItemInput {
@@ -248,8 +237,7 @@ export async function getAllMenuItems(): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from('menu_items')
     .select('*')
-    .order('display_order', { ascending: true })
-    .order('id', { ascending: true });
+    .order('display_order', { ascending: true });
 
   if (error) throw error;
   return data ?? [];
