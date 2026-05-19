@@ -273,10 +273,7 @@ export default function Home() {
       <NavBar />
 
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-
-
-
-        <header className="bg-white rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+        <header className="bg-white mt-[-10px] rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1 rounded-xl p-3.5 md:p-4 bg-[#fff5f5] border-2 border-rose-500">
               <div className="flex items-center gap-2 mb-1">
@@ -397,14 +394,9 @@ export default function Home() {
           </button>
         </section>
 
-                {/* <SalesBanner
-          totalRevenue={todaySales.totalRevenue}
-          totalOrders={todaySales.totalOrders}
-          flashKey={flashKey}
-          lastPayment={lastPayment}
-        /> */}
 
-        <section className="bg-white rounded-xl p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]" aria-label="최근 주문">
+
+        <section className="bg-white rounded-xl mb-4 p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]" aria-label="최근 주문">
           <h2 className="m-0 mb-3 text-base md:text-lg font-bold text-[#333]">최근 주문</h2>
           {recentOrdersQuery.isLoading ? (
             <p className="m-0 text-[#999] text-sm">불러오는 중...</p>
@@ -431,6 +423,14 @@ export default function Home() {
             </ul>
           )}
         </section>
+
+                <SalesBanner
+          totalRevenue={todaySales.totalRevenue}
+          totalOrders={todaySales.totalOrders}
+          flashKey={flashKey}
+          lastPayment={lastPayment}
+        />
+
         </>}
 
         {view === 'orders' && (
