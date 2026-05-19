@@ -405,7 +405,7 @@ export default function Home() {
                       key={item.id}
                       variants={menuCardVariants}
                       whileTap={{ scale: 0.97 }}
-                      className={`relative bg-white rounded-xl p-3 md:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(0,0,0,0.12)] ${count > 0 ? 'bg-primary-50 shadow-none ring-[3px] ring-primary-700' : ''}`}
+                      className={`relative bg-white rounded-xl p-3 md:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all duration-200 hover:shadow-[0_4px_14px_rgba(0,0,0,0.12)] ${count > 0 ? '!bg-primary-50' : ''}`}
                     >
                       {hasShortcut && (
                         <strong
