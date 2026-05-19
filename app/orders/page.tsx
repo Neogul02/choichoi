@@ -1,0 +1,141 @@
+'use client';
+
+import NavBar from '@/components/NavBar';
+import { useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { fetchPendingOrders, markOrderPrepared } from '@/app/actions';
+import { supabase } from '@/lib/supabase';
+import type { OrderRecordWithItems } from '@/types/api';
+import { formatKSTTime, formatPrice } from '@/lib/utils';
+
+const pendingCardVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.96, y: 10 },
+  visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, scale: 0.94, y: -4, transition: { duration: 0.18 } },
+};
+
+export default function OrdersPage() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('orders-realtime-orders-page')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
+  const pendingOrdersQuery = useQuery<OrderRecordWithItems[]>({
+    queryKey: ['pending-orders'],
+    queryFn: async () => {
+      const result = await fetchPendingOrders();
+      if (!result.success) throw new Error(result.error || '미처리 주문 로딩 실패');
+      return result.data ?? [];
+    },
+    staleTime: 0,
+  });
+  const pendingOrders = pendingOrdersQuery.data ?? [];
+
+  const markPreparedMutation = useMutation<{ success: boolean; error?: string }, Error, number>({
+    mutationFn: (orderId) => markOrderPrepared(orderId),
+    onMutate: (orderId) => {
+      queryClient.setQueryData<OrderRecordWithItems[]>(['pending-orders'], (prev) =>
+        (prev ?? []).filter((o) => o.id !== orderId)
+      );
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+      toast.error('처리 중 오류가 발생했습니다');
+    },
+  });
+
+  return (
+    <>
+      <NavBar />
+      <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="flex items-center justify-between bg-white mt-[-10px] rounded-2xl px-4 py-3.5 md:px-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+        >
+          <h1 className="m-0 text-lg font-black text-[#161616]">주문 현황</h1>
+          {pendingOrders.length > 0 && (
+            <motion.span
+              key={pendingOrders.length}
+              initial={{ scale: 1.2 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 16 }}
+              className="px-2.5 py-1 rounded-full bg-rose-500 text-white text-[12px] font-black"
+            >
+              {pendingOrders.length}건 대기
+            </motion.span>
+          )}
+        </motion.div>
+
+        <section aria-label="주문 현황">
+          {pendingOrdersQuery.isLoading ? (
+            <p className="m-0 text-[#999] text-sm py-4 text-center">불러오는 중...</p>
+          ) : pendingOrders.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-white rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-center"
+            >
+              <p className="m-0 text-[#aaa] text-sm">대기 중인 주문이 없습니다.</p>
+            </motion.div>
+          ) : (
+            <ul className="m-0 p-0 list-none flex flex-col gap-3">
+              <AnimatePresence initial={false}>
+                {pendingOrders.map((order) => (
+                  <motion.li
+                    key={order.id}
+                    variants={pendingCardVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    layout
+                    className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                        {order.cashier_name && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
+                        )}
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">대기 중</span>
+                      </div>
+                      <strong className="text-sm font-bold text-primary-700 shrink-0 ml-2">{formatPrice(order.total_price)}원</strong>
+                    </div>
+                    <ul className="m-0 p-0 list-none mb-3">
+                      {order.items.map((item, idx) => (
+                        <li key={idx} className="flex justify-between items-center py-1.5 border-b border-[#f5f5f5] last:border-0">
+                          <span className="text-sm font-semibold text-[#333]">{item.name}</span>
+                          <span className="text-sm text-[#888]">× {item.quantity}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      className="w-full py-2.5 rounded-lg border-none bg-emerald-500 text-white text-[13px] font-bold cursor-pointer transition-all duration-200 hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => markPreparedMutation.mutate(order.id)}
+                      disabled={markPreparedMutation.isPending}
+                    >
+                      확인
+                    </button>
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </ul>
+          )}
+        </section>
+      </main>
+    </>
+  );
+}
