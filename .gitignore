@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# AI dev tools (dev branch only)
+.claude/
+.omc/
+.mcp.json
+CLAUDE.md
+AGENTS.md
+**/AGENTS.md
