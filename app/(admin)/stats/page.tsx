@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   fetchTodaysSales, fetchMenuSalesBreakdown, fetchTodaysOrdersWithItems,
   resetTodaysSales, fetchMonthlySalesCalendar, fetchPopupEvents, fetchDailySalesByPeriod,
+  removeOrder,
 } from '@/app/actions';
 import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecordWithItems, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
@@ -99,6 +100,16 @@ export default function StatsPage() {
   const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price || 0), 0), [todayOrders]);
   const maxDayRevenue = useMemo(() => Math.max(...Object.values(calendarSales.byDate || {}).map(Number), 1), [calendarSales.byDate]);
 
+  const handleDeleteOrder = async (id: number) => {
+    const result = await removeOrder(id);
+    if (result.success) {
+      setTodayOrders((prev) => prev.filter((o) => o.id !== id));
+      toast.success('주문이 삭제되었습니다.');
+    } else {
+      toast.error(`삭제 실패: ${result.error}`);
+    }
+  };
+
   const handleResetTodaysSales = async () => {
     if (todayOrders.length === 0) { toast.warning('오늘 삭제할 매출이 없습니다'); return; }
     if (!window.confirm(`정말 오늘 매출(${todayOrders.length}건, ₩${todayRevenue.toLocaleString('ko-KR')})을 모두 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
@@ -118,7 +129,7 @@ export default function StatsPage() {
           <h2 className="m-0 mb-5 text-2xl font-extrabold">매출</h2>
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={loadTodayData} />
           <MenuBreakdownSection breakdown={breakdown} period={breakdownPeriod} isLoading={isBreakdownLoading} periodLabel={getPeriodBounds(breakdownPeriod).label} onPeriodChange={setBreakdownPeriod} />
-          <TodayOrdersSection orders={todayOrders} todayRevenue={todayRevenue} isLoading={isLoading} isResetting={isResettingSales} onReset={handleResetTodaysSales} />
+          <TodayOrdersSection orders={todayOrders} todayRevenue={todayRevenue} isLoading={isLoading} isResetting={isResettingSales} onReset={handleResetTodaysSales} onDeleteOrder={handleDeleteOrder} />
           <CalendarSection calendarSales={calendarSales} calendarMonth={calendarMonth} isLoading={isCalendarLoading} todayStr={todayStr} maxDayRevenue={maxDayRevenue} onMonthChange={(offset) => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1))} />
           <PopupStatsSection popupEvents={popupEvents} selectedPopupId={selectedPopupId} popupMenuBreakdown={popupMenuBreakdown} popupDailySales={popupDailySales} isLoading={isPopupStatsLoading} onSelectPopup={setSelectedPopupId} />
         </div>

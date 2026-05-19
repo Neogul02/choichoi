@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { OrderRecordWithItems } from '@/types/api';
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
   isLoading: boolean;
   isResetting: boolean;
   onReset: () => void;
+  onDeleteOrder: (id: number) => Promise<void>;
 }
 
 function formatKSTTime(isoString: string): string {
@@ -15,10 +17,20 @@ function formatKSTTime(isoString: string): string {
   const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
   const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
   const kst = new Date(utcMs + 9 * 3600 * 1000);
-  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}:${String(kst.getUTCSeconds()).padStart(2, '0')}`;
 }
 
-export default function TodayOrdersSection({ orders, todayRevenue, isLoading, isResetting, onReset }: Props) {
+export default function TodayOrdersSection({ orders, todayRevenue, isLoading, isResetting, onReset, onDeleteOrder }: Props) {
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const handleDelete = async (order: OrderRecordWithItems) => {
+    const label = `${formatKSTTime(order.created_at)} / ₩${Number(order.total_price).toLocaleString('ko-KR')}`;
+    if (!window.confirm(`이 주문을 삭제하시겠습니까?\n${label}\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+    setDeletingId(order.id);
+    await onDeleteOrder(order.id);
+    setDeletingId(null);
+  };
+
   return (
     <div className="mb-4 md:mb-5">
       <div className="bg-[#f9f9f9] rounded-xl p-4">
@@ -46,14 +58,30 @@ export default function TodayOrdersSection({ orders, todayRevenue, isLoading, is
           ) : (
             <ul className="m-0 p-0 list-none border border-[#ececec] rounded-lg bg-white max-h-[320px] overflow-y-auto">
               {orders.map((order) => (
-                <li key={order.id} className="p-2.5 md:p-3 border-b border-[#f3f3f3] last:border-b-0">
-                  <div className="flex justify-between items-center mb-0.5">
-                    <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
-                    <strong className="text-sm font-bold">₩{Number(order.total_price).toLocaleString('ko-KR')}</strong>
+                <li key={order.id} className="group flex items-start gap-2 p-2.5 md:p-3 border-b border-[#f3f3f3] last:border-b-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                        {order.cashier_name && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
+                        )}
+                      </div>
+                      <strong className="text-sm font-bold">₩{Number(order.total_price).toLocaleString('ko-KR')}</strong>
+                    </div>
+                    <p className="m-0 text-[#555] text-xs truncate">
+                      {order.items.length > 0 ? order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ') : '-'}
+                    </p>
                   </div>
-                  <p className="m-0 text-[#555] text-xs truncate">
-                    {order.items.length > 0 ? order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ') : '-'}
-                  </p>
+                  <button
+                    className="shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center rounded border border-transparent text-[#ccc] opacity-0 group-hover:opacity-100 hover:border-[#ffcccc] hover:bg-[#fff4f4] hover:text-[#c62828] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => handleDelete(order)}
+                    disabled={deletingId === order.id}
+                    title="이 주문 삭제"
+                    aria-label={`${formatKSTTime(order.created_at)} 주문 삭제`}
+                  >
+                    {deletingId === order.id ? '…' : '✕'}
+                  </button>
                 </li>
               ))}
             </ul>
