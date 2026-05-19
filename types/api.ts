@@ -46,6 +46,7 @@ export interface OrderRecord {
   created_at: string;
   payment_status: string;
   cashier_name: string | null;
+  is_prepared: boolean;
 }
 
 export interface OrderItemDetail {

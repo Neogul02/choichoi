@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
-import { fetchMenuItems, saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from './actions';
+import { fetchMenuItems, saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales, fetchPendingOrders, markOrderPrepared } from './actions';
 import type { MenuItem } from '@/types/database';
 import { supabase, type OrderItemInput } from '@/lib/supabase';
 import type { SaveOrderResponse, OrderRecordWithItems, TodaysSales } from '@/types/api';
@@ -17,7 +17,7 @@ function formatKSTTime(isoString: string): string {
   const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
   const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
   const kst = new Date(utcMs + 9 * 3600 * 1000);
-  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}`;
+  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}:${String(kst.getUTCSeconds()).padStart(2, '0')}`;
 }
 
 function fireConfetti() {
@@ -50,6 +50,7 @@ export default function Home() {
   const [lastPayment, setLastPayment] = useState<{ amount: number; id: number } | null>(null);
   const [cashierName, setCashierName] = useState<string | null>(null);
   const [activeCashiers, setActiveCashiers] = useState<string[]>([]);
+  const [view, setView] = useState<'pos' | 'orders'>('pos');
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clientId = useMemo(() => Math.random().toString(36).slice(2, 10), []);
 
@@ -59,13 +60,18 @@ export default function Home() {
 
   const queryClient = useQueryClient();
 
-  // 실시간 주문 갱신 — 다른 탭에서 결제하면 최근 주문 + 매출 자동 반영
+  // 실시간 주문 갱신 — INSERT: 최근주문+매출+미처리목록 갱신 / UPDATE: 미처리목록 갱신
   useEffect(() => {
     const channel = supabase
       .channel('orders-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
         queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] });
         queryClient.invalidateQueries({ queryKey: ['today-sales'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+        queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -131,6 +137,30 @@ export default function Home() {
     staleTime: 30_000,
   });
   const recentOrders = useMemo(() => (recentOrdersQuery.data ?? []).slice(0, 5), [recentOrdersQuery.data]);
+
+  const pendingOrdersQuery = useQuery<OrderRecordWithItems[]>({
+    queryKey: ['pending-orders'],
+    queryFn: async () => {
+      const result = await fetchPendingOrders();
+      if (!result.success) throw new Error(result.error || '미처리 주문 로딩 실패');
+      return result.data ?? [];
+    },
+    staleTime: 0,
+  });
+  const pendingOrders = pendingOrdersQuery.data ?? [];
+
+  const markPreparedMutation = useMutation<{ success: boolean; error?: string }, Error, number>({
+    mutationFn: (orderId) => markOrderPrepared(orderId),
+    onMutate: (orderId) => {
+      queryClient.setQueryData<OrderRecordWithItems[]>(['pending-orders'], (prev) =>
+        (prev ?? []).filter((o) => o.id !== orderId)
+      );
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+      toast.error('처리 중 오류가 발생했습니다');
+    },
+  });
 
   const totalCount = useMemo(
     () => Object.values(counts).reduce((sum, count) => sum + count, 0),
@@ -280,9 +310,28 @@ export default function Home() {
               </div>
             </div>
           )}
+          <div className="flex gap-2 mt-3 pt-3 border-t border-[#f0f0f0]">
+            <button
+              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border transition-all ${view === 'pos' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
+              onClick={() => setView('pos')}
+            >
+              주문 입력
+            </button>
+            <button
+              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border transition-all relative ${view === 'orders' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
+              onClick={() => setView('orders')}
+            >
+              주문 현황
+              {pendingOrders.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black leading-[18px] text-center">
+                  {pendingOrders.length}
+                </span>
+              )}
+            </button>
+          </div>
         </header>
 
-        <section className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4" aria-label="메뉴 목록">
+        {view === 'pos' && <><section className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4" aria-label="메뉴 목록">
           {menuQuery.isLoading && menuItems.length === 0 && (
             <p className="m-0 text-[#999] text-sm">메뉴를 불러오는 중입니다...</p>
           )}
@@ -382,6 +431,51 @@ export default function Home() {
             </ul>
           )}
         </section>
+        </>}
+
+        {view === 'orders' && (
+          <section aria-label="주문 현황">
+            {pendingOrdersQuery.isLoading ? (
+              <p className="m-0 text-[#999] text-sm py-4 text-center">불러오는 중...</p>
+            ) : pendingOrders.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-center">
+                <p className="m-0 text-[#aaa] text-sm">대기 중인 주문이 없습니다.</p>
+              </div>
+            ) : (
+              <ul className="m-0 p-0 list-none flex flex-col gap-3">
+                {pendingOrders.map((order) => (
+                  <li key={order.id} className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                        {order.cashier_name && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
+                        )}
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">대기 중</span>
+                      </div>
+                      <strong className="text-sm font-bold text-primary-700 shrink-0 ml-2">{formatPrice(order.total_price)}원</strong>
+                    </div>
+                    <ul className="m-0 p-0 list-none mb-3">
+                      {order.items.map((item, idx) => (
+                        <li key={idx} className="flex justify-between items-center py-1.5 border-b border-[#f5f5f5] last:border-0">
+                          <span className="text-sm font-semibold text-[#333]">{item.name}</span>
+                          <span className="text-sm text-[#888]">× {item.quantity}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      className="w-full py-2.5 rounded-lg border-none bg-emerald-500 text-white text-[13px] font-bold cursor-pointer transition-all hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => markPreparedMutation.mutate(order.id)}
+                      disabled={markPreparedMutation.isPending}
+                    >
+                      확인
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
       </main>
     </>
   );
