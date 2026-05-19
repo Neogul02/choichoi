@@ -307,51 +307,44 @@ export default function Home() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="bg-white mt-[-10px] rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+          className="bg-white mt-[-10px] rounded-2xl p-3 md:p-4 mb-2 md:mb-3 shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
         >
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1 rounded-xl p-3.5 md:p-4 bg-[#fff5f5] border-2 border-rose-500">
-              <div className="flex items-center gap-2 mb-1">
+          <div className="rounded-xl p-3 bg-[#fff5f5] border-2 border-rose-500 mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full bg-rose-500 text-white">결제 대기</span>
                 <span className="text-[11px] font-semibold text-[#aaa]">{totalCount}개</span>
               </div>
-              <motion.div
-                key={totalPrice}
-                initial={{ scale: 1.04 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-                className="text-[clamp(28px,8vw,44px)] md:text-[clamp(32px,5vw,56px)] font-black text-rose-500 leading-[1.1]"
+              <button
+                className="text-[11px] font-bold text-rose-400 border border-rose-200 rounded-lg px-2 py-0.5 bg-white cursor-pointer transition-all duration-200 hover:bg-rose-50 active:scale-95"
+                onClick={resetOrder}
               >
-                {formatPrice(totalPrice)}원
-              </motion.div>
+                초기화
+              </button>
             </div>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <p className="m-0 text-[#999] text-[12px] md:text-[13px]">
-              1~9: 추가&nbsp;·&nbsp;Enter: 결제&nbsp;·&nbsp;Esc: 초기화
-            </p>
-            <button
-              className="shrink-0 border-none rounded-lg px-3.5 py-2 text-[13px] font-bold bg-[#f5f6f7] text-[#555] cursor-pointer transition-all duration-200 hover:bg-[#eee] active:scale-95"
-              onClick={resetOrder}
+            <motion.div
+              key={totalPrice}
+              initial={{ scale: 1.04 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 18 }}
+              className="text-[clamp(22px,6vw,36px)] font-black text-rose-500 leading-[1.1]"
             >
-              초기화
-            </button>
+              {formatPrice(totalPrice)}원
+            </motion.div>
           </div>
           {activeCashiers.length > 0 && (
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#f0f0f0]">
-              <span className="text-[11px] text-[#aaa] shrink-0">접속 중</span>
-              <div className="flex flex-wrap gap-1.5">
-                {activeCashiers.map((name) => (
-                  <span key={name} className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {name}
-                  </span>
-                ))}
-              </div>
+            <div className="flex items-center gap-1.5 flex-wrap mb-2">
+              <span className="text-[11px] text-[#bbb] shrink-0">접속 중</span>
+              {activeCashiers.map((name) => (
+                <span key={name} className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {name}
+                </span>
+              ))}
             </div>
           )}
           {/* 탭 전환 버튼 */}
-          <div className="flex gap-2 mt-3 pt-3 border-t border-[#f0f0f0]">
+          <div className="flex gap-2 mt-2 pt-2 border-t border-[#f0f0f0]">
             <button
               className={`flex-1 py-2 rounded-lg text-[13px] font-bold border cursor-pointer transition-all duration-200 ${view === 'pos' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
               onClick={() => setView('pos')}
@@ -393,7 +386,7 @@ export default function Home() {
             >
               {/* 메뉴 그리드 */}
               <motion.section
-                className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4"
+                className="grid grid-cols-2 gap-1.5 md:gap-2 mb-3"
                 aria-label="메뉴 목록"
                 variants={menuGridVariants}
                 initial="hidden"
@@ -461,8 +454,8 @@ export default function Home() {
               </motion.section>
 
               {/* 주문 상세 */}
-              <section className="bg-white rounded-xl p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] mb-4" aria-label="주문 상세">
-                <h2 className="m-0 mb-3 text-base md:text-lg font-bold">주문 상세</h2>
+              <section className="bg-white rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.06)] mb-3" aria-label="주문 상세">
+                <h2 className="m-0 mb-2 text-sm md:text-base font-bold">주문 상세</h2>
                 {orderedItems.length === 0 ? (
                   <p className="m-0 text-[#999] text-sm">{checkoutMutation.isPending ? '결제 처리 중...' : '선택한 메뉴가 없습니다.'}</p>
                 ) : (
@@ -480,7 +473,7 @@ export default function Home() {
                             className={`flex justify-between items-center py-2.5 text-sm ${index !== orderedItems.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}
                           >
                             <span>{item.name} × {count}</span>
-                            <strong className="font-bold text-primary-700">{formatPrice(item.price * count)}원</strong>
+                            <strong className="font-bold text-primary-500">{formatPrice(item.price * count)}원</strong>
                           </motion.li>
                         );
                       })}
@@ -488,7 +481,7 @@ export default function Home() {
                   </ul>
                 )}
                 <button
-                  className="w-full p-4 mt-4 text-lg font-bold bg-primary-700 text-white border-none rounded-lg cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
+                  className="w-full p-3 mt-3 text-base font-bold bg-primary-700 text-white border-none rounded-lg cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
                   onClick={handleCheckout}
                   disabled={checkoutMutation.isPending || orderedItems.length === 0}
                 >
