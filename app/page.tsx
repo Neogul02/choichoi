@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { fetchMenuItems, saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from './actions';
 import type { MenuItem } from '@/types/database';
-import type { OrderItemInput } from '@/lib/supabase';
+import { supabase, type OrderItemInput } from '@/lib/supabase';
 import type { SaveOrderResponse, OrderRecordWithItems, TodaysSales } from '@/types/api';
 import { formatPrice, getShortcutBadgeColors } from '@/lib/utils';
 
@@ -41,14 +41,55 @@ function fireConfetti() {
   }, 240);
 }
 
+const CASHIER_NAME_KEY = 'choichoi_cashier_name';
+
 export default function Home() {
   const [counts, setCounts] = useState<Record<number, number>>({});
   const [todaySales, setTodaySales] = useState<TodaysSales>({ totalRevenue: 0, totalOrders: 0 });
   const [flashKey, setFlashKey] = useState(0);
   const [lastPayment, setLastPayment] = useState<{ amount: number; id: number } | null>(null);
+  const [cashierName, setCashierName] = useState<string | null>(null);
+  const [activeCashiers, setActiveCashiers] = useState<string[]>([]);
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clientId = useMemo(() => Math.random().toString(36).slice(2, 10), []);
+
+  useEffect(() => {
+    setCashierName(localStorage.getItem(CASHIER_NAME_KEY));
+  }, []);
 
   const queryClient = useQueryClient();
+
+  // 실시간 주문 갱신 — 다른 탭에서 결제하면 최근 주문 + 매출 자동 반영
+  useEffect(() => {
+    const channel = supabase
+      .channel('orders-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] });
+        queryClient.invalidateQueries({ queryKey: ['today-sales'] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
+  // Presence — 현재 접속 중인 캐셔 실시간 표시
+  useEffect(() => {
+    if (!cashierName) return () => {};
+    const channel = supabase.channel('pos-presence', {
+      config: { presence: { key: clientId } },
+    });
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ name: string }>();
+        const names = [...new Set(Object.values(state).flat().map((p) => p.name))];
+        setActiveCashiers(names);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ name: cashierName });
+        }
+      });
+    return () => { supabase.removeChannel(channel); };
+  }, [cashierName, clientId]);
   const checkoutFnRef = useRef<(() => void) | null>(null);
   const checkoutDebouncingRef = useRef(false);
 
@@ -117,10 +158,10 @@ export default function Home() {
   const checkoutMutation = useMutation<
     SaveOrderResponse,
     Error,
-    { items: OrderItemInput[]; totalPrice: number },
+    { items: OrderItemInput[]; totalPrice: number; cashierName?: string },
     { previousCounts: Record<number, number> }
   >({
-    mutationFn: ({ items, totalPrice }) => saveOrder(items, totalPrice),
+    mutationFn: ({ items, totalPrice, cashierName: name }) => saveOrder(items, totalPrice, name ?? undefined),
     onMutate: () => {
       const previousCounts = { ...counts };
       resetOrder();
@@ -157,7 +198,7 @@ export default function Home() {
     const items = menuItems
       .filter((item) => counts[item.id] > 0)
       .map((item) => ({ id: item.id, name: item.name, price: item.price, count: counts[item.id] }));
-    checkoutMutation.mutate({ items, totalPrice });
+    checkoutMutation.mutate({ items, totalPrice, cashierName: cashierName ?? undefined });
   };
 
   useEffect(() => {
@@ -226,6 +267,19 @@ export default function Home() {
               초기화
             </button>
           </div>
+          {activeCashiers.length > 0 && (
+            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#f0f0f0]">
+              <span className="text-[11px] text-[#aaa] shrink-0">접속 중</span>
+              <div className="flex flex-wrap gap-1.5">
+                {activeCashiers.map((name) => (
+                  <span key={name} className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </header>
 
         <section className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4" aria-label="메뉴 목록">
@@ -312,7 +366,12 @@ export default function Home() {
               {recentOrders.map((order, index) => (
                 <li key={order.id} className={`py-2.5 ${index !== recentOrders.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
                   <div className="flex justify-between items-center mb-0.5">
-                    <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                      {order.cashier_name && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
+                      )}
+                    </div>
                     <strong className="text-sm font-bold text-primary-700">{formatPrice(order.total_price)}원</strong>
                   </div>
                   <p className="m-0 text-[#555] text-xs truncate">

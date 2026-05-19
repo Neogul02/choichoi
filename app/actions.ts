@@ -65,9 +65,9 @@ import type {
 } from '@/types/api';
 import type { MenuItem, Memo, ScheduleSlot, PopupEvent, Worker } from '@/types/database';
 
-export async function saveOrder(items: OrderItemInput[], totalPrice: number): Promise<SaveOrderResponse> {
+export async function saveOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string): Promise<SaveOrderResponse> {
   try {
-    const order = await createOrder(items, totalPrice);
+    const order = await createOrder(items, totalPrice, cashierName);
     const sales = await getTodaysSales();
     return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales };
   } catch (error) {
