@@ -7,19 +7,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { fetchMenuItems, saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales, fetchPendingOrders, markOrderPrepared } from './actions';
+import { fetchMenuItems, saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from './actions';
 import type { MenuItem } from '@/types/database';
 import { supabase, type OrderItemInput } from '@/lib/supabase';
 import type { SaveOrderResponse, OrderRecordWithItems, TodaysSales } from '@/types/api';
-import { formatPrice, getShortcutBadgeColors } from '@/lib/utils';
-
-function formatKSTTime(isoString: string): string {
-  const s = isoString.replace(' ', 'T');
-  const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
-  const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
-  const kst = new Date(utcMs + 9 * 3600 * 1000);
-  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}:${String(kst.getUTCSeconds()).padStart(2, '0')}`;
-}
+import { formatPrice, formatKSTTime, getShortcutBadgeColors, hexWithAlpha } from '@/lib/utils';
 
 function fireConfetti() {
   const colors = ['#f43f5e', '#fb7185', '#fda4af', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'];
@@ -45,32 +37,10 @@ function fireConfetti() {
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
 
 // ── 애니메이션 variants ────────────────────────────────────────────
-const menuGridVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.055, delayChildren: 0.05 } },
-};
-
-const menuCardVariants: Variants = {
-  hidden: { opacity: 0, y: 14, scale: 0.96 },
-  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
-};
-
-const viewVariants: Variants = {
-  hidden: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } },
-  exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
-};
-
 const cartItemVariants: Variants = {
   hidden: { opacity: 0, height: 0, marginBottom: 0 },
   visible: { opacity: 1, height: 'auto', transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } },
   exit: { opacity: 0, height: 0, transition: { duration: 0.15 } },
-};
-
-const pendingCardVariants: Variants = {
-  hidden: { opacity: 0, scale: 0.96, y: 10 },
-  visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
-  exit: { opacity: 0, scale: 0.94, y: -4, transition: { duration: 0.18 } },
 };
 // ─────────────────────────────────────────────────────────────────────
 
@@ -80,10 +50,7 @@ export default function Home() {
   const [flashKey, setFlashKey] = useState(0);
   const [lastPayment, setLastPayment] = useState<{ amount: number; id: number } | null>(null);
   const [cashierName, setCashierName] = useState<string | null>(null);
-  const [activeCashiers, setActiveCashiers] = useState<string[]>([]);
-  const [view, setView] = useState<'pos' | 'orders'>('pos');
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clientId = useMemo(() => Math.random().toString(36).slice(2, 10), []);
 
   useEffect(() => {
     setCashierName(localStorage.getItem(CASHIER_NAME_KEY));
@@ -106,25 +73,6 @@ export default function Home() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
-
-  useEffect(() => {
-    if (!cashierName) return () => {};
-    const channel = supabase.channel('pos-presence', {
-      config: { presence: { key: clientId } },
-    });
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ name: string }>();
-        const names = [...new Set(Object.values(state).flat().map((p) => p.name))];
-        setActiveCashiers(names);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ name: cashierName });
-        }
-      });
-    return () => { supabase.removeChannel(channel); };
-  }, [cashierName, clientId]);
 
   const checkoutFnRef = useRef<(() => void) | null>(null);
   const checkoutDebouncingRef = useRef(false);
@@ -166,30 +114,6 @@ export default function Home() {
     staleTime: 30_000,
   });
   const recentOrders = useMemo(() => (recentOrdersQuery.data ?? []).slice(0, 5), [recentOrdersQuery.data]);
-
-  const pendingOrdersQuery = useQuery<OrderRecordWithItems[]>({
-    queryKey: ['pending-orders'],
-    queryFn: async () => {
-      const result = await fetchPendingOrders();
-      if (!result.success) throw new Error(result.error || '미처리 주문 로딩 실패');
-      return result.data ?? [];
-    },
-    staleTime: 0,
-  });
-  const pendingOrders = pendingOrdersQuery.data ?? [];
-
-  const markPreparedMutation = useMutation<{ success: boolean; error?: string }, Error, number>({
-    mutationFn: (orderId) => markOrderPrepared(orderId),
-    onMutate: (orderId) => {
-      queryClient.setQueryData<OrderRecordWithItems[]>(['pending-orders'], (prev) =>
-        (prev ?? []).filter((o) => o.id !== orderId)
-      );
-    },
-    onError: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
-      toast.error('처리 중 오류가 발생했습니다');
-    },
-  });
 
   const totalCount = useMemo(
     () => Object.values(counts).reduce((sum, count) => sum + count, 0),
@@ -337,67 +261,13 @@ export default function Home() {
               초기화
             </button>
           </div>
-          {activeCashiers.length > 0 && (
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#f0f0f0]">
-              <span className="text-[11px] text-[#aaa] shrink-0">접속 중</span>
-              <div className="flex flex-wrap gap-1.5">
-                {activeCashiers.map((name) => (
-                  <span key={name} className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* 탭 전환 버튼 */}
-          <div className="flex gap-2 mt-3 pt-3 border-t border-[#f0f0f0]">
-            <button
-              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border cursor-pointer transition-all duration-200 ${view === 'pos' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
-              onClick={() => setView('pos')}
-            >
-              주문 입력
-            </button>
-            <button
-              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border cursor-pointer transition-all duration-200 relative ${view === 'orders' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
-              onClick={() => setView('orders')}
-            >
-              주문 현황
-              <AnimatePresence>
-                {pendingOrders.length > 0 && (
-                  <motion.span
-                    key="badge"
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 380, damping: 18 }}
-                    className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black leading-[18px] text-center"
-                  >
-                    {pendingOrders.length}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </button>
-          </div>
         </motion.header>
 
-        {/* 뷰 전환 애니메이션 */}
-        <AnimatePresence mode="wait">
-          {view === 'pos' ? (
-            <motion.div
-              key="pos"
-              variants={viewVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              {/* 메뉴 그리드 */}
-              <motion.section
+        {/* 메뉴 그리드 */}
+        <div>
+              <section
                 className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4"
                 aria-label="메뉴 목록"
-                variants={menuGridVariants}
-                initial="hidden"
-                animate="visible"
               >
                 {menuQuery.isLoading && menuItems.length === 0 && (
                   <p className="m-0 text-[#999] text-sm">메뉴를 불러오는 중입니다...</p>
@@ -410,9 +280,13 @@ export default function Home() {
                   return (
                     <motion.article
                       key={item.id}
-                      variants={menuCardVariants}
                       whileTap={{ scale: 0.97 }}
-                      className={`relative bg-white rounded-xl p-3 md:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(0,0,0,0.12)] ${count > 0 ? 'bg-primary-50 shadow-none ring-[3px] ring-primary-700' : ''}`}
+                      onClick={() => increase(item.id)}
+                      className={`relative rounded-xl p-3 md:p-3.5 transition-shadow duration-200 cursor-pointer ${count > 0 ? 'shadow-none' : 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.12)]'}`}
+                      style={count > 0 ? {
+                        backgroundColor: hexWithAlpha(item.color, 0.18),
+                        boxShadow: `0 0 0 3px ${hexWithAlpha(item.color, 0.65)}`,
+                      } : {}}
                     >
                       {hasShortcut && (
                         <strong
@@ -423,17 +297,17 @@ export default function Home() {
                           {shortcutNumber}
                         </strong>
                       )}
-                      <button className="w-full border-none bg-transparent text-left p-0 cursor-pointer mb-3" onClick={() => increase(item.id)}>
+                      <div className="w-full text-left mb-3">
                         <div className="flex items-center gap-2.5 mb-2">
                           <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
                           <h2 className="m-0 text-sm md:text-base font-bold leading-snug">{item.name}</h2>
                         </div>
                         <p className="m-0 text-xl md:text-2xl font-extrabold text-[#333]">{formatPrice(item.price)}원</p>
-                      </button>
+                      </div>
                       <div className="flex items-center gap-2">
                         <button
                           className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-[#ddd] text-xl md:text-2xl font-semibold cursor-pointer bg-[#fafafa] transition-all duration-200 hover:bg-[#f0f0f0] hover:border-[#999] active:scale-95 leading-none"
-                          onClick={() => decrease(item.id)}
+                          onClick={(e) => { e.stopPropagation(); decrease(item.id); }}
                           aria-label={`${item.name} 수량 감소`}
                         >
                           −
@@ -449,7 +323,7 @@ export default function Home() {
                         </motion.strong>
                         <button
                           className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-[#ddd] text-xl md:text-2xl font-semibold cursor-pointer bg-[#fafafa] transition-all duration-200 hover:bg-[#f0f0f0] hover:border-[#999] active:scale-95 leading-none"
-                          onClick={() => increase(item.id)}
+                          onClick={(e) => { e.stopPropagation(); increase(item.id); }}
                           aria-label={`${item.name} 수량 증가`}
                         >
                           +
@@ -458,7 +332,7 @@ export default function Home() {
                     </motion.article>
                   );
                 })}
-              </motion.section>
+              </section>
 
               {/* 주문 상세 */}
               <section className="bg-white rounded-xl p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] mb-4" aria-label="주문 상세">
@@ -531,73 +405,7 @@ export default function Home() {
                 flashKey={flashKey}
                 lastPayment={lastPayment}
               />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="orders"
-              variants={viewVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <section aria-label="주문 현황">
-                {pendingOrdersQuery.isLoading ? (
-                  <p className="m-0 text-[#999] text-sm py-4 text-center">불러오는 중...</p>
-                ) : pendingOrders.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="bg-white rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-center"
-                  >
-                    <p className="m-0 text-[#aaa] text-sm">대기 중인 주문이 없습니다.</p>
-                  </motion.div>
-                ) : (
-                  <ul className="m-0 p-0 list-none flex flex-col gap-3">
-                    <AnimatePresence initial={false}>
-                      {pendingOrders.map((order) => (
-                        <motion.li
-                          key={order.id}
-                          variants={pendingCardVariants}
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                          layout
-                          className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-                        >
-                          <div className="flex justify-between items-start mb-3">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
-                              {order.cashier_name && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
-                              )}
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">대기 중</span>
-                            </div>
-                            <strong className="text-sm font-bold text-primary-700 shrink-0 ml-2">{formatPrice(order.total_price)}원</strong>
-                          </div>
-                          <ul className="m-0 p-0 list-none mb-3">
-                            {order.items.map((item, idx) => (
-                              <li key={idx} className="flex justify-between items-center py-1.5 border-b border-[#f5f5f5] last:border-0">
-                                <span className="text-sm font-semibold text-[#333]">{item.name}</span>
-                                <span className="text-sm text-[#888]">× {item.quantity}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          <button
-                            className="w-full py-2.5 rounded-lg border-none bg-emerald-500 text-white text-[13px] font-bold cursor-pointer transition-all duration-200 hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => markPreparedMutation.mutate(order.id)}
-                            disabled={markPreparedMutation.isPending}
-                          >
-                            확인
-                          </button>
-                        </motion.li>
-                      ))}
-                    </AnimatePresence>
-                  </ul>
-                )}
-              </section>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </div>
       </main>
     </>
   );
