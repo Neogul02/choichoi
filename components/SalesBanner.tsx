@@ -43,23 +43,30 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
   return (
     <div
       ref={scope}
-      className="relative bg-gradient-to-r from-rose-500 via-rose-500 to-pink-600 text-white rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_6px_28px_rgba(244,63,94,0.40)] will-change-transform overflow-hidden"
+      className="relative text-white rounded-2xl p-4 md:p-5 mb-3 md:mb-4 will-change-transform overflow-hidden"
+      style={{
+        background: 'linear-gradient(135deg, #084431 0%, #0d6b4e 55%, #3d9966 100%)',
+        boxShadow: '0 6px 28px rgba(8,68,49,0.45)',
+      }}
     >
       {/* 배경 shimmer 레이어 */}
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+      {/* 우측 하단 장식 원 */}
+      <div className="absolute -bottom-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
+      <div className="absolute -bottom-2 -right-2 w-16 h-16 rounded-full bg-white/5 pointer-events-none" />
 
       <div className="relative flex items-center justify-between">
         <div>
-          <p className="m-0 text-rose-100 text-[11px] font-bold tracking-[0.12em] uppercase mb-1.5">오늘 매출</p>
+          <p className="m-0 text-emerald-200 text-[11px] font-bold tracking-[0.12em] uppercase mb-1.5">오늘 매출</p>
           <div className="text-[clamp(28px,7vw,46px)] font-black leading-none tabular-nums">
             ₩<AnimatedCounter value={totalRevenue} formatter={(n) => n.toLocaleString('ko-KR')} />
           </div>
         </div>
 
-        <div className="self-stretch w-px bg-white/25 mx-4 md:mx-6" />
+        <div className="self-stretch w-px bg-white/20 mx-4 md:mx-6" />
 
         <div className="text-right">
-          <p className="m-0 text-rose-100 text-[11px] font-bold tracking-[0.12em] uppercase mb-1.5">주문 수</p>
+          <p className="m-0 text-emerald-200 text-[11px] font-bold tracking-[0.12em] uppercase mb-1.5">주문 수</p>
           <div className="text-[clamp(28px,7vw,46px)] font-black leading-none tabular-nums">
             <AnimatedCounter value={totalOrders} formatter={(n) => String(n)} />건
           </div>
