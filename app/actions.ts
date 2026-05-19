@@ -12,6 +12,8 @@ import {
   getTodaysSales,
   getTodaysOrderList,
   getTodaysOrderListWithItems,
+  getPendingOrders,
+  prepareOrder,
   getMonthlySalesByDate,
   clearTodaysOrders,
   getMenuItems,
@@ -142,6 +144,26 @@ export async function reorderMenuItems(orderedIds: number[]): Promise<ApiRespons
     return { success: true };
   } catch (error) {
     console.error('Failed to reorder menu items:', error);
+    return { success: false, error: extractErrorMessage(error) };
+  }
+}
+
+export async function fetchPendingOrders(): Promise<FetchOrdersWithItemsResponse> {
+  try {
+    const data = await getPendingOrders();
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to fetch pending orders:', error);
+    return { success: false, error: extractErrorMessage(error) };
+  }
+}
+
+export async function markOrderPrepared(id: number): Promise<ApiResponse> {
+  try {
+    await prepareOrder(id);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to mark order prepared:', error);
     return { success: false, error: extractErrorMessage(error) };
   }
 }
