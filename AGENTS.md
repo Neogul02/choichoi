@@ -1,77 +1,64 @@
-<!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any Next.js code. Heed deprecation notices.
 
-<!-- Generated: 2026-05-04 | Updated: 2026-05-04 -->
+# choichoi
 
-# choichoi (Root)
+Korean café/bakery POS. Staff take orders via a touch/keyboard menu grid; checkout goes through Supabase. Admin screens handle menu CRUD, sales stats, scheduling, and memos.
 
-## Purpose
-ChoiChoi is a Korean café/bakery Point-of-Sale (POS) web application. It lets staff take orders from a touch/keyboard-friendly menu grid, processes checkout via Supabase, and provides a settings screen for menu CRUD, daily sales management, and a monthly revenue calendar.
+## Stack
+- Next.js 16 + React 19, App Router, TypeScript 6
+- Tailwind CSS 4 (CSS-first, no config file — theme in `globals.css`)
+- TanStack React Query 5, Framer Motion, Recharts, Sonner toasts
+- Supabase (Postgres + Realtime)
 
-## Key Files
+## Directory Map
+| Path | Role |
+|------|------|
+| `app/page.tsx` | Main POS screen (menu grid, cart, checkout) |
+| `app/orders/page.tsx` | Live pending orders view |
+| `app/memo/page.tsx` | Memos (public — no admin gate) |
+| `app/(admin)/` | Admin-only routes wrapped in `AdminGate` |
+| `app/actions.ts` | All Server Actions (`'use server'`) — only entry point to DB |
+| `app/password-gate.tsx` | Cashier auth modal (localStorage token) |
+| `app/admin-gate.tsx` | Admin auth modal (localStorage token) |
+| `lib/supabase.ts` | Supabase client + all DB functions (server-only) |
+| `lib/utils.ts` | `formatPrice`, `formatKSTTime`, `toLocalDateStr`, luminance check |
+| `components/NavBar.tsx` | Top nav with admin login modal, presence badges |
+| `components/SalesBanner.tsx` | Animated today's sales display |
+| `hooks/usePresence.ts` | Supabase Realtime presence hook |
+| `types/database.ts` | DB row types |
+| `types/api.ts` | Server action response types (`ApiResponse<T>`) |
 
-| File | Description |
-|------|-------------|
-| `package.json` | Dependencies and scripts (`dev`, `build`, `start`, `lint`) |
-| `next.config.mjs` | Minimal Next.js config (no special options currently set) |
-| `tsconfig.json` | TypeScript config (strict mode implied by `typescript 6.x`) |
-| `jsconfig.json` | JS path aliases (`@/` → project root) |
-| `eslint.config.mjs` | ESLint flat-config with `eslint-config-next` |
-| `tailwind.config` / `postcss.config` | Tailwind CSS 4 via PostCSS |
-| `vercel.json` | Vercel deployment config |
-| `.yarnrc.yml` | Yarn Berry config |
+## Critical Rules
+- **Never** import `lib/supabase.ts` from client components — use `app/actions.ts` only.
+- All server actions return `ApiResponse<T>` = `{ success: boolean; data?: T; error?: string }`. Always check `result.success` before accessing `data`.
+- All UI text is **Korean (ko-KR)**.
+- Path alias `@/` = project root.
+- Run `yarn lint && yarn build` to verify changes.
 
-## Subdirectories
+## Auth
+Two-tier, localStorage-based (no sessions):
+- Cashier gate: `choichoi_popup_token` — required to use the app at all
+- Admin gate: `choichoi_admin_token` — required for `(admin)` routes + admin features
+- Both validated against `/api/auth/*/validate` on load
 
-| Directory | Purpose |
-|-----------|---------|
-| `app/` | Next.js App Router pages, layouts, server actions, API routes (see `app/AGENTS.md`) |
-| `components/` | Reusable React components (see `components/AGENTS.md`) |
-| `lib/` | Supabase client and all DB utility functions (see `lib/AGENTS.md`) |
-| `public/` | Static SVG assets |
+## Data Patterns
+- Server actions: thin `async function wrap<T>(fn)` helper in `actions.ts` — no try/catch boilerplate needed.
+- React Query: `staleTime: 5min`, `gcTime: 10min`, `refetchOnWindowFocus: false` (POS left open on locked screens).
+- Realtime: Supabase channel → `queryClient.invalidateQueries()` pattern.
+- KST dates: always use `getKSTDateBounds()` from `lib/supabase.ts`; never raw UTC for today's orders.
+- Prices: `new Intl.NumberFormat('ko-KR').format(price)` + `원`.
 
-## For AI Agents
-
-### Working In This Directory
-- This is **Next.js 16** with **React 19** and **App Router** — check `node_modules/next/dist/docs/` for current APIs before writing any Next.js code.
-- Path alias `@/` resolves to the project root. Use it for cross-directory imports.
-- All UI text is in **Korean (ko-KR)**. Keep it that way.
-- Run `yarn lint` and `yarn build` to verify changes don't break compilation.
-
-### Testing Requirements
-- No test suite is currently set up. Verify features manually via `yarn dev`.
-- Supabase calls require `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `POPUP_PASSWORD` environment variables.
-
-### Common Patterns
-- Server Actions (`'use server'`) in `app/actions.ts` wrap all Supabase calls — never call `lib/supabase.js` directly from client components.
-- All server actions return `{ success: boolean, data?: ..., error?: string }` — handle both branches on the client.
-- Korean number formatting: `new Intl.NumberFormat('ko-KR')` for prices.
-- Auth is a localStorage-based password gate, not a session/cookie system.
-
-## Dependencies
-
-### Internal
-All cross-cutting concerns flow through `app/actions.ts` (server) → `lib/supabase.js` (DB layer).
-
-### External
-- `next@16.2.1` — App Router framework
-- `react@19` / `react-dom@19` — UI
-- `@supabase/supabase-js@^2` — Database client
-- `@tanstack/react-query@^5` — Client-side data fetching and caching
-- `tailwindcss@^4` — Utility-first CSS (PostCSS integration, no `tailwind.config.js`)
-- `typescript@6` — Type checking
-
-## Database Schema (Supabase)
-
+## Database Schema
 | Table | Key Columns |
-|-------|------------|
+|-------|-------------|
 | `menu_items` | `id`, `name`, `price`, `color` (hex), `stock`, `is_active`, `display_order`, `updated_at` |
-| `orders` | `id`, `total_price`, `payment_method`, `payment_status`, `created_at` |
+| `orders` | `id`, `total_price`, `payment_method`, `payment_status`, `cashier_name`, `is_prepared`, `created_at` |
 | `order_items` | `order_id`, `menu_item_id`, `quantity`, `unit_price`, `subtotal` |
+| `popup_events` | `id`, `name`, `start_date`, `end_date`, `created_at` |
+| `schedule_slots` | `id`, `event_id`, `schedule_date`, `role`, `person_name`, `work_time`, `break_time`, `worker_id`, `updated_at` |
+| `workers` | `id`, `event_id`, `name`, `color`, `phone`, `bank_name`, `bank_account`, `hourly_rate`, `payment_done`, `updated_at` |
+| `memos` | `id`, `title`, `content`, `color`, `updated_at` |
 
-Soft-delete pattern: `deleteMenuItem` sets `is_active = false` rather than removing rows.
-
-<!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->
+Soft-delete: `menu_items` uses `is_active = false`.
