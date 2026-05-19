@@ -82,7 +82,16 @@ export default function OrdersPage() {
 
         <section aria-label="주문 현황">
           {pendingOrdersQuery.isLoading ? (
-            <p className="m-0 text-[#999] text-sm py-4 text-center">불러오는 중...</p>
+            <div className="animate-pulse flex flex-col gap-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                  <div className="h-4 bg-gray-100 rounded w-1/3 mb-3" />
+                  <div className="h-3 bg-gray-100 rounded w-full mb-2" />
+                  <div className="h-3 bg-gray-100 rounded w-2/3 mb-4" />
+                  <div className="h-9 bg-gray-100 rounded-lg w-full" />
+                </div>
+              ))}
+            </div>
           ) : pendingOrders.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
