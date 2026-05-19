@@ -50,7 +50,7 @@ export async function getTodaysOrderList(): Promise<OrderRecord[]> {
   const { start, end } = getKSTDateBounds();
   const { data, error } = await supabase
     .from('orders')
-    .select('id,total_price,created_at,payment_status,cashier_name')
+    .select('id,total_price,created_at,payment_status,cashier_name,is_prepared')
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
@@ -64,7 +64,7 @@ export async function getTodaysOrderListWithItems(limit?: number): Promise<Order
   const { start, end } = getKSTDateBounds();
   const { data, error } = await supabase
     .from('orders')
-    .select('id, total_price, created_at, payment_status, cashier_name, order_items(menu_item_id, quantity, subtotal, menu_items(name))')
+    .select('id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))')
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
@@ -85,6 +85,7 @@ export async function getTodaysOrderListWithItems(limit?: number): Promise<Order
       created_at: order.created_at as string,
       payment_status: order.payment_status as string,
       cashier_name: (order.cashier_name as string | null) ?? null,
+      is_prepared: (order.is_prepared as boolean) ?? false,
       items: rawItems.map((item) => ({
         menu_item_id: item.menu_item_id,
         name: item.menu_items?.name ?? '알 수 없음',
@@ -151,6 +152,50 @@ export async function createOrder(items: OrderItemInput[], totalPrice: number, c
   }
 
   return order as Order;
+}
+
+export async function getPendingOrders(): Promise<OrderRecordWithItems[]> {
+  const { start, end } = getKSTDateBounds();
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))')
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .eq('is_prepared', false)
+    .order('id', { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((order) => {
+    const rawItems = (order.order_items ?? []) as unknown as Array<{
+      menu_item_id: number;
+      quantity: number;
+      subtotal: number;
+      menu_items: { name: string } | null;
+    }>;
+    return {
+      id: order.id as number,
+      total_price: Number(order.total_price),
+      created_at: order.created_at as string,
+      payment_status: order.payment_status as string,
+      cashier_name: (order.cashier_name as string | null) ?? null,
+      is_prepared: false,
+      items: rawItems.map((item) => ({
+        menu_item_id: item.menu_item_id,
+        name: item.menu_items?.name ?? '알 수 없음',
+        quantity: item.quantity,
+        subtotal: Number(item.subtotal),
+      })),
+    };
+  });
+}
+
+export async function prepareOrder(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('orders')
+    .update({ is_prepared: true })
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function addMenuItem(name: string, price: number, color: string): Promise<MenuItem> {
