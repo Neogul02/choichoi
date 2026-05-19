@@ -53,7 +53,7 @@ export default function NavBar() {
   }, []);
 
   useEffect(() => {
-    if (!cashierName) return;
+    if (!cashierName) return () => {};
     if (!clientIdRef.current) {
       clientIdRef.current = Math.random().toString(36).slice(2, 10);
     }
