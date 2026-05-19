@@ -14,6 +14,7 @@ import {
   getTodaysOrderListWithItems,
   getPendingOrders,
   prepareOrder,
+  deleteOrder,
   getMonthlySalesByDate,
   clearTodaysOrders,
   getMenuItems,
@@ -164,6 +165,16 @@ export async function markOrderPrepared(id: number): Promise<ApiResponse> {
     return { success: true };
   } catch (error) {
     console.error('Failed to mark order prepared:', error);
+    return { success: false, error: extractErrorMessage(error) };
+  }
+}
+
+export async function removeOrder(id: number): Promise<ApiResponse> {
+  try {
+    await deleteOrder(id);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete order:', error);
     return { success: false, error: extractErrorMessage(error) };
   }
 }

@@ -6,6 +6,7 @@ import type { CalendarSalesData } from '@/types/api';
 
 const MATERIAL_COST_KEY = 'choichoi_material_cost';
 const OTHER_COST_KEY = 'choichoi_other_cost';
+const FEE_PERCENT_KEY = 'choichoi_fee_percent';
 
 function getCellBgStyle(revenue: number, maxRevenue: number) {
   if (revenue <= 0 || maxRevenue <= 0) return { backgroundColor: '#f8faf9' };
@@ -34,12 +35,23 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
   const [otherCost, setOtherCost] = useState(() => {
     try { const s = localStorage.getItem(OTHER_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
   });
+  const [feePercent, setFeePercent] = useState(() => {
+    try { const s = localStorage.getItem(FEE_PERCENT_KEY); return s ? parseFloat(s) : 32; } catch { return 32; }
+  });
 
   const monthYearLabel = `${calendarMonth.getFullYear()}년 ${calendarMonth.getMonth() + 1}월`;
   const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
-  const afterFee = Math.round(calendarSales.monthTotal * 0.68);
+  const clampedFee = Math.min(100, Math.max(0, feePercent));
+  const afterFee = Math.round(calendarSales.monthTotal * (1 - clampedFee / 100));
   const estimatedSettlement = afterFee - materialCost - otherCost;
+
+  const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    const next = isNaN(val) ? 0 : val;
+    setFeePercent(next);
+    try { localStorage.setItem(FEE_PERCENT_KEY, String(next)); } catch { /* ignore */ }
+  };
 
   const buildDateKey = (year: number, monthIndex: number, day: number) =>
     `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -116,10 +128,21 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
             <span className="text-sm text-[#555]">최종 월매출</span>
             <strong className="text-sm font-bold text-[#111]">₩{formatPrice(calendarSales.monthTotal)}</strong>
           </div>
-          <div className="flex items-center justify-between py-3 border-b border-[#f0f0f0]">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-sm text-[#555]">팝업 수수료 32% 제외</span>
-              <span className="text-[11px] text-[#aaa]">×68%</span>
+          <div className="flex items-center justify-between gap-4 py-3 border-b border-[#f0f0f0]">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm text-[#555]">팝업 수수료</span>
+              <div className="relative">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={feePercent}
+                  onChange={handleFeeChange}
+                  className="w-16 text-right text-sm border border-[#ddd] rounded-lg px-2 py-1 pr-5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-[#fafafa]"
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[#888] font-bold pointer-events-none">%</span>
+              </div>
             </div>
             <strong className="text-sm font-bold text-primary-700">₩{formatPrice(afterFee)}</strong>
           </div>

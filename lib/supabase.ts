@@ -154,6 +154,13 @@ export async function createOrder(items: OrderItemInput[], totalPrice: number, c
   return order as Order;
 }
 
+export async function deleteOrder(id: number): Promise<void> {
+  const { error: itemsError } = await supabase.from('order_items').delete().eq('order_id', id);
+  if (itemsError) throw itemsError;
+  const { error: orderError } = await supabase.from('orders').delete().eq('id', id);
+  if (orderError) throw orderError;
+}
+
 export async function getPendingOrders(): Promise<OrderRecordWithItems[]> {
   const { start, end } = getKSTDateBounds();
   const { data, error } = await supabase
