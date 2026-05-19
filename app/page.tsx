@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { fetchMenuItems, saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales, fetchPendingOrders, markOrderPrepared } from './actions';
 import type { MenuItem } from '@/types/database';
 import { supabase, type OrderItemInput } from '@/lib/supabase';
@@ -43,6 +44,36 @@ function fireConfetti() {
 
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
 
+// ── 애니메이션 variants ────────────────────────────────────────────
+const menuGridVariants: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.055, delayChildren: 0.05 } },
+};
+
+const menuCardVariants: Variants = {
+  hidden: { opacity: 0, y: 14, scale: 0.96 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
+};
+
+const viewVariants: Variants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
+};
+
+const cartItemVariants: Variants = {
+  hidden: { opacity: 0, height: 0, marginBottom: 0 },
+  visible: { opacity: 1, height: 'auto', transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, height: 0, transition: { duration: 0.15 } },
+};
+
+const pendingCardVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.96, y: 10 },
+  visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, scale: 0.94, y: -4, transition: { duration: 0.18 } },
+};
+// ─────────────────────────────────────────────────────────────────────
+
 export default function Home() {
   const [counts, setCounts] = useState<Record<number, number>>({});
   const [todaySales, setTodaySales] = useState<TodaysSales>({ totalRevenue: 0, totalOrders: 0 });
@@ -60,7 +91,6 @@ export default function Home() {
 
   const queryClient = useQueryClient();
 
-  // 실시간 주문 갱신 — INSERT: 최근주문+매출+미처리목록 갱신 / UPDATE: 미처리목록 갱신
   useEffect(() => {
     const channel = supabase
       .channel('orders-realtime')
@@ -77,7 +107,6 @@ export default function Home() {
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
-  // Presence — 현재 접속 중인 캐셔 실시간 표시
   useEffect(() => {
     if (!cashierName) return () => {};
     const channel = supabase.channel('pos-presence', {
@@ -96,10 +125,10 @@ export default function Home() {
       });
     return () => { supabase.removeChannel(channel); };
   }, [cashierName, clientId]);
+
   const checkoutFnRef = useRef<(() => void) | null>(null);
   const checkoutDebouncingRef = useRef(false);
 
-  // 오늘 매출 초기 로드
   const salesQuery = useQuery<TodaysSales>({
     queryKey: ['today-sales'],
     queryFn: async () => {
@@ -273,14 +302,28 @@ export default function Home() {
       <NavBar />
 
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <header className="bg-white mt-[-10px] rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+        {/* 상단 결제 대기 헤더 */}
+        <motion.header
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="bg-white mt-[-10px] rounded-2xl p-4 md:p-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+        >
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1 rounded-xl p-3.5 md:p-4 bg-[#fff5f5] border-2 border-rose-500">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full bg-rose-500 text-white">결제 대기</span>
                 <span className="text-[11px] font-semibold text-[#aaa]">{totalCount}개</span>
               </div>
-              <div className="text-[clamp(28px,8vw,44px)] md:text-[clamp(32px,5vw,56px)] font-black text-rose-500 leading-[1.1]">{formatPrice(totalPrice)}원</div>
+              <motion.div
+                key={totalPrice}
+                initial={{ scale: 1.04 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 280, damping: 18 }}
+                className="text-[clamp(28px,8vw,44px)] md:text-[clamp(32px,5vw,56px)] font-black text-rose-500 leading-[1.1]"
+              >
+                {formatPrice(totalPrice)}원
+              </motion.div>
             </div>
           </div>
           <div className="flex items-center justify-between gap-3">
@@ -307,175 +350,254 @@ export default function Home() {
               </div>
             </div>
           )}
+          {/* 탭 전환 버튼 */}
           <div className="flex gap-2 mt-3 pt-3 border-t border-[#f0f0f0]">
             <button
-              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border transition-all ${view === 'pos' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
+              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border cursor-pointer transition-all duration-200 ${view === 'pos' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
               onClick={() => setView('pos')}
             >
               주문 입력
             </button>
             <button
-              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border transition-all relative ${view === 'orders' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
+              className={`flex-1 py-2 rounded-lg text-[13px] font-bold border cursor-pointer transition-all duration-200 relative ${view === 'orders' ? 'bg-primary-700 text-white border-primary-700' : 'bg-white text-[#555] border-[#ddd] hover:bg-[#f5f5f5]'}`}
               onClick={() => setView('orders')}
             >
               주문 현황
-              {pendingOrders.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black leading-[18px] text-center">
-                  {pendingOrders.length}
-                </span>
-              )}
+              <AnimatePresence>
+                {pendingOrders.length > 0 && (
+                  <motion.span
+                    key="badge"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 18 }}
+                    className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black leading-[18px] text-center"
+                  >
+                    {pendingOrders.length}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
           </div>
-        </header>
+        </motion.header>
 
-        {view === 'pos' && <><section className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4" aria-label="메뉴 목록">
-          {menuQuery.isLoading && menuItems.length === 0 && (
-            <p className="m-0 text-[#999] text-sm">메뉴를 불러오는 중입니다...</p>
-          )}
-          {menuItems.map((item, index) => {
-            const count = counts[item.id] ?? 0;
-            const shortcutNumber = index + 1;
-            const hasShortcut = shortcutNumber <= 9;
-            const badgeStyle = getShortcutBadgeColors(item.color);
-            return (
-              <article
-                key={item.id}
-                className={`relative bg-white rounded-xl p-3 md:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 ${count > 0 ? 'bg-primary-50 shadow-none ring-[3px] ring-primary-700' : ''}`}
+        {/* 뷰 전환 애니메이션 */}
+        <AnimatePresence mode="wait">
+          {view === 'pos' ? (
+            <motion.div
+              key="pos"
+              variants={viewVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              {/* 메뉴 그리드 */}
+              <motion.section
+                className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4"
+                aria-label="메뉴 목록"
+                variants={menuGridVariants}
+                initial="hidden"
+                animate="visible"
               >
-                {hasShortcut && (
-                  <strong
-                    className="absolute top-2 right-2 md:right-2.5 min-w-[28px] h-[28px] px-2 rounded-full border border-black/15 text-base font-black leading-[28px] text-center z-10 shadow-[0_1px_4px_rgba(0,0,0,0.16)]"
-                    style={badgeStyle}
-                    aria-label={`${item.name} 단축키 ${shortcutNumber}번`}
-                  >
-                    {shortcutNumber}
-                  </strong>
+                {menuQuery.isLoading && menuItems.length === 0 && (
+                  <p className="m-0 text-[#999] text-sm">메뉴를 불러오는 중입니다...</p>
                 )}
-                <button className="w-full border-none bg-transparent text-left p-0 cursor-pointer mb-3" onClick={() => increase(item.id)}>
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
-                    <h2 className="m-0 text-sm md:text-base font-bold leading-snug">{item.name}</h2>
-                  </div>
-                  <p className="m-0 text-xl md:text-2xl font-extrabold text-[#333]">{formatPrice(item.price)}원</p>
-                </button>
-                <div className="flex items-center gap-2">
-                  <button className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-[#ddd] text-xl md:text-2xl font-semibold cursor-pointer bg-[#fafafa] transition-all duration-200 hover:bg-[#f0f0f0] hover:border-[#999] active:scale-95 leading-none" onClick={() => decrease(item.id)} aria-label={`${item.name} 수량 감소`}>−</button>
-                  <strong className="flex-1 text-base md:text-lg font-bold text-center">{count}개</strong>
-                  <button className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-[#ddd] text-xl md:text-2xl font-semibold cursor-pointer bg-[#fafafa] transition-all duration-200 hover:bg-[#f0f0f0] hover:border-[#999] active:scale-95 leading-none" onClick={() => increase(item.id)} aria-label={`${item.name} 수량 증가`}>+</button>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-
-        <section className="bg-white rounded-xl p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] mb-4" aria-label="주문 상세">
-          <h2 className="m-0 mb-3 text-base md:text-lg font-bold">주문 상세</h2>
-          {orderedItems.length === 0 ? (
-            <p className="m-0 text-[#999] text-sm">{checkoutMutation.isPending ? '결제 처리 중...' : '선택한 메뉴가 없습니다.'}</p>
-          ) : (
-            <ul className="m-0 p-0 list-none">
-              {orderedItems.map((item, index) => {
-                const count = counts[item.id];
-                return (
-                  <li key={item.id} className={`flex justify-between items-center py-2.5 text-sm ${index !== orderedItems.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
-                    <span>{item.name} × {count}</span>
-                    <strong className="font-bold text-primary-700">{formatPrice(item.price * count)}원</strong>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <button
-            className="w-full p-4 mt-4 text-lg font-bold bg-primary-700 text-white border-none rounded-lg cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
-            onClick={handleCheckout}
-            disabled={checkoutMutation.isPending || orderedItems.length === 0}
-          >
-            {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
-          </button>
-        </section>
-
-
-
-        <section className="bg-white rounded-xl mb-4 p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]" aria-label="최근 주문">
-          <h2 className="m-0 mb-3 text-base md:text-lg font-bold text-[#333]">최근 주문</h2>
-          {recentOrdersQuery.isLoading ? (
-            <p className="m-0 text-[#999] text-sm">불러오는 중...</p>
-          ) : recentOrders.length === 0 ? (
-            <p className="m-0 text-[#999] text-sm">오늘 주문 내역이 없습니다.</p>
-          ) : (
-            <ul className="m-0 p-0 list-none">
-              {recentOrders.map((order, index) => (
-                <li key={order.id} className={`py-2.5 ${index !== recentOrders.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
-                  <div className="flex justify-between items-center mb-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
-                      {order.cashier_name && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
-                      )}
-                    </div>
-                    <strong className="text-sm font-bold text-primary-700">{formatPrice(order.total_price)}원</strong>
-                  </div>
-                  <p className="m-0 text-[#555] text-xs truncate">
-                    {order.items.length > 0 ? order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ') : '-'}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-                <SalesBanner
-          totalRevenue={todaySales.totalRevenue}
-          totalOrders={todaySales.totalOrders}
-          flashKey={flashKey}
-          lastPayment={lastPayment}
-        />
-
-        </>}
-
-        {view === 'orders' && (
-          <section aria-label="주문 현황">
-            {pendingOrdersQuery.isLoading ? (
-              <p className="m-0 text-[#999] text-sm py-4 text-center">불러오는 중...</p>
-            ) : pendingOrders.length === 0 ? (
-              <div className="bg-white rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-center">
-                <p className="m-0 text-[#aaa] text-sm">대기 중인 주문이 없습니다.</p>
-              </div>
-            ) : (
-              <ul className="m-0 p-0 list-none flex flex-col gap-3">
-                {pendingOrders.map((order) => (
-                  <li key={order.id} className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
-                        {order.cashier_name && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
-                        )}
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">대기 중</span>
-                      </div>
-                      <strong className="text-sm font-bold text-primary-700 shrink-0 ml-2">{formatPrice(order.total_price)}원</strong>
-                    </div>
-                    <ul className="m-0 p-0 list-none mb-3">
-                      {order.items.map((item, idx) => (
-                        <li key={idx} className="flex justify-between items-center py-1.5 border-b border-[#f5f5f5] last:border-0">
-                          <span className="text-sm font-semibold text-[#333]">{item.name}</span>
-                          <span className="text-sm text-[#888]">× {item.quantity}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      className="w-full py-2.5 rounded-lg border-none bg-emerald-500 text-white text-[13px] font-bold cursor-pointer transition-all hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => markPreparedMutation.mutate(order.id)}
-                      disabled={markPreparedMutation.isPending}
+                {menuItems.map((item, index) => {
+                  const count = counts[item.id] ?? 0;
+                  const shortcutNumber = index + 1;
+                  const hasShortcut = shortcutNumber <= 9;
+                  const badgeStyle = getShortcutBadgeColors(item.color);
+                  return (
+                    <motion.article
+                      key={item.id}
+                      variants={menuCardVariants}
+                      whileTap={{ scale: 0.97 }}
+                      className={`relative bg-white rounded-xl p-3 md:p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(0,0,0,0.12)] ${count > 0 ? 'bg-primary-50 shadow-none ring-[3px] ring-primary-700' : ''}`}
                     >
-                      확인
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
+                      {hasShortcut && (
+                        <strong
+                          className="absolute top-2 right-2 md:right-2.5 min-w-[28px] h-[28px] px-2 rounded-full border border-black/15 text-base font-black leading-[28px] text-center z-10 shadow-[0_1px_4px_rgba(0,0,0,0.16)]"
+                          style={badgeStyle}
+                          aria-label={`${item.name} 단축키 ${shortcutNumber}번`}
+                        >
+                          {shortcutNumber}
+                        </strong>
+                      )}
+                      <button className="w-full border-none bg-transparent text-left p-0 cursor-pointer mb-3" onClick={() => increase(item.id)}>
+                        <div className="flex items-center gap-2.5 mb-2">
+                          <span className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
+                          <h2 className="m-0 text-sm md:text-base font-bold leading-snug">{item.name}</h2>
+                        </div>
+                        <p className="m-0 text-xl md:text-2xl font-extrabold text-[#333]">{formatPrice(item.price)}원</p>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-[#ddd] text-xl md:text-2xl font-semibold cursor-pointer bg-[#fafafa] transition-all duration-200 hover:bg-[#f0f0f0] hover:border-[#999] active:scale-95 leading-none"
+                          onClick={() => decrease(item.id)}
+                          aria-label={`${item.name} 수량 감소`}
+                        >
+                          −
+                        </button>
+                        <motion.strong
+                          key={count}
+                          initial={{ scale: 1.25 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 320, damping: 16 }}
+                          className={`flex-1 text-base md:text-lg font-bold text-center ${count > 0 ? 'text-primary-700' : 'text-[#333]'}`}
+                        >
+                          {count}개
+                        </motion.strong>
+                        <button
+                          className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-[#ddd] text-xl md:text-2xl font-semibold cursor-pointer bg-[#fafafa] transition-all duration-200 hover:bg-[#f0f0f0] hover:border-[#999] active:scale-95 leading-none"
+                          onClick={() => increase(item.id)}
+                          aria-label={`${item.name} 수량 증가`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </motion.article>
+                  );
+                })}
+              </motion.section>
+
+              {/* 주문 상세 */}
+              <section className="bg-white rounded-xl p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] mb-4" aria-label="주문 상세">
+                <h2 className="m-0 mb-3 text-base md:text-lg font-bold">주문 상세</h2>
+                {orderedItems.length === 0 ? (
+                  <p className="m-0 text-[#999] text-sm">{checkoutMutation.isPending ? '결제 처리 중...' : '선택한 메뉴가 없습니다.'}</p>
+                ) : (
+                  <ul className="m-0 p-0 list-none overflow-hidden">
+                    <AnimatePresence initial={false}>
+                      {orderedItems.map((item, index) => {
+                        const count = counts[item.id];
+                        return (
+                          <motion.li
+                            key={item.id}
+                            variants={cartItemVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className={`flex justify-between items-center py-2.5 text-sm ${index !== orderedItems.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}
+                          >
+                            <span>{item.name} × {count}</span>
+                            <strong className="font-bold text-primary-700">{formatPrice(item.price * count)}원</strong>
+                          </motion.li>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </ul>
+                )}
+                <button
+                  className="w-full p-4 mt-4 text-lg font-bold bg-primary-700 text-white border-none rounded-lg cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
+                  onClick={handleCheckout}
+                  disabled={checkoutMutation.isPending || orderedItems.length === 0}
+                >
+                  {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
+                </button>
+              </section>
+
+              {/* 최근 주문 */}
+              <section className="bg-white rounded-xl mb-4 p-3.5 md:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]" aria-label="최근 주문">
+                <h2 className="m-0 mb-3 text-base md:text-lg font-bold text-[#333]">최근 주문</h2>
+                {recentOrdersQuery.isLoading ? (
+                  <p className="m-0 text-[#999] text-sm">불러오는 중...</p>
+                ) : recentOrders.length === 0 ? (
+                  <p className="m-0 text-[#999] text-sm">오늘 주문 내역이 없습니다.</p>
+                ) : (
+                  <ul className="m-0 p-0 list-none">
+                    {recentOrders.map((order, index) => (
+                      <li key={order.id} className={`py-2.5 ${index !== recentOrders.length - 1 ? 'border-b border-[#f0f0f0]' : ''}`}>
+                        <div className="flex justify-between items-center mb-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                            {order.cashier_name && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
+                            )}
+                          </div>
+                          <strong className="text-sm font-bold text-primary-700">{formatPrice(order.total_price)}원</strong>
+                        </div>
+                        <p className="m-0 text-[#555] text-xs truncate">
+                          {order.items.length > 0 ? order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ') : '-'}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <SalesBanner
+                totalRevenue={todaySales.totalRevenue}
+                totalOrders={todaySales.totalOrders}
+                flashKey={flashKey}
+                lastPayment={lastPayment}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="orders"
+              variants={viewVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <section aria-label="주문 현황">
+                {pendingOrdersQuery.isLoading ? (
+                  <p className="m-0 text-[#999] text-sm py-4 text-center">불러오는 중...</p>
+                ) : pendingOrders.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="bg-white rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-center"
+                  >
+                    <p className="m-0 text-[#aaa] text-sm">대기 중인 주문이 없습니다.</p>
+                  </motion.div>
+                ) : (
+                  <ul className="m-0 p-0 list-none flex flex-col gap-3">
+                    <AnimatePresence initial={false}>
+                      {pendingOrders.map((order) => (
+                        <motion.li
+                          key={order.id}
+                          variants={pendingCardVariants}
+                          initial="hidden"
+                          animate="visible"
+                          exit="exit"
+                          layout
+                          className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                              {order.cashier_name && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
+                              )}
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">대기 중</span>
+                            </div>
+                            <strong className="text-sm font-bold text-primary-700 shrink-0 ml-2">{formatPrice(order.total_price)}원</strong>
+                          </div>
+                          <ul className="m-0 p-0 list-none mb-3">
+                            {order.items.map((item, idx) => (
+                              <li key={idx} className="flex justify-between items-center py-1.5 border-b border-[#f5f5f5] last:border-0">
+                                <span className="text-sm font-semibold text-[#333]">{item.name}</span>
+                                <span className="text-sm text-[#888]">× {item.quantity}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <button
+                            className="w-full py-2.5 rounded-lg border-none bg-emerald-500 text-white text-[13px] font-bold cursor-pointer transition-all duration-200 hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => markPreparedMutation.mutate(order.id)}
+                            disabled={markPreparedMutation.isPending}
+                          >
+                            확인
+                          </button>
+                        </motion.li>
+                      ))}
+                    </AnimatePresence>
+                  </ul>
+                )}
+              </section>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </>
   );
