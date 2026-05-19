@@ -16,6 +16,7 @@ export interface Order {
   payment_method: string;
   payment_status: string;
   cashier_name: string | null;
+  is_prepared: boolean;
   created_at: string;
 }
 
