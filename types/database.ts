@@ -15,6 +15,7 @@ export interface Order {
   total_price: number;
   payment_method: string;
   payment_status: string;
+  cashier_name: string | null;
   created_at: string;
 }
 
