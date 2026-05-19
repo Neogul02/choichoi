@@ -45,6 +45,7 @@ export interface OrderRecord {
   total_price: number;
   created_at: string;
   payment_status: string;
+  cashier_name: string | null;
 }
 
 export interface OrderItemDetail {

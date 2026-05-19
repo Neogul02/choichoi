@@ -50,7 +50,7 @@ export async function getTodaysOrderList(): Promise<OrderRecord[]> {
   const { start, end } = getKSTDateBounds();
   const { data, error } = await supabase
     .from('orders')
-    .select('id,total_price,created_at,payment_status')
+    .select('id,total_price,created_at,payment_status,cashier_name')
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
@@ -64,7 +64,7 @@ export async function getTodaysOrderListWithItems(limit?: number): Promise<Order
   const { start, end } = getKSTDateBounds();
   const { data, error } = await supabase
     .from('orders')
-    .select('id, total_price, created_at, payment_status, order_items(menu_item_id, quantity, subtotal, menu_items(name))')
+    .select('id, total_price, created_at, payment_status, cashier_name, order_items(menu_item_id, quantity, subtotal, menu_items(name))')
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
@@ -84,6 +84,7 @@ export async function getTodaysOrderListWithItems(limit?: number): Promise<Order
       total_price: Number(order.total_price),
       created_at: order.created_at as string,
       payment_status: order.payment_status as string,
+      cashier_name: (order.cashier_name as string | null) ?? null,
       items: rawItems.map((item) => ({
         menu_item_id: item.menu_item_id,
         name: item.menu_items?.name ?? '알 수 없음',
@@ -125,10 +126,10 @@ export interface OrderItemInput {
   count: number;
 }
 
-export async function createOrder(items: OrderItemInput[], totalPrice: number): Promise<Order> {
+export async function createOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string): Promise<Order> {
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .insert([{ total_price: totalPrice, payment_method: 'cash', payment_status: 'completed' }])
+    .insert([{ total_price: totalPrice, payment_method: 'cash', payment_status: 'completed', cashier_name: cashierName ?? null }])
     .select()
     .single();
 
