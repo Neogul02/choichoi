@@ -2,6 +2,7 @@
 
 @theme {
   --color-primary-50: #e6f4ee;
+  --color-primary-100: #b8deca;
   --color-primary-600: #0a5239;
   --color-primary-700: #084431;
   --color-primary-800: #063424;
@@ -21,6 +22,9 @@ body {
   margin: 0;
   color: #161616;
   background: #f5f6f7;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 @keyframes slideIn {
