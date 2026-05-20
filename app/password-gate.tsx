@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 const AUTH_KEY = 'choichoi_popup_token';
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
@@ -8,6 +9,7 @@ const AUTH_API_PATH = '/api/auth/verify';
 const VALIDATE_API_PATH = '/api/auth/verify/validate';
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [checked, setChecked] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
   const [name, setName] = useState('');
@@ -79,6 +81,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       setIsSubmitting(false);
     }
   };
+
+  if (pathname === '/display' || pathname === '/') return <>{children}</>;
 
   if (!checked) return null;
 
