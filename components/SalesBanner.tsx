@@ -1,15 +1,21 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { motion, useSpring, useTransform, useAnimate, AnimatePresence } from 'framer-motion';
+import { motion, useMotionValue, useTransform, useAnimate, AnimatePresence, animate } from 'framer-motion';
 
 function AnimatedCounter({ value, formatter }: { value: number; formatter: (n: number) => string }) {
-  const spring = useSpring(0, { stiffness: 45, damping: 12 });
-  const display = useTransform(spring, (v) => formatter(Math.round(v)));
+  const mv = useMotionValue(0);
+  const display = useTransform(mv, (v) => formatter(Math.round(v)));
+  const isFirst = useRef(true);
 
   useEffect(() => {
-    spring.set(value);
-  }, [value, spring]);
+    if (isFirst.current) {
+      isFirst.current = false;
+      animate(mv, value, { duration: 1.8, ease: [0.16, 1, 0.3, 1] });
+      return;
+    }
+    animate(mv, value, { type: 'spring', stiffness: 130, damping: 22 });
+  }, [value, mv]);
 
   return <motion.span>{display}</motion.span>;
 }
@@ -22,7 +28,8 @@ interface Props {
 }
 
 export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastPayment }: Props) {
-  const [scope, animate] = useAnimate();
+  const [bannerScope, animateBanner] = useAnimate();
+  const [revenueScope, animateRevenue] = useAnimate();
   const isFirst = useRef(true);
 
   useEffect(() => {
@@ -30,19 +37,24 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
       isFirst.current = false;
       return;
     }
-    animate(
-      scope.current,
+    animateBanner(
+      bannerScope.current,
       {
         scale: [1, 1.06, 0.97, 1.02, 1],
         filter: ['brightness(1)', 'brightness(1.7)', 'brightness(1.2)', 'brightness(1.05)', 'brightness(1)'],
       },
       { duration: 0.65, ease: 'easeOut' }
     );
-  }, [flashKey, animate]);
+    animateRevenue(
+      revenueScope.current,
+      { color: ['#ffffff', '#fde68a', '#86efac', '#ffffff'] },
+      { duration: 0.9, ease: 'easeOut' }
+    );
+  }, [flashKey, animateBanner, animateRevenue, bannerScope, revenueScope]);
 
   return (
     <div
-      ref={scope}
+      ref={bannerScope}
       className="relative text-white rounded-2xl p-4 md:p-5 mb-3 md:mb-4 will-change-transform overflow-hidden"
       style={{
         background: 'linear-gradient(135deg, #084431 0%, #0d6b4e 55%, #3d9966 100%)',
@@ -58,7 +70,7 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
       <div className="relative flex items-center justify-between">
         <div>
           <p className="m-0 text-emerald-200 text-[11px] font-bold tracking-[0.12em] uppercase mb-1.5">오늘 매출</p>
-          <div className="text-[clamp(28px,7vw,46px)] font-black leading-none tabular-nums">
+          <div ref={revenueScope} className="text-[clamp(28px,7vw,46px)] font-black leading-none tabular-nums">
             ₩<AnimatedCounter value={totalRevenue} formatter={(n) => n.toLocaleString('ko-KR')} />
           </div>
         </div>
