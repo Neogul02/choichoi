@@ -51,6 +51,9 @@ export default function DisplayPage() {
         const p = payload as { items: CartItem[]; totalPrice: number };
         setCartItems(p.items ?? []);
         setCartTotalPrice(p.totalPrice ?? 0);
+      })
+      .on('broadcast', { event: 'cart_reset' }, () => {
+        setLocalCounts({});
       });
     ch.subscribe();
     channelRef.current = ch;

@@ -156,7 +156,10 @@ export default function PosPage() {
   const decrease = useCallback((id: number) =>
     setCounts((prev) => ({ ...prev, [id]: Math.max(0, (prev[id] ?? 0) - 1) })), []);
 
-  const resetOrder = useCallback(() => setCounts({}), []);
+  const resetOrder = useCallback(() => {
+    setCounts({});
+    displayChannelRef.current?.send({ type: 'broadcast', event: 'cart_reset', payload: {} });
+  }, []);
 
   const checkoutMutation = useMutation<
     SaveOrderResponse,
