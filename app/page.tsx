@@ -4,9 +4,6 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#f5f6f7] flex flex-col items-center justify-center p-8">
       <div className="text-center mb-12">
-        <div className="w-16 h-16 rounded-2xl bg-primary-700 flex items-center justify-center mx-auto mb-5 shadow-[0_4px_24px_rgba(8,68,49,0.3)]">
-          <span className="text-white text-xl font-black tracking-tight">CC</span>
-        </div>
         <h1 className="text-4xl font-black text-[#1a1a1a] mb-2 m-0">CHOICHOI</h1>
         <p className="text-[#999] text-base m-0">이용할 화면을 선택해주세요</p>
       </div>
