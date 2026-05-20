@@ -392,12 +392,8 @@ export default function DisplayPage() {
                   className="w-full max-w-lg"
                 >
                   <motion.div
-                    animate={{ boxShadow: [
-                      '0 0 0 2.5px #22c55e, 0 0 18px 5px rgba(34,197,94,0.45)',
-                      '0 0 0 2.5px #22c55e, 0 0 40px 14px rgba(34,197,94,0)',
-                      '0 0 0 2.5px #22c55e, 0 0 18px 5px rgba(34,197,94,0.45)',
-                    ]}}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                    animate={{ boxShadow: ['0 0 0 3px #084431', '0 0 0 7px #08443140', '0 0 0 3px #084431'] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
                     className="bg-white rounded-2xl overflow-hidden mb-4"
                   >
                     <div className="bg-primary-700 px-6 py-4 flex items-center gap-2">
