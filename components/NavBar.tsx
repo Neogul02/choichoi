@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
+import { usePresence } from '@/hooks/usePresence';
 
 const NAV_COLLAPSED_KEY = 'choichoi_nav_collapsed';
 const ADMIN_AUTH_KEY = 'choichoi_admin_token';
@@ -19,6 +19,10 @@ const ALL_NAV_LINKS = [
   { href: '/memo', label: '메모', adminOnly: false },
   { href: '/settings', label: '설정', adminOnly: true },
 ] as const;
+
+type ModalState =
+  | { open: false }
+  | { open: true; password: string; error: string; submitting: boolean };
 
 function useTodayLabel(): string {
   const [label, setLabel] = useState('');
@@ -35,14 +39,11 @@ export default function NavBar() {
   const todayLabel = useTodayLabel();
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modal, setModal] = useState<ModalState>({ open: false });
   const [cashierName, setCashierName] = useState<string | null>(null);
-  const [activeCashiers, setActiveCashiers] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const clientIdRef = useRef<string | null>(null);
+
+  const activeCashiers = usePresence(cashierName);
 
   useEffect(() => {
     try {
@@ -53,29 +54,13 @@ export default function NavBar() {
   }, []);
 
   useEffect(() => {
-    if (!cashierName) return () => {};
-    if (!clientIdRef.current) {
-      clientIdRef.current = Math.random().toString(36).slice(2, 10);
-    }
-    const clientId = clientIdRef.current;
-    const channel = supabase.channel('pos-presence', {
-      config: { presence: { key: clientId } },
-    });
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ name: string }>();
-        const names = [...new Set(Object.values(state).flat().map((p) => p.name))];
-        setActiveCashiers(names);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') await channel.track({ name: cashierName });
-      });
-    return () => { supabase.removeChannel(channel); };
-  }, [cashierName]);
+    if (modal.open) setTimeout(() => inputRef.current?.focus(), 80);
+  }, [modal.open]);
 
-  useEffect(() => {
-    if (showModal) setTimeout(() => inputRef.current?.focus(), 80);
-  }, [showModal]);
+  const visibleLinks = useMemo(
+    () => ALL_NAV_LINKS.filter((l) => !l.adminOnly || isAdmin),
+    [isAdmin]
+  );
 
   const toggle = () => {
     setCollapsed((prev) => {
@@ -85,32 +70,30 @@ export default function NavBar() {
     });
   };
 
-  const openModal = () => { setPassword(''); setLoginError(''); setShowModal(true); };
-  const closeModal = () => { setShowModal(false); setPassword(''); setLoginError(''); };
+  const openModal = () => setModal({ open: true, password: '', error: '', submitting: false });
+  const closeModal = () => setModal({ open: false });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) { setLoginError('비밀번호를 입력해주세요.'); return; }
-    setIsSubmitting(true);
-    setLoginError('');
+    if (!modal.open) return;
+    if (!modal.password) { setModal({ ...modal, error: '비밀번호를 입력해주세요.' }); return; }
+    setModal({ ...modal, submitting: true, error: '' });
     try {
       const res = await fetch(ADMIN_AUTH_API_PATH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: modal.password }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setLoginError(data.message || '비밀번호가 올바르지 않습니다.');
+        setModal({ ...modal, submitting: false, error: data.message || '비밀번호가 올바르지 않습니다.' });
         return;
       }
       localStorage.setItem(ADMIN_AUTH_KEY, data.token);
       setIsAdmin(true);
       closeModal();
     } catch {
-      setLoginError('오류가 발생했습니다. 다시 시도해주세요.');
-    } finally {
-      setIsSubmitting(false);
+      setModal({ ...modal, submitting: false, error: '오류가 발생했습니다. 다시 시도해주세요.' });
     }
   };
 
@@ -119,12 +102,9 @@ export default function NavBar() {
     setIsAdmin(false);
   };
 
-  const visibleLinks = ALL_NAV_LINKS.filter((l) => !l.adminOnly || isAdmin);
-
   return (
     <>
       <div className="mb-4">
-        {/* 접히는 NavBar */}
         <AnimatePresence initial={false}>
           {!collapsed && (
             <motion.header
@@ -139,11 +119,6 @@ export default function NavBar() {
                 <div className="flex items-center justify-between gap-3">
                   <h1 className="m-0 text-xl md:text-2xl font-extrabold text-[#161616] shrink-0">ChoiChoi</h1>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* {todayLabel && (
-                      <span className="text-[11px] font-semibold text-[#bbb] whitespace-nowrap">
-                        {todayLabel}
-                      </span>
-                    )} */}
                     {activeCashiers.length > 0 && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] text-[#bbb] shrink-0">접속</span>
@@ -201,7 +176,6 @@ export default function NavBar() {
           )}
         </AnimatePresence>
 
-        {/* 항상 보이는 토글 핸들 */}
         <div className="flex justify-center pt-1 cursor-pointer">
           <button
             onClick={toggle}
@@ -215,7 +189,7 @@ export default function NavBar() {
               height="6"
               viewBox="0 0 12 6"
               fill="none"
-              className="text-[#aaa] group-hover:text-[#888] transition-colors "
+              className="text-[#aaa] group-hover:text-[#888] transition-colors"
             >
               <path d="M1 5L6 1L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </motion.svg>
@@ -223,9 +197,8 @@ export default function NavBar() {
         </div>
       </div>
 
-      {/* 관리자 로그인 모달 */}
       <AnimatePresence>
-        {showModal && (
+        {modal.open && (
           <motion.div
             key="admin-modal"
             initial={{ opacity: 0 }}
@@ -249,13 +222,13 @@ export default function NavBar() {
                 <input
                   ref={inputRef}
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={modal.password}
+                  onChange={(e) => setModal({ ...modal, password: e.target.value })}
                   placeholder="비밀번호"
                   className="w-full border border-[#ddd] rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 mb-3"
                   style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                 />
-                {loginError && <p className="m-0 mb-3 text-[13px] text-rose-500">{loginError}</p>}
+                {modal.error && <p className="m-0 mb-3 text-[13px] text-rose-500">{modal.error}</p>}
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -266,10 +239,10 @@ export default function NavBar() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={modal.submitting}
                     className="flex-1 py-2.5 rounded-lg border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isSubmitting ? '확인 중...' : '로그인'}
+                    {modal.submitting ? '확인 중...' : '로그인'}
                   </button>
                 </div>
               </form>

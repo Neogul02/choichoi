@@ -1,22 +1,11 @@
-<!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-05-04 | Updated: 2026-05-04 -->
-
 # app/api/
 
-## Purpose
-Next.js App Router API route handlers. These are true HTTP endpoints (not Server Actions) used for cases where a fetch-based API call is preferable — specifically the password verification flow which is called from a client component before React Query is involved.
+HTTP endpoints (not Server Actions) for auth flows called before React Query is available.
 
-## Subdirectories
+- `POST /api/auth/verify` — validate cashier password, return token
+- `POST /api/auth/verify/validate` — check existing cashier token
+- `POST /api/auth/admin` — validate admin password, return token
+- `POST /api/auth/admin/validate` — check existing admin token
 
-| Directory | Purpose |
-|-----------|---------|
-| `auth/` | Authentication endpoints (see `auth/AGENTS.md`) |
-
-## For AI Agents
-
-### Working In This Directory
-- Follow Next.js 16 Route Handler conventions: export named functions (`GET`, `POST`, etc.) from `route.js` files.
-- Use `NextResponse.json()` for all responses.
-- Do not add business logic here — keep handlers thin and delegate to `lib/supabase.js` via server actions or direct import (server-side only).
-
-<!-- MANUAL: -->
+Token = SHA256(password + VERCEL_DEPLOYMENT_ID). Env vars: `POPUP_PASSWORD`, `ADMIN_PASSWORD`.
+All handlers use `NextResponse.json()`. Keep thin — no business logic here.

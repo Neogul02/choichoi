@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   fetchTodaysSales, fetchMenuSalesBreakdown, fetchTodaysOrdersWithItems,
-  resetTodaysSales, fetchMonthlySalesCalendar, fetchPopupEvents, fetchDailySalesByPeriod,
+  fetchMonthlySalesCalendar, fetchPopupEvents, fetchDailySalesByPeriod,
   removeOrder,
 } from '@/app/actions';
 import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecordWithItems, DailySalesItem } from '@/types/api';
@@ -47,7 +47,6 @@ export default function StatsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isBreakdownLoading, setIsBreakdownLoading] = useState(false);
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
-  const [isResettingSales, setIsResettingSales] = useState(false);
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([]);
   const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null);
   const [popupMenuBreakdown, setPopupMenuBreakdown] = useState<MenuSalesItem[]>([]);
@@ -110,18 +109,7 @@ export default function StatsPage() {
     }
   };
 
-  const handleResetTodaysSales = async () => {
-    if (todayOrders.length === 0) { toast.warning('오늘 삭제할 매출이 없습니다'); return; }
-    if (!window.confirm(`정말 오늘 매출(${todayOrders.length}건, ₩${todayRevenue.toLocaleString('ko-KR')})을 모두 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
-    if (window.prompt('안전 확인: "초기화"를 정확히 입력하면 오늘 매출이 전부 삭제됩니다.') !== '초기화') { toast.error('초기화가 취소되었습니다. 확인 문구가 일치하지 않습니다.'); return; }
-    setIsResettingSales(true);
-    const result = await resetTodaysSales();
-    if (result.success) { toast.success(`오늘 매출 ${result.deletedCount ?? 0}건이 초기화되었습니다.`); await loadTodayData(); }
-    else toast.error(`오류: ${result.error}`);
-    setIsResettingSales(false);
-  };
-
-  return (
+return (
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
@@ -129,7 +117,7 @@ export default function StatsPage() {
           <h2 className="m-0 mb-5 text-2xl font-extrabold">매출</h2>
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={loadTodayData} />
           <MenuBreakdownSection breakdown={breakdown} period={breakdownPeriod} isLoading={isBreakdownLoading} periodLabel={getPeriodBounds(breakdownPeriod).label} onPeriodChange={setBreakdownPeriod} />
-          <TodayOrdersSection orders={todayOrders} todayRevenue={todayRevenue} isLoading={isLoading} isResetting={isResettingSales} onReset={handleResetTodaysSales} onDeleteOrder={handleDeleteOrder} />
+          <TodayOrdersSection orders={todayOrders} todayRevenue={todayRevenue} isLoading={isLoading} onDeleteOrder={handleDeleteOrder} />
           <CalendarSection calendarSales={calendarSales} calendarMonth={calendarMonth} isLoading={isCalendarLoading} todayStr={todayStr} maxDayRevenue={maxDayRevenue} onMonthChange={(offset) => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1))} />
           <PopupStatsSection popupEvents={popupEvents} selectedPopupId={selectedPopupId} popupMenuBreakdown={popupMenuBreakdown} popupDailySales={popupDailySales} isLoading={isPopupStatsLoading} onSelectPopup={setSelectedPopupId} />
         </div>
