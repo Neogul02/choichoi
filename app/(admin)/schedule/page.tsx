@@ -14,16 +14,19 @@ import { toLocalDateStr, parseWorkHours, formatHours } from '@/lib/utils';
 import ScheduleSidebar from './_components/ScheduleSidebar';
 import SalaryTable, { type SalaryGroup } from './_components/SalaryTable';
 
-const ROLES = ['프론트', '제조', '기타'] as const;
+const ROLES = ['프론트', '주방', '매니저'] as const;
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 const LOCAL_RATES_KEY = 'choichoi_local_rates';
+const WORKER_COLORS = ['#22c55e', '#6366f1', '#ef4444', '#f97316', '#64748b'];
+const WORKER_ROLE_LIST = ['프론트', '주방', '매니저'] as const;
+type WorkerRoleType = typeof WORKER_ROLE_LIST[number];
 
 type DragCell = { date: string; role: string };
 type DragMode = 'move' | 'copy';
-type LeftTab = 'events' | 'workers';
-type WorkerForm = { name: string; color: string; phone: string; bank_name: string; bank_account: string; hourly_rate: string };
+type BottomTab = 'workers' | 'salary';
+type WorkerForm = { name: string; color: string; phone: string; bank_name: string; bank_account: string; hourly_rate: string; worker_role: WorkerRoleType };
 
-const EMPTY_WORKER_FORM: WorkerForm = { name: '', color: '#22c55e', phone: '', bank_name: '', bank_account: '', hourly_rate: '' };
+const EMPTY_WORKER_FORM: WorkerForm = { name: '', color: '#22c55e', phone: '', bank_name: '', bank_account: '', hourly_rate: '', worker_role: '프론트' };
 
 function getEventDates(startDate: string, endDate: string): Date[] {
   const dates: Date[] = [];
@@ -53,7 +56,7 @@ export default function SchedulePage() {
   const [isSlotsLoading, setIsSlotsLoading] = useState(false);
 
   // UI
-  const [leftTab, setLeftTab] = useState<LeftTab>('events');
+  const [bottomTab, setBottomTab] = useState<BottomTab>('workers');
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragMode, setDragMode] = useState<DragMode>('move');
 
@@ -71,6 +74,7 @@ export default function SchedulePage() {
 
   // Drag
   const [draggedSlotId, setDraggedSlotId] = useState<number | null>(null);
+  const [draggingWorkerId, setDraggingWorkerId] = useState<number | null>(null);
   const [dragOverCell, setDragOverCell] = useState<DragCell | null>(null);
   const touchDragRef = useRef<number | null>(null);
 
@@ -128,14 +132,14 @@ export default function SchedulePage() {
   // ── Workers ───────────────────────────────────────────────────────────────
   const openWorkerForm = (worker?: Worker) => {
     setEditingWorkerId(worker?.id ?? null);
-    setWorkerForm(worker ? { name: worker.name, color: worker.color || '#6366f1', phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: String(worker.hourly_rate || '') } : EMPTY_WORKER_FORM);
+    setWorkerForm(worker ? { name: worker.name, color: worker.color || '#6366f1', phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: String(worker.hourly_rate || ''), worker_role: (worker.worker_role as WorkerRoleType) ?? '프론트' } : EMPTY_WORKER_FORM);
     setShowWorkerForm(true);
   };
 
   const handleSaveWorker = async () => {
     if (!workerForm.name.trim()) { showMsg('이름을 입력하세요'); return; }
     if (!selectedEvent) { showMsg('일정을 먼저 선택하세요'); return; }
-    const input = { event_id: selectedEvent.id, name: workerForm.name.trim(), color: workerForm.color, phone: workerForm.phone.trim(), bank_name: workerForm.bank_name.trim(), bank_account: workerForm.bank_account.trim(), hourly_rate: parseInt(workerForm.hourly_rate) || 0 };
+    const input = { event_id: selectedEvent.id, name: workerForm.name.trim(), color: workerForm.color, phone: workerForm.phone.trim(), bank_name: workerForm.bank_name.trim(), bank_account: workerForm.bank_account.trim(), hourly_rate: parseInt(workerForm.hourly_rate) || 0, worker_role: workerForm.worker_role };
     if (editingWorkerId) {
       const r = await editWorker(editingWorkerId, input);
       if (r.success && r.data) { setWorkers(p => p.map(w => w.id === editingWorkerId ? r.data! : w)); showMsg('수정되었습니다'); }
@@ -195,7 +199,7 @@ export default function SchedulePage() {
 
   const handleRateChange = async (worker: Worker | null, name: string, rate: number) => {
     if (worker) {
-      const r = await editWorker(worker.id, { event_id: worker.event_id, name: worker.name, color: worker.color, phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: rate });
+      const r = await editWorker(worker.id, { event_id: worker.event_id, name: worker.name, color: worker.color, phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: rate, worker_role: worker.worker_role ?? '프론트' });
       if (r.success && r.data) setWorkers(p => p.map(w => w.id === worker.id ? r.data! : w));
     } else {
       setLocalRates(p => { const n = { ...p, [name]: rate }; localStorage.setItem(LOCAL_RATES_KEY, JSON.stringify(n)); return n; });
@@ -213,11 +217,21 @@ export default function SchedulePage() {
     if (editingSlotId === id) { e.preventDefault(); return; }
     e.dataTransfer.effectAllowed = dragMode === 'copy' ? 'copy' : 'move'; setDraggedSlotId(id);
   };
-  const handleDragEnd = () => { setDraggedSlotId(null); setDragOverCell(null); };
+  const handleDragEnd = () => { setDraggedSlotId(null); setDraggingWorkerId(null); setDragOverCell(null); };
   const handleDragOver = (e: React.DragEvent<HTMLTableCellElement>, dateStr: string, role: string) => { e.preventDefault(); setDragOverCell({ date: dateStr, role }); };
   const handleDragLeave = () => setDragOverCell(null);
   const handleDrop = async (e: React.DragEvent<HTMLTableCellElement>, dateStr: string, role: string) => {
     e.preventDefault();
+    if (draggingWorkerId !== null) {
+      const worker = workers.find(w => w.id === draggingWorkerId);
+      if (worker && selectedEvent) {
+        const r = await addScheduleEntry(selectedEvent.id, dateStr, role, worker.name, '', worker.id, false);
+        if (r.success && r.data) { setSlots(p => [...p, r.data!]); showMsg('인원이 추가되었습니다'); }
+        else showMsg(`오류: ${r.error}`);
+      }
+      setDraggingWorkerId(null); setDragOverCell(null);
+      return;
+    }
     if (!draggedSlotId) return;
     if (dragMode === 'copy') {
       const r = await copyScheduleEntry(draggedSlotId, dateStr, role);
@@ -290,30 +304,18 @@ export default function SchedulePage() {
       <main className="min-h-screen p-3 md:p-5 max-w-[1400px] mx-auto">
         <div className="flex flex-col md:flex-row gap-4 items-start">
           <ScheduleSidebar
-            events={events} selectedEvent={selectedEvent} isEventsLoading={isEventsLoading} workers={workers}
-            leftTab={leftTab} showAddEvent={showAddEvent} newEvent={newEvent}
-            showWorkerForm={showWorkerForm} workerForm={workerForm} editingWorkerId={editingWorkerId}
-            startWeekday={startWeekday}
-            onTabChange={setLeftTab}
+            events={events} selectedEvent={selectedEvent} isEventsLoading={isEventsLoading}
+            showAddEvent={showAddEvent} newEvent={newEvent} startWeekday={startWeekday}
             onToggleAddEvent={() => setShowAddEvent(v => !v)}
             onUpdateNewEvent={(updates) => setNewEvent(p => ({ ...p, ...updates }))}
             onCreateEvent={handleCreateEvent}
             onSelectEvent={handleSelectEvent}
             onDeleteEvent={handleDeleteEvent}
-            onOpenWorkerForm={openWorkerForm}
-            onSetShowWorkerForm={setShowWorkerForm}
-            onUpdateWorkerForm={(updates) => setWorkerForm(p => ({ ...p, ...updates }))}
-            onSaveWorker={handleSaveWorker}
-            onDeleteWorker={handleDeleteWorker}
           />
 
           {/* ── 스케줄 그리드 ── */}
           <div className="flex-1 min-w-0 bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-            {!selectedEvent ? (
-              <div className="flex items-center justify-center min-h-[200px] text-[#aaa] text-sm">
-                <p>왼쪽에서 일정을 선택하세요.</p>
-              </div>
-            ) : (
+            {selectedEvent && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -441,15 +443,100 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        {selectedEvent && salaryGroups.length > 0 && (
-          <SalaryTable
-            eventName={selectedEvent.name}
-            salaryGroups={salaryGroups}
-            grandTotal={grandTotal}
-            localRates={localRates}
-            onRateChange={handleRateChange}
-            onPaymentToggle={handlePaymentToggle}
-          />
+        {selectedEvent && (
+          <div className="mt-4">
+            <div className="flex rounded-xl overflow-hidden border border-[#eee] mb-2 w-fit bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+              {(['workers', 'salary'] as const).map(tab => (
+                <button key={tab} className={`px-4 py-2 text-[11px] font-bold border-none cursor-pointer transition ${bottomTab === tab ? 'bg-primary-700 text-white' : 'bg-white text-[#555] hover:bg-[#f5f5f5]'}`} onClick={() => setBottomTab(tab)}>
+                  {tab === 'workers' ? '근무자 관리' : '급여 계산'}
+                </button>
+              ))}
+            </div>
+
+            {bottomTab === 'workers' && (
+              <div className="bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="m-0 text-base font-extrabold">{selectedEvent.name} 근무자</h3>
+                  <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showWorkerForm ? 'bg-[#eee] text-[#555]' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => showWorkerForm ? setShowWorkerForm(false) : openWorkerForm()}>
+                    {showWorkerForm ? '취소' : '+ 추가'}
+                  </button>
+                </div>
+                {showWorkerForm && (
+                  <div className="bg-[#f9f9f9] rounded-lg p-3 mb-3 flex flex-wrap gap-2 items-end">
+                    <div className="flex rounded-lg overflow-hidden border border-[#ddd] shrink-0">
+                      {WORKER_ROLE_LIST.map(r => (
+                        <button key={r} type="button" onClick={() => setWorkerForm(p => ({ ...p, worker_role: r }))} className={`px-3 py-1.5 text-xs font-bold border-none cursor-pointer transition ${workerForm.worker_role === r ? 'bg-primary-700 text-white' : 'bg-white text-[#555] hover:bg-[#f0f0f0]'}`}>{r}</button>
+                      ))}
+                    </div>
+                    <input type="text" placeholder="이름 *" value={workerForm.name} onChange={e => setWorkerForm(p => ({ ...p, name: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[120px]" />
+                    <div className="flex items-center gap-1.5 py-1">
+                      {WORKER_COLORS.map(c => (
+                        <button key={c} type="button" onClick={() => setWorkerForm(p => ({ ...p, color: c }))} className="w-5 h-5 rounded-full border-2 transition" style={{ backgroundColor: c, borderColor: workerForm.color === c ? '#222' : 'transparent' }} />
+                      ))}
+                    </div>
+                    <input type="tel" placeholder="전화번호" value={workerForm.phone} onChange={e => setWorkerForm(p => ({ ...p, phone: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[130px]" />
+                    <input type="text" placeholder="은행 종류 (예: 카카오뱅크)" value={workerForm.bank_name} onChange={e => setWorkerForm(p => ({ ...p, bank_name: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[150px]" />
+                    <input type="text" placeholder="계좌번호" value={workerForm.bank_account} onChange={e => setWorkerForm(p => ({ ...p, bank_account: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[150px]" />
+                    <input type="number" placeholder="시급 (원)" value={workerForm.hourly_rate} onChange={e => setWorkerForm(p => ({ ...p, hourly_rate: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[100px]" />
+                    <button className="px-3 py-1.5 border-none rounded bg-primary-700 text-white text-xs font-bold cursor-pointer hover:bg-primary-800 transition" onClick={handleSaveWorker}>{editingWorkerId ? '수정 완료' : '등록'}</button>
+                  </div>
+                )}
+                {workers.length === 0 ? (
+                  <p className="text-[#999] text-sm m-0">등록된 근무자가 없습니다.</p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {WORKER_ROLE_LIST.map(roleGroup => {
+                      const grouped = workers.filter(w => (w.worker_role ?? '프론트') === roleGroup);
+                      if (grouped.length === 0) return null;
+                      return (
+                        <div key={roleGroup}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-extrabold text-[#444]">{roleGroup}</span>
+                            <span className="text-[10px] text-[#bbb]">{grouped.length}명</span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                            {grouped.map(w => (
+                              <div key={w.id} className={`bg-[#f9f9f9] rounded-lg p-2.5 border transition cursor-grab active:cursor-grabbing select-none ${draggingWorkerId === w.id ? 'opacity-40 border-primary-400' : 'border-[#eee] hover:border-primary-300 hover:shadow-sm'}`} draggable onDragStart={e => { e.dataTransfer.effectAllowed = 'copy'; setDraggingWorkerId(w.id); }} onDragEnd={handleDragEnd}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: w.color || '#6366f1' }} />
+                                    <strong className="text-[13px] font-bold">{w.name}</strong>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:bg-[#eee] transition" onClick={() => openWorkerForm(w)}>✎</button>
+                                    <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:text-red-500 hover:border-red-300 transition" onClick={() => handleDeleteWorker(w.id, w.name)}>×</button>
+                                  </div>
+                                </div>
+                                {w.phone && <p className="m-0 text-[10px] text-[#777]">{w.phone}</p>}
+                                {(w.bank_name || w.bank_account) && <p className="m-0 text-[10px] text-[#777] truncate">{[w.bank_name, w.bank_account].filter(Boolean).join(' ')}</p>}
+                                {w.hourly_rate > 0 && <p className="m-0 text-[10px] font-semibold text-primary-700">{w.hourly_rate.toLocaleString('ko-KR')}원/h</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {bottomTab === 'salary' && salaryGroups.length > 0 && (
+              <SalaryTable
+                eventName={selectedEvent.name}
+                salaryGroups={salaryGroups}
+                grandTotal={grandTotal}
+                localRates={localRates}
+                onRateChange={handleRateChange}
+                onPaymentToggle={handlePaymentToggle}
+              />
+            )}
+            {bottomTab === 'salary' && salaryGroups.length === 0 && (
+              <div className="bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                <p className="text-[#999] text-sm m-0">근무 데이터가 없습니다.</p>
+              </div>
+            )}
+          </div>
         )}
       </main>
     </>

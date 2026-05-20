@@ -48,6 +48,7 @@ export interface Worker {
   bank_account: string | null;
   hourly_rate: number;
   payment_done: boolean;
+  worker_role: string | null;
   created_at: string;
   updated_at: string;
 }

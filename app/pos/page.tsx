@@ -75,6 +75,8 @@ export default function PosPage() {
   const checkoutFnRef = useRef<(() => void) | null>(null);
   const checkoutDebouncingRef = useRef(false);
   const displayChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const countsRef = useRef<Record<number, number>>({});
+  const menuItemsRef = useRef<MenuItem[]>([]);
 
   useEffect(() => {
     const ch = supabase
@@ -82,6 +84,15 @@ export default function PosPage() {
       .on('broadcast', { event: 'customer_update' }, ({ payload }) => {
         const { itemId, delta } = payload as { itemId: number; delta: number };
         setCounts((prev) => ({ ...prev, [itemId]: Math.max(0, (prev[itemId] ?? 0) + delta) }));
+      })
+      .on('broadcast', { event: 'request_sync' }, () => {
+        const c = countsRef.current;
+        const m = menuItemsRef.current;
+        const items = m
+          .filter((item) => (c[item.id] ?? 0) > 0)
+          .map((item) => ({ id: item.id, name: item.name, price: item.price, count: c[item.id] ?? 0, color: item.color }));
+        const total = m.reduce((sum, item) => sum + item.price * (c[item.id] ?? 0), 0);
+        displayChannelRef.current?.send({ type: 'broadcast', event: 'cart_update', payload: { items, totalPrice: total } });
       });
     ch.subscribe();
     displayChannelRef.current = ch;
@@ -114,6 +125,9 @@ export default function PosPage() {
   });
 
   const menuItems = useMemo(() => menuQuery.data ?? [], [menuQuery.data]);
+
+  useEffect(() => { countsRef.current = counts; }, [counts]);
+  useEffect(() => { menuItemsRef.current = menuItems; }, [menuItems]);
 
   const recentOrdersQuery = useQuery<OrderRecordWithItems[]>({
     queryKey: ['today-orders-recent'],
@@ -175,6 +189,15 @@ export default function PosPage() {
     },
     onSuccess: (result, vars, context) => {
       if (result.success) {
+        displayChannelRef.current?.send({
+          type: 'broadcast',
+          event: 'checkout_complete',
+          payload: {
+            items: vars.items.map((item) => ({ ...item, color: menuItems.find((m) => m.id === item.id)?.color })),
+            totalPrice: vars.totalPrice,
+          },
+        });
+
         const label = result.dailyOrderNumber ? `오늘 ${result.dailyOrderNumber}번째 주문` : `주문번호: ${result.orderId}`;
         toast.success(`결제 완료! ${label}`);
 
@@ -204,14 +227,6 @@ export default function PosPage() {
     const items = menuItems
       .filter((item) => counts[item.id] > 0)
       .map((item) => ({ id: item.id, name: item.name, price: item.price, count: counts[item.id] }));
-    displayChannelRef.current?.send({
-      type: 'broadcast',
-      event: 'checkout_complete',
-      payload: {
-        items: items.map((item) => ({ ...item, color: menuItems.find((m) => m.id === item.id)?.color })),
-        totalPrice,
-      },
-    });
     checkoutMutation.mutate({ items, totalPrice, cashierName: cashierName ?? undefined });
   };
 

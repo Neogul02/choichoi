@@ -59,7 +59,7 @@ export default function OrdersPage() {
   return (
     <>
       <NavBar />
-      <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
+      <main className="min-h-screen p-3 md:p-5 max-w-[800px] mx-auto">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
