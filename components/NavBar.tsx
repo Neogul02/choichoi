@@ -12,7 +12,7 @@ const ADMIN_AUTH_API_PATH = '/api/auth/admin';
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
 
 const ALL_NAV_LINKS = [
-  { href: '/', label: 'POS', adminOnly: false },
+  { href: '/pos', label: 'POS', adminOnly: false },
   { href: '/orders', label: '주문', adminOnly: false },
   { href: '/stats', label: '통계', adminOnly: true },
   { href: '/schedule', label: '일정', adminOnly: true },
