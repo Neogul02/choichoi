@@ -30,6 +30,8 @@ const listItemVariants: Variants = {
   exit: { opacity: 0, x: -16, transition: { duration: 0.18 } },
 };
 
+type DisplayState = 'idle' | 'checkout' | 'thanks';
+
 export default function DisplayPage() {
   const [mode, setMode] = useState<Mode>('view');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -37,7 +39,12 @@ export default function DisplayPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [localCounts, setLocalCounts] = useState<Record<number, number>>({});
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [displayState, setDisplayState] = useState<DisplayState>('idle');
+  const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
+  const [checkoutTotal, setCheckoutTotal] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const displayStateRef = useRef<DisplayState>('idle');
+  const animTimerRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     const id = setInterval(() => setBannerIndex((i) => (i + 1) % BANNERS.length), 3500);
@@ -45,15 +52,42 @@ export default function DisplayPage() {
   }, []);
 
   useEffect(() => {
+    return () => { animTimerRef.current.forEach(clearTimeout); };
+  }, []);
+
+  useEffect(() => {
     const ch = supabase
       .channel('cart-display')
       .on('broadcast', { event: 'cart_update' }, ({ payload }) => {
+        if (displayStateRef.current !== 'idle') return;
         const p = payload as { items: CartItem[]; totalPrice: number };
         setCartItems(p.items ?? []);
         setCartTotalPrice(p.totalPrice ?? 0);
       })
       .on('broadcast', { event: 'cart_reset' }, () => {
+        if (displayStateRef.current !== 'idle') return;
         setLocalCounts({});
+      })
+      .on('broadcast', { event: 'checkout_complete' }, ({ payload }) => {
+        const { items, totalPrice: total } = payload as { items: CartItem[]; totalPrice: number };
+        animTimerRef.current.forEach(clearTimeout);
+        setCheckoutItems(items ?? []);
+        setCheckoutTotal(total ?? 0);
+        setLocalCounts({});
+        setCartItems([]);
+        setCartTotalPrice(0);
+        displayStateRef.current = 'checkout';
+        setDisplayState('checkout');
+        const t1 = setTimeout(() => {
+          displayStateRef.current = 'thanks';
+          setDisplayState('thanks');
+          const t2 = setTimeout(() => {
+            displayStateRef.current = 'idle';
+            setDisplayState('idle');
+          }, 2500);
+          animTimerRef.current = [t2];
+        }, 5000);
+        animTimerRef.current = [t1];
       });
     ch.subscribe();
     channelRef.current = ch;
@@ -155,7 +189,7 @@ export default function DisplayPage() {
       </div>
 
       {/* 컨텐츠 */}
-      <main className="flex-1 flex flex-col overflow-auto">
+      <main className="flex-1 flex flex-col overflow-auto relative">
         <AnimatePresence mode="wait">
           {mode === 'view' ? (
             /* ── 보기 모드 ── */
@@ -330,6 +364,71 @@ export default function DisplayPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 결제 완료 오버레이 */}
+        <AnimatePresence>
+          {displayState !== 'idle' && (
+            <motion.div
+              key={displayState}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="absolute inset-0 z-20 bg-[#f5f6f7] flex items-center justify-center p-8"
+            >
+              {displayState === 'checkout' ? (
+                <motion.div
+                  initial={{ scale: 0.96, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-full max-w-lg"
+                >
+                  <motion.div
+                    animate={{ boxShadow: ['0 0 0 3px #084431', '0 0 0 7px #08443140', '0 0 0 3px #084431'] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                    className="bg-white rounded-2xl overflow-hidden mb-4"
+                  >
+                    <div className="bg-primary-700 px-6 py-4 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-white/60 animate-pulse" />
+                      <h3 className="text-sm font-bold text-white/90 tracking-wide uppercase m-0">결제 완료</h3>
+                    </div>
+                    <ul className="m-0 p-0 list-none divide-y divide-[#f5f5f5]">
+                      {checkoutItems.map((item) => (
+                        <li key={item.id} className="flex items-center justify-between px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="w-7 h-7 rounded-full text-sm font-black flex items-center justify-center shrink-0"
+                              style={item.color ? { backgroundColor: hexWithAlpha(item.color, 0.15), color: item.color } : { backgroundColor: '#f0f0f0', color: '#555' }}
+                            >
+                              {item.count}
+                            </span>
+                            {item.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />}
+                            <span className="text-[17px] font-semibold text-[#1a1a1a]">{item.name}</span>
+                          </div>
+                          <span className="text-[17px] font-bold text-[#333]">{formatPrice(item.price * item.count)}원</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
+                  <div className="bg-primary-700 rounded-2xl px-6 py-5 flex items-center justify-between shadow-[0_4px_20px_rgba(8,68,49,0.25)]">
+                    <span className="text-white text-lg font-bold opacity-80">합계</span>
+                    <span className="text-white text-[32px] font-black leading-none">{formatPrice(checkoutTotal)}원</span>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ scale: 0.88, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                  className="text-center"
+                >
+                  <h2 className="text-5xl font-black text-primary-700 mb-3 m-0">감사합니다!</h2>
+                  <p className="text-[#999] text-lg m-0">또 이용해 주세요</p>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

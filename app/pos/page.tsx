@@ -204,6 +204,14 @@ export default function PosPage() {
     const items = menuItems
       .filter((item) => counts[item.id] > 0)
       .map((item) => ({ id: item.id, name: item.name, price: item.price, count: counts[item.id] }));
+    displayChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'checkout_complete',
+      payload: {
+        items: items.map((item) => ({ ...item, color: menuItems.find((m) => m.id === item.id)?.color })),
+        totalPrice,
+      },
+    });
     checkoutMutation.mutate({ items, totalPrice, cashierName: cashierName ?? undefined });
   };
 
