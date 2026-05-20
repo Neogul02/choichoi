@@ -1,5 +1,13 @@
 const KRW_FORMATTER = new Intl.NumberFormat('ko-KR');
 
+export function formatKSTTime(isoString: string): string {
+  const s = isoString.replace(' ', 'T');
+  const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
+  const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
+  const kst = new Date(utcMs + 9 * 3600 * 1000);
+  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}:${String(kst.getUTCSeconds()).padStart(2, '0')}`;
+}
+
 export function formatRevenueTick(value: number): string {
   if (value >= 10000) return `${Math.round(value / 10000)}만`;
   if (value >= 1000) return `${Math.round(value / 1000)}천`;
@@ -32,6 +40,14 @@ export function toLocalDateStr(date: Date): string {
 
 export function formatPrice(price: number): string {
   return KRW_FORMATTER.format(price);
+}
+
+export function hexWithAlpha(hex: string, alpha: number): string {
+  const match = hex.trim().match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (!match) return hex;
+  let normalized = match[1];
+  if (normalized.length === 3) normalized = normalized.split('').map((ch) => ch + ch).join('');
+  return `#${normalized}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
 }
 
 export function getShortcutBadgeColors(color: string): { backgroundColor: string; color: string } {
