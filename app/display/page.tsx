@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { fetchMenuItems } from '@/app/actions';
@@ -67,6 +68,8 @@ export default function DisplayPage() {
       .on('broadcast', { event: 'cart_reset' }, () => {
         if (displayStateRef.current !== 'idle') return;
         setLocalCounts({});
+        setCartItems([]);
+        setCartTotalPrice(0);
       })
       .on('broadcast', { event: 'checkout_complete' }, ({ payload }) => {
         const { items, totalPrice: total } = payload as { items: CartItem[]; totalPrice: number };
@@ -76,6 +79,7 @@ export default function DisplayPage() {
         setLocalCounts({});
         setCartItems([]);
         setCartTotalPrice(0);
+        setMode('view');
         displayStateRef.current = 'checkout';
         setDisplayState('checkout');
         const t1 = setTimeout(() => {
@@ -89,7 +93,11 @@ export default function DisplayPage() {
         }, 5000);
         animTimerRef.current = [t1];
       });
-    ch.subscribe();
+    ch.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        ch.send({ type: 'broadcast', event: 'request_sync', payload: {} });
+      }
+    });
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -138,12 +146,17 @@ export default function DisplayPage() {
 
       {/* 헤더 + 토글 */}
       <header className="bg-white border-b border-[#eee] px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          {/* <div className="w-8 h-8 rounded-full bg-primary-700 flex items-center justify-center">
-            <span className="text-white text-[11px] font-black">CC</span>
-          </div> */}
-          {/* <span className="text-xl font-black text-[#1a1a1a] tracking-tight">CHOICHOI</span> */}
-        </div>
+        <Link
+          href="/"
+          title="홈으로"
+          className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 transition-all duration-200"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </Link>
         <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1">
           <button
             onClick={() => setMode('view')}
@@ -153,7 +166,7 @@ export default function DisplayPage() {
                 : 'bg-transparent text-[#999] hover:text-[#555]'
             }`}
           >
-            보기
+            프론트
           </button>
           <button
             onClick={() => setMode('order')}
@@ -163,7 +176,7 @@ export default function DisplayPage() {
                 : 'bg-transparent text-[#999] hover:text-[#555]'
             }`}
           >
-            주문
+            주문하기
           </button>
         </div>
       </header>
@@ -211,7 +224,7 @@ export default function DisplayPage() {
                     transition={{ duration: 0.25 }}
                     className="text-center"
                   >
-                    <h2 className="text-3xl font-black text-[#1a1a1a] mb-2 m-0">환영합니다</h2>
+                    <h2 className="text-3xl font-black text-[#1a1a1a] mb-2 m-0">안녕하세요!</h2>
                     <p className="text-[#999] text-lg m-0">주문을 기다리고 있어요</p>
                   </motion.div>
                 ) : (
@@ -239,19 +252,11 @@ export default function DisplayPage() {
                               className="flex items-center justify-between px-6 py-4"
                             >
                               <div className="flex items-center gap-3">
-                                <span
-                                  className="w-7 h-7 rounded-full text-sm font-black flex items-center justify-center shrink-0"
-                                  style={item.color ? {
-                                    backgroundColor: hexWithAlpha(item.color, 0.15),
-                                    color: item.color,
-                                  } : { backgroundColor: '#f0f0f0', color: '#555' }}
-                                >
-                                  {item.count}
-                                </span>
                                 {item.color && (
                                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                                 )}
                                 <span className="text-[17px] font-semibold text-[#1a1a1a]">{item.name}</span>
+                                <span className="text-sm font-bold text-[#bbb]">× {item.count}</span>
                               </div>
                               <span className="text-[17px] font-bold text-[#333]">
                                 {formatPrice(item.price * item.count)}원
@@ -387,8 +392,12 @@ export default function DisplayPage() {
                   className="w-full max-w-lg"
                 >
                   <motion.div
-                    animate={{ boxShadow: ['0 0 0 3px #084431', '0 0 0 7px #08443140', '0 0 0 3px #084431'] }}
-                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                    animate={{ boxShadow: [
+                      '0 0 0 2.5px #22c55e, 0 0 18px 5px rgba(34,197,94,0.45)',
+                      '0 0 0 2.5px #22c55e, 0 0 40px 14px rgba(34,197,94,0)',
+                      '0 0 0 2.5px #22c55e, 0 0 18px 5px rgba(34,197,94,0.45)',
+                    ]}}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
                     className="bg-white rounded-2xl overflow-hidden mb-4"
                   >
                     <div className="bg-primary-700 px-6 py-4 flex items-center gap-2">
@@ -399,14 +408,9 @@ export default function DisplayPage() {
                       {checkoutItems.map((item) => (
                         <li key={item.id} className="flex items-center justify-between px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <span
-                              className="w-7 h-7 rounded-full text-sm font-black flex items-center justify-center shrink-0"
-                              style={item.color ? { backgroundColor: hexWithAlpha(item.color, 0.15), color: item.color } : { backgroundColor: '#f0f0f0', color: '#555' }}
-                            >
-                              {item.count}
-                            </span>
                             {item.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />}
                             <span className="text-[17px] font-semibold text-[#1a1a1a]">{item.name}</span>
+                            <span className="text-sm font-bold text-[#bbb]">× {item.count}</span>
                           </div>
                           <span className="text-[17px] font-bold text-[#333]">{formatPrice(item.price * item.count)}원</span>
                         </li>
@@ -425,8 +429,7 @@ export default function DisplayPage() {
                   transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                   className="text-center"
                 >
-                  <h2 className="text-5xl font-black text-primary-700 mb-3 m-0">감사합니다!</h2>
-                  <p className="text-[#999] text-lg m-0">또 이용해 주세요</p>
+                  <h2 className="text-5xl font-black text-primary-700 mb-3 m-0">감사합니다😺</h2>
                 </motion.div>
               )}
             </motion.div>
