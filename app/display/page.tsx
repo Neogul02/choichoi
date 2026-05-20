@@ -97,25 +97,7 @@ export default function DisplayPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f6f7] flex flex-col select-none">
-      {/* 플립 배너 */}
-      <div
-        className="bg-primary-700 px-6 py-2.5 flex items-center justify-center overflow-hidden"
-        style={{ perspective: '800px' }}
-      >
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={bannerIndex}
-            variants={bannerVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            className="m-0 text-white text-sm font-semibold tracking-wide text-center"
-            style={{ transformOrigin: 'center center', backfaceVisibility: 'hidden' }}
-          >
-            {BANNERS[bannerIndex]}
-          </motion.p>
-        </AnimatePresence>
-      </div>
+      
 
       {/* 헤더 + 토글 */}
       <header className="bg-white border-b border-[#eee] px-6 py-4 flex items-center justify-between shadow-sm">
@@ -148,6 +130,26 @@ export default function DisplayPage() {
           </button>
         </div>
       </header>
+
+      {/* 플립 배너 */}
+      <div
+        className="bg-primary-600 px-6 py-2.5 flex items-center justify-center overflow-hidden"
+        style={{ perspective: '800px' }}
+      >
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={bannerIndex}
+            variants={bannerVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="m-0 text-white text-sm font-semibold tracking-wide text-center"
+            style={{ transformOrigin: 'center center', backfaceVisibility: 'hidden' }}
+          >
+            {BANNERS[bannerIndex]}
+          </motion.p>
+        </AnimatePresence>
+      </div>
 
       {/* 컨텐츠 */}
       <main className="flex-1 flex flex-col overflow-auto">

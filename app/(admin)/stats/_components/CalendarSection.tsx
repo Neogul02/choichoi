@@ -136,7 +136,7 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
                   type="number"
                   min={0}
                   max={100}
-                  step={0.1}
+                  step={1}
                   value={feePercent}
                   onChange={handleFeeChange}
                   className="w-16 text-right text-sm border border-[#ddd] rounded-lg px-2 py-1 pr-5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-[#fafafa]"
