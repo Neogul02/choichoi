@@ -135,7 +135,7 @@ export default function StatsPage() {
           </div>
 
           <div className="bg-white rounded-2xl p-4 md:p-5">
-            <HourlySalesSection orders={todayOrders} isLoading={isLoading} />
+            <HourlySalesSection todayOrders={todayOrders} isLoadingToday={isLoading} popupEvents={popupEvents} />
           </div>
 
           <div className="bg-white rounded-2xl p-4 md:p-5">

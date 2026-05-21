@@ -19,6 +19,7 @@ import {
   updateMenuOrder,
   getMenuSalesByPeriod,
   getDailySalesByPeriod,
+  getOrdersByPeriod,
   getPopupEvents,
   createPopupEvent,
   deletePopupEvent,
@@ -97,6 +98,7 @@ export async function fetchTodaysSales(): Promise<FetchTodaysSalesResponse> { re
 export async function fetchTodaysOrders(): Promise<FetchOrdersResponse> { return wrap(getTodaysOrderList); }
 export async function fetchTodaysOrdersWithItems(limit?: number): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit)); }
 export async function fetchPendingOrders(): Promise<FetchOrdersWithItemsResponse> { return wrap(getPendingOrders); }
+export async function fetchOrdersByPeriod(startISO: string, endISO: string): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> { return wrap(() => getOrdersByPeriod(startISO, endISO)); }
 export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(() => prepareOrder(id)); }
 export async function removeOrder(id: number): Promise<ApiResponse> { return wrap(() => deleteOrder(id)); }
 
@@ -166,20 +168,30 @@ export async function fetchAISalesAnalysis(input: SalesAnalysisInput): Promise<A
   const menuList = menuBreakdown.map((m) => `  - ${m.name}: ${m.totalQuantity}개 / ₩${m.totalRevenue.toLocaleString()}`).join('\n');
   const hourList = activeHours.map((h) => `  - ${h.label}: 주문 ${h.orderCount}건 / ₩${h.revenue.toLocaleString()}`).join('\n');
 
-  const prompt = `아래는 오늘 하루 판매 데이터입니다. 한국어로 간결하게 매출을 분석해주세요. (3~5문장, 이모지 활용, 친근한 말투)
+  const prompt = `당신은 베이커리 POS 시스템의 전문 데이터 분석가입니다.
+아래 제공된 판매 데이터를 바탕으로 지정된 포맷에 맞춰 매출 분석 리포트를 작성하세요.
 
-[오늘 요약]
+[데이터]
 - 총 매출: ₩${totalRevenue.toLocaleString()}
 - 총 주문: ${totalOrders}건
 - 피크 시간대: ${peakHour.label} (₩${peakHour.revenue.toLocaleString()})
-
-[시간대별 매출]
+- 시간대별 매출:
 ${hourList || '  - 데이터 없음'}
-
-[메뉴별 판매]
+- 메뉴별 판매:
 ${menuList || '  - 데이터 없음'}
 
-분석 포인트: 피크 시간대, 인기 메뉴, 전체 매출 흐름, 개선 제안 등을 포함해주세요.`;
+[제약 조건]
+1. 반드시 아래의 [출력 포맷]을 그대로 사용하여 마크다운으로 출력할 것.
+2. 각 항목은 1~2문장으로 간결하게 작성할 것.
+3. 제공된 데이터 내에서만 분석하고, 근거 없는 추측은 배제할 것.
+4. 인사말이나 부연 설명 없이 지정된 포맷의 텍스트만 출력할 것.
+
+[출력 포맷]
+- 💰 전체 흐름: (총 매출과 주문 건수를 바탕으로 한 전반적인 실적 요약)
+- 📈 피크 타임: (피크 시간대와 해당 시간대 매출 집중도 분석)
+- 🥐 인기 메뉴: (가장 많이 팔린 메뉴와 매출 기여도 분석)
+- 💡 개선 제안: (데이터에 기반한 시간대별 인력 배치 또는 재고 준비 관련 실질적 액션 아이템)
+`;
 
   try {
     const { data } = await axios.post(
