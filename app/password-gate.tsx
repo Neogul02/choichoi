@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { usePathname } from 'next/navigation';
 
 const AUTH_KEY = 'choichoi_popup_token';
@@ -23,13 +24,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       setChecked(true);
       return;
     }
-    fetch(VALIDATE_API_PATH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: storedToken }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
+    axios.post(VALIDATE_API_PATH, { token: storedToken })
+      .then(({ data }) => {
         if (data.valid) {
           setIsAuthed(true);
         } else {
@@ -59,24 +55,18 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(AUTH_API_PATH, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const { data } = await axios.post(AUTH_API_PATH, { password });
+      if (!data.success) {
         setError(data.message || '비밀번호가 올바르지 않습니다.');
         setIsSubmitting(false);
         return;
       }
-
       localStorage.setItem(AUTH_KEY, data.token);
       localStorage.setItem(CASHIER_NAME_KEY, name.trim());
       setIsAuthed(true);
-    } catch {
-      setError('검증 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } catch (err) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setError(msg || '검증 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setIsSubmitting(false);
     }
