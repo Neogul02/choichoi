@@ -92,18 +92,33 @@ async function wrap<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
 
 export async function saveOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string): Promise<SaveOrderResponse> {
   try {
+    console.log(`[saveOrder] Starting order creation. Items: ${items.length}, Total: ${totalPrice}`);
     const order = await createOrder(items, totalPrice, cashierName);
+    
+    // Fetch updated sales summary for the POS UI
     const sales = await getTodaysSales();
+    
     let inventoryError: string | undefined;
     try {
+      console.log(`[saveOrder] Triggering inventory deduction for order ${order.id}`);
       await deductForOrder(order.id);
+      console.log(`[saveOrder] Inventory deduction successful for order ${order.id}`);
     } catch (err) {
       inventoryError = extractErrorMessage(err);
-      console.error('[inventory] deductForOrder failed:', err);
+      console.error(`[saveOrder] deductForOrder failed for order ${order.id}:`, err);
     }
-    return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales, inventoryError };
+    
+    return { 
+      success: true, 
+      orderId: order.id, 
+      dailyOrderNumber: sales.totalOrders, 
+      sales, 
+      inventoryError 
+    };
   } catch (error) {
-    return { success: false, error: extractErrorMessage(error) };
+    const msg = extractErrorMessage(error);
+    console.error('[saveOrder] Critical failure:', msg);
+    return { success: false, error: msg };
   }
 }
 
