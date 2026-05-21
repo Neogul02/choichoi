@@ -3,15 +3,11 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { formatPrice } from '@/lib/utils';
+import { PERIOD_LABELS } from '../_lib/period';
+import type { Period } from '../_lib/period';
 import type { MenuSalesItem } from '@/types/api';
 
-type Period = 'today' | 'week' | 'month';
-
-const PERIODS: Array<{ key: Period; label: string }> = [
-  { key: 'today', label: '오늘' },
-  { key: 'week', label: '이번 주' },
-  { key: 'month', label: '이번 달' },
-];
+const PERIOD_KEYS: Period[] = ['today', 'week', 'month'];
 
 interface MenuTooltipProps {
   active?: boolean;
@@ -56,13 +52,13 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
         <h3 className="m-0 text-lg font-bold">메뉴별 판매 현황 ({periodLabel})</h3>
       </div>
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {PERIODS.map(({ key, label }) => (
+        {PERIOD_KEYS.map((key) => (
           <button
             key={key}
             className={`px-3.5 py-1.5 rounded-full border cursor-pointer text-[13px] font-semibold transition-all duration-200 ${period === key ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] border-[#ddd] text-[#555] hover:bg-[#eee] hover:border-[#ccc]'}`}
             onClick={() => onPeriodChange(key)}
           >
-            {label}
+            {PERIOD_LABELS[key]}
           </button>
         ))}
       </div>

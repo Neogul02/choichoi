@@ -1,55 +1,32 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { fetchAISalesAnalysis } from '@/app/actions'
-import { formatPrice } from '@/lib/utils'
-import type {
-  TodaysSales,
-  MenuSalesItem,
-  OrderRecordWithItems,
-} from '@/types/api'
-
-const HOURS = Array.from({ length: 13 }, (_, i) => i + 9)
+import { useState } from 'react';
+import { fetchAISalesAnalysis, fetchMenuSalesBreakdown } from '@/app/actions';
+import { formatPrice } from '@/lib/utils';
+import { buildHourlyData } from '../_lib/hourly';
+import { getPeriodBounds } from '../_lib/period';
+import type { TodaysSales, OrderRecordWithItems } from '@/types/api';
 
 interface Props {
-  summary: TodaysSales
-  todayOrders: OrderRecordWithItems[]
-  menuBreakdown: MenuSalesItem[]
+  summary: TodaysSales;
+  todayOrders: OrderRecordWithItems[];
 }
 
-export default function AIAnalysisSection({
-  summary,
-  todayOrders,
-  menuBreakdown,
-}: Props) {
-  const [analysis, setAnalysis] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+export default function AIAnalysisSection({ summary, todayOrders }: Props) {
+  const [analysis, setAnalysis] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleAnalyze = async () => {
-    setIsLoading(true)
-    setError('')
-    setAnalysis('')
+    setIsLoading(true);
+    setError('');
+    setAnalysis('');
 
-    const hourMap: Record<number, { revenue: number; orderCount: number }> = {}
-    HOURS.forEach((h) => {
-      hourMap[h] = { revenue: 0, orderCount: 0 }
-    })
-    todayOrders.forEach((order) => {
-      const s = order.created_at.replace(' ', 'T')
-      const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s)
-      const utcMs = new Date(hasOffset ? s : s + 'Z').getTime()
-      const kstHour = new Date(utcMs + 9 * 3600 * 1000).getUTCHours()
-      if (hourMap[kstHour]) {
-        hourMap[kstHour].revenue += Number(order.total_price)
-        hourMap[kstHour].orderCount += 1
-      }
-    })
-    const hourlyData = HOURS.map((h) => ({
-      label: `${String(h).padStart(2, '0')}시`,
-      revenue: hourMap[h].revenue,
-      orderCount: hourMap[h].orderCount,
-    }))
+    const hourlyData = buildHourlyData(todayOrders);
+
+    const { startISO, endISO } = getPeriodBounds('today');
+    const menuRes = await fetchMenuSalesBreakdown(startISO, endISO);
+    const menuBreakdown = menuRes.success && menuRes.data ? menuRes.data : [];
 
     const result = await fetchAISalesAnalysis({
       totalRevenue: summary.totalRevenue,
@@ -60,24 +37,22 @@ export default function AIAnalysisSection({
         totalQuantity: m.totalQuantity,
         totalRevenue: m.totalRevenue,
       })),
-    })
+    });
 
     if (result.success && result.data) {
-      setAnalysis(result.data)
+      setAnalysis(result.data);
     } else {
-      setError(result.error ?? '분석 중 오류가 발생했습니다.')
+      setError(result.error ?? '분석 중 오류가 발생했습니다.');
     }
-    setIsLoading(false)
-  }
+    setIsLoading(false);
+  };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="m-0 text-lg font-bold">AI 매출 분석</h3>
-          <p className="m-0 text-xs text-[#aaa] mt-0.5">
-            Gemini · 오늘 데이터 기반
-          </p>
+          <p className="m-0 text-xs text-[#aaa] mt-0.5">Gemini · 오늘 데이터 기반</p>
         </div>
         <button
           onClick={handleAnalyze}
@@ -86,7 +61,7 @@ export default function AIAnalysisSection({
         >
           {isLoading ? (
             <>
-              <span className="cursor-pointer w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               분석 중...
             </>
           ) : (
@@ -115,15 +90,12 @@ export default function AIAnalysisSection({
 
       {analysis && (
         <div className="rounded-xl bg-gradient-to-br from-[#f8f7ff] to-[#f0f4ff] border border-[#e2dcff] p-4">
-          <p className="text-sm leading-relaxed text-[#333] whitespace-pre-wrap">
-            {analysis}
-          </p>
+          <p className="text-sm leading-relaxed text-[#333] whitespace-pre-wrap">{analysis}</p>
           <p className="mt-3 text-[11px] text-[#bbb] text-right">
-            총 매출 ₩{formatPrice(summary.totalRevenue)} · {summary.totalOrders}
-            건
+            총 매출 ₩{formatPrice(summary.totalRevenue)} · {summary.totalOrders}건
           </p>
         </div>
       )}
     </div>
-  )
+  );
 }
