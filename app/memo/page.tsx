@@ -99,30 +99,80 @@ export default function MemoPage() {
           <div className="flex justify-between items-center mb-5">
             <h2 className="m-0 text-2xl font-extrabold">메모</h2>
             {!showForm && (
-              <button className="px-4 py-2 rounded-lg border-none bg-primary-700 text-white font-bold cursor-pointer transition-all duration-200 hover:bg-primary-800" onClick={() => { resetForm(); setShowForm(true); }}>
+              <button
+                className="px-4 py-2 rounded-lg border-none bg-primary-700 text-white font-bold cursor-pointer transition-all duration-200 hover:bg-primary-800"
+                onClick={() => { resetForm(); setShowForm(true); }}
+              >
                 + 새 메모
               </button>
             )}
           </div>
 
           {showForm && (
-            <div className="bg-white rounded-xl p-5 mb-6 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
-              <h3 className="m-0 mb-3 text-lg font-bold text-[#111]">{editingId ? '메모 수정' : '새 메모 작성'}</h3>
-              <input type="text" placeholder="제목 (선택)" value={formData.title} onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))} className="w-full border border-[#ddd] rounded-lg p-3 text-sm font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
-              <textarea placeholder="내용을 입력하세요..." value={formData.content} onChange={(e) => setFormData((p) => ({ ...p, content: e.target.value }))} rows={5} className="w-full border border-[#ddd] rounded-lg p-3 text-sm font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-[13px] font-semibold text-[#555] mr-2">배경색</span>
+            <div className="bg-white rounded-2xl p-5 md:p-7 mb-6 shadow-[0_4px_24px_rgba(0,0,0,0.09)] border border-[#f0f0f0]">
+              <h3 className="m-0 mb-4 text-xl font-bold text-[#111]">
+                {editingId ? '메모 수정' : '새 메모 작성'}
+              </h3>
+
+              <input
+                type="text"
+                placeholder="제목 (선택)"
+                value={formData.title}
+                onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
+                className="w-full border border-[#ddd] rounded-xl px-4 py-3 text-base font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10"
+              />
+
+              <textarea
+                placeholder="내용을 입력하세요..."
+                value={formData.content}
+                onChange={(e) => setFormData((p) => ({ ...p, content: e.target.value }))}
+                rows={10}
+                className="w-full border border-[#ddd] rounded-xl px-4 py-3 text-base font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10 resize-y min-h-[200px]"
+              />
+
+              <div className="flex items-center gap-2.5 mb-5">
+                <span className="text-[13px] font-semibold text-[#555]">배경색</span>
                 {MEMO_COLORS.map((c) => (
-                  <button key={c.value} className={`w-6 h-6 rounded-full border-2 border-[#ddd] cursor-pointer transition-transform duration-200 p-0 ${formData.color === c.value ? 'border-[#111] scale-110 shadow-[0_0_0_2px_rgba(0,0,0,0.1)]' : ''}`} style={{ backgroundColor: c.value }} onClick={() => setFormData((p) => ({ ...p, color: c.value }))} aria-label={c.name} type="button" />
+                  <button
+                    key={c.value}
+                    className={`w-7 h-7 rounded-full border-2 cursor-pointer transition-transform duration-200 p-0 ${formData.color === c.value ? 'border-[#111] scale-110 shadow-[0_0_0_2px_rgba(0,0,0,0.12)]' : 'border-[#ddd] hover:scale-105'}`}
+                    style={{ backgroundColor: c.value }}
+                    onClick={() => setFormData((p) => ({ ...p, color: c.value }))}
+                    aria-label={c.name}
+                    type="button"
+                  />
                 ))}
               </div>
-              <div className="p-4 rounded-lg mb-4 min-h-[80px] border border-black/5" style={{ backgroundColor: formData.color }}>
-                {formData.title && <strong className="block mb-2 text-base">{formData.title}</strong>}
-                <p className="m-0 whitespace-pre-wrap text-sm leading-[1.5] text-[#333]">{formData.content || '미리보기...'}</p>
+
+              <div
+                className="rounded-xl px-5 py-4 mb-5 min-h-[100px] border border-black/5 overflow-hidden"
+                style={{ backgroundColor: formData.color }}
+              >
+                <p className="m-0 mb-0.5 text-[11px] font-semibold text-[#aaa] uppercase tracking-wide">미리보기</p>
+                {formData.title && (
+                  <strong className="block mt-1.5 mb-2 text-base font-bold text-[#111] break-words [overflow-wrap:anywhere]">
+                    {formData.title}
+                  </strong>
+                )}
+                <p className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-[#333] break-words [overflow-wrap:anywhere]">
+                  {formData.content || '내용이 여기에 표시됩니다...'}
+                </p>
               </div>
-              <div className="flex gap-2">
-                <button className="flex-1 p-2.5 rounded-lg border-none font-bold cursor-pointer text-sm bg-primary-700 text-white transition hover:bg-primary-800 disabled:opacity-60" onClick={handleSave} disabled={saveMutation.isPending}>{editingId ? '수정 완료' : '메모 추가'}</button>
-                <button className="flex-1 p-2.5 rounded-lg border-none font-bold cursor-pointer text-sm bg-[#ddd] text-[#333] transition hover:bg-[#ccc]" onClick={resetForm}>취소</button>
+
+              <div className="flex gap-2.5">
+                <button
+                  className="flex-1 py-3 rounded-xl border-none font-bold cursor-pointer text-sm bg-primary-700 text-white transition hover:bg-primary-800 disabled:opacity-60"
+                  onClick={handleSave}
+                  disabled={saveMutation.isPending}
+                >
+                  {editingId ? '수정 완료' : '메모 추가'}
+                </button>
+                <button
+                  className="flex-1 py-3 rounded-xl border-none font-bold cursor-pointer text-sm bg-[#f0f0f0] text-[#555] transition hover:bg-[#e0e0e0]"
+                  onClick={resetForm}
+                >
+                  취소
+                </button>
               </div>
             </div>
           )}
@@ -138,14 +188,37 @@ export default function MemoPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
               {memos.map((memo) => (
-                <div key={memo.id} className="rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.05)] flex flex-col transition-all duration-200 border border-black/5 hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.1)]" style={{ backgroundColor: memo.color || DEFAULT_MEMO_COLOR }}>
-                  {memo.title && <h3 className="m-0 mb-2 text-base font-bold text-[#111]">{memo.title}</h3>}
-                  <p className="m-0 mb-4 text-sm leading-[1.5] text-[#333] whitespace-pre-wrap grow">{memo.content}</p>
-                  <div className="flex justify-between items-end mt-auto pt-3 border-t border-black/5">
-                    <span className="text-xs text-[#666]">{new Date(memo.updated_at).toLocaleDateString('ko-KR')}</span>
-                    <div className="flex gap-1.5">
-                      <button className="px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition bg-[#3498db] text-white hover:bg-[#2980b9]" onClick={() => handleEditStart(memo)}>수정</button>
-                      <button className="px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition bg-[#ff6b6b] text-white hover:bg-[#ff5252] disabled:opacity-60" onClick={() => handleDelete(memo.id)} disabled={deleteMutation.isPending}>삭제</button>
+                <div
+                  key={memo.id}
+                  className="min-w-0 overflow-hidden rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.05)] flex flex-col transition-all duration-200 border border-black/5 hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.1)]"
+                  style={{ backgroundColor: memo.color || DEFAULT_MEMO_COLOR }}
+                >
+                  {memo.title && (
+                    <h3 className="m-0 mb-2 text-base font-bold text-[#111] break-words [overflow-wrap:anywhere]">
+                      {memo.title}
+                    </h3>
+                  )}
+                  <p className="m-0 mb-4 text-sm leading-relaxed text-[#333] whitespace-pre-wrap break-words [overflow-wrap:anywhere] grow">
+                    {memo.content}
+                  </p>
+                  <div className="flex justify-between items-center mt-auto pt-3 border-t border-black/5">
+                    <span className="text-xs text-[#888]">
+                      {new Date(memo.updated_at).toLocaleDateString('ko-KR')}
+                    </span>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button
+                        className="px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition bg-[#3498db] text-white hover:bg-[#2980b9]"
+                        onClick={() => handleEditStart(memo)}
+                      >
+                        수정
+                      </button>
+                      <button
+                        className="px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition bg-[#ff6b6b] text-white hover:bg-[#ff5252] disabled:opacity-60"
+                        onClick={() => handleDelete(memo.id)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        삭제
+                      </button>
                     </div>
                   </div>
                 </div>
