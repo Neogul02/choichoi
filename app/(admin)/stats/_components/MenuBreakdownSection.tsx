@@ -74,7 +74,7 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
       ) : (
         <div style={{ height: Math.max(200, breakdown.length * 44) }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 20, right: 8, left: -16, bottom: 4 }} barCategoryGap="30%">
+            <BarChart data={chartData} margin={{ top: 20, right: 8, left: -4, bottom: 4 }} barCategoryGap="30%">
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
               <XAxis
                 dataKey="shortName"
