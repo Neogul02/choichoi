@@ -17,6 +17,7 @@ const ALL_NAV_LINKS = [
   { href: '/orders', label: '주문', adminOnly: false },
   { href: '/stats', label: '통계', adminOnly: true },
   { href: '/schedule', label: '일정', adminOnly: true },
+  { href: '/inventory', label: '재고', adminOnly: true },
   { href: '/memo', label: '메모', adminOnly: false },
   { href: '/settings', label: '설정', adminOnly: true },
 ] as const;

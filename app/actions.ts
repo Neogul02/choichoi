@@ -38,6 +38,14 @@ import {
   createMemo,
   updateMemo,
   deleteMemo,
+  deductForOrder,
+  getIngredients,
+  addRestock,
+  physicalInventory,
+  getRecipesWithIngredients,
+  upsertRecipe,
+  deleteRecipe,
+  getRecentDeductions,
 } from '@/lib/supabase-admin';
 import type { OrderItemInput, WorkerInput } from '@/lib/supabase';
 import type {
@@ -55,8 +63,11 @@ import type {
   FetchEventsResponse,
   FetchWorkersResponse,
   FetchDailySalesResponse,
+  FetchIngredientsResponse,
+  FetchRecipesResponse,
+  FetchDeductionEventsResponse,
 } from '@/types/api';
-import type { MenuItem, Memo, ScheduleSlot, PopupEvent, Worker } from '@/types/database';
+import type { MenuItem, Memo, ScheduleSlot, PopupEvent, Worker, Ingredient } from '@/types/database';
 
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -79,6 +90,11 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
   try {
     const order = await createOrder(items, totalPrice, cashierName);
     const sales = await getTodaysSales();
+    try {
+      await deductForOrder(order.id);
+    } catch (err) {
+      console.warn('[inventory] deductForOrder failed:', err);
+    }
     return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales };
   } catch (error) {
     return { success: false, error: extractErrorMessage(error) };
@@ -146,6 +162,16 @@ export async function fetchAllMemos(): Promise<FetchMemosResponse> { return wrap
 export async function createNewMemo(title: string, content: string, color: string): Promise<ApiResponse<Memo>> { return wrap(() => createMemo(title, content, color)); }
 export async function editMemo(id: number, title: string, content: string, color: string): Promise<ApiResponse<Memo>> { return wrap(() => updateMemo(id, title, content, color)); }
 export async function removeMemo(id: number): Promise<ApiResponse> { return wrap(() => deleteMemo(id)); }
+
+// ── Inventory actions ─────────────────────────────────────────────────────────
+
+export async function fetchIngredients(): Promise<FetchIngredientsResponse> { return wrap(getIngredients); }
+export async function fetchRecipes(): Promise<FetchRecipesResponse> { return wrap(getRecipesWithIngredients); }
+export async function fetchRecentDeductions(limit?: number): Promise<FetchDeductionEventsResponse> { return wrap(() => getRecentDeductions(limit)); }
+export async function restockIngredient(id: string, sealed: number, opened: number, note?: string, by?: string): Promise<ApiResponse> { return wrap(() => addRestock(id, sealed, opened, note, by)); }
+export async function setPhysicalInventory(id: string, sealed: number, opened: number): Promise<ApiResponse<Ingredient>> { return wrap(() => physicalInventory(id, sealed, opened)); }
+export async function saveRecipe(menu_id: number, ingredient_id: string, qty: number): Promise<ApiResponse> { return wrap(() => upsertRecipe(menu_id, ingredient_id, qty)); }
+export async function removeRecipe(menu_id: number, ingredient_id: string): Promise<ApiResponse> { return wrap(() => deleteRecipe(menu_id, ingredient_id)); }
 
 // ── AI Analysis actions ───────────────────────────────────────────────────────
 

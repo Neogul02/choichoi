@@ -66,6 +66,19 @@ export interface DailySalesItem {
   orderCount: number;
 }
 
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+export interface MakeableResult {
+  menu_id: number;
+  menu_name: string;
+  count: number;
+  bottleneck: string | null;
+}
+
+export type FetchIngredientsResponse = ApiResponse<import('./database').Ingredient[]>;
+export type FetchRecipesResponse = ApiResponse<import('./database').Recipe[]>;
+export type FetchDeductionEventsResponse = ApiResponse<import('./database').DeductionEvent[]>;
+
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
 export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;
 export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;
