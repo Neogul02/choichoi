@@ -1,7 +1,7 @@
-import type { DeductionEvent } from '@/types/database';
+import type { OrderLogEntry } from '@/types/api';
 
 interface Props {
-  logs: DeductionEvent[];
+  logs: OrderLogEntry[];
   isLoading: boolean;
 }
 
@@ -12,6 +12,11 @@ function formatTime(iso: string): string {
   return `${h}:${m}`;
 }
 
+function formatQty(qty: number, unit: string): string {
+  if (unit === 'g' && qty >= 1000) return `${(qty / 1000).toFixed(1)}kg`;
+  return `${qty}${unit}`;
+}
+
 export default function LiveLog({ logs, isLoading }: Props) {
   return (
     <div>
@@ -20,22 +25,33 @@ export default function LiveLog({ logs, isLoading }: Props) {
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         <span className="text-xs text-[#999]">실시간</span>
       </div>
+
       {isLoading && <p className="text-xs text-[#bbb]">불러오는 중…</p>}
       {!isLoading && logs.length === 0 && (
         <p className="text-xs text-[#bbb]">아직 차감 내역이 없습니다.</p>
       )}
-      <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-        {logs.map((log) => (
-          <li key={log.id} className="flex items-center gap-2 text-xs">
-            <span className="text-[#bbb] tabular-nums shrink-0">{formatTime(log.created_at)}</span>
-            <span className="font-semibold text-[#444]">
-              {log.ingredients?.name ?? log.ingredient_id}
-            </span>
-            <span className="text-[#888]">
-              {log.qty_deducted}{log.ingredients?.base_unit ?? ''} 차감
-            </span>
-          </li>
-        ))}
+
+      <ul className="space-y-2 max-h-56 overflow-y-auto">
+        {logs.map((log) => {
+          const menuStr = log.menuItems
+            .map((m) => `${m.name} ${m.quantity}개`)
+            .join(', ') || '주문';
+          const deductStr = log.deductions
+            .map((d) => `${d.name} ${formatQty(d.qty, d.unit)}`)
+            .join(', ');
+
+          return (
+            <li key={log.orderId} className="flex gap-2.5 text-xs items-start">
+              <span className="text-[#bbb] tabular-nums shrink-0 mt-0.5">
+                {formatTime(log.createdAt)}
+              </span>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="font-semibold text-[#333] truncate">{menuStr}</span>
+                <span className="text-[#999] truncate">{deductStr} 차감</span>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

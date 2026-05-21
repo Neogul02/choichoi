@@ -46,7 +46,10 @@ import {
   upsertRecipe,
   deleteRecipe,
   getRecentDeductions,
+  getRecentOrderLogs,
   updateIngredientMeta,
+  addIngredient,
+  deleteIngredient,
 } from '@/lib/supabase-admin';
 import type { OrderItemInput, WorkerInput } from '@/lib/supabase';
 import type {
@@ -91,12 +94,14 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
   try {
     const order = await createOrder(items, totalPrice, cashierName);
     const sales = await getTodaysSales();
+    let inventoryError: string | undefined;
     try {
       await deductForOrder(order.id);
     } catch (err) {
-      console.warn('[inventory] deductForOrder failed:', err);
+      inventoryError = extractErrorMessage(err);
+      console.error('[inventory] deductForOrder failed:', err);
     }
-    return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales };
+    return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales, inventoryError };
   } catch (error) {
     return { success: false, error: extractErrorMessage(error) };
   }
@@ -169,6 +174,7 @@ export async function removeMemo(id: number): Promise<ApiResponse> { return wrap
 export async function fetchIngredients(): Promise<FetchIngredientsResponse> { return wrap(getIngredients); }
 export async function fetchRecipes(): Promise<FetchRecipesResponse> { return wrap(getRecipesWithIngredients); }
 export async function fetchRecentDeductions(limit?: number): Promise<FetchDeductionEventsResponse> { return wrap(() => getRecentDeductions(limit)); }
+export async function fetchRecentOrderLogs(limit?: number): Promise<import('@/types/api').FetchOrderLogsResponse> { return wrap(() => getRecentOrderLogs(limit)); }
 export async function restockIngredient(id: string, sealed: number, opened: number, note?: string, by?: string): Promise<ApiResponse> { return wrap(() => addRestock(id, sealed, opened, note, by)); }
 export async function setPhysicalInventory(id: string, sealed: number, opened: number): Promise<ApiResponse<Ingredient>> { return wrap(() => physicalInventory(id, sealed, opened)); }
 export async function saveRecipe(menu_id: number, ingredient_id: string, qty: number): Promise<ApiResponse> { return wrap(() => upsertRecipe(menu_id, ingredient_id, qty)); }
@@ -177,6 +183,12 @@ export async function updateIngredientSettings(
   id: string,
   updates: { container_size?: number; reorder_at_containers?: number; vendor?: string }
 ): Promise<ApiResponse<Ingredient>> { return wrap(() => updateIngredientMeta(id, updates)); }
+export async function createIngredient(data: {
+  id: string; name: string; category: string; color: string;
+  unit_type: 'count' | 'weight'; base_unit: string; container_unit: string;
+  container_size: number; reorder_at_containers: number;
+}): Promise<ApiResponse<Ingredient>> { return wrap(() => addIngredient(data)); }
+export async function deleteIngredientById(id: string): Promise<ApiResponse> { return wrap(() => deleteIngredient(id)); }
 
 // ── AI Analysis actions ───────────────────────────────────────────────────────
 

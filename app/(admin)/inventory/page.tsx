@@ -5,15 +5,13 @@ import NavBar from '@/components/NavBar';
 import type { Ingredient } from '@/types/database';
 import { useInventory, totalQty, getStatus } from './_hooks/useInventory';
 import { useLiveLog } from './_hooks/useLiveLog';
-import LowStockAlert from './_components/LowStockAlert';
-import MakeableHero from './_components/MakeableHero';
-import StatusStrip from './_components/StatusStrip';
 import FilterBar, { type SortKey } from './_components/FilterBar';
 import IngredientCard from './_components/IngredientCard';
 import IngredientManageModal from './_components/IngredientManageModal';
 import LiveLog from './_components/LiveLog';
 import RecipePanel from './_components/RecipePanel';
 import RecipeModal from './_components/RecipeModal';
+import AddIngredientModal from './_components/AddIngredientModal';
 
 interface MenuTarget {
   menu_id: number;
@@ -21,13 +19,14 @@ interface MenuTarget {
 }
 
 export default function InventoryPage() {
-  const { ingredients, recipes, makeable, isLoading, reload } = useInventory();
+  const { ingredients, recipes, isLoading, reload } = useInventory();
   const { logs, isLoading: logLoading } = useLiveLog();
 
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState<SortKey>('default');
   const [manageTarget, setManageTarget] = useState<Ingredient | null>(null);
   const [recipeTarget, setRecipeTarget] = useState<MenuTarget | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const filtered = useMemo(() => {
     let list = category === '전체' ? ingredients : ingredients.filter((i) => i.category === category);
@@ -46,16 +45,18 @@ export default function InventoryPage() {
       <main className="min-h-screen p-3 md:p-5">
         <div className="max-w-[860px] mx-auto flex flex-col gap-3">
 
-          <div className="flex items-center gap-2 px-0.5">
-            <h2 className="text-xl font-extrabold text-[#161616]">재고</h2>
-            {isLoading && <span className="text-[11px] text-[#bbb]">불러오는 중…</span>}
+          <div className="flex items-center justify-between px-0.5">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-extrabold text-[#161616]">재고</h2>
+              {isLoading && <span className="text-[11px] text-[#bbb]">불러오는 중…</span>}
+            </div>
+            <button
+              onClick={() => setAddOpen(true)}
+              className="text-[12px] font-bold px-3 py-1.5 rounded-xl bg-primary-700 text-white hover:bg-primary-800 cursor-pointer border-none transition"
+            >
+              + 재고 종류 추가
+            </button>
           </div>
-
-          <LowStockAlert ingredients={ingredients} onRestock={setManageTarget} />
-
-          <MakeableHero makeable={makeable} />
-
-          <StatusStrip ingredients={ingredients} />
 
           <FilterBar
             category={category}
@@ -106,6 +107,12 @@ export default function InventoryPage() {
         ingredients={ingredients}
         onClose={() => setRecipeTarget(null)}
         onRefresh={reload}
+      />
+
+      <AddIngredientModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSuccess={reload}
       />
     </>
   );

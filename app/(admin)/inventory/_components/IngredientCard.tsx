@@ -28,7 +28,7 @@ function formatDetail(ing: Ingredient): string {
 }
 
 const STATUS_STYLES: Record<IngredientStatus, { chip: string; border: string; bg: string }> = {
-  out:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-rose-300',    bg: 'bg-rose-50' },
+  out:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-[#e8e8e8]',   bg: 'bg-white' },
   low:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-rose-200',    bg: 'bg-white' },
   warn: { chip: 'bg-amber-100 text-amber-600',      border: 'border-amber-200',   bg: 'bg-white' },
   ok:   { chip: 'bg-emerald-100 text-emerald-600',  border: 'border-[#e8e8e8]',   bg: 'bg-white' },
