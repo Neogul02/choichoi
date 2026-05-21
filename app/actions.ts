@@ -1,5 +1,6 @@
 'use server';
 
+import axios from 'axios';
 import {
   createOrder,
   getTodaysSales,
@@ -181,26 +182,19 @@ ${menuList || '  - 데이터 없음'}
 분석 포인트: 피크 시간대, 인기 메뉴, 전체 매출 흐름, 개선 제안 등을 포함해주세요.`;
 
   try {
-    const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      }
+    const { data } = await axios.post(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      { contents: [{ parts: [{ text: prompt }] }] },
+      { headers: { 'X-goog-api-key': apiKey } }
     );
-
-    if (!res.ok) {
-      if (res.status === 429) return { success: false, error: 'API 요청 한도에 도달했습니다. 잠시 후 다시 시도해주세요.' };
-      const err = await res.text();
-      return { success: false, error: `Gemini 오류: ${res.status} ${err}` };
-    }
-
-    const data = await res.json();
     const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     if (!text) return { success: false, error: '응답을 받지 못했습니다.' };
     return { success: true, data: text };
   } catch (e) {
+    if (axios.isAxiosError(e)) {
+      if (e.response?.status === 429) return { success: false, error: 'API 요청 한도에 도달했습니다. 잠시 후 다시 시도해주세요.' };
+      return { success: false, error: `Gemini 오류: ${e.response?.status} ${e.response?.data?.error?.message ?? ''}` };
+    }
     return { success: false, error: String(e) };
   }
 }
