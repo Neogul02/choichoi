@@ -78,6 +78,13 @@ export default function SchedulePage() {
   const [dragOverCell, setDragOverCell] = useState<DragCell | null>(null);
   const touchDragRef = useRef<number | null>(null);
 
+  const loadEvents = async () => {
+    setIsEventsLoading(true);
+    const r = await fetchPopupEvents();
+    if (r.success && r.data) setEvents(r.data);
+    setIsEventsLoading(false);
+  };
+
   useEffect(() => {
     loadEvents();
     try { const s = localStorage.getItem(LOCAL_RATES_KEY); if (s) setLocalRates(JSON.parse(s)); } catch { /* ignore */ }
@@ -86,13 +93,6 @@ export default function SchedulePage() {
   const showMsg = (msg: string) => {
     const isError = msg.startsWith('오류') || msg.endsWith('하세요') || msg.includes('앞입니다') || msg.includes('찾을 수 없습니다');
     if (isError) toast.error(msg); else toast.success(msg);
-  };
-
-  const loadEvents = async () => {
-    setIsEventsLoading(true);
-    const r = await fetchPopupEvents();
-    if (r.success && r.data) setEvents(r.data);
-    setIsEventsLoading(false);
   };
 
   const loadWorkers = async (eventId: number) => {
