@@ -10,9 +10,15 @@ import MakeableHero from './_components/MakeableHero';
 import StatusStrip from './_components/StatusStrip';
 import FilterBar, { type SortKey } from './_components/FilterBar';
 import IngredientCard from './_components/IngredientCard';
+import IngredientManageModal from './_components/IngredientManageModal';
 import LiveLog from './_components/LiveLog';
 import RecipePanel from './_components/RecipePanel';
-import RestockSheet from './_components/RestockSheet';
+import RecipeModal from './_components/RecipeModal';
+
+interface MenuTarget {
+  menu_id: number;
+  menu_name: string;
+}
 
 export default function InventoryPage() {
   const { ingredients, recipes, makeable, isLoading, reload } = useInventory();
@@ -20,7 +26,8 @@ export default function InventoryPage() {
 
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState<SortKey>('default');
-  const [restockTarget, setRestockTarget] = useState<Ingredient | null>(null);
+  const [manageTarget, setManageTarget] = useState<Ingredient | null>(null);
+  const [recipeTarget, setRecipeTarget] = useState<MenuTarget | null>(null);
 
   const filtered = useMemo(() => {
     let list = category === '전체' ? ingredients : ingredients.filter((i) => i.category === category);
@@ -39,13 +46,12 @@ export default function InventoryPage() {
       <main className="min-h-screen p-3 md:p-5">
         <div className="max-w-[860px] mx-auto flex flex-col gap-3">
 
-          {/* 헤더 */}
           <div className="flex items-center gap-2 px-0.5">
             <h2 className="text-xl font-extrabold text-[#161616]">재고</h2>
             {isLoading && <span className="text-[11px] text-[#bbb]">불러오는 중…</span>}
           </div>
 
-          <LowStockAlert ingredients={ingredients} onRestock={setRestockTarget} />
+          <LowStockAlert ingredients={ingredients} onRestock={setManageTarget} />
 
           <MakeableHero makeable={makeable} />
 
@@ -58,7 +64,6 @@ export default function InventoryPage() {
             onSortChange={setSort}
           />
 
-          {/* 재료 카드 그리드 */}
           {filtered.length === 0 && !isLoading ? (
             <p className="text-[12px] text-[#bbb] px-0.5">재료가 없습니다.</p>
           ) : (
@@ -68,30 +73,39 @@ export default function InventoryPage() {
                   key={ing.id}
                   ingredient={ing}
                   recipes={recipes}
-                  onRestock={() => setRestockTarget(ing)}
-                  onRefresh={reload}
+                  onClick={() => setManageTarget(ing)}
                 />
               ))}
             </div>
           )}
 
-          {/* 차감 로그 */}
           <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <LiveLog logs={logs} isLoading={logLoading} />
           </div>
 
-          {/* 레시피 관리 */}
           <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-            <RecipePanel recipes={recipes} ingredients={ingredients} onRefresh={reload} />
+            <RecipePanel
+              recipes={recipes}
+              ingredients={ingredients}
+              onSelectMenu={setRecipeTarget}
+            />
           </div>
 
         </div>
       </main>
 
-      <RestockSheet
-        ingredient={restockTarget}
-        onClose={() => setRestockTarget(null)}
+      <IngredientManageModal
+        ingredient={manageTarget}
+        onClose={() => setManageTarget(null)}
         onSuccess={reload}
+      />
+
+      <RecipeModal
+        target={recipeTarget}
+        recipes={recipes}
+        ingredients={ingredients}
+        onClose={() => setRecipeTarget(null)}
+        onRefresh={reload}
       />
     </>
   );
