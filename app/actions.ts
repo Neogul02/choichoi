@@ -36,9 +36,8 @@ import {
   createMemo,
   updateMemo,
   deleteMemo,
-  type OrderItemInput,
-  type WorkerInput,
-} from '@/lib/supabase';
+} from '@/lib/supabase-admin';
+import type { OrderItemInput, WorkerInput } from '@/lib/supabase';
 import type {
   ApiResponse,
   SaveOrderResponse,
