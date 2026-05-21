@@ -448,6 +448,29 @@ export async function getDailySalesByPeriod(startISO: string, endISO: string): P
     .map(([date, { revenue, orderCount }]) => ({ date, revenue, orderCount }));
 }
 
+export async function getOrdersByPeriod(startISO: string, endISO: string): Promise<Array<{ created_at: string; total_price: number }>> {
+  const PAGE_SIZE = 1000;
+  const MAX_ROWS = 10000;
+  const result: Array<{ created_at: string; total_price: number }> = [];
+
+  for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from('orders')
+      .select('created_at, total_price')
+      .gte('created_at', startISO)
+      .lte('created_at', endISO)
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    result.push(...data.map((o) => ({ created_at: o.created_at as string, total_price: Number(o.total_price) })));
+    if (data.length < PAGE_SIZE) break;
+  }
+
+  return result;
+}
+
 export async function getMenuSalesByPeriod(startISO: string, endISO: string): Promise<MenuSalesItem[]> {
   const { data, error } = await supabaseAdmin
     .rpc('get_menu_sales_by_period', { p_start: startISO, p_end: endISO });
