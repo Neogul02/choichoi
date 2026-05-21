@@ -3,10 +3,30 @@ import type { MenuItem, Order, PopupEvent, ScheduleSlot, Memo, Worker, Ingredien
 import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord, OrderRecordWithItems, DailySalesItem } from '@/types/api';
 import type { OrderItemInput, WorkerInput } from '@/lib/supabase';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+if (!supabaseUrl) {
+  console.error('[Supabase Admin] Missing NEXT_PUBLIC_SUPABASE_URL');
+}
+
+if (!serviceKey) {
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('[Supabase Admin] Missing SUPABASE_SERVICE_ROLE_KEY in production! Falling back to ANON_KEY. RLS might block operations.');
+  } else {
+    console.log('[Supabase Admin] No SERVICE_ROLE_KEY found, using ANON_KEY.');
+  }
+}
+
+const supabaseKey = serviceKey || anonKey || '';
+if (supabaseKey === serviceKey && serviceKey) {
+  console.log('[Supabase Admin] Initializing with SERVICE_ROLE_KEY');
+} else if (supabaseKey === anonKey && anonKey) {
+  console.log('[Supabase Admin] Initializing with ANON_KEY');
+}
+
+const supabaseAdmin = createClient(supabaseUrl || '', supabaseKey);
 
 function getKSTDateStr(): string {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().split('T')[0];
@@ -637,15 +657,16 @@ export async function getRecentOrderLogs(limit = 20): Promise<import('@/types/ap
     .from('deduction_events')
     .select('order_id, qty_deducted, created_at, ingredient_id, ingredients(name, base_unit)')
     .order('created_at', { ascending: false })
-    .limit(limit * 6);
+    .limit(limit * 8); // Increased multiplier to ensure we get enough orders
   if (dErr) throw dErr;
 
   const rows = (deductions ?? []) as unknown as Array<{
-    order_id: number; qty_deducted: number; created_at: string; ingredient_id: string;
+    order_id: number | null; qty_deducted: number; created_at: string; ingredient_id: string;
     ingredients: { name: string; base_unit: string } | null;
   }>;
 
-  const orderIds = [...new Set(rows.map((r) => r.order_id))].slice(0, limit);
+  // Filter out rows with null order_id to prevent query errors and group by order_id
+  const orderIds = [...new Set(rows.map((r) => r.order_id).filter((id): id is number => id !== null))].slice(0, limit);
   if (orderIds.length === 0) return [];
 
   const { data: items, error: iErr } = await supabaseAdmin
