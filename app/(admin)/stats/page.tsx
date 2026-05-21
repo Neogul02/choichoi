@@ -16,6 +16,8 @@ import MenuBreakdownSection from './_components/MenuBreakdownSection';
 import TodayOrdersSection from './_components/TodayOrdersSection';
 import CalendarSection from './_components/CalendarSection';
 import PopupStatsSection from './_components/PopupStatsSection';
+import HourlySalesSection from './_components/HourlySalesSection';
+import AIAnalysisSection from './_components/AIAnalysisSection';
 
 type Period = 'today' | 'week' | 'month';
 
@@ -119,6 +121,10 @@ export default function StatsPage() {
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={loadTodayData} />
 
           <div className="bg-white rounded-2xl p-4 md:p-5">
+            <AIAnalysisSection summary={summary} todayOrders={todayOrders} menuBreakdown={breakdown} />
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 md:p-5">
             <MenuBreakdownSection
               breakdown={breakdown}
               period={breakdownPeriod}
@@ -126,6 +132,10 @@ export default function StatsPage() {
               periodLabel={getPeriodBounds(breakdownPeriod).label}
               onPeriodChange={setBreakdownPeriod}
             />
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 md:p-5">
+            <HourlySalesSection orders={todayOrders} isLoading={isLoading} />
           </div>
 
           <div className="bg-white rounded-2xl p-4 md:p-5">
