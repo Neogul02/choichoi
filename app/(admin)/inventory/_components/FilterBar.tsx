@@ -18,15 +18,15 @@ const SORT_OPTIONS: { label: string; value: SortKey }[] = [
 export default function FilterBar({ category, sort, onCategoryChange, onSortChange }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex gap-1.5 overflow-x-auto">
+      <div className="flex gap-1 overflow-x-auto">
         {CATEGORIES.map((c) => (
           <button
             key={c}
             onClick={() => onCategoryChange(c)}
-            className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${
+            className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
               category === c
-                ? 'bg-primary-700 text-white border-primary-700'
-                : 'bg-white text-[#555] border-[#e0e0e0] hover:border-primary-700 hover:text-primary-700'
+                ? 'bg-primary-700 text-white'
+                : 'bg-white text-[#666] border border-[#e0e0e0] hover:bg-primary-50 hover:text-primary-700'
             }`}
           >
             {c}
@@ -38,10 +38,10 @@ export default function FilterBar({ category, sort, onCategoryChange, onSortChan
           <button
             key={o.value}
             onClick={() => onSortChange(o.value)}
-            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
+            className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
               sort === o.value
-                ? 'bg-[#161616] text-white border-[#161616]'
-                : 'bg-white text-[#888] border-[#e0e0e0] hover:text-[#161616]'
+                ? 'bg-[#161616] text-white'
+                : 'bg-white text-[#888] border border-[#e0e0e0] hover:text-[#161616]'
             }`}
           >
             {o.label}

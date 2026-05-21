@@ -46,6 +46,7 @@ import {
   upsertRecipe,
   deleteRecipe,
   getRecentDeductions,
+  updateIngredientMeta,
 } from '@/lib/supabase-admin';
 import type { OrderItemInput, WorkerInput } from '@/lib/supabase';
 import type {
@@ -172,6 +173,10 @@ export async function restockIngredient(id: string, sealed: number, opened: numb
 export async function setPhysicalInventory(id: string, sealed: number, opened: number): Promise<ApiResponse<Ingredient>> { return wrap(() => physicalInventory(id, sealed, opened)); }
 export async function saveRecipe(menu_id: number, ingredient_id: string, qty: number): Promise<ApiResponse> { return wrap(() => upsertRecipe(menu_id, ingredient_id, qty)); }
 export async function removeRecipe(menu_id: number, ingredient_id: string): Promise<ApiResponse> { return wrap(() => deleteRecipe(menu_id, ingredient_id)); }
+export async function updateIngredientSettings(
+  id: string,
+  updates: { container_size?: number; reorder_at_containers?: number; vendor?: string }
+): Promise<ApiResponse<Ingredient>> { return wrap(() => updateIngredientMeta(id, updates)); }
 
 // ── AI Analysis actions ───────────────────────────────────────────────────────
 

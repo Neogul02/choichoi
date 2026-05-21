@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import NavBar from '@/components/NavBar';
-import { motion } from 'framer-motion';
 import type { Ingredient } from '@/types/database';
 import { useInventory, totalQty, getStatus } from './_hooks/useInventory';
 import { useLiveLog } from './_hooks/useLiveLog';
@@ -38,18 +37,13 @@ export default function InventoryPage() {
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5">
-        <div className="max-w-[860px] mx-auto flex flex-col gap-3 md:gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="flex items-center gap-3 px-1"
-          >
-            <h2 className="text-2xl font-extrabold text-[#161616]">재고</h2>
-            {isLoading && (
-              <span className="text-xs text-[#bbb]">불러오는 중…</span>
-            )}
-          </motion.div>
+        <div className="max-w-[860px] mx-auto flex flex-col gap-3">
+
+          {/* 헤더 */}
+          <div className="flex items-center gap-2 px-0.5">
+            <h2 className="text-xl font-extrabold text-[#161616]">재고</h2>
+            {isLoading && <span className="text-[11px] text-[#bbb]">불러오는 중…</span>}
+          </div>
 
           <LowStockAlert ingredients={ingredients} onRestock={setRestockTarget} />
 
@@ -64,28 +58,33 @@ export default function InventoryPage() {
             onSortChange={setSort}
           />
 
-          {filtered.length === 0 && !isLoading && (
-            <p className="text-sm text-[#bbb] px-1">재료가 없습니다.</p>
+          {/* 재료 카드 그리드 */}
+          {filtered.length === 0 && !isLoading ? (
+            <p className="text-[12px] text-[#bbb] px-0.5">재료가 없습니다.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filtered.map((ing) => (
+                <IngredientCard
+                  key={ing.id}
+                  ingredient={ing}
+                  recipes={recipes}
+                  onRestock={() => setRestockTarget(ing)}
+                  onRefresh={reload}
+                />
+              ))}
+            </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {filtered.map((ing) => (
-              <IngredientCard
-                key={ing.id}
-                ingredient={ing}
-                recipes={recipes}
-                onRestock={() => setRestockTarget(ing)}
-              />
-            ))}
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+          {/* 차감 로그 */}
+          <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <LiveLog logs={logs} isLoading={logLoading} />
           </div>
 
-          <div className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+          {/* 레시피 관리 */}
+          <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <RecipePanel recipes={recipes} ingredients={ingredients} onRefresh={reload} />
           </div>
+
         </div>
       </main>
 
