@@ -26,9 +26,10 @@ interface Props {
   todayStr: string;
   maxDayRevenue: number;
   onMonthChange: (offset: number) => void;
+  onDateClick: (dateKey: string, revenue: number) => void;
 }
 
-export default function CalendarSection({ calendarSales, calendarMonth, isLoading, todayStr, maxDayRevenue, onMonthChange }: Props) {
+export default function CalendarSection({ calendarSales, calendarMonth, isLoading, todayStr, maxDayRevenue, onMonthChange, onDateClick }: Props) {
   const [materialCost, setMaterialCost] = useState(() => {
     try { const s = localStorage.getItem(MATERIAL_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
   });
@@ -106,7 +107,7 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
             const dayRevenue = Number(calendarSales.byDate?.[dateKey] || 0);
             const isToday = dateKey === todayStr;
             return (
-              <div key={dateKey} className="min-h-[64px] rounded-lg p-1.5 transition-shadow" style={{ ...getCellBgStyle(dayRevenue, maxDayRevenue), border: isToday ? '2px solid #084431' : '1px solid #dce8e0' }}>
+              <div key={dateKey} className="min-h-[64px] rounded-lg p-1.5 transition-shadow cursor-pointer hover:brightness-95 active:scale-[0.97]" style={{ ...getCellBgStyle(dayRevenue, maxDayRevenue), border: isToday ? '2px solid #084431' : '1px solid #dce8e0' }} onClick={() => onDateClick(dateKey, dayRevenue)}>
                 <div className={`text-[11px] font-extrabold leading-none ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-[#444]'}`}>
                   {day}{isToday && <span className="ml-0.5 text-primary-700">•</span>}
                 </div>

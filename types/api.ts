@@ -88,6 +88,16 @@ export type FetchRecipesResponse = ApiResponse<import('./database').Recipe[]>;
 export type FetchDeductionEventsResponse = ApiResponse<import('./database').DeductionEvent[]>;
 export type FetchOrderLogsResponse = ApiResponse<OrderLogEntry[]>;
 
+export interface ManualSalesEntry {
+  id: number;
+  sale_date: string;
+  total_revenue: number;
+  total_orders: number;
+  note: string | null;
+}
+
+export type FetchManualSalesResponse = ApiResponse<ManualSalesEntry[]>;
+
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
 export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;
 export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;
