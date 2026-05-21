@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Ingredient } from '@/types/database';
-import { restockIngredient, updateIngredientSettings } from '@/app/actions';
+import { restockIngredient, updateIngredientSettings, setPhysicalInventory, deleteIngredientById } from '@/app/actions';
 import { totalQty } from '../_hooks/useInventory';
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
   onSuccess: () => void;
 }
 
-type Tab = 'restock' | 'settings';
+type Tab = 'restock' | 'adjust' | 'settings';
 const QUICK_CHIPS = [1, 3, 5, 10];
 
 export default function IngredientManageModal({ ingredient, onClose, onSuccess }: Props) {
@@ -22,6 +22,9 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
   const [note, setNote] = useState('');
   const [containerSize, setContainerSize] = useState('');
   const [reorderAt, setReorderAt] = useState('');
+  const [adjSealed, setAdjSealed] = useState('');
+  const [adjOpened, setAdjOpened] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -31,6 +34,9 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
       setNote('');
       setContainerSize(String(ingredient.container_size));
       setReorderAt(String(ingredient.reorder_at_containers));
+      setAdjSealed(String(ingredient.sealed_count));
+      setAdjOpened(String(ingredient.opened_remaining));
+      setConfirmDelete(false);
     }
   }, [ingredient]);
 
@@ -56,6 +62,38 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
       onClose();
     } else {
       toast.error(`입고 실패: ${res.error}`);
+    }
+  }
+
+  async function handleAdjust() {
+    const s = parseInt(adjSealed, 10);
+    const o = parseFloat(adjOpened);
+    if (isNaN(s) || s < 0 || isNaN(o) || o < 0) {
+      toast.error('올바른 값을 입력해주세요');
+      return;
+    }
+    setSaving(true);
+    const res = await setPhysicalInventory(ingredient!.id, s, o);
+    setSaving(false);
+    if (res.success) {
+      toast.success('재고 조정 완료');
+      onSuccess();
+      onClose();
+    } else {
+      toast.error(`조정 실패: ${res.error}`);
+    }
+  }
+
+  async function handleDelete() {
+    setSaving(true);
+    const res = await deleteIngredientById(ingredient!.id);
+    setSaving(false);
+    if (res.success) {
+      toast.success(`${ingredient!.name} 삭제 완료`);
+      onSuccess();
+      onClose();
+    } else {
+      toast.error(`삭제 실패: ${res.error}`);
     }
   }
 
@@ -118,7 +156,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
           {/* 탭 */}
           <div className="flex mx-5 mb-4 bg-[#f5f6f7] rounded-xl p-1 gap-1">
-            {(['restock', 'settings'] as Tab[]).map((t) => (
+            {(['restock', 'adjust', 'settings'] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -128,7 +166,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                     : 'bg-transparent text-[#aaa] hover:text-[#666]'
                 }`}
               >
-                {t === 'restock' ? '입고 등록' : '설정'}
+                {t === 'restock' ? '입고' : t === 'adjust' ? '재고 조정' : '설정'}
               </button>
             ))}
           </div>
@@ -201,6 +239,59 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
               </div>
             )}
 
+            {tab === 'adjust' && (
+              <div className="flex flex-col gap-4">
+                <p className="text-[11px] text-[#aaa]">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다.</p>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-bold text-[#888] block mb-1.5">
+                      미개봉 ({ingredient.container_unit})
+                    </label>
+                    <input
+                      type="number"
+                      value={adjSealed}
+                      onChange={(e) => setAdjSealed(e.target.value)}
+                      className="w-full border border-[#ddd] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                      style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                      min={0}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] font-bold text-[#888] block mb-1.5">
+                      개봉 잔량 ({ingredient.base_unit})
+                    </label>
+                    <input
+                      type="number"
+                      value={adjOpened}
+                      onChange={(e) => setAdjOpened(e.target.value)}
+                      className="w-full border border-[#ddd] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                      style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                      min={0}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-[#f9f9f9] rounded-xl px-3.5 py-2.5 text-[11px] text-[#888]">
+                  조정 후:{' '}
+                  <span className="font-bold text-[#161616]">
+                    {fmt(
+                      (parseInt(adjSealed, 10) || 0) * ingredient.container_size +
+                      (parseFloat(adjOpened) || 0)
+                    )}
+                  </span>
+                  {' '}({adjSealed || 0}{ingredient.container_unit} + {adjOpened || 0}{ingredient.base_unit})
+                </div>
+
+                <button
+                  onClick={handleAdjust}
+                  disabled={saving}
+                  className="w-full bg-primary-700 hover:bg-primary-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-[13px] border-none"
+                >
+                  {saving ? '저장 중…' : '재고 조정 확정'}
+                </button>
+              </div>
+            )}
+
             {tab === 'settings' && (
               <div className="flex flex-col gap-4">
                 <div className="flex gap-3">
@@ -244,6 +335,38 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                 >
                   {saving ? '저장 중…' : '설정 저장'}
                 </button>
+
+                <div className="border-t border-[#f0f0f0] pt-3">
+                  {!confirmDelete ? (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="w-full text-rose-500 text-[12px] font-bold py-2 rounded-xl cursor-pointer border border-rose-200 hover:bg-rose-50 transition"
+                    >
+                      이 재고 종류 삭제
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[11px] text-[#888] text-center">
+                        <span className="font-bold text-rose-500">{ingredient.name}</span>을(를) 삭제합니다. 복구 불가.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setConfirmDelete(false)}
+                          className="flex-1 text-[12px] font-bold py-2 rounded-xl cursor-pointer border border-[#e0e0e0] hover:bg-[#f5f6f7] transition"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={handleDelete}
+                          disabled={saving}
+                          className="flex-1 text-[12px] font-bold py-2 rounded-xl cursor-pointer bg-rose-500 hover:bg-rose-600 text-white border-none disabled:opacity-50 transition"
+                        >
+                          {saving ? '삭제 중…' : '삭제 확인'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

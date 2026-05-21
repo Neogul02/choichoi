@@ -2,15 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { fetchRecentDeductions } from '@/app/actions';
-import type { DeductionEvent } from '@/types/database';
+import { fetchRecentOrderLogs } from '@/app/actions';
+import type { OrderLogEntry } from '@/types/api';
 
 export function useLiveLog() {
-  const [logs, setLogs] = useState<DeductionEvent[]>([]);
+  const [logs, setLogs] = useState<OrderLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const res = await fetchRecentDeductions(30);
+    const res = await fetchRecentOrderLogs(20);
     if (res.success && res.data) setLogs(res.data);
     setIsLoading(false);
   }, []);

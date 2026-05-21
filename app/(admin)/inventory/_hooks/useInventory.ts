@@ -5,8 +5,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { fetchIngredients, fetchRecipes } from '@/app/actions';
 import type { Ingredient, Recipe } from '@/types/database';
-import type { MakeableResult } from '@/types/api';
-
 export function totalQty(ing: Ingredient): number {
   return ing.sealed_count * ing.container_size + ing.opened_remaining;
 }
@@ -20,40 +18,6 @@ export function getStatus(ing: Ingredient): IngredientStatus {
   if (boxesLeft <= ing.reorder_at_containers) return 'low';
   if (boxesLeft <= ing.reorder_at_containers + 1) return 'warn';
   return 'ok';
-}
-
-function calcMakeable(ingredients: Ingredient[], recipes: Recipe[]): MakeableResult[] {
-  const menuMap = new Map<number, { name: string; items: Recipe[] }>();
-  for (const r of recipes) {
-    if (!menuMap.has(r.menu_id)) {
-      menuMap.set(r.menu_id, { name: r.menu_items?.name ?? `메뉴 ${r.menu_id}`, items: [] });
-    }
-    menuMap.get(r.menu_id)!.items.push(r);
-  }
-
-  const ingMap = new Map(ingredients.map((i) => [i.id, i]));
-
-  return Array.from(menuMap.entries()).map(([menu_id, { name, items }]) => {
-    let minCount = Infinity;
-    let bottleneck: string | null = null;
-
-    for (const item of items) {
-      const ing = ingMap.get(item.ingredient_id);
-      if (!ing) { minCount = 0; bottleneck = item.ingredient_id; break; }
-      const possible = Math.floor(totalQty(ing) / item.qty_per_unit);
-      if (possible < minCount) {
-        minCount = possible;
-        bottleneck = ing.name;
-      }
-    }
-
-    return {
-      menu_id,
-      menu_name: name,
-      count: minCount === Infinity ? 0 : minCount,
-      bottleneck,
-    };
-  });
 }
 
 export function useInventory() {
@@ -79,7 +43,5 @@ export function useInventory() {
     return () => { supabase.removeChannel(channel); };
   }, [load]);
 
-  const makeable = calcMakeable(ingredients, recipes);
-
-  return { ingredients, recipes, makeable, isLoading, reload: load };
+  return { ingredients, recipes, isLoading, reload: load };
 }

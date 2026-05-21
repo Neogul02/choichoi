@@ -17,6 +17,7 @@ export interface SaveOrderResponse {
   dailyOrderNumber?: number;
   sales?: TodaysSales;
   error?: string;
+  inventoryError?: string;
 }
 
 export interface ResetSalesResponse {
@@ -75,9 +76,17 @@ export interface MakeableResult {
   bottleneck: string | null;
 }
 
+export interface OrderLogEntry {
+  orderId: number;
+  createdAt: string;
+  menuItems: { name: string; quantity: number }[];
+  deductions: { name: string; qty: number; unit: string }[];
+}
+
 export type FetchIngredientsResponse = ApiResponse<import('./database').Ingredient[]>;
 export type FetchRecipesResponse = ApiResponse<import('./database').Recipe[]>;
 export type FetchDeductionEventsResponse = ApiResponse<import('./database').DeductionEvent[]>;
+export type FetchOrderLogsResponse = ApiResponse<OrderLogEntry[]>;
 
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
 export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;

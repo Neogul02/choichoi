@@ -632,8 +632,80 @@ export async function getRecentDeductions(limit = 30): Promise<DeductionEvent[]>
   return (data ?? []) as unknown as DeductionEvent[];
 }
 
+export async function getRecentOrderLogs(limit = 20): Promise<import('@/types/api').OrderLogEntry[]> {
+  const { data: deductions, error: dErr } = await supabaseAdmin
+    .from('deduction_events')
+    .select('order_id, qty_deducted, created_at, ingredient_id, ingredients(name, base_unit)')
+    .order('created_at', { ascending: false })
+    .limit(limit * 6);
+  if (dErr) throw dErr;
+
+  const rows = (deductions ?? []) as unknown as Array<{
+    order_id: number; qty_deducted: number; created_at: string; ingredient_id: string;
+    ingredients: { name: string; base_unit: string } | null;
+  }>;
+
+  const orderIds = [...new Set(rows.map((r) => r.order_id))].slice(0, limit);
+  if (orderIds.length === 0) return [];
+
+  const { data: items, error: iErr } = await supabaseAdmin
+    .from('order_items')
+    .select('order_id, quantity, menu_items(name)')
+    .in('order_id', orderIds);
+  if (iErr) throw iErr;
+
+  const itemRows = (items ?? []) as unknown as Array<{
+    order_id: number; quantity: number;
+    menu_items: { name: string } | null;
+  }>;
+
+  return orderIds.map((orderId) => {
+    const deductionRows = rows.filter((r) => r.order_id === orderId);
+    const menuRows = itemRows.filter((i) => i.order_id === orderId);
+    return {
+      orderId,
+      createdAt: deductionRows[0]?.created_at ?? '',
+      menuItems: menuRows.map((i) => ({ name: i.menu_items?.name ?? '메뉴', quantity: i.quantity })),
+      deductions: deductionRows.map((d) => ({
+        name: d.ingredients?.name ?? d.ingredient_id,
+        qty: Number(d.qty_deducted),
+        unit: d.ingredients?.base_unit ?? '',
+      })),
+    };
+  });
+}
+
 export async function deductForOrder(orderId: number): Promise<void> {
   const { error } = await supabaseAdmin.rpc('deduct_for_order', { p_order_id: orderId });
+  if (error) throw error;
+}
+
+export async function addIngredient(data: {
+  id: string;
+  name: string;
+  category: string;
+  color: string;
+  unit_type: 'count' | 'weight';
+  base_unit: string;
+  container_unit: string;
+  container_size: number;
+  reorder_at_containers: number;
+  sort_order?: number;
+}): Promise<Ingredient> {
+  const { data: row, error } = await supabaseAdmin
+    .from('ingredients')
+    .insert([{ ...data, sort_order: data.sort_order ?? 0 }])
+    .select()
+    .single();
+  if (error) throw error;
+  return row as Ingredient;
+}
+
+export async function deleteIngredient(id: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('ingredients')
+    .delete()
+    .eq('id', id);
   if (error) throw error;
 }
 

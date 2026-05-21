@@ -137,7 +137,7 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
                           className="w-14 border border-[#ddd] rounded-lg text-xs text-center px-1.5 py-1 focus:outline-none focus:border-primary-700"
                           style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                           autoFocus
-                          min={0.1}
+                          min={0}
                         />
                         <span className="text-[10px] text-[#aaa]">{ing?.base_unit}</span>
                         <button

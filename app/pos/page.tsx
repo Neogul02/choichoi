@@ -330,6 +330,7 @@ export default function PosPage() {
           ? `오늘 ${result.dailyOrderNumber}번째 주문`
           : `주문번호: ${result.orderId}`
         toast.success(`결제 완료! ${label}`)
+        if (result.inventoryError) toast.error(`재고 차감 실패: ${result.inventoryError}`)
 
         if (result.sales) setTodaySales(result.sales)
         setFlashKey((k) => k + 1)
