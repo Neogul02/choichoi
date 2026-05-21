@@ -651,12 +651,14 @@ export default function PosPage() {
           </section>
 
           {/* 모바일 전용 sticky 결제 바 */}
-          <div className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3 px-3 pb-3 pt-3 bg-gradient-to-t from-[#f5f6f7] via-[#f5f6f7]/95 to-transparent pointer-events-none">
+          <div className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3">
+            <div className="absolute -top-6 inset-x-0 h-6 bg-gradient-to-t from-[#f5f6f7] to-transparent pointer-events-none" />
+            <div className="px-3 pb-3 pt-3 bg-[#f5f6f7]">
             <button
               type="button"
               onClick={handleCheckout}
               disabled={checkoutMutation.isPending || orderedItems.length === 0}
-              className="pointer-events-auto w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-[#ccc] disabled:cursor-not-allowed"
+              className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-[#ccc] disabled:cursor-not-allowed"
             >
               <span className="flex items-center gap-2.5">
                 <span className="min-w-7 h-7 px-2 rounded-full bg-white/20 text-xs font-black flex items-center justify-center tabular-nums">
@@ -671,6 +673,7 @@ export default function PosPage() {
               </span>
             </button>
           </div>
+        </div>
         </div>
 
         <SalesBanner

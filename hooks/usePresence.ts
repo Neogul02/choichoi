@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase';
 
 export function usePresence(cashierName: string | null): string[] {
   const [activeCashiers, setActiveCashiers] = useState<string[]>([]);
-  const clientIdRef = useRef<string>(Math.random().toString(36).slice(2, 10));
+  const [clientId] = useState(() => Math.random().toString(36).slice(2, 10));
+  const clientIdRef = useRef(clientId);
 
   useEffect(() => {
     if (!cashierName) return () => {};
