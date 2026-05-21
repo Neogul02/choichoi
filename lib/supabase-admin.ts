@@ -744,3 +744,49 @@ export async function updateIngredientMeta(
   return data as Ingredient;
 }
 
+// ── Manual Sales (daily_sales) ────────────────────────────────────────────────
+
+export async function upsertDailySales(
+  saleDate: string,
+  totalRevenue: number,
+  totalOrders: number,
+  note: string | null,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('daily_sales')
+    .upsert(
+      { sale_date: saleDate, total_revenue: totalRevenue, total_orders: totalOrders, note, updated_at: new Date().toISOString() },
+      { onConflict: 'sale_date' },
+    );
+  if (error) throw error;
+}
+
+export async function getDailySalesForMonth(year: number, month: number): Promise<import('@/types/api').ManualSalesEntry[]> {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const end = month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const { data, error } = await supabaseAdmin
+    .from('daily_sales')
+    .select('id, sale_date, total_revenue, total_orders, note')
+    .gte('sale_date', start)
+    .lt('sale_date', end)
+    .order('sale_date', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as import('@/types/api').ManualSalesEntry[];
+}
+
+export async function deleteDailySales(id: number): Promise<void> {
+  const { error } = await supabaseAdmin.from('daily_sales').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getDailySalesByDate(saleDate: string): Promise<import('@/types/api').ManualSalesEntry | null> {
+  const { data, error } = await supabaseAdmin
+    .from('daily_sales')
+    .select('id, sale_date, total_revenue, total_orders, note')
+    .eq('sale_date', saleDate)
+    .maybeSingle();
+  if (error) throw error;
+  return data as import('@/types/api').ManualSalesEntry | null;
+}

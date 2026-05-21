@@ -50,6 +50,10 @@ import {
   updateIngredientMeta,
   addIngredient,
   deleteIngredient,
+  upsertDailySales,
+  getDailySalesForMonth,
+  deleteDailySales,
+  getDailySalesByDate,
 } from '@/lib/supabase-admin';
 import type { OrderItemInput, WorkerInput } from '@/lib/supabase';
 import type {
@@ -70,6 +74,7 @@ import type {
   FetchIngredientsResponse,
   FetchRecipesResponse,
   FetchDeductionEventsResponse,
+  FetchManualSalesResponse,
 } from '@/types/api';
 import type { MenuItem, Memo, ScheduleSlot, PopupEvent, Worker, Ingredient } from '@/types/database';
 
@@ -153,6 +158,10 @@ export async function reorderMenuItems(orderedIds: number[]): Promise<ApiRespons
 export async function fetchMonthlySalesCalendar(year: number, month: number): Promise<FetchCalendarResponse> { return wrap(() => getMonthlySalesByDate(year, month)); }
 export async function fetchMenuSalesBreakdown(startISO: string, endISO: string): Promise<FetchMenuSalesResponse> { return wrap(() => getMenuSalesByPeriod(startISO, endISO)); }
 export async function fetchDailySalesByPeriod(startISO: string, endISO: string): Promise<FetchDailySalesResponse> { return wrap(() => getDailySalesByPeriod(startISO, endISO)); }
+export async function saveManualSales(saleDate: string, totalRevenue: number, totalOrders: number, note: string | null): Promise<ApiResponse> { return wrap(() => upsertDailySales(saleDate, totalRevenue, totalOrders, note)); }
+export async function fetchManualSalesForMonth(year: number, month: number): Promise<FetchManualSalesResponse> { return wrap(() => getDailySalesForMonth(year, month)); }
+export async function removeManualSales(id: number): Promise<ApiResponse> { return wrap(() => deleteDailySales(id)); }
+export async function fetchManualSalesByDate(saleDate: string): Promise<ApiResponse<import('@/types/api').ManualSalesEntry | null>> { return wrap(() => getDailySalesByDate(saleDate)); }
 
 // ── Popup Event actions ───────────────────────────────────────────────────────
 
