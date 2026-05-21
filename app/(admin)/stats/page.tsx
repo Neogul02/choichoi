@@ -109,17 +109,55 @@ export default function StatsPage() {
     }
   };
 
-return (
+  return (
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="bg-white rounded-2xl p-4 md:p-5 max-w-[800px] mx-auto">
-          <h2 className="m-0 mb-5 text-2xl font-extrabold">매출</h2>
+        <div className="max-w-[800px] mx-auto flex flex-col gap-3 md:gap-4">
+          <h2 className="m-0 px-1 text-2xl font-extrabold">매출</h2>
+
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={loadTodayData} />
-          <MenuBreakdownSection breakdown={breakdown} period={breakdownPeriod} isLoading={isBreakdownLoading} periodLabel={getPeriodBounds(breakdownPeriod).label} onPeriodChange={setBreakdownPeriod} />
-          <TodayOrdersSection orders={todayOrders} todayRevenue={todayRevenue} isLoading={isLoading} onDeleteOrder={handleDeleteOrder} />
-          <CalendarSection calendarSales={calendarSales} calendarMonth={calendarMonth} isLoading={isCalendarLoading} todayStr={todayStr} maxDayRevenue={maxDayRevenue} onMonthChange={(offset) => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1))} />
-          <PopupStatsSection popupEvents={popupEvents} selectedPopupId={selectedPopupId} popupMenuBreakdown={popupMenuBreakdown} popupDailySales={popupDailySales} isLoading={isPopupStatsLoading} onSelectPopup={setSelectedPopupId} />
+
+          <div className="bg-white rounded-2xl p-4 md:p-5">
+            <MenuBreakdownSection
+              breakdown={breakdown}
+              period={breakdownPeriod}
+              isLoading={isBreakdownLoading}
+              periodLabel={getPeriodBounds(breakdownPeriod).label}
+              onPeriodChange={setBreakdownPeriod}
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 md:p-5">
+            <TodayOrdersSection
+              orders={todayOrders}
+              todayRevenue={todayRevenue}
+              isLoading={isLoading}
+              onDeleteOrder={handleDeleteOrder}
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 md:p-5">
+            <CalendarSection
+              calendarSales={calendarSales}
+              calendarMonth={calendarMonth}
+              isLoading={isCalendarLoading}
+              todayStr={todayStr}
+              maxDayRevenue={maxDayRevenue}
+              onMonthChange={(offset) => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1))}
+            />
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 md:p-5">
+            <PopupStatsSection
+              popupEvents={popupEvents}
+              selectedPopupId={selectedPopupId}
+              popupMenuBreakdown={popupMenuBreakdown}
+              popupDailySales={popupDailySales}
+              isLoading={isPopupStatsLoading}
+              onSelectPopup={setSelectedPopupId}
+            />
+          </div>
         </div>
       </main>
     </>
