@@ -11,6 +11,7 @@ import {
 import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecordWithItems, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 import { toLocalDateStr } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import TodaySummary from './_components/TodaySummary';
 import MenuBreakdownSection from './_components/MenuBreakdownSection';
 import TodayOrdersSection from './_components/TodayOrdersSection';
@@ -78,7 +79,16 @@ export default function StatsPage() {
     setIsCalendarLoading(false);
   };
 
-  useEffect(() => { loadTodayData(); }, []);
+  useEffect(() => {
+    loadTodayData();
+    const channel = supabase
+      .channel('stats-orders-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+        loadTodayData();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
   useEffect(() => { loadMonthlyCalendar(calendarMonth); }, [calendarMonth]);
   useEffect(() => { loadBreakdown(breakdownPeriod); }, [breakdownPeriod]);
   useEffect(() => {
