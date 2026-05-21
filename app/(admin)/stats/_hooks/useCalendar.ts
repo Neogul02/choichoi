@@ -29,5 +29,7 @@ export function useCalendar() {
     setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
   }, []);
 
-  return { calendarMonth, calendarSales, isLoading, changeMonth };
+  const refresh = useCallback(() => load(calendarMonth), [load, calendarMonth]);
+
+  return { calendarMonth, calendarSales, isLoading, changeMonth, refresh };
 }
