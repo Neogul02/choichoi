@@ -637,3 +637,17 @@ export async function deductForOrder(orderId: number): Promise<void> {
   if (error) throw error;
 }
 
+export async function updateIngredientMeta(
+  id: string,
+  updates: { container_size?: number; reorder_at_containers?: number; vendor?: string }
+): Promise<Ingredient> {
+  const { data, error } = await supabaseAdmin
+    .from('ingredients')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Ingredient;
+}
+
