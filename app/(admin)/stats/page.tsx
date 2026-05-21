@@ -11,6 +11,7 @@ import TodaySummary from './_components/TodaySummary';
 import MenuBreakdownSection from './_components/MenuBreakdownSection';
 import TodayOrdersSection from './_components/TodayOrdersSection';
 import CalendarSection from './_components/CalendarSection';
+import ManualSalesSection from './_components/ManualSalesSection';
 import PopupStatsSection from './_components/PopupStatsSection';
 import HourlySalesSection from './_components/HourlySalesSection';
 import AIAnalysisSection from './_components/AIAnalysisSection';
@@ -18,7 +19,7 @@ import AIAnalysisSection from './_components/AIAnalysisSection';
 export default function StatsPage() {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats();
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown();
-  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth } = useCalendar();
+  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, refresh: refreshCalendar } = useCalendar();
   const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, isLoading: isPopupStatsLoading } = usePopupStats();
 
   const todayStr = getKSTDateStr();
@@ -70,6 +71,10 @@ export default function StatsPage() {
               maxDayRevenue={maxDayRevenue}
               onMonthChange={changeMonth}
             />
+          </div>
+
+          <div className="bg-white rounded-2xl p-4 md:p-5">
+            <ManualSalesSection calendarMonth={calendarMonth} onSaved={refreshCalendar} />
           </div>
 
           <div className="bg-white rounded-2xl p-4 md:p-5">
