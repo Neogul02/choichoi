@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { MenuItem, Order, PopupEvent, ScheduleSlot, Memo, Worker } from '@/types/database';
+import type { MenuItem, Order, PopupEvent, ScheduleSlot, Memo, Worker, Ingredient, Recipe, RestockEvent, DeductionEvent } from '@/types/database';
 import type { TodaysSales, MenuSalesItem, CalendarSalesData, OrderRecord, OrderRecordWithItems, DailySalesItem } from '@/types/api';
 import type { OrderItemInput, WorkerInput } from '@/lib/supabase';
 
@@ -542,3 +542,98 @@ export async function setWorkerPaymentDone(id: number, done: boolean): Promise<W
   if (error) throw error;
   return data as Worker;
 }
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+export async function getIngredients(): Promise<Ingredient[]> {
+  const { data, error } = await supabaseAdmin
+    .from('ingredients')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Ingredient[];
+}
+
+export async function addRestock(
+  ingredient_id: string,
+  sealed_delta: number,
+  opened_delta: number,
+  note?: string,
+  created_by?: string
+): Promise<void> {
+  const { error: evtErr } = await supabaseAdmin
+    .from('restock_events')
+    .insert([{ ingredient_id, sealed_delta, opened_delta, note: note ?? null, created_by: created_by ?? null }]);
+  if (evtErr) throw evtErr;
+
+  const { data: ing, error: fetchErr } = await supabaseAdmin
+    .from('ingredients')
+    .select('sealed_count, opened_remaining')
+    .eq('id', ingredient_id)
+    .single();
+  if (fetchErr) throw fetchErr;
+
+  const { error: upErr } = await supabaseAdmin
+    .from('ingredients')
+    .update({
+      sealed_count: (ing.sealed_count as number) + sealed_delta,
+      opened_remaining: Math.max(0, (ing.opened_remaining as number) + opened_delta),
+    })
+    .eq('id', ingredient_id);
+  if (upErr) throw upErr;
+}
+
+export async function physicalInventory(
+  id: string,
+  sealed_count: number,
+  opened_remaining: number
+): Promise<Ingredient> {
+  const { data, error } = await supabaseAdmin
+    .from('ingredients')
+    .update({ sealed_count, opened_remaining: Math.max(0, opened_remaining) })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Ingredient;
+}
+
+export async function getRecipesWithIngredients(): Promise<Recipe[]> {
+  const { data, error } = await supabaseAdmin
+    .from('recipes')
+    .select('*, ingredients(*), menu_items(id, name)');
+  if (error) throw error;
+  return (data ?? []) as unknown as Recipe[];
+}
+
+export async function upsertRecipe(menu_id: number, ingredient_id: string, qty_per_unit: number): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('recipes')
+    .upsert([{ menu_id, ingredient_id, qty_per_unit }], { onConflict: 'menu_id,ingredient_id' });
+  if (error) throw error;
+}
+
+export async function deleteRecipe(menu_id: number, ingredient_id: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('recipes')
+    .delete()
+    .eq('menu_id', menu_id)
+    .eq('ingredient_id', ingredient_id);
+  if (error) throw error;
+}
+
+export async function getRecentDeductions(limit = 30): Promise<DeductionEvent[]> {
+  const { data, error } = await supabaseAdmin
+    .from('deduction_events')
+    .select('*, ingredients(id, name, base_unit)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as unknown as DeductionEvent[];
+}
+
+export async function deductForOrder(orderId: number): Promise<void> {
+  const { error } = await supabaseAdmin.rpc('deduct_for_order', { p_order_id: orderId });
+  if (error) throw error;
+}
+

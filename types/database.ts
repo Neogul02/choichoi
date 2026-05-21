@@ -74,3 +74,52 @@ export interface Memo {
   created_at: string;
   updated_at: string;
 }
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+export interface Ingredient {
+  id: string;
+  name: string;
+  category: '빵' | '크림' | '과일' | '패키지';
+  color: string;
+  unit_type: 'count' | 'weight';
+  base_unit: string;
+  container_unit: string;
+  container_size: number;
+  sealed_count: number;
+  opened_remaining: number;
+  reorder_at_containers: number;
+  vendor: string | null;
+  lead_days: number | null;
+  unit_price: number | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Recipe {
+  menu_id: number;
+  ingredient_id: string;
+  qty_per_unit: number;
+  ingredients?: Ingredient;
+  menu_items?: Pick<MenuItem, 'id' | 'name'>;
+}
+
+export interface RestockEvent {
+  id: number;
+  ingredient_id: string;
+  sealed_delta: number;
+  opened_delta: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface DeductionEvent {
+  id: number;
+  order_id: number | null;
+  ingredient_id: string;
+  qty_deducted: number;
+  created_at: string;
+  ingredients?: Pick<Ingredient, 'id' | 'name' | 'base_unit'>;
+}
