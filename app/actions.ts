@@ -143,3 +143,64 @@ export async function fetchAllMemos(): Promise<FetchMemosResponse> { return wrap
 export async function createNewMemo(title: string, content: string, color: string): Promise<ApiResponse<Memo>> { return wrap(() => createMemo(title, content, color)); }
 export async function editMemo(id: number, title: string, content: string, color: string): Promise<ApiResponse<Memo>> { return wrap(() => updateMemo(id, title, content, color)); }
 export async function removeMemo(id: number): Promise<ApiResponse> { return wrap(() => deleteMemo(id)); }
+
+// ── AI Analysis actions ───────────────────────────────────────────────────────
+
+interface SalesAnalysisInput {
+  totalRevenue: number;
+  totalOrders: number;
+  hourlyData: Array<{ label: string; revenue: number; orderCount: number }>;
+  menuBreakdown: Array<{ name: string; totalQuantity: number; totalRevenue: number }>;
+}
+
+export async function fetchAISalesAnalysis(input: SalesAnalysisInput): Promise<ApiResponse<string>> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { success: false, error: 'API 키가 설정되지 않았습니다.' };
+
+  const { totalRevenue, totalOrders, hourlyData, menuBreakdown } = input;
+
+  const peakHour = hourlyData.reduce((max, d) => (d.revenue > max.revenue ? d : max), hourlyData[0]);
+  const activeHours = hourlyData.filter((d) => d.revenue > 0);
+
+  const menuList = menuBreakdown.map((m) => `  - ${m.name}: ${m.totalQuantity}개 / ₩${m.totalRevenue.toLocaleString()}`).join('\n');
+  const hourList = activeHours.map((h) => `  - ${h.label}: 주문 ${h.orderCount}건 / ₩${h.revenue.toLocaleString()}`).join('\n');
+
+  const prompt = `아래는 오늘 하루 판매 데이터입니다. 한국어로 간결하게 매출을 분석해주세요. (3~5문장, 이모지 활용, 친근한 말투)
+
+[오늘 요약]
+- 총 매출: ₩${totalRevenue.toLocaleString()}
+- 총 주문: ${totalOrders}건
+- 피크 시간대: ${peakHour.label} (₩${peakHour.revenue.toLocaleString()})
+
+[시간대별 매출]
+${hourList || '  - 데이터 없음'}
+
+[메뉴별 판매]
+${menuList || '  - 데이터 없음'}
+
+분석 포인트: 피크 시간대, 인기 메뉴, 전체 매출 흐름, 개선 제안 등을 포함해주세요.`;
+
+  try {
+    const res = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }
+    );
+
+    if (!res.ok) {
+      if (res.status === 429) return { success: false, error: 'API 요청 한도에 도달했습니다. 잠시 후 다시 시도해주세요.' };
+      const err = await res.text();
+      return { success: false, error: `Gemini 오류: ${res.status} ${err}` };
+    }
+
+    const data = await res.json();
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    if (!text) return { success: false, error: '응답을 받지 못했습니다.' };
+    return { success: true, data: text };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
