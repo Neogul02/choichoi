@@ -3,20 +3,33 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import confetti from 'canvas-confetti';
 import { supabase } from '@/lib/supabase';
 import { fetchMenuItems } from '@/app/actions';
 import { formatPrice, hexWithAlpha } from '@/lib/utils';
 import type { MenuItem } from '@/types/database';
 
+function fireConfetti() {
+  const colors = ['#f43f5e', '#fb7185', '#fda4af', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'];
+  confetti({ particleCount: 90, spread: 70, origin: { x: 0.5, y: 0.55 }, colors, startVelocity: 42, gravity: 1.1, ticks: 100, scalar: 1.1 });
+  setTimeout(() => {
+    confetti({ particleCount: 55, spread: 58, origin: { x: 0.18, y: 0.62 }, angle: 65, colors, startVelocity: 36, gravity: 1.1, ticks: 80 });
+    confetti({ particleCount: 55, spread: 58, origin: { x: 0.82, y: 0.62 }, angle: 115, colors, startVelocity: 36, gravity: 1.1, ticks: 80 });
+  }, 110);
+  setTimeout(() => {
+    confetti({ particleCount: 35, spread: 100, origin: { x: 0.5, y: 0.48 }, colors, startVelocity: 22, gravity: 0.75, ticks: 70, scalar: 0.85 });
+  }, 240);
+}
+
 type CartItem = { id: number; name: string; price: number; count: number; color?: string };
 type Mode = 'view' | 'order';
 
 const BANNERS = [
-  '테스트 텍스트 1',
-  '테스트 텍스트 2',
-  '테스트 텍스트 3',
-  '테스트 텍스트 4',
-  '테스트 텍스트 5',
+  '4개 이상 구매하시면 보냉백에 담아드려요.',
+  '현금결제와 상품권 결제는 미리 말씀해주세요.',
+  '받은 산도는 냉장보관 해주세요.',
+  '모든 산도는 당일 제조 상품이에요.',
+  '유제품, 과일 등 알레르기가 있으시면 꼭 말씀해주세요.',
 ];
 
 const bannerVariants: Variants = {
@@ -101,6 +114,10 @@ export default function DisplayPage() {
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
   }, []);
+
+  useEffect(() => {
+    if (displayState === 'checkout') fireConfetti();
+  }, [displayState]);
 
   useEffect(() => {
     if (mode === 'order' && menuItems.length === 0) {
