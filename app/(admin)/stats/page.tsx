@@ -21,10 +21,13 @@ export default function StatsPage() {
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown();
   const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, refresh: refreshCalendar } = useCalendar();
   const [modalDate, setModalDate] = useState<{ date: string; revenue: number } | null>(null);
-  const handleDateClick = useCallback((date: string, revenue: number) => setModalDate({ date, revenue }), []);
   const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, isLoading: isPopupStatsLoading } = usePopupStats();
 
   const todayStr = getKSTDateStr();
+  const handleDateClick = useCallback((date: string, revenue: number) => {
+    if (date > todayStr) return;
+    setModalDate({ date, revenue });
+  }, [todayStr]);
   const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0), [todayOrders]);
   const maxDayRevenue = useMemo(() => Math.max(...Object.values(calendarSales.byDate ?? {}).map(Number), 1), [calendarSales.byDate]);
 

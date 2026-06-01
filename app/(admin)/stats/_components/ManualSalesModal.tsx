@@ -21,9 +21,11 @@ export default function ManualSalesModal({ date, existingRevenue, onClose, onSav
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setIsLoading(true);
       const r = await fetchManualSalesByDate(date);
+      if (cancelled) return;
       if (r.success && r.data) {
         setRevenue(String(r.data.total_revenue));
         setOrders(String(r.data.total_orders));
@@ -32,24 +34,25 @@ export default function ManualSalesModal({ date, existingRevenue, onClose, onSav
       }
       setIsLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [date]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const rev = Number(revenue.replace(/,/g, ''));
     const ord = Number(orders) || 0;
-    if (isNaN(rev) || rev < 0) { toast.error('올바른 매출액을 입력하세요'); return; }
+    if (revenue.trim() === '' || isNaN(rev) || rev < 0) { toast.error('올바른 매출액을 입력하세요'); return; }
 
     setIsSubmitting(true);
     const r = await saveManualSales(date, rev, ord, note.trim() || null);
     if (r.success) {
       toast.success('저장됐습니다');
-      onSaved();
       onClose();
+      onSaved();
     } else {
       toast.error(r.error || '저장 실패');
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const handleDelete = async () => {
@@ -58,12 +61,12 @@ export default function ManualSalesModal({ date, existingRevenue, onClose, onSav
     const r = await removeManualSales(existingId);
     if (r.success) {
       toast.success('삭제됐습니다');
-      onSaved();
       onClose();
+      onSaved();
     } else {
       toast.error(r.error || '삭제 실패');
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const [y, m, d] = date.split('-');
