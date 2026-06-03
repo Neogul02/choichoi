@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { createIngredient } from '@/app/actions';
+import { createIngredient } from '@/app/actions/inventory';
 
 interface Props {
   open: boolean;

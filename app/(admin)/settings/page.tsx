@@ -3,7 +3,7 @@
 import NavBar from '@/components/NavBar';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '@/app/actions';
+import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '@/app/actions/menu';
 import type { MenuItem } from '@/types/database';
 import DevToolsSection from './_components/DevToolsSection';
 

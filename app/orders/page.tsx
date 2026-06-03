@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { fetchPendingOrders, markOrderPrepared } from '@/app/actions';
+import { fetchPendingOrders, markOrderPrepared } from '@/app/actions/orders';
 import { supabase } from '@/lib/supabase';
 import type { OrderRecordWithItems } from '@/types/api';
 import { formatKSTTime, formatPrice } from '@/lib/utils';

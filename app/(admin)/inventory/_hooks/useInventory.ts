@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { fetchIngredients, fetchRecipes } from '@/app/actions';
+import { fetchIngredients, fetchRecipes } from '@/app/actions/inventory';
 import type { Ingredient, Recipe } from '@/types/database';
 export function totalQty(ing: Ingredient): number {
   return ing.sealed_count * ing.container_size + ing.opened_remaining;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { fetchMonthlySalesCalendar } from '@/app/actions';
+import { fetchMonthlySalesCalendar } from '@/app/actions/stats';
 import type { CalendarSalesData } from '@/types/api';
 
 function getInitialMonth(): Date {
