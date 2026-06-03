@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Ingredient } from '@/types/database';
-import { restockIngredient, updateIngredientSettings, setPhysicalInventory, deleteIngredientById } from '@/app/actions';
+import { restockIngredient, updateIngredientSettings, setPhysicalInventory, deleteIngredientById } from '@/app/actions/inventory';
 import { totalQty } from '../_hooks/useInventory';
 
 interface Props {

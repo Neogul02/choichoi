@@ -7,12 +7,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
-import {
-  fetchMenuItems,
-  saveOrder,
-  fetchTodaysOrdersWithItems,
-  fetchTodaysSales,
-} from '@/app/actions'
+import { fetchMenuItems } from '@/app/actions/menu';
+import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from '@/app/actions/orders'
 import type { MenuItem } from '@/types/database'
 import { supabase, type OrderItemInput } from '@/lib/supabase'
 import type {

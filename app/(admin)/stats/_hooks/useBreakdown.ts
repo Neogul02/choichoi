@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { fetchMenuSalesBreakdown } from '@/app/actions';
+import { fetchMenuSalesBreakdown } from '@/app/actions/stats';
 import { getPeriodBounds } from '../_lib/period';
 import type { Period } from '../_lib/period';
 import type { MenuSalesItem } from '@/types/api';

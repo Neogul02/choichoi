@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { fetchPopupEvents, fetchMenuSalesBreakdown, fetchDailySalesByPeriod } from '@/app/actions';
+import { fetchPopupEvents } from '@/app/actions/schedule';
+import { fetchMenuSalesBreakdown, fetchDailySalesByPeriod } from '@/app/actions/stats';
 import type { MenuSalesItem, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
