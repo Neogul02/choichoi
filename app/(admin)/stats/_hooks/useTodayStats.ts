@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { fetchTodaysSales, fetchTodaysOrdersWithItems, removeOrder as removeOrderAction } from '@/app/actions';
+import { fetchTodaysSales, fetchTodaysOrdersWithItems, removeOrder as removeOrderAction } from '@/app/actions/orders';
 import type { TodaysSales, OrderRecordWithItems } from '@/types/api';
 
 export function useTodayStats() {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Ingredient, Recipe } from '@/types/database';
-import { saveRecipe, removeRecipe } from '@/app/actions';
+import { saveRecipe, removeRecipe } from '@/app/actions/inventory';
 
 interface MenuTarget {
   menu_id: number;

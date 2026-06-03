@@ -4,7 +4,7 @@ import NavBar from '@/components/NavBar';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { fetchAllMemos, createNewMemo, editMemo, removeMemo } from '@/app/actions';
+import { fetchAllMemos, createNewMemo, editMemo, removeMemo } from '@/app/actions/memos';
 import type { Memo } from '@/types/database';
 
 type MemoFormData = { title: string; content: string; color: string };

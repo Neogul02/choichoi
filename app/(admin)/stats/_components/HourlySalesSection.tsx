@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatPrice } from '@/lib/utils';
-import { fetchOrdersByPeriod } from '@/app/actions';
+import { fetchOrdersByPeriod } from '@/app/actions/orders';
 import { HOURS, buildHourlyData } from '../_lib/hourly';
 import { getPeriodBounds } from '../_lib/period';
 import type { HourlyData } from '../_lib/hourly';

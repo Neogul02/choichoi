@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
-import { fetchMenuItems } from '@/app/actions';
+import { fetchMenuItems } from '@/app/actions/menu';
 import { formatPrice, hexWithAlpha } from '@/lib/utils';
 import type { MenuItem } from '@/types/database';
 

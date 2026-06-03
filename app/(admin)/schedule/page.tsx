@@ -8,7 +8,7 @@ import {
   fetchScheduleByEvent, addScheduleEntry, removeScheduleEntry,
   moveScheduleEntry, editScheduleEntry, copyScheduleEntry,
   fetchWorkers, createNewWorker, editWorker, removeWorker, markWorkerPayment,
-} from '@/app/actions';
+} from '@/app/actions/schedule';
 import type { PopupEvent, ScheduleSlot, Worker } from '@/types/database';
 import { toLocalDateStr, parseWorkHours, formatHours } from '@/lib/utils';
 import ScheduleSidebar from './_components/ScheduleSidebar';

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { fetchAISalesAnalysis, fetchMenuSalesBreakdown } from '@/app/actions';
+import { fetchAISalesAnalysis } from '@/app/actions/ai';
+import { fetchMenuSalesBreakdown } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
 import { buildHourlyData } from '../_lib/hourly';
 import { getPeriodBounds } from '../_lib/period';

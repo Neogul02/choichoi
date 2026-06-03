@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { saveManualSales, fetchManualSalesForMonth, removeManualSales } from '@/app/actions';
+import { saveManualSales, fetchManualSalesForMonth, removeManualSales } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
 import type { ManualSalesEntry } from '@/types/api';
 
