@@ -1,6 +1,7 @@
 'use server';
 
 import axios from 'axios';
+import { notifyDiscord } from '@/lib/discord';
 import {
   createOrder,
   getTodaysSales,
@@ -147,10 +148,26 @@ export async function removeOrder(id: number): Promise<ApiResponse> { return wra
 
 export async function fetchMenuItems(): Promise<FetchMenuItemsResponse> { return wrap(getMenuItems); }
 export async function getAllMenu(): Promise<FetchMenuItemsResponse> { return wrap(getAllMenuItems); }
-export async function createNewMenuItem(name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> { return wrap(() => addMenuItem(name, price, color)); }
-export async function editMenuItem(id: number, name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> { return wrap(() => updateMenuItem(id, name, price, color)); }
-export async function removeMenuItem(id: number): Promise<ApiResponse> { return wrap(() => deleteMenuItem(id)); }
-export async function reorderMenuItems(orderedIds: number[]): Promise<ApiResponse> { return wrap(() => updateMenuOrder(orderedIds)); }
+export async function createNewMenuItem(name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> {
+  const result = await wrap(() => addMenuItem(name, price, color));
+  if (result.success) await notifyDiscord('add', '🍞 메뉴 추가', `**${name}** — ₩${price.toLocaleString('ko-KR')}`);
+  return result;
+}
+export async function editMenuItem(id: number, name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> {
+  const result = await wrap(() => updateMenuItem(id, name, price, color));
+  if (result.success) await notifyDiscord('edit', '✏️ 메뉴 수정', `**${name}** — ₩${price.toLocaleString('ko-KR')}`);
+  return result;
+}
+export async function removeMenuItem(id: number): Promise<ApiResponse> {
+  const result = await wrap(() => deleteMenuItem(id));
+  if (result.success) await notifyDiscord('delete', '🗑️ 메뉴 삭제', `ID: ${id}`);
+  return result;
+}
+export async function reorderMenuItems(orderedIds: number[]): Promise<ApiResponse> {
+  const result = await wrap(() => updateMenuOrder(orderedIds));
+  if (result.success) await notifyDiscord('reorder', '↕️ 메뉴 순서 변경', `${orderedIds.length}개 메뉴 순서 조정`);
+  return result;
+}
 
 // ── Stats actions ─────────────────────────────────────────────────────────────
 
