@@ -60,6 +60,208 @@ const API_ACTIONS: { label: string; fn: () => Promise<unknown> }[] = [
   { label: 'fetchPopupEvents', fn: fetchPopupEvents },
 ];
 
+type ColDef = {
+  name: string;
+  type: 'int' | 'float' | 'text' | 'bool' | 'timestamp' | 'date' | 'uuid' | 'enum';
+  note?: string;
+  pk?: boolean;
+  fk?: string;
+  nullable?: boolean;
+};
+type TableDef = { name: string; desc: string; columns: ColDef[] };
+type GroupDef = { group: string; color: string; tables: TableDef[] };
+
+const DB_SCHEMA: GroupDef[] = [
+  {
+    group: 'POS 핵심',
+    color: 'blue',
+    tables: [
+      {
+        name: 'menu_items',
+        desc: '판매 메뉴',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'name', type: 'text' },
+          { name: 'price', type: 'int' },
+          { name: 'color', type: 'text' },
+          { name: 'stock', type: 'int' },
+          { name: 'is_active', type: 'bool' },
+          { name: 'display_order', type: 'int' },
+          { name: 'created_at', type: 'timestamp' },
+          { name: 'updated_at', type: 'timestamp' },
+        ],
+      },
+      {
+        name: 'orders',
+        desc: '주문',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'total_price', type: 'int' },
+          { name: 'payment_method', type: 'text' },
+          { name: 'payment_status', type: 'text' },
+          { name: 'cashier_name', type: 'text', nullable: true },
+          { name: 'is_prepared', type: 'bool' },
+          { name: 'created_at', type: 'timestamp' },
+        ],
+      },
+      {
+        name: 'order_items',
+        desc: '주문 항목',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'order_id', type: 'int', fk: 'orders' },
+          { name: 'menu_item_id', type: 'int', fk: 'menu_items' },
+          { name: 'quantity', type: 'int' },
+          { name: 'unit_price', type: 'int' },
+          { name: 'subtotal', type: 'int' },
+        ],
+      },
+      {
+        name: 'manual_sales',
+        desc: '수동 매출 입력',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'sale_date', type: 'date' },
+          { name: 'total_revenue', type: 'int' },
+          { name: 'total_orders', type: 'int' },
+          { name: 'note', type: 'text', nullable: true },
+        ],
+      },
+    ],
+  },
+  {
+    group: '스케줄',
+    color: 'purple',
+    tables: [
+      {
+        name: 'popup_events',
+        desc: '팝업 행사',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'name', type: 'text' },
+          { name: 'start_date', type: 'date' },
+          { name: 'end_date', type: 'date' },
+          { name: 'created_at', type: 'timestamp' },
+        ],
+      },
+      {
+        name: 'workers',
+        desc: '직원',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'event_id', type: 'int', fk: 'popup_events' },
+          { name: 'name', type: 'text' },
+          { name: 'color', type: 'text' },
+          { name: 'phone', type: 'text', nullable: true },
+          { name: 'bank_name', type: 'text', nullable: true },
+          { name: 'bank_account', type: 'text', nullable: true },
+          { name: 'hourly_rate', type: 'int' },
+          { name: 'payment_done', type: 'bool' },
+          { name: 'worker_role', type: 'text', nullable: true },
+          { name: 'created_at', type: 'timestamp' },
+          { name: 'updated_at', type: 'timestamp' },
+        ],
+      },
+      {
+        name: 'schedule_slots',
+        desc: '근무 슬롯',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'event_id', type: 'int', fk: 'popup_events' },
+          { name: 'schedule_date', type: 'date' },
+          { name: 'role', type: 'text' },
+          { name: 'person_name', type: 'text' },
+          { name: 'work_time', type: 'text', nullable: true },
+          { name: 'break_time', type: 'bool' },
+          { name: 'worker_id', type: 'int', fk: 'workers', nullable: true },
+          { name: 'created_at', type: 'timestamp' },
+          { name: 'updated_at', type: 'timestamp' },
+        ],
+      },
+    ],
+  },
+  {
+    group: '재고',
+    color: 'green',
+    tables: [
+      {
+        name: 'ingredients',
+        desc: '재료',
+        columns: [
+          { name: 'id', type: 'uuid', pk: true },
+          { name: 'name', type: 'text' },
+          { name: 'category', type: 'enum', note: '빵|크림|과일|패키지' },
+          { name: 'color', type: 'text' },
+          { name: 'unit_type', type: 'enum', note: 'count|weight' },
+          { name: 'base_unit', type: 'text' },
+          { name: 'container_unit', type: 'text' },
+          { name: 'container_size', type: 'int' },
+          { name: 'sealed_count', type: 'int' },
+          { name: 'opened_remaining', type: 'float' },
+          { name: 'reorder_at_containers', type: 'int' },
+          { name: 'vendor', type: 'text', nullable: true },
+          { name: 'lead_days', type: 'int', nullable: true },
+          { name: 'unit_price', type: 'int', nullable: true },
+          { name: 'sort_order', type: 'int' },
+          { name: 'created_at', type: 'timestamp' },
+          { name: 'updated_at', type: 'timestamp' },
+        ],
+      },
+      {
+        name: 'recipes',
+        desc: '레시피 (복합 PK)',
+        columns: [
+          { name: 'menu_id', type: 'int', pk: true, fk: 'menu_items' },
+          { name: 'ingredient_id', type: 'uuid', pk: true, fk: 'ingredients' },
+          { name: 'qty_per_unit', type: 'float' },
+        ],
+      },
+      {
+        name: 'restock_events',
+        desc: '입고 이벤트',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'ingredient_id', type: 'uuid', fk: 'ingredients' },
+          { name: 'sealed_delta', type: 'int' },
+          { name: 'opened_delta', type: 'float' },
+          { name: 'note', type: 'text', nullable: true },
+          { name: 'created_by', type: 'text', nullable: true },
+          { name: 'created_at', type: 'timestamp' },
+        ],
+      },
+      {
+        name: 'deduction_events',
+        desc: '재고 차감',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'order_id', type: 'int', fk: 'orders', nullable: true },
+          { name: 'ingredient_id', type: 'uuid', fk: 'ingredients' },
+          { name: 'qty_deducted', type: 'float' },
+          { name: 'created_at', type: 'timestamp' },
+        ],
+      },
+    ],
+  },
+  {
+    group: '기타',
+    color: 'amber',
+    tables: [
+      {
+        name: 'memos',
+        desc: '메모',
+        columns: [
+          { name: 'id', type: 'int', pk: true },
+          { name: 'title', type: 'text', nullable: true },
+          { name: 'content', type: 'text' },
+          { name: 'color', type: 'text' },
+          { name: 'created_at', type: 'timestamp' },
+          { name: 'updated_at', type: 'timestamp' },
+        ],
+      },
+    ],
+  },
+];
+
 const CONFETTI_EFFECTS = [
   {
     label: '기본',
@@ -231,6 +433,23 @@ export default function DevToolsPage() {
             )}
           </section>
 
+          {/* DB 스키마 */}
+          <section className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            <h3 className="m-0 mb-4 text-lg font-bold">DB 스키마</h3>
+            <div className="space-y-5">
+              {DB_SCHEMA.map((group) => (
+                <div key={group.group}>
+                  <GroupBadge label={group.group} color={group.color} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    {group.tables.map((table) => (
+                      <SchemaTable key={table.name} table={table} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {/* 폭죽 테스트 */}
           <section className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <h3 className="m-0 mb-4 text-lg font-bold">폭죽 테스트</h3>
@@ -360,6 +579,74 @@ function StatusDot({ status }: { status: 'pending' | 'ok' | 'err' }) {
   if (status === 'ok')
     return <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
   return <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />;
+}
+
+const GROUP_COLORS: Record<string, { badge: string; dot: string }> = {
+  blue:   { badge: 'bg-blue-50 text-blue-700 border border-blue-200',     dot: 'bg-blue-400' },
+  purple: { badge: 'bg-purple-50 text-purple-700 border border-purple-200', dot: 'bg-purple-400' },
+  green:  { badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-400' },
+  amber:  { badge: 'bg-amber-50 text-amber-700 border border-amber-200',   dot: 'bg-amber-400' },
+};
+
+const TYPE_STYLES: Record<ColDef['type'], string> = {
+  int:       'bg-blue-100 text-blue-700',
+  float:     'bg-cyan-100 text-cyan-700',
+  text:      'bg-[#f0f0f0] text-[#555]',
+  bool:      'bg-purple-100 text-purple-700',
+  timestamp: 'bg-amber-100 text-amber-700',
+  date:      'bg-teal-100 text-teal-700',
+  uuid:      'bg-rose-100 text-rose-700',
+  enum:      'bg-orange-100 text-orange-700',
+};
+
+function GroupBadge({ label, color }: { label: string; color: string }) {
+  const s = GROUP_COLORS[color] ?? GROUP_COLORS.blue;
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${s.badge}`}>{label}</span>
+    </div>
+  );
+}
+
+function SchemaTable({ table }: { table: TableDef }) {
+  return (
+    <div className="border border-[#ececec] rounded-xl overflow-hidden">
+      <div className="flex items-baseline gap-2 px-3 py-2 bg-[#f9f9f9] border-b border-[#ececec]">
+        <span className="font-mono text-[13px] font-bold text-[#1a1a1a]">{table.name}</span>
+        <span className="text-[11px] text-[#aaa]">{table.desc}</span>
+      </div>
+      <div className="divide-y divide-[#f3f3f3]">
+        {table.columns.map((col) => (
+          <div key={col.name} className="flex items-center gap-2 px-3 py-1.5">
+            <div className="flex items-center gap-1 shrink-0">
+              {col.pk && (
+                <span className="text-[10px] font-black text-amber-500" title="Primary Key">PK</span>
+              )}
+              {col.fk && (
+                <span className="text-[10px] font-black text-indigo-400" title={`→ ${col.fk}`}>FK</span>
+              )}
+              {!col.pk && !col.fk && <span className="w-5" />}
+            </div>
+            <span className={`font-mono text-[12px] flex-1 ${col.nullable ? 'text-[#888]' : 'text-[#222] font-medium'}`}>
+              {col.name}{col.nullable && <span className="text-[10px] text-[#bbb] ml-0.5">?</span>}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              {col.fk && (
+                <span className="text-[10px] text-indigo-400 font-mono hidden md:inline">→ {col.fk}</span>
+              )}
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${TYPE_STYLES[col.type]}`}>
+                {col.note ? `enum` : col.type}
+              </span>
+              {col.note && (
+                <span className="text-[10px] text-[#bbb] hidden md:inline">({col.note})</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function EnvRow({ label, value }: { label: string; value: string | undefined }) {
