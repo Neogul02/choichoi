@@ -46,8 +46,22 @@
 ## 아키텍처 결정 기록
 
 ### Server Actions vs API Routes
-**결정:** 모든 DB 호출을 Server Actions(`app/actions.ts`)로 통일  
+**결정:** 모든 DB 호출을 Server Actions(`app/actions/`)로 통일  
 **이유:** API Routes는 별도의 `fetch` 호출과 직렬화가 필요하지만, Server Actions는 함수 호출처럼 사용하면서 번들에는 포함되지 않음. `wrap()` 헬퍼 하나로 모든 에러를 `ApiResponse<T>` 형태로 일관되게 처리 가능.
+
+**리팩토링:** 초기에는 `app/actions.ts` 단일 파일로 관리했으나, 도메인별 파일로 분리해 관심사 분리와 유지보수성을 개선했습니다.
+
+```
+app/actions/
+├── _base.ts       # wrap() 헬퍼, 공통 에러 처리
+├── menu.ts        # 메뉴 CRUD
+├── orders.ts      # 주문 저장·조회·삭제
+├── stats.ts       # 매출 통계, 수동 매출 입력
+├── inventory.ts   # 재고 차감·입고·레시피
+├── schedule.ts    # 팝업·근무자 일정
+├── memos.ts       # 운영 메모
+└── ai.ts          # Gemini AI 분석
+```
 
 ### Broadcast vs DB Polling
 **결정:** 카트 상태 동기화에 Supabase Realtime Broadcast 사용  
@@ -79,7 +93,7 @@ export type ApiResponse<T = void> =
   | { success: true; data: T }
   | { success: false; error: string }
 
-// app/actions.ts — wrap() 으로 일관성 보장
+// app/actions/_base.ts — wrap() 으로 일관성 보장
 async function wrap<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
   try {
     return { success: true, data: await fn() };
@@ -303,7 +317,15 @@ app/
 ├── page.tsx                   # 랜딩 — 역할 선택 (손님/캐셔)
 ├── password-gate.tsx          # 캐셔 인증 게이트
 ├── admin-gate.tsx             # 어드민 인증 게이트
-├── actions.ts                 # 모든 Server Actions (Supabase 호출 단일 진입점)
+├── actions/                   # Server Actions — 도메인별 파일로 분리
+│   ├── _base.ts               # wrap() 헬퍼, 공통 에러 처리
+│   ├── menu.ts                # 메뉴 CRUD
+│   ├── orders.ts              # 주문 저장·조회·삭제
+│   ├── stats.ts               # 매출 통계, 수동 매출 입력
+│   ├── inventory.ts           # 재고 차감·입고·레시피
+│   ├── schedule.ts            # 팝업·근무자 일정
+│   ├── memos.ts               # 운영 메모
+│   └── ai.ts                  # Gemini AI 분석
 ├── providers.tsx              # TanStack Query Provider
 ├── pos/page.tsx               # 캐셔 POS 메인
 ├── display/page.tsx           # 고객 디스플레이 (보기/주문 모드)
@@ -397,6 +419,7 @@ cp .env.example .env
 | `POPUP_PASSWORD` | 캐셔 화면 접근 비밀번호 | 서버 전용 |
 | `ADMIN_PASSWORD` | 어드민 화면 접근 비밀번호 | 서버 전용 |
 | `GEMINI_API_KEY` | AI 매출 분석 | 서버 전용 |
+| `DISCORD_WEBHOOK_URL` | 메뉴 설정 변경 알림 (선택) | 서버 전용 |
 
 ---
 
@@ -417,6 +440,8 @@ yarn lint     # ESLint 검사
 
 | 날짜 | 내용 |
 |------|------|
+| 06-03 | `app/actions.ts` → `app/actions/` 도메인별 분리 리팩토링 (menu, orders, stats, inventory, schedule, memos, ai, _base) |
+| 06-03 | actions 분리 후 깨진 import 수정 및 누락된 `fetchManualSalesByDate` 함수 추가 (`stats.ts`) |
 | 06-01 | 코드리뷰 기반 버그 패치: 빈 매출액 저장 차단, 미래 날짜 입력 방지, saleDate 서버 검증, useEffect 클린업 추가 |
 | 06-01 | `/display` 결제 완료 시 컨페티 효과 추가 (Supabase Broadcast `checkout_complete` 수신 후 `useEffect` 트리거) |
 
