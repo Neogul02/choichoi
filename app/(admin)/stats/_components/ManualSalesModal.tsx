@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { saveManualSales, fetchManualSalesByDate, removeManualSales } from '@/app/actions';
+import { saveManualSales, fetchManualSalesByDate, removeManualSales } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
 
 interface Props {
