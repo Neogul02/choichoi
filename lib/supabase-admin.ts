@@ -752,7 +752,6 @@ export async function upsertDailySales(
   totalOrders: number,
   note: string | null,
 ): Promise<void> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(saleDate)) throw new Error('Invalid date format');
   const { error } = await supabaseAdmin
     .from('daily_sales')
     .upsert(
@@ -762,17 +761,22 @@ export async function upsertDailySales(
   if (error) throw error;
 }
 
-export async function deleteDailySales(id: number): Promise<void> {
-  const { error } = await supabaseAdmin.from('daily_sales').delete().eq('id', id);
-  if (error) throw error;
-}
-
-export async function getDailySalesByDate(saleDate: string): Promise<import('@/types/api').ManualSalesEntry | null> {
+export async function getDailySalesForMonth(year: number, month: number): Promise<import('@/types/api').ManualSalesEntry[]> {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const end = month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, '0')}-01`;
   const { data, error } = await supabaseAdmin
     .from('daily_sales')
     .select('id, sale_date, total_revenue, total_orders, note')
-    .eq('sale_date', saleDate)
-    .maybeSingle();
+    .gte('sale_date', start)
+    .lt('sale_date', end)
+    .order('sale_date', { ascending: false });
   if (error) throw error;
-  return data as import('@/types/api').ManualSalesEntry | null;
+  return (data ?? []) as import('@/types/api').ManualSalesEntry[];
+}
+
+export async function deleteDailySales(id: number): Promise<void> {
+  const { error } = await supabaseAdmin.from('daily_sales').delete().eq('id', id);
+  if (error) throw error;
 }

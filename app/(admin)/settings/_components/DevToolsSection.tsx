@@ -2,17 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
-import {
-  fetchMenuItems,
-  getAllMenu,
-  fetchTodaysSales,
-  fetchTodaysOrders,
-  fetchTodaysOrdersWithItems,
-  fetchMonthlySalesCalendar,
-  fetchMenuSalesBreakdown,
-  fetchDailySalesByPeriod,
-  fetchPopupEvents,
-} from '@/app/actions';
+import { fetchMenuItems, getAllMenu } from '@/app/actions/menu';
+import { fetchTodaysSales, fetchTodaysOrders, fetchTodaysOrdersWithItems } from '@/app/actions/orders';
+import { fetchMonthlySalesCalendar, fetchMenuSalesBreakdown, fetchDailySalesByPeriod } from '@/app/actions/stats';
+import { fetchPopupEvents } from '@/app/actions/schedule';
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
 

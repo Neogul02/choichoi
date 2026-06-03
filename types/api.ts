@@ -96,6 +96,8 @@ export interface ManualSalesEntry {
   note: string | null;
 }
 
+export type FetchManualSalesResponse = ApiResponse<ManualSalesEntry[]>;
+
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
 export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;
 export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;

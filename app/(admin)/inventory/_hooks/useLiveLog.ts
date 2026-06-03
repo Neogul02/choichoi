@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { fetchRecentOrderLogs } from '@/app/actions';
+import { fetchRecentOrderLogs } from '@/app/actions/inventory';
 import type { OrderLogEntry } from '@/types/api';
 
 export function useLiveLog() {
