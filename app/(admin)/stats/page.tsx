@@ -12,6 +12,7 @@ import MenuBreakdownSection from './_components/MenuBreakdownSection';
 import TodayOrdersSection from './_components/TodayOrdersSection';
 import CalendarSection from './_components/CalendarSection';
 import ManualSalesSection from './_components/ManualSalesSection';
+import ManualSalesModal from './_components/ManualSalesModal';
 import PopupStatsSection from './_components/PopupStatsSection';
 import HourlySalesSection from './_components/HourlySalesSection';
 import AIAnalysisSection from './_components/AIAnalysisSection';
@@ -22,6 +23,7 @@ export default function StatsPage() {
   const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, refresh: refreshCalendar } = useCalendar();
   const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, isLoading: isPopupStatsLoading } = usePopupStats();
 
+  const [modalDate, setModalDate] = useState<{ date: string; revenue: number } | null>(null);
   const todayStr = getKSTDateStr();
   const handleDateClick = useCallback((date: string, revenue: number) => {
     if (date > todayStr) return;

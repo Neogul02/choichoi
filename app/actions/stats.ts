@@ -36,4 +36,11 @@ export async function saveManualSales(saleDate: string, totalRevenue: number, to
 }
 
 export async function fetchManualSalesForMonth(year: number, month: number): Promise<FetchManualSalesResponse> { return wrap(() => getDailySalesForMonth(year, month)); }
+export async function fetchManualSalesByDate(date: string): Promise<ApiResponse<import('@/types/api').ManualSalesEntry>> {
+  const [y, m] = date.split('-').map(Number);
+  const result = await wrap(() => getDailySalesForMonth(y, m));
+  if (!result.success) return result as ApiResponse<never>;
+  const entry = result.data?.find((e) => e.sale_date === date);
+  return { success: true, data: entry };
+}
 export async function removeManualSales(id: number): Promise<ApiResponse> { return wrap(() => deleteDailySales(id)); }
