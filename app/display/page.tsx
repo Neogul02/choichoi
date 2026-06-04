@@ -351,13 +351,13 @@ export default function DisplayPage() {
               transition={{ duration: 0.2 }}
               className="flex-1 flex flex-col"
             >
-              <div className="flex-1 p-4 pb-0">
+              <div className="flex-1 p-4 flex flex-col items-center justify-center">
                 {menuItems.length === 0 ? (
                   <div className="flex items-center justify-center h-48">
                     <p className="text-[#999] text-base m-0">메뉴를 불러오는 중...</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto">
+                  <div className="grid grid-cols-2 gap-3 max-w-2xl w-full">
                     {menuItems.map((item) => {
                       const count = localCounts[item.id] ?? 0;
                       return (
@@ -402,28 +402,32 @@ export default function DisplayPage() {
                 )}
               </div>
 
-              {/* 주문 요약 바 */}
+              {/* 주문 요약 팝업 */}
               <AnimatePresence>
                 {localTotalCount > 0 && (
                   <motion.div
-                    initial={{ y: 80, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 80, opacity: 0 }}
+                    initial={{ y: 100, opacity: 0, scale: 0.97 }}
+                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                    exit={{ y: 100, opacity: 0, scale: 0.97 }}
                     transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                    className="sticky bottom-0 bg-primary-700 px-6 py-5 flex items-center justify-between shadow-[0_-4px_24px_rgba(8,68,49,0.2)] mt-4"
+                    className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-20"
                   >
-                    <div>
-                      <p className="m-0 text-white/65 text-sm font-semibold mb-0.5">선택한 항목</p>
-                      <p className="m-0 text-white text-2xl font-black leading-none">
-                        {localTotalCount}개 · {formatPrice(localTotalPrice)}원
-                      </p>
+                    <div className="bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-5 border border-[#eee]">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="m-0 text-[#888] text-sm font-semibold mb-1">선택한 항목</p>
+                        <p className="m-0 text-[#1a1a1a] text-2xl font-black leading-none">
+                          {localTotalCount}개 &middot; {formatPrice(localTotalPrice)}원
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={resetLocalOrder}
-                      className="px-5 py-2.5 rounded-lg bg-white/15 text-white text-base font-bold cursor-pointer border-none hover:bg-white/25 active:scale-95 transition-all"
+                      className="w-full py-4 rounded-xl bg-primary-700 text-white text-xl font-black cursor-pointer border-none hover:bg-primary-800 active:scale-95 transition-all"
                     >
                       초기화
                     </button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
