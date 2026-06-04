@@ -46,8 +46,36 @@ const listItemVariants: Variants = {
 
 type DisplayState = 'idle' | 'checkout' | 'thanks';
 
+function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
+  return (
+    <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1">
+      <button
+        onClick={() => setMode('view')}
+        className={`px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
+          mode === 'view'
+            ? 'bg-white text-[#1a1a1a] shadow-sm'
+            : 'bg-transparent text-[#999] hover:text-[#555]'
+        }`}
+      >
+        프론트
+      </button>
+      <button
+        onClick={() => setMode('order')}
+        className={`px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
+          mode === 'order'
+            ? 'bg-white text-[#1a1a1a] shadow-sm'
+            : 'bg-transparent text-[#999] hover:text-[#555]'
+        }`}
+      >
+        주문하기
+      </button>
+    </div>
+  );
+}
+
 export default function DisplayPage() {
   const [mode, setMode] = useState<Mode>('view');
+  const [navExpanded, setNavExpanded] = useState(true);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartTotalPrice, setCartTotalPrice] = useState(0);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -59,6 +87,18 @@ export default function DisplayPage() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const displayStateRef = useRef<DisplayState>('idle');
   const animTimerRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('display-nav-expanded');
+    if (saved !== null) setNavExpanded(saved !== 'false');
+  }, []);
+
+  const toggleNav = () => {
+    setNavExpanded((v) => {
+      localStorage.setItem('display-nav-expanded', String(!v));
+      return !v;
+    });
+  };
 
   useEffect(() => {
     const id = setInterval(() => setBannerIndex((i) => (i + 1) % BANNERS.length), 3500);
@@ -159,67 +199,68 @@ export default function DisplayPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f6f7] flex flex-col select-none">
-      
 
-      {/* 헤더 + 토글 */}
-      <header className="bg-white border-b border-[#eee] px-6 py-4 flex items-center justify-between shadow-sm">
-        <Link
-          href="/"
-          title="홈으로"
-          className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 transition-all duration-200"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-        </Link>
-        <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1">
-          <button
-            onClick={() => setMode('view')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer border-none ${
-              mode === 'view'
-                ? 'bg-white text-[#1a1a1a] shadow-sm'
-                : 'bg-transparent text-[#999] hover:text-[#555]'
-            }`}
+      {/* 접이식 헤더 */}
+      <motion.header
+        animate={{ height: navExpanded ? 'auto' : 0 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className="bg-white border-b border-[#eee] shadow-sm overflow-hidden"
+        style={{ minHeight: 0 }}
+      >
+        <div className="px-6 py-4 flex items-center justify-between">
+          <Link
+            href="/"
+            title="홈으로"
+            className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 transition-all duration-200"
           >
-            프론트
-          </button>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </Link>
+
+          <ModeToggle mode={mode} setMode={setMode} />
+
+          {/* 접기 버튼 */}
           <button
-            onClick={() => setMode('order')}
-            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer border-none ${
-              mode === 'order'
-                ? 'bg-white text-[#1a1a1a] shadow-sm'
-                : 'bg-transparent text-[#999] hover:text-[#555]'
-            }`}
+            onClick={toggleNav}
+            className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-[#eee] hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
+            title="헤더 접기"
           >
-            주문하기
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="18 15 12 9 6 15"/>
+            </svg>
           </button>
         </div>
-      </header>
+      </motion.header>
 
-      {/* 플립 배너 */}
-      <div
-        className="bg-primary-600 px-6 py-2.5 flex items-center justify-center overflow-hidden"
-        style={{ perspective: '800px' }}
-      >
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={bannerIndex}
-            variants={bannerVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            className="m-0 text-white text-sm font-semibold tracking-wide text-center"
-            style={{ transformOrigin: 'center center', backfaceVisibility: 'hidden' }}
+      {/* nav 접혔을 때 상단 중앙 플로팅 토글 */}
+      <AnimatePresence>
+        {!navExpanded && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-2xl p-1.5 shadow-lg border border-[#eee]"
           >
-            {BANNERS[bannerIndex]}
-          </motion.p>
-        </AnimatePresence>
-      </div>
+            <ModeToggle mode={mode} setMode={setMode} />
+            <button
+              onClick={toggleNav}
+              className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-[#eee] hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
+              title="헤더 펼치기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 컨텐츠 */}
-      <main className="flex-1 flex flex-col overflow-auto relative">
+      <main className="flex-1 flex flex-col overflow-auto relative pb-24">
         <AnimatePresence mode="wait">
           {mode === 'view' ? (
             /* ── 보기 모드 ── */
@@ -241,8 +282,8 @@ export default function DisplayPage() {
                     transition={{ duration: 0.25 }}
                     className="text-center"
                   >
-                    <h2 className="text-3xl font-black text-[#1a1a1a] mb-2 m-0">안녕하세요!</h2>
-                    <p className="text-[#999] text-lg m-0">주문을 기다리고 있어요</p>
+                    <h2 className="text-5xl font-black text-[#1a1a1a] mb-3 m-0">안녕하세요!</h2>
+                    <p className="text-[#999] text-2xl m-0">주문을 기다리고 있어요</p>
                   </motion.div>
                 ) : (
                   <motion.div
@@ -255,7 +296,7 @@ export default function DisplayPage() {
                   >
                     <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] overflow-hidden mb-4">
                       <div className="px-6 py-4 border-b border-[#f0f0f0]">
-                        <h3 className="text-sm font-bold text-[#888] tracking-wide uppercase m-0">주문 내역</h3>
+                        <h3 className="text-base font-bold text-[#888] tracking-wide uppercase m-0">주문 내역</h3>
                       </div>
                       <ul className="m-0 p-0 list-none divide-y divide-[#f5f5f5]">
                         <AnimatePresence initial={false}>
@@ -270,12 +311,12 @@ export default function DisplayPage() {
                             >
                               <div className="flex items-center gap-3">
                                 {item.color && (
-                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                                 )}
-                                <span className="text-[17px] font-semibold text-[#1a1a1a]">{item.name}</span>
-                                <span className="text-sm font-bold text-[#bbb]">× {item.count}</span>
+                                <span className="text-[22px] font-semibold text-[#1a1a1a]">{item.name}</span>
+                                <span className="text-base font-bold text-[#bbb]">× {item.count}</span>
                               </div>
-                              <span className="text-[17px] font-bold text-[#333]">
+                              <span className="text-[22px] font-bold text-[#333]">
                                 {formatPrice(item.price * item.count)}원
                               </span>
                             </motion.li>
@@ -291,8 +332,8 @@ export default function DisplayPage() {
                       transition={{ type: 'spring', stiffness: 260, damping: 18 }}
                       className="bg-primary-700 rounded-2xl px-6 py-5 flex items-center justify-between shadow-[0_4px_20px_rgba(8,68,49,0.25)]"
                     >
-                      <span className="text-white text-lg font-bold opacity-80">합계</span>
-                      <span className="text-white text-[32px] font-black leading-none">
+                      <span className="text-white text-2xl font-bold opacity-80">합계</span>
+                      <span className="text-white text-[48px] font-black leading-none">
                         {formatPrice(cartTotalPrice)}원
                       </span>
                     </motion.div>
@@ -313,7 +354,7 @@ export default function DisplayPage() {
               <div className="flex-1 p-4 pb-0">
                 {menuItems.length === 0 ? (
                   <div className="flex items-center justify-center h-48">
-                    <p className="text-[#999] text-sm m-0">메뉴를 불러오는 중...</p>
+                    <p className="text-[#999] text-base m-0">메뉴를 불러오는 중...</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto">
@@ -331,24 +372,24 @@ export default function DisplayPage() {
                           } : { backgroundColor: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                         >
                           <div className="flex items-center gap-2 mb-1.5">
-                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                            <h3 className="m-0 text-sm font-bold text-[#1a1a1a] leading-snug">{item.name}</h3>
+                            <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                            <h3 className="m-0 text-lg font-bold text-[#1a1a1a] leading-snug">{item.name}</h3>
                           </div>
-                          <p className="m-0 text-base font-extrabold text-[#333] mb-3">{formatPrice(item.price)}원</p>
+                          <p className="m-0 text-xl font-extrabold text-[#333] mb-3">{formatPrice(item.price)}원</p>
                           <div className="flex items-center gap-2">
                             <button
                               onClick={(e) => { e.stopPropagation(); decrement(item.id); }}
-                              className="w-9 h-9 rounded-lg border border-[#e0e0e0] text-xl font-semibold bg-[#fafafa] flex items-center justify-center cursor-pointer active:scale-95 transition-transform leading-none"
+                              className="w-10 h-10 rounded-lg border border-[#e0e0e0] text-2xl font-semibold bg-[#fafafa] flex items-center justify-center cursor-pointer active:scale-95 transition-transform leading-none"
                               style={{ touchAction: 'manipulation' }}
                             >
                               −
                             </button>
-                            <span className={`flex-1 text-center text-base font-black ${count > 0 ? 'text-primary-700' : 'text-[#ccc]'}`}>
+                            <span className={`flex-1 text-center text-xl font-black ${count > 0 ? 'text-primary-700' : 'text-[#ccc]'}`}>
                               {count}
                             </span>
                             <button
                               onClick={(e) => { e.stopPropagation(); increment(item.id); }}
-                              className="w-9 h-9 rounded-lg border border-[#e0e0e0] text-xl font-semibold bg-[#fafafa] flex items-center justify-center cursor-pointer active:scale-95 transition-transform leading-none"
+                              className="w-10 h-10 rounded-lg border border-[#e0e0e0] text-2xl font-semibold bg-[#fafafa] flex items-center justify-center cursor-pointer active:scale-95 transition-transform leading-none"
                               style={{ touchAction: 'manipulation' }}
                             >
                               +
@@ -369,17 +410,17 @@ export default function DisplayPage() {
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 80, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                    className="sticky bottom-0 bg-primary-700 px-6 py-4 flex items-center justify-between shadow-[0_-4px_24px_rgba(8,68,49,0.2)] mt-4"
+                    className="sticky bottom-0 bg-primary-700 px-6 py-5 flex items-center justify-between shadow-[0_-4px_24px_rgba(8,68,49,0.2)] mt-4"
                   >
                     <div>
-                      <p className="m-0 text-white/65 text-xs font-semibold mb-0.5">선택한 항목</p>
-                      <p className="m-0 text-white text-lg font-black leading-none">
+                      <p className="m-0 text-white/65 text-sm font-semibold mb-0.5">선택한 항목</p>
+                      <p className="m-0 text-white text-2xl font-black leading-none">
                         {localTotalCount}개 · {formatPrice(localTotalPrice)}원
                       </p>
                     </div>
                     <button
                       onClick={resetLocalOrder}
-                      className="px-4 py-2 rounded-lg bg-white/15 text-white text-sm font-bold cursor-pointer border-none hover:bg-white/25 active:scale-95 transition-all"
+                      className="px-5 py-2.5 rounded-lg bg-white/15 text-white text-base font-bold cursor-pointer border-none hover:bg-white/25 active:scale-95 transition-all"
                     >
                       초기화
                     </button>
@@ -415,24 +456,24 @@ export default function DisplayPage() {
                   >
                     <div className="bg-primary-700 px-6 py-4 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-white/60 animate-pulse" />
-                      <h3 className="text-sm font-bold text-white/90 tracking-wide uppercase m-0">결제 완료</h3>
+                      <h3 className="text-base font-bold text-white/90 tracking-wide uppercase m-0">결제 완료</h3>
                     </div>
                     <ul className="m-0 p-0 list-none divide-y divide-[#f5f5f5]">
                       {checkoutItems.map((item) => (
                         <li key={item.id} className="flex items-center justify-between px-6 py-4">
                           <div className="flex items-center gap-3">
-                            {item.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />}
-                            <span className="text-[17px] font-semibold text-[#1a1a1a]">{item.name}</span>
-                            <span className="text-sm font-bold text-[#bbb]">× {item.count}</span>
+                            {item.color && <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />}
+                            <span className="text-[22px] font-semibold text-[#1a1a1a]">{item.name}</span>
+                            <span className="text-base font-bold text-[#bbb]">× {item.count}</span>
                           </div>
-                          <span className="text-[17px] font-bold text-[#333]">{formatPrice(item.price * item.count)}원</span>
+                          <span className="text-[22px] font-bold text-[#333]">{formatPrice(item.price * item.count)}원</span>
                         </li>
                       ))}
                     </ul>
                   </motion.div>
                   <div className="bg-primary-700 rounded-2xl px-6 py-5 flex items-center justify-between shadow-[0_4px_20px_rgba(8,68,49,0.25)]">
-                    <span className="text-white text-lg font-bold opacity-80">합계</span>
-                    <span className="text-white text-[32px] font-black leading-none">{formatPrice(checkoutTotal)}원</span>
+                    <span className="text-white text-2xl font-bold opacity-80">합계</span>
+                    <span className="text-white text-[48px] font-black leading-none">{formatPrice(checkoutTotal)}원</span>
                   </div>
                 </motion.div>
               ) : (
@@ -442,13 +483,33 @@ export default function DisplayPage() {
                   transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                   className="text-center"
                 >
-                  <h2 className="text-5xl font-black text-primary-700 mb-3 m-0">감사합니다😺</h2>
+                  <h2 className="text-7xl font-black text-primary-700 mb-3 m-0">감사합니다😺</h2>
                 </motion.div>
               )}
             </motion.div>
           )}
         </AnimatePresence>
       </main>
+
+      {/* 하단 고정 플립 배너 */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-10 bg-primary-600 px-6 py-5 flex items-center justify-center overflow-hidden"
+        style={{ perspective: '800px' }}
+      >
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={bannerIndex}
+            variants={bannerVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="m-0 text-white text-lg font-bold tracking-wide text-center"
+            style={{ transformOrigin: 'center center', backfaceVisibility: 'hidden' }}
+          >
+            {BANNERS[bannerIndex]}
+          </motion.p>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
