@@ -74,7 +74,7 @@ export default function CheckoutOverlay({ displayState, checkoutItems, checkoutT
                 transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 className="text-center"
               >
-                <h2 className="text-7xl font-black text-primary-700 mb-3 m-0">감사합니다😺</h2>
+                <h2 className="text-7xl font-black text-primary-700 mb-3 m-0">감사합니다</h2>
               </motion.div>
             )}
           </motion.div>
