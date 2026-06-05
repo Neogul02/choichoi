@@ -10,6 +10,7 @@ const AUTH_API_PATH = '/api/auth/verify';
 const VALIDATE_API_PATH = '/api/auth/verify/validate';
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
   const pathname = usePathname();
   const [checked, setChecked] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);

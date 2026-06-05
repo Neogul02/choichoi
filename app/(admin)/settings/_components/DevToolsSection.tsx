@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
+import EmojiPhysics from '@/components/display/EmojiPhysics';
+import { EMOJI_MAP } from '@/lib/emoji-map';
+import type { CartItem } from '@/types/display';
 import { fetchMenuItems, getAllMenu } from '@/app/actions/menu';
 import { fetchTodaysSales, fetchTodaysOrders, fetchTodaysOrdersWithItems } from '@/app/actions/orders';
 import { fetchMonthlySalesCalendar, fetchMenuSalesBreakdown, fetchDailySalesByPeriod } from '@/app/actions/stats';
@@ -267,6 +270,16 @@ const DB_SCHEMA: SchemaTable[] = [
 export default function DevToolsSection() {
   const [logs, setLogs] = useState<ApiLog[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [physicsItems, setPhysicsItems] = useState<CartItem[]>([]);
+  const [physicsActive, setPhysicsActive] = useState(false);
+
+  const firePhysics = (items: CartItem[]) => {
+    setPhysicsActive(false);
+    requestAnimationFrame(() => {
+      setPhysicsItems(items);
+      setPhysicsActive(true);
+    });
+  };
   const [dbStats, setDbStats] = useState<{
     menuActive: number;
     menuTotal: number;
@@ -335,6 +348,7 @@ export default function DevToolsSection() {
 
   return (
     <div className="space-y-5">
+      <EmojiPhysics items={physicsItems} active={physicsActive} />
 
       {/* DB 상태 */}
       <div className="bg-[#f9f9f9] rounded-xl p-4">
@@ -478,6 +492,34 @@ export default function DevToolsSection() {
               {e.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 과일 이모지 테스트 */}
+      <div className="bg-[#f9f9f9] rounded-xl p-4">
+        <h3 className="m-0 mb-3 text-base font-bold">과일 이모지 테스트</h3>
+        <div className="flex flex-wrap gap-2">
+          {EMOJI_MAP.map(({ keyword, emoji }) => (
+            <button
+              key={keyword}
+              className="px-4 py-2 text-sm font-semibold bg-white border border-[#e0e0e0] text-[#333] rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
+              onClick={() => firePhysics([{ id: 0, name: keyword, price: 0, count: 2 }])}
+            >
+              {emoji} {keyword}
+            </button>
+          ))}
+          <button
+            className="px-4 py-2 text-sm font-semibold bg-white border border-[#e0e0e0] text-[#333] rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
+            onClick={() => firePhysics(EMOJI_MAP.map(({ keyword }, i) => ({ id: i, name: keyword, price: 0, count: 1 })))}
+          >
+            🎉 전체
+          </button>
+          <button
+            className="px-4 py-2 text-sm font-semibold bg-white border border-[#e0e0e0] text-red-400 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 active:scale-95"
+            onClick={() => setPhysicsActive(false)}
+          >
+            초기화
+          </button>
         </div>
       </div>
 
