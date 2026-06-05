@@ -15,15 +15,13 @@ interface Particle {
   fadingOut: boolean;
 }
 
-const MAX_PARTICLES = 35;
-
 function spawnParticles(items: CartItem[], width: number, height: number): Particle[] {
   const particles: Particle[] = [];
-  // 화면이 넓을수록 파티클 크기를 줄여 아이패드에서 너무 크게 보이는 문제 방지
-  const responsiveScale = Math.max(0.65, Math.min(1, 450 / Math.max(width, 450)));
+  // 화면이 넓을수록 파티클 개수를 늘려 아이패드에서 화면이 꽉 차도록
+  const countScale = Math.max(1, Math.min(2.5, width / 420));
   for (const item of items) {
     const emoji = getEmoji(item.name);
-    const count = Math.min(Math.max(item.count * 3, 6), 12);
+    const count = Math.round(Math.min(Math.max(item.count * 3, 6), 12) * countScale);
     for (let i = 0; i < count; i++) {
       particles.push({
         x: width * 0.15 + Math.random() * width * 0.7,
@@ -33,7 +31,7 @@ function spawnParticles(items: CartItem[], width: number, height: number): Parti
         emoji,
         rotation: Math.random() * 360,
         rotationSpeed: (Math.random() - 0.5) * 5,
-        size: (80 + Math.random() * 18) * responsiveScale,
+        size: 80 + Math.random() * 18,
         opacity: 1,
         fadingOut: false,
       });
@@ -173,8 +171,9 @@ export default function EmojiPhysics({ items, active }: Props) {
     if (active && !wasActive) {
       const canvas = canvasRef.current;
       if (!canvas || items.length === 0) return;
+      const maxParticles = Math.round(35 * Math.max(1, Math.min(2.5, canvas.width / 420)));
       const next = [...particlesRef.current, ...spawnParticles(items, canvas.width, canvas.height)];
-      particlesRef.current = next.length > MAX_PARTICLES ? next.slice(next.length - MAX_PARTICLES) : next;
+      particlesRef.current = next.length > maxParticles ? next.slice(next.length - maxParticles) : next;
     } else if (!active && wasActive) {
       particlesRef.current.forEach((p) => { p.fadingOut = true; });
     }
