@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import NavBar from '@/components/NavBar';
 import { getKSTDateStr } from './_lib/period';
 import { useTodayStats } from './_hooks/useTodayStats';
@@ -11,8 +11,6 @@ import TodaySummary from './_components/TodaySummary';
 import MenuBreakdownSection from './_components/MenuBreakdownSection';
 import TodayOrdersSection from './_components/TodayOrdersSection';
 import CalendarSection from './_components/CalendarSection';
-import ManualSalesSection from './_components/ManualSalesSection';
-import ManualSalesModal from './_components/ManualSalesModal';
 import PopupStatsSection from './_components/PopupStatsSection';
 import HourlySalesSection from './_components/HourlySalesSection';
 import AIAnalysisSection from './_components/AIAnalysisSection';
@@ -20,15 +18,10 @@ import AIAnalysisSection from './_components/AIAnalysisSection';
 export default function StatsPage() {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats();
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown();
-  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, refresh: refreshCalendar } = useCalendar();
+  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth } = useCalendar();
   const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, isLoading: isPopupStatsLoading } = usePopupStats();
 
-  const [modalDate, setModalDate] = useState<{ date: string; revenue: number } | null>(null);
   const todayStr = getKSTDateStr();
-  const handleDateClick = useCallback((date: string, revenue: number) => {
-    if (date > todayStr) return;
-    setModalDate({ date, revenue });
-  }, [todayStr]);
   const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0), [todayOrders]);
   const maxDayRevenue = useMemo(() => Math.max(...Object.values(calendarSales.byDate ?? {}).map(Number), 1), [calendarSales.byDate]);
 
@@ -76,12 +69,7 @@ export default function StatsPage() {
               todayStr={todayStr}
               maxDayRevenue={maxDayRevenue}
               onMonthChange={changeMonth}
-              onDateClick={handleDateClick}
             />
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 md:p-5">
-            <ManualSalesSection calendarMonth={calendarMonth} onSaved={refreshCalendar} />
           </div>
 
           <div className="bg-white rounded-2xl p-4 md:p-5">
@@ -97,14 +85,6 @@ export default function StatsPage() {
         </div>
       </main>
 
-      {modalDate && (
-        <ManualSalesModal
-          date={modalDate.date}
-          existingRevenue={modalDate.revenue}
-          onClose={() => setModalDate(null)}
-          onSaved={refreshCalendar}
-        />
-      )}
     </>
   );
 }
