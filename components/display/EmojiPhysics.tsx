@@ -16,10 +16,11 @@ interface Particle {
 }
 
 const MAX_PARTICLES = 35;
-const PARTICLE_RADIUS = 44;
 
 function spawnParticles(items: CartItem[], width: number, height: number): Particle[] {
   const particles: Particle[] = [];
+  // 화면이 넓을수록 파티클 크기를 줄여 아이패드에서 너무 크게 보이는 문제 방지
+  const responsiveScale = Math.max(0.65, Math.min(1, 450 / Math.max(width, 450)));
   for (const item of items) {
     const emoji = getEmoji(item.name);
     const count = Math.min(Math.max(item.count * 3, 6), 12);
@@ -32,7 +33,7 @@ function spawnParticles(items: CartItem[], width: number, height: number): Parti
         emoji,
         rotation: Math.random() * 360,
         rotationSpeed: (Math.random() - 0.5) * 5,
-        size: 80 + Math.random() * 18,
+        size: (80 + Math.random() * 18) * responsiveScale,
         opacity: 1,
         fadingOut: false,
       });
@@ -42,15 +43,14 @@ function spawnParticles(items: CartItem[], width: number, height: number): Parti
 }
 
 function resolveCollisions(particles: Particle[]) {
-  const R = PARTICLE_RADIUS;
   const RESTITUTION = 0.6;
-  const minDist = R * 2;
-  const minDist2 = minDist * minDist;
   for (let i = 0; i < particles.length; i++) {
     for (let j = i + 1; j < particles.length; j++) {
       const a = particles[i];
       const b = particles[j];
       if (a.fadingOut || b.fadingOut) continue;
+      const minDist = (a.size + b.size) / 2;
+      const minDist2 = minDist * minDist;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const dist2 = dx * dx + dy * dy;
