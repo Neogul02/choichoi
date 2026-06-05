@@ -19,7 +19,7 @@ function spawnParticles(items: CartItem[], width: number, height: number): Parti
   const particles: Particle[] = [];
   // 화면이 넓을수록 파티클 개수·크기를 늘려 아이패드에서 화면이 꽉 차도록
   const countScale = Math.max(1, Math.min(2.5, width / 420));
-  const sizeScale = Math.min(1.35, Math.max(1, width / 480));
+  const sizeScale = Math.min(1.1, Math.max(1, width / 480));
   for (const item of items) {
     const emoji = getEmoji(item.name);
     const count = Math.round(Math.min(Math.max(item.count * 3, 6), 12) * countScale);
@@ -32,7 +32,7 @@ function spawnParticles(items: CartItem[], width: number, height: number): Parti
         emoji,
         rotation: Math.random() * 360,
         rotationSpeed: (Math.random() - 0.5) * 5,
-        size: (80 + Math.random() * 18) * sizeScale,
+        size: (72 + Math.random() * 14) * sizeScale,
         opacity: 1,
         fadingOut: false,
       });
