@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -48,7 +49,9 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
   );
 }
 
-export default function DisplayPage() {
+function DisplayPageInner() {
+  const searchParams = useSearchParams();
+  const popupId = searchParams.get('popup') ?? '0';
   const [mode, setMode] = useState<Mode>('view');
   const [navExpanded, setNavExpanded] = useState(true);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -80,7 +83,7 @@ export default function DisplayPage() {
 
   useEffect(() => {
     const ch = supabase
-      .channel('cart-display')
+      .channel(`cart-display-${popupId}`)
       .on('broadcast', { event: 'cart_update' }, ({ payload }) => {
         if (displayStateRef.current !== 'idle') return;
         const p = payload as { items: CartItem[]; totalPrice: number };
@@ -242,5 +245,13 @@ export default function DisplayPage() {
 
       <BottomBanner />
     </div>
+  );
+}
+
+export default function DisplayPage() {
+  return (
+    <Suspense>
+      <DisplayPageInner />
+    </Suspense>
   );
 }
