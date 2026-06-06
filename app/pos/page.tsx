@@ -103,17 +103,20 @@ export default function PosPage() {
     id: number
   } | null>(null)
   const [cashierName, setCashierName] = useState<string | null>(null)
+  const [popupId, setPopupId] = useState('0')
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setCashierName(localStorage.getItem(CASHIER_NAME_KEY))
+    setPopupId(localStorage.getItem('choichoi_popup_id') ?? '0')
   }, [])
 
   const queryClient = useQueryClient()
 
   useEffect(() => {
+    if (popupId === '0') return () => {}
     const channel = supabase
-      .channel('orders-realtime')
+      .channel(`orders-${popupId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders' },
@@ -135,7 +138,7 @@ export default function PosPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [queryClient])
+  }, [queryClient, popupId])
 
   const checkoutFnRef = useRef<(() => void) | null>(null)
   const checkoutDebouncingRef = useRef(false)
@@ -146,8 +149,9 @@ export default function PosPage() {
   const menuItemsRef = useRef<MenuItem[]>([])
 
   useEffect(() => {
+    if (popupId === '0') return () => {}
     const ch = supabase
-      .channel('cart-display')
+      .channel(`cart-display-${popupId}`)
       .on('broadcast', { event: 'customer_update' }, ({ payload }) => {
         const { itemId, delta } = payload as { itemId: number; delta: number }
         setCounts((prev) => ({
@@ -182,7 +186,7 @@ export default function PosPage() {
     return () => {
       supabase.removeChannel(ch)
     }
-  }, [])
+  }, [popupId])
 
   const salesQuery = useQuery<TodaysSales>({
     queryKey: ['today-sales'],

@@ -11,7 +11,8 @@ export function usePresence(cashierName: string | null): string[] {
   useEffect(() => {
     if (!cashierName) return () => {};
     const clientId = clientIdRef.current;
-    const channel = supabase.channel('pos-presence', {
+    const popupId = (typeof window !== 'undefined' ? localStorage.getItem('choichoi_popup_id') : null) ?? '0';
+    const channel = supabase.channel(`pos-presence-${popupId}`, {
       config: { presence: { key: clientId } },
     });
     channel
