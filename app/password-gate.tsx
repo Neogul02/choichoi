@@ -28,12 +28,6 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [selectedPopupId, setSelectedPopupId] = useState<number | ''>('');
 
   useEffect(() => {
-    if (isAuthed && pathname === '/') {
-      router.push('/pos');
-    }
-  }, [isAuthed, pathname, router]);
-
-  useEffect(() => {
     fetchPopupEvents().then((result) => {
       if (result.success && result.data) {
         setPopupEvents(result.data);
@@ -99,7 +93,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     }
   };
 
-  if (pathname === '/display') return <>{children}</>;
+  if (pathname === '/display' || pathname === '/') return <>{children}</>;
 
   if (!checked) return null;
 
