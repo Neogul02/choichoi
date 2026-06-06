@@ -90,11 +90,8 @@ function PopupSelectScreen() {
   );
 }
 
-function DisplayPageInner() {
-  const searchParams = useSearchParams();
-  const popupId = searchParams.get('popup') ?? '0';
-
-  if (popupId === '0') return <PopupSelectScreen />;
+// 실제 고객 디스플레이 — popupId를 prop으로 받아 훅을 항상 동일한 순서로 호출
+function DisplayContent({ popupId }: { popupId: string }) {
   const [mode, setMode] = useState<Mode>('view');
   const [navExpanded, setNavExpanded] = useState(true);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -166,7 +163,7 @@ function DisplayPageInner() {
     });
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
-  }, []);
+  }, [popupId]);
 
   useEffect(() => {
     if (displayState === 'checkout') fireConfetti();
@@ -291,10 +288,19 @@ function DisplayPageInner() {
   );
 }
 
+// searchParams를 읽어 PopupSelectScreen 또는 DisplayContent로 라우팅
+function DisplayRouter() {
+  const searchParams = useSearchParams();
+  const popupId = searchParams.get('popup') ?? '0';
+
+  if (popupId === '0') return <PopupSelectScreen />;
+  return <DisplayContent popupId={popupId} />;
+}
+
 export default function DisplayPage() {
   return (
     <Suspense>
-      <DisplayPageInner />
+      <DisplayRouter />
     </Suspense>
   );
 }
