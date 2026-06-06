@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const AUTH_KEY = 'choichoi_popup_token';
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
@@ -10,14 +10,20 @@ const AUTH_API_PATH = '/api/auth/verify';
 const VALIDATE_API_PATH = '/api/auth/verify/validate';
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
   const pathname = usePathname();
+  const router = useRouter();
   const [checked, setChecked] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isAuthed && pathname === '/') {
+      router.push('/pos');
+    }
+  }, [isAuthed, pathname, router]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem(AUTH_KEY);
@@ -65,6 +71,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       localStorage.setItem(AUTH_KEY, data.token);
       localStorage.setItem(CASHIER_NAME_KEY, name.trim());
       setIsAuthed(true);
+      router.push('/pos');
     } catch (err) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
       setError(msg || '검증 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -73,7 +80,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     }
   };
 
-  if (pathname === '/display' || pathname === '/') return <>{children}</>;
+  if (pathname === '/display') return <>{children}</>;
 
   if (!checked) return null;
 

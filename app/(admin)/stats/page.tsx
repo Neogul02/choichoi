@@ -13,7 +13,6 @@ import TodayOrdersSection from './_components/TodayOrdersSection';
 import CalendarSection from './_components/CalendarSection';
 import PopupStatsSection from './_components/PopupStatsSection';
 import HourlySalesSection from './_components/HourlySalesSection';
-import AIAnalysisSection from './_components/AIAnalysisSection';
 
 export default function StatsPage() {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats();
@@ -33,10 +32,6 @@ export default function StatsPage() {
           <h2 className="m-0 px-1 text-2xl font-extrabold">매출</h2>
 
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
-
-          <div className="bg-white rounded-2xl p-4 md:p-5">
-            <AIAnalysisSection summary={summary} todayOrders={todayOrders} />
-          </div>
 
           <div className="bg-white rounded-2xl p-4 md:p-5">
             <MenuBreakdownSection
