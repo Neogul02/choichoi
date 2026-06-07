@@ -18,7 +18,7 @@ export default function StatsPage() {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats();
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown();
   const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth } = useCalendar();
-  const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, isLoading: isPopupStatsLoading } = usePopupStats();
+  const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading: isPopupStatsLoading } = usePopupStats();
 
   const todayStr = getKSTDateStr();
   const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0), [todayOrders]);
@@ -73,6 +73,7 @@ export default function StatsPage() {
               selectedPopupId={selectedPopupId}
               popupMenuBreakdown={popupMenuBreakdown}
               popupDailySales={popupDailySales}
+              popupRawOrders={popupRawOrders}
               isLoading={isPopupStatsLoading}
               onSelectPopup={setSelectedPopupId}
             />
