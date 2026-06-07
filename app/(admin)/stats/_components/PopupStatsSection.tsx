@@ -3,6 +3,8 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
+import { buildDayOfWeekData } from '@/app/(admin)/stats/_lib/dayofweek';
+import type { DayOfWeekData } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
@@ -26,6 +28,23 @@ function DailyTooltip({ active, payload, label }: DailyTooltipProps) {
 interface MenuTooltipProps {
   active?: boolean;
   payload?: Array<{ value: number; payload: MenuSalesItem }>;
+}
+
+interface DayOfWeekTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: DayOfWeekData }>;
+  label?: string;
+}
+
+function DayOfWeekTooltip({ active, payload, label }: DayOfWeekTooltipProps) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-[#e0e0e0] rounded-lg p-2.5 text-xs shadow-md">
+      <p className="font-bold mb-1 text-[#333]">{label}요일</p>
+      <p className="text-primary-700">₩{payload[0].value.toLocaleString('ko-KR')}</p>
+      <p className="text-[#666]">주문 {payload[0].payload.orderCount}건</p>
+    </div>
+  );
 }
 
 function MenuTooltip({ active, payload }: MenuTooltipProps) {
@@ -65,6 +84,7 @@ export default function PopupStatsSection({ popupEvents, selectedPopupId, popupM
     () => popupDailySales.map((d) => ({ ...d, dateLabel: formatDateLabel(d.date) })),
     [popupDailySales]
   );
+  const dayOfWeekData = useMemo(() => buildDayOfWeekData(popupDailySales), [popupDailySales]);
 
   return (
     <div className="bg-[#f4f7f5] rounded-xl p-4">
@@ -123,6 +143,23 @@ export default function PopupStatsSection({ popupEvents, selectedPopupId, popupM
                   </div>
                 ) : (
                   <p className="text-[#999] text-sm mb-3">해당 팝업 기간에 매출 데이터가 없습니다.</p>
+                )}
+
+                {popupDailySales.length > 0 && (
+                  <div className="bg-white rounded-xl p-3 border border-[#e4e4e4] mb-3">
+                    <h4 className="m-0 mb-3 text-sm font-bold text-[#333]">요일별 매출 분포</h4>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={dayOfWeekData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#888' }} axisLine={false} tickLine={false} />
+                        <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                        <Tooltip content={<DayOfWeekTooltip />} />
+                        <Bar dataKey="revenue" fill="#5ba8d8" radius={[4, 4, 0, 0]}>
+                          <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
 
                 {popupMenuBreakdown.length > 0 ? (
