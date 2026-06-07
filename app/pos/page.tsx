@@ -424,7 +424,7 @@ export default function PosPage() {
     <>
       <NavBar />
 
-      <main className="min-h-screen p-3 md:p-5 pb-24 md:pb-5 max-w-[1100px] mx-auto">
+      <main className="min-h-screen p-3 md:p-5 pb-24 md:pb-5 md:px-8 max-w-[1100px] mx-auto">
         <motion.header
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
