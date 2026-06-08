@@ -4,7 +4,7 @@ import NavBar from '@/components/NavBar';
 import { toast } from 'sonner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  fetchPopupEvents, createNewPopupEvent, removePopupEvent,
+  fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent,
   fetchScheduleByEvent, addScheduleEntry, removeScheduleEntry,
   moveScheduleEntry, editScheduleEntry, copyScheduleEntry,
   fetchWorkers, createNewWorker, editWorker, removeWorker, markWorkerPayment,
@@ -119,6 +119,17 @@ export default function SchedulePage() {
     const r = await createNewPopupEvent(newEvent.name.trim(), newEvent.startDate, newEvent.endDate);
     if (r.success && r.data) { setEvents(p => [r.data!, ...p]); setShowAddEvent(false); setNewEvent({ name: '', startDate: '', endDate: '' }); handleSelectEvent(r.data); showMsg('일정이 생성되었습니다'); }
     else showMsg(`오류: ${r.error}`);
+  };
+
+  const handleEditEvent = async (event: PopupEvent, name: string, startDate: string, endDate: string) => {
+    const r = await editPopupEvent(event.id, name, startDate, endDate);
+    if (r.success && r.data) {
+      setEvents(p => p.map(ev => ev.id === event.id ? r.data! : ev));
+      if (selectedEvent?.id === event.id) setSelectedEvent(r.data);
+      showMsg('일정이 수정되었습니다');
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
   };
 
   const handleDeleteEvent = async (e: React.MouseEvent, event: PopupEvent) => {
@@ -311,6 +322,7 @@ export default function SchedulePage() {
             onCreateEvent={handleCreateEvent}
             onSelectEvent={handleSelectEvent}
             onDeleteEvent={handleDeleteEvent}
+            onEditEvent={handleEditEvent}
           />
 
           {/* ── 스케줄 그리드 ── */}
