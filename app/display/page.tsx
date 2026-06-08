@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { supabase } from '@/lib/supabase';
 import { fetchMenuItems } from '@/app/actions/menu';
-import type { MenuItem } from '@/types/database';
+import { fetchPopupEvents } from '@/app/actions/schedule';
+import type { MenuItem, PopupEvent } from '@/types/database';
 import type { CartItem, Mode, DisplayState } from '@/types/display';
 import ViewMode from '@/components/display/ViewMode';
 import OrderMode from '@/components/display/OrderMode';
@@ -48,7 +50,48 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
   );
 }
 
-export default function DisplayPage() {
+function PopupSelectScreen() {
+  const router = useRouter();
+  const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPopupEvents().then((result) => {
+      if (result.success && result.data) setPopupEvents(result.data);
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#f5f6f7] flex flex-col items-center justify-center p-8">
+      <div className="text-center mb-10">
+        <h1 className="text-4xl font-black text-[#1a1a1a] m-0 mb-2">CHOICHOI</h1>
+        <p className="text-[#999] text-base m-0">고객 화면을 연결할 팝업을 선택해주세요</p>
+      </div>
+      <div className="flex flex-col gap-3 w-full max-w-sm">
+        {loading && (
+          <div className="text-center text-[#bbb] text-sm py-8">불러오는 중...</div>
+        )}
+        {!loading && popupEvents.length === 0 && (
+          <div className="text-center text-[#bbb] text-sm py-8">등록된 팝업이 없습니다</div>
+        )}
+        {popupEvents.map((popup) => (
+          <button
+            key={popup.id}
+            onClick={() => router.push(`/display?popup=${popup.id}`)}
+            className="w-full bg-white text-[#1a1a1a] text-left px-6 py-5 rounded-2xl border-none shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.13)] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+          >
+            <div className="text-lg font-black mb-0.5">{popup.name}</div>
+            <div className="text-sm text-[#999]">{popup.start_date} ~ {popup.end_date}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 실제 고객 디스플레이 — popupId를 prop으로 받아 훅을 항상 동일한 순서로 호출
+function DisplayContent({ popupId }: { popupId: string }) {
   const [mode, setMode] = useState<Mode>('view');
   const [navExpanded, setNavExpanded] = useState(true);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -80,7 +123,7 @@ export default function DisplayPage() {
 
   useEffect(() => {
     const ch = supabase
-      .channel('cart-display')
+      .channel(`cart-display-${popupId}`)
       .on('broadcast', { event: 'cart_update' }, ({ payload }) => {
         if (displayStateRef.current !== 'idle') return;
         const p = payload as { items: CartItem[]; totalPrice: number };
@@ -120,7 +163,7 @@ export default function DisplayPage() {
     });
     channelRef.current = ch;
     return () => { supabase.removeChannel(ch); };
-  }, []);
+  }, [popupId]);
 
   useEffect(() => {
     if (displayState === 'checkout') fireConfetti();
@@ -242,5 +285,22 @@ export default function DisplayPage() {
 
       <BottomBanner />
     </div>
+  );
+}
+
+// searchParams를 읽어 PopupSelectScreen 또는 DisplayContent로 라우팅
+function DisplayRouter() {
+  const searchParams = useSearchParams();
+  const popupId = searchParams.get('popup') ?? '0';
+
+  if (popupId === '0') return <PopupSelectScreen />;
+  return <DisplayContent popupId={popupId} />;
+}
+
+export default function DisplayPage() {
+  return (
+    <Suspense>
+      <DisplayRouter />
+    </Suspense>
   );
 }
