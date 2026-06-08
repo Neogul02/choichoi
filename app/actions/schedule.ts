@@ -6,6 +6,7 @@ import {
   getPopupEvents,
   createPopupEvent,
   deletePopupEvent,
+  updatePopupEvent,
   getScheduleByEvent,
   addScheduleSlot,
   removeScheduleSlot,
@@ -44,6 +45,12 @@ export async function createNewPopupEvent(name: string, startDate: string, endDa
 }
 
 export async function removePopupEvent(id: number): Promise<ApiResponse> { return wrap(() => deletePopupEvent(id)); }
+
+export async function editPopupEvent(id: number, name: string, startDate: string, endDate: string): Promise<ApiResponse<PopupEvent>> {
+  const parsed = PopupEventSchema.safeParse({ name, startDate, endDate });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  return wrap(() => updatePopupEvent(id, parsed.data.name, parsed.data.startDate, parsed.data.endDate));
+}
 
 // ── Schedule Slots ────────────────────────────────────────────────────────────
 
