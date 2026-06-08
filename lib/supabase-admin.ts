@@ -316,6 +316,17 @@ export async function deletePopupEvent(id: number): Promise<void> {
   if (error) throw error;
 }
 
+export async function updatePopupEvent(id: number, name: string, startDate: string, endDate: string): Promise<PopupEvent> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .update({ name, start_date: startDate, end_date: endDate })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as PopupEvent;
+}
+
 // ── Schedule Slots ────────────────────────────────────────────────────────────
 
 export async function getScheduleByEvent(eventId: number): Promise<ScheduleSlot[]> {
