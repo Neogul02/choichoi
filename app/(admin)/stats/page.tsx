@@ -13,13 +13,12 @@ import TodayOrdersSection from './_components/TodayOrdersSection';
 import CalendarSection from './_components/CalendarSection';
 import PopupStatsSection from './_components/PopupStatsSection';
 import HourlySalesSection from './_components/HourlySalesSection';
-import AIAnalysisSection from './_components/AIAnalysisSection';
 
 export default function StatsPage() {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats();
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown();
   const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth } = useCalendar();
-  const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, isLoading: isPopupStatsLoading } = usePopupStats();
+  const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading: isPopupStatsLoading } = usePopupStats();
 
   const todayStr = getKSTDateStr();
   const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0), [todayOrders]);
@@ -33,10 +32,6 @@ export default function StatsPage() {
           <h2 className="m-0 px-1 text-2xl font-extrabold">매출</h2>
 
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
-
-          <div className="bg-white rounded-2xl p-4 md:p-5">
-            <AIAnalysisSection summary={summary} todayOrders={todayOrders} />
-          </div>
 
           <div className="bg-white rounded-2xl p-4 md:p-5">
             <MenuBreakdownSection
@@ -78,6 +73,7 @@ export default function StatsPage() {
               selectedPopupId={selectedPopupId}
               popupMenuBreakdown={popupMenuBreakdown}
               popupDailySales={popupDailySales}
+              popupRawOrders={popupRawOrders}
               isLoading={isPopupStatsLoading}
               onSelectPopup={setSelectedPopupId}
             />

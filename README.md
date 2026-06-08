@@ -38,7 +38,6 @@
 | 실시간 | Supabase Realtime Broadcast + Presence | WebSocket 인프라 직접 관리 불필요, Vercel 서버리스 완전 호환 |
 | 데이터베이스 | Supabase (PostgreSQL) | RLS + service role 분리로 최소 권한 원칙 구현 |
 | 서버 상태 | TanStack Query v5 | Optimistic update + 쿼리 캐시 무효화로 낙관적 UI |
-| AI | Gemini API | 당일 매출 데이터 기반 자연어 분석 |
 | 배포 | Vercel | Edge 네트워크, 재배포 시 토큰 자동 만료 활용 |
 
 ---
@@ -59,8 +58,7 @@ app/actions/
 ├── stats.ts       # 매출 통계, 수동 매출 입력
 ├── inventory.ts   # 재고 차감·입고·레시피
 ├── schedule.ts    # 팝업·근무자 일정
-├── memos.ts       # 운영 메모
-└── ai.ts          # Gemini AI 분석
+└── memos.ts       # 운영 메모
 ```
 
 ### Broadcast vs DB Polling
@@ -78,98 +76,6 @@ app/actions/
 ### 토큰 자동 만료
 **결정:** 인증 토큰에 배포 시 변경되는 시크릿을 포함  
 **이유:** 비밀번호 변경이나 재배포 시 기존 localStorage 토큰을 무효화해야 함. Vercel의 `VERCEL_DEPLOYMENT_ID`를 서명 재료로 사용하면 별도의 토큰 블랙리스트 DB 없이 자동 만료 구현 가능.
-
----
-
-## TypeScript 설계 패턴
-
-### `ApiResponse<T>` — 타입 안전 Server Action 래퍼
-
-모든 Server Action은 `ApiResponse<T>` discriminated union을 반환합니다. 호출부에서 `r.success` 분기 후 타입이 자동으로 내로잉됩니다.
-
-```typescript
-// types/api.ts
-export type ApiResponse<T = void> =
-  | { success: true; data: T }
-  | { success: false; error: string }
-
-// app/actions/_base.ts — wrap() 으로 일관성 보장
-async function wrap<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
-  try {
-    return { success: true, data: await fn() };
-  } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : String(e) };
-  }
-}
-
-// 호출부 (클라이언트)
-const r = await saveOrder(items, totalPrice);
-if (r.success) {
-  console.log(r.data.orderId); // data: SaveOrderResult — 타입 확정
-} else {
-  toast.error(r.error);        // error: string — 타입 확정
-}
-```
-
-### Discriminated Union으로 어드민 모달 상태 관리
-
-```typescript
-// 여러 boolean 플래그 대신 단일 상태로 모달 종류 표현
-type AdminModalState =
-  | { type: 'closed' }
-  | { type: 'login' }
-  | { type: 'confirm-logout' }
-
-const [modal, setModal] = useState<AdminModalState>({ type: 'closed' });
-// 렌더링 시 exhaustive check 가능, 불가능한 상태 조합 원천 차단
-```
-
-### Supabase 타입 안전 채널 페이로드
-
-```typescript
-// 채널 이벤트 페이로드를 타입 단언 없이 처리
-type CartUpdatePayload = { items: CartItem[]; totalPrice: number };
-type CustomerUpdatePayload = { itemId: number; delta: 1 | -1 };
-
-channel.on('broadcast', { event: 'cart_update' }, ({ payload }) => {
-  const { items, totalPrice } = payload as CartUpdatePayload;
-  // ...
-});
-```
-
-### 재고 단위 타입 구분
-
-```typescript
-// 'count' | 'weight' union으로 단위 처리 분기
-interface Ingredient {
-  unit_type: 'count' | 'weight';
-  base_unit: string;        // 'ea' | 'g' | 'kg' ...
-  container_unit: string;   // '봉' | '박스' ...
-  container_size: number;
-}
-// UI에서 unit_type에 따라 표시 로직 분기 — 런타임 오류 없음
-```
-
----
-
-## 핵심 기술 난제 & 해결
-
-### KST 시간대 통계 오류
-**문제:** `AT TIME ZONE 'Asia/Seoul'` 적용 시 UTC로 저장된 타임스탬프에 역방향 변환이 일어나 일별 매출 집계가 다른 날짜로 잘못 묶임  
-**해결:** DB RPC에서 `created_at + INTERVAL '9 hours'`로 직접 오프셋 적용. 서울 리전 Supabase에서도 내부 시스템 시각은 UTC이므로 단순 덧셈이 더 예측 가능.
-
-### POS 모바일 결제 re-render 버그
-**문제:** TanStack Query optimistic update와 Supabase Broadcast `customer_update` 수신이 동시에 `counts` 상태를 업데이트할 때 최신값을 읽지 못하고 stale closure가 발생  
-**해결:** `countsRef = useRef(counts)`로 항상 최신 counts를 반영, Broadcast 핸들러 내부에서 ref를 읽도록 변경.
-
-### Broadcast delta vs full-state 선택
-**문제:** 손님 → 캐셔 방향의 카트 업데이트를 어떤 형식으로 전송할 것인가  
-**결정:** `customer_update`는 `{ itemId, delta: +1 | -1 }` delta 방식, `cart_update`는 full-state 방식으로 분리  
-**이유:** 손님이 여러 항목을 빠르게 탭할 때 delta는 이벤트 순서가 어긋나도 최종 합산이 정확함. 반대로 캐셔 → 손님은 카트 전체를 한 번에 보내야 색상 정보까지 포함 가능.
-
-### 재고 차감 정합성
-**문제:** 주문 저장 후 재료 차감을 별도 요청으로 보내면 네트워크 오류 시 차감 누락 가능  
-**해결:** `saveOrder` Server Action 내에서 주문 저장 → 레시피 조회 → 재료 차감을 단일 함수 내에 순차 실행. 차감 실패 시 `inventoryError`를 별도 필드로 반환해 주문 자체는 보존하되 관리자에게 알림.
 
 ---
 
@@ -236,80 +142,6 @@ lib/supabase-admin.ts    ← SUPABASE_SERVICE_ROLE_KEY 사용, Server Actions에
 
 ---
 
-## 유저 플로우
-
-### 손님 (Guest)
-
-```
-접속 (/)
-  └─ 고객 화면 선택 → /display  (인증 불필요)
-        │
-        ├─ 보기 모드 (단방향)
-        │     캐셔가 담은 카트 내역을 실시간으로 확인
-        │     메뉴별 색상·수량·합계 표시
-        │     결제 완료 시 영수증 오버레이 + 컨페티 애니메이션
-        │
-        └─ 주문 모드 (양방향)
-              메뉴 그리드에서 직접 항목 탭
-              수량 증감 → Supabase Broadcast로 캐셔 화면에 즉시 반영
-              하단 요약 바에 선택 수량·합계 표시
-```
-
-### 캐셔 (Cashier)
-
-```
-접속 (/)
-  └─ 캐셔 화면 선택 → /pos
-        │
-        ├─ 비밀번호 게이트
-        │     이름 + POPUP_PASSWORD 입력 → 인증 토큰 발급 (localStorage)
-        │     재배포·비밀번호 변경 시 자동 만료
-        │
-        └─ POS 메인
-              메뉴 그리드 클릭 또는 숫자키 1~9 단축키
-              Enter: 결제 / Esc: 초기화
-              카트 변경 → Broadcast(cart_update) → 고객 화면 실시간 반영
-              손님 주문 수신(customer_update) → 카트 자동 업데이트
-              결제 완료 → DB 저장 + 재고 자동 차감 + 컨페티 애니메이션
-              최근 주문 5건·오늘 매출 배너 하단 표시
-              접속 중인 캐셔 이름 NavBar에 실시간 표시 (Supabase Presence)
-```
-
-### 어드민 (Admin)
-
-```
-NavBar 관리자 버튼 → ADMIN_PASSWORD 입력
-  └─ 어드민 전용 메뉴 활성화
-        │
-        ├─ 통계 (/stats)
-        │     오늘 매출 요약 카드 (등급 시스템: Bronze→Diamond→Platinum)
-        │     AI 매출 분석 (Gemini — 오늘 데이터 기반 자연어 인사이트)
-        │     메뉴별·시간대별 판매 차트 (오늘/이번 주/이번 달 필터)
-        │     오늘 주문 내역 + 주문 삭제
-        │     월간 캘린더 (일별 매출 히트맵, 날짜 클릭 → 수동 매출 입력)
-        │     팝업별 매출 분석 (일별 추이, 메뉴별 판매량)
-        │     월 정산 계산기 (팝업 수수료·재료비·기타 비용 → 예상 정산액)
-        │
-        ├─ 일정 (/schedule)
-        │     팝업·행사 일정 추가·삭제
-        │     주간 캘린더에 역할별(프론트/주방/배달) 근무자 배정
-        │     근무자 정보 (이름, 연락처, 시급, 은행 계좌) 관리
-        │
-        ├─ 재고 (/inventory)
-        │     식재료 카드 (카테고리: 빵/크림/과일/패키지)
-        │     봉·박스 단위 재고 추적 (sealed/opened 이중 상태)
-        │     실시간 차감 로그 (주문 발생 시 자동 차감)
-        │     레시피 관리 (메뉴↔재료 연결, 1개 생산 시 차감량)
-        │     수동 입고(restock) 이벤트 기록
-        │
-        └─ 설정 (/settings)
-              메뉴 항목 추가·수정·삭제 (소프트 딜리트)
-              이름, 가격, 색상(hex) 설정
-              드래그(PC) / 핸들(모바일)로 표시 순서 변경
-```
-
----
-
 ## 프로젝트 구조
 
 ```
@@ -324,8 +156,7 @@ app/
 │   ├── stats.ts               # 매출 통계, 수동 매출 입력
 │   ├── inventory.ts           # 재고 차감·입고·레시피
 │   ├── schedule.ts            # 팝업·근무자 일정
-│   ├── memos.ts               # 운영 메모
-│   └── ai.ts                  # Gemini AI 분석
+│   └── memos.ts               # 운영 메모
 ├── providers.tsx              # TanStack Query Provider
 ├── pos/page.tsx               # 캐셔 POS 메인
 ├── display/page.tsx           # 고객 디스플레이 (보기/주문 모드)
@@ -418,7 +249,6 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | RLS 우회 admin 키 | **서버 전용** |
 | `POPUP_PASSWORD` | 캐셔 화면 접근 비밀번호 | 서버 전용 |
 | `ADMIN_PASSWORD` | 어드민 화면 접근 비밀번호 | 서버 전용 |
-| `GEMINI_API_KEY` | AI 매출 분석 | 서버 전용 |
 | `DISCORD_WEBHOOK_URL` | 메뉴 설정 변경 알림 (선택) | 서버 전용 |
 
 ---
@@ -432,52 +262,3 @@ yarn build    # 프로덕션 빌드 (TypeScript 타입 검사 포함)
 yarn lint     # ESLint 검사
 ```
 
----
-
-## 개발 이력
-
-### 2026-06
-
-| 날짜 | 내용 |
-|------|------|
-| 06-03 | `app/actions.ts` → `app/actions/` 도메인별 분리 리팩토링 (menu, orders, stats, inventory, schedule, memos, ai, _base) |
-| 06-03 | actions 분리 후 깨진 import 수정 및 누락된 `fetchManualSalesByDate` 함수 추가 (`stats.ts`) |
-| 06-01 | 코드리뷰 기반 버그 패치: 빈 매출액 저장 차단, 미래 날짜 입력 방지, saleDate 서버 검증, useEffect 클린업 추가 |
-| 06-01 | `/display` 결제 완료 시 컨페티 효과 추가 (Supabase Broadcast `checkout_complete` 수신 후 `useEffect` 트리거) |
-
-### 2026-05
-
-| 날짜 | 내용 |
-|------|------|
-| 05-22 | 캘린더 날짜 클릭 → 수동 매출 입력 모달 (`daily_sales` 테이블, upsert-on-conflict) |
-| 05-21 | Supabase RLS 활성화 + `supabase-admin.ts` service role 클라이언트 분리 |
-| 05-21 | AI 매출 분석 (Gemini API), 시간대별 판매 차트, 팝업 이벤트별 필터 추가 |
-| 05-21 | 재고 관리 실시간 동기화 수정, 재료 추가·관리 모달, 실시간 차감 로그 |
-| 05-21 | 재고관리(`/inventory`) 탭 구현 — 식재료 카드, 레시피 관리, 입고·차감 이벤트 |
-| 05-21 | stats 페이지 커스텀 훅 분리 (`useCalendar`, `useTodayStats`, `useBreakdown`, `usePopupStats`) |
-| 05-21 | 통계 페이지 실시간 주문 반영 (Supabase Realtime DB 구독) |
-| 05-21 | `fetch` → `axios` 전환 (admin-gate, password-gate, actions) |
-| 05-21 | 매출 등급 시스템 (Bronze→Silver→Gold→Diamond→Platinum) + 모바일 반응형 |
-| 05-20 | 결제 완료 시 고객 디스플레이 영수증 오버레이 + "감사합니다" 화면 |
-| 05-20 | 캐셔 초기화 시 고객 화면 동기화 (`cart_reset` 이벤트) |
-| 05-20 | 팝업 행사별 일정·근무자 관리 기능 추가, NavBar UX 개선 |
-| 05-19 | POS UX 리팩토링, `orders` 페이지 분리, NavBar 어드민 로그인 통합 |
-| 05-19 | Framer Motion 전면 적용 (메뉴 카드 탭, 카트 항목, 금액 spring 애니메이션) |
-| 05-19 | 주문 삭제, 비용 입력, 매출 배너, 접이식 어드민 NavBar |
-| 05-19 | 캐셔 이름 localStorage 저장 + Supabase Presence 실시간 접속 목록 표시 |
-| 05-18 | 재배포 시 인증 세션 자동 만료 (Vercel Deployment ID 기반 토큰 서명) |
-| 05-18 | 주문 저장·메뉴 판매 쿼리 DB 라운드트립 최적화 |
-| 05-18 | 매출 배너, 최근 주문, 인증 게이트 개선 |
-| 05-13 | 팝업 이벤트별 차트 추가, Optimistic Update 전면 적용 |
-| 05-12 | 월간 매출 RPC (`get_monthly_sales_by_date`) 추가, 통계 UI 개선 |
-
-### 2026-03 — 초기 구축
-
-| 날짜 | 내용 |
-|------|------|
-| 03월 | Next.js 16 App Router 기반 POS MVP, Supabase PostgreSQL 연동 |
-| 03월 | 캐셔 비밀번호 게이트 + 서버 토큰 인증 |
-| 03월 | 메뉴 그리드 단축키(1~9), Enter 결제, Esc 초기화 |
-| 03월 | 설정 페이지: 메뉴 CRUD, 드래그(PC)·터치(모바일) 순서 변경 |
-| 03월 | 통계 페이지: 일별·월별 매출, 비용·순이익 계산 |
-| 03월 | JS → TypeScript 전환, Vercel 배포 구성 |

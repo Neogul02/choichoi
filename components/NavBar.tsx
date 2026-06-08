@@ -11,6 +11,8 @@ const ADMIN_AUTH_KEY = 'choichoi_admin_token';
 const ADMIN_AUTH_API_PATH = '/api/auth/admin';
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
 const POPUP_AUTH_KEY = 'choichoi_popup_token';
+const POPUP_ID_KEY = 'choichoi_popup_id';
+const POPUP_NAME_KEY = 'choichoi_popup_name';
 
 const ALL_NAV_LINKS = [
   { href: '/pos', label: 'POS', adminOnly: false },
@@ -43,6 +45,7 @@ export default function NavBar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [modal, setModal] = useState<ModalState>({ open: false });
   const [cashierName, setCashierName] = useState<string | null>(null);
+  const [popupName, setPopupName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const activeCashiers = usePresence(cashierName);
@@ -52,6 +55,7 @@ export default function NavBar() {
       setCollapsed(localStorage.getItem(NAV_COLLAPSED_KEY) === 'true');
       setIsAdmin(!!localStorage.getItem(ADMIN_AUTH_KEY));
       setCashierName(localStorage.getItem(CASHIER_NAME_KEY));
+      setPopupName(localStorage.getItem(POPUP_NAME_KEY));
     } catch { /* ignore */ }
   }, []);
 
@@ -109,6 +113,8 @@ export default function NavBar() {
       localStorage.removeItem(POPUP_AUTH_KEY);
       localStorage.removeItem(CASHIER_NAME_KEY);
       localStorage.removeItem(ADMIN_AUTH_KEY);
+      localStorage.removeItem(POPUP_ID_KEY);
+      localStorage.removeItem(POPUP_NAME_KEY);
     } catch { /* ignore */ }
     window.location.href = '/';
   };
@@ -131,6 +137,11 @@ export default function NavBar() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <h1 className="m-0 text-xl md:text-2xl font-extrabold text-[#161616] shrink-0">ChoiChoi</h1>
+                    {popupName && (
+                      <span className="hidden md:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
+                        {popupName}
+                      </span>
+                    )}
                     {activeCashiers.length > 0 && (
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="hidden md:inline text-[11px] text-[#bbb] shrink-0">접속</span>

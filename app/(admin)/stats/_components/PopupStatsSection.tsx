@@ -1,10 +1,18 @@
 'use client';
 
-import { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { useMemo, useState } from 'react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
+  LineChart, Line, Legend,
+} from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
+import { buildDayHourMatrix, DAY_COLORS, DAYS } from '@/app/(admin)/stats/_lib/dayofweek';
+import { HOURS } from '@/app/(admin)/stats/_lib/hourly';
+import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
+
+type Metric = 'revenue' | 'orderCount';
 
 interface DailyTooltipProps {
   active?: boolean;
@@ -22,6 +30,7 @@ function DailyTooltip({ active, payload, label }: DailyTooltipProps) {
     </div>
   );
 }
+
 
 interface MenuTooltipProps {
   active?: boolean;
@@ -44,12 +53,16 @@ interface Props {
   selectedPopupId: number | null;
   popupMenuBreakdown: MenuSalesItem[];
   popupDailySales: DailySalesItem[];
+  popupRawOrders: Array<{ created_at: string; total_price: number }>;
   isLoading: boolean;
   onSelectPopup: (id: number | null) => void;
 }
 
-export default function PopupStatsSection({ popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, isLoading, onSelectPopup }: Props) {
+export default function PopupStatsSection({
+  popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading, onSelectPopup,
+}: Props) {
   const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
+  const [metric, setMetric] = useState<Metric>('revenue');
 
   const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
   const popupTotalOrders = useMemo(() => popupDailySales.reduce((s, d) => s + d.orderCount, 0), [popupDailySales]);
@@ -64,6 +77,18 @@ export default function PopupStatsSection({ popupEvents, selectedPopupId, popupM
   const dailyChartData = useMemo(
     () => popupDailySales.map((d) => ({ ...d, dateLabel: formatDateLabel(d.date) })),
     [popupDailySales]
+  );
+
+  const { matrix, activeDays } = useMemo(() => buildDayHourMatrix(popupRawOrders), [popupRawOrders]);
+
+  const dayHourRows = useMemo(
+    () =>
+      HOURS.map((h) => {
+        const row: Record<string, number | string> = { label: `${String(h).padStart(2, '0')}시` };
+        activeDays.forEach((day) => { row[day] = matrix[day][h][metric]; });
+        return row;
+      }),
+    [matrix, activeDays, metric]
   );
 
   return (
@@ -123,6 +148,79 @@ export default function PopupStatsSection({ popupEvents, selectedPopupId, popupM
                   </div>
                 ) : (
                   <p className="text-[#999] text-sm mb-3">해당 팝업 기간에 매출 데이터가 없습니다.</p>
+                )}
+
+                {activeDays.length > 0 && (
+                  <div className="bg-white rounded-xl p-3 border border-[#e4e4e4] mb-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="m-0 text-sm font-bold text-[#333]">요일 × 시간대별 판매 현황</h4>
+                      <div className="flex gap-1">
+                        {(['revenue', 'orderCount'] as Metric[]).map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => setMetric(m)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition-all ${metric === m ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] text-[#666] border-[#ddd] hover:bg-[#eee]'}`}
+                          >
+                            {m === 'revenue' ? '매출' : '주문수'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={dayHourRows} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                        <YAxis
+                          tickFormatter={metric === 'revenue' ? formatRevenueTick : String}
+                          tick={{ fontSize: 11, fill: '#888' }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={40}
+                          allowDecimals={false}
+                        />
+                        <Tooltip content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const filtered = payload.filter((p) => Number(p.value) > 0);
+                          if (!filtered.length) return null;
+                          return (
+                            <div className="bg-white border border-[#e0e0e0] rounded-lg p-2.5 text-xs shadow-md min-w-[110px]">
+                              <p className="font-bold mb-1.5 text-[#333]">{label}</p>
+                              {filtered.map((p) => (
+                                <p key={String(p.dataKey)} style={{ color: p.stroke as string }} className="mb-0.5">
+                                  {String(p.dataKey)}요일:{' '}
+                                  {metric === 'revenue'
+                                    ? `₩${Number(p.value).toLocaleString('ko-KR')}`
+                                    : `${p.value}건`}
+                                </p>
+                              ))}
+                            </div>
+                          );
+                        }} />
+                        <Legend
+                          formatter={(value: string) => <span style={{ fontSize: 11, color: '#555' }}>{value}요일</span>}
+                          iconType="circle"
+                          iconSize={8}
+                          wrapperStyle={{ paddingTop: 8 }}
+                        />
+                        {(activeDays as DayLabel[]).map((day) => (
+                          <Line
+                            key={day}
+                            type="monotone"
+                            dataKey={day}
+                            stroke={DAY_COLORS[day]}
+                            strokeWidth={2}
+                            dot={{ r: 3, strokeWidth: 0 }}
+                            activeDot={{ r: 5, strokeWidth: 0 }}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <p className="text-[10px] text-[#bbb] mt-1">
+                      {DAYS.filter((d) => !activeDays.includes(d as DayLabel)).length > 0
+                        ? `※ 판매 없는 요일(${DAYS.filter((d) => !activeDays.includes(d as DayLabel)).join('·')})은 표시 생략`
+                        : null}
+                    </p>
+                  </div>
                 )}
 
                 {popupMenuBreakdown.length > 0 ? (
