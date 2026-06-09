@@ -12,9 +12,9 @@ export default function MakeableHero({ makeable }: Props) {
   const tightest = sandos.reduce((a, b) => (a.count <= b.count ? a : b), sandos[0]);
 
   return (
-    <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+    <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
       <div className="flex items-baseline justify-between mb-2.5">
-        <h3 className="text-[12px] font-extrabold text-[#161616]">
+        <h3 className="text-[12px] font-extrabold text-ink">
           지금{' '}
           <span className="text-2xl font-black text-primary-700 tabular-nums">{total}</span>
           개 더 만들 수 있어요
@@ -38,7 +38,7 @@ export default function MakeableHero({ makeable }: Props) {
               <div className={`text-2xl font-black tabular-nums ${isCritical ? 'text-rose-500' : 'text-primary-700'}`}>
                 {m.count}
               </div>
-              <div className="text-[11px] font-semibold text-[#888] mt-0.5 truncate">{m.menu_name}</div>
+              <div className="text-[11px] font-semibold text-ink-muted mt-0.5 truncate">{m.menu_name}</div>
               {m.bottleneck && m.count < 5 && (
                 <div className="text-[10px] text-rose-400 mt-0.5 truncate">↑ {m.bottleneck}</div>
               )}

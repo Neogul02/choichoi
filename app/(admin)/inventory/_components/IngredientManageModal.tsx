@@ -135,20 +135,20 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 48, opacity: 0 }}
           transition={{ type: 'spring', damping: 28, stiffness: 340 }}
-          className="bg-white w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden"
+          className="bg-canvas w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 헤더 */}
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <div>
-              <h2 className="text-[15px] font-extrabold text-[#161616]">{ingredient.name}</h2>
-              <p className="text-[11px] text-[#aaa] mt-0.5">
+              <h2 className="text-[15px] font-extrabold text-ink">{ingredient.name}</h2>
+              <p className="text-[11px] text-ink-faint mt-0.5">
                 현재 {fmt(currentTotal)} · 1{ingredient.container_unit}={ingredient.container_size}{ingredient.base_unit}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-[#bbb] hover:text-[#555] text-xl leading-none cursor-pointer transition"
+              className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition"
             >
               ✕
             </button>
@@ -162,8 +162,8 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                 onClick={() => setTab(t)}
                 className={`flex-1 py-1.5 rounded-lg text-[12px] font-bold cursor-pointer transition border-none ${
                   tab === t
-                    ? 'bg-white text-[#161616] shadow-sm'
-                    : 'bg-transparent text-[#aaa] hover:text-[#666]'
+                    ? 'bg-canvas text-ink shadow-sm'
+                    : 'bg-transparent text-ink-faint hover:text-ink-muted'
                 }`}
               >
                 {t === 'restock' ? '입고' : t === 'adjust' ? '재고 조정' : '설정'}
@@ -176,18 +176,18 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
               <div className="flex flex-col gap-4">
                 {/* 수량 선택 */}
                 <div>
-                  <label className="text-[10px] font-bold text-[#888] uppercase tracking-wide block mb-2">
+                  <label className="text-[10px] font-bold text-ink-muted uppercase tracking-wide block mb-2">
                     입고 수량 ({ingredient.container_unit})
                   </label>
                   <div className="flex items-center justify-center gap-4 mb-3">
                     <button
                       onClick={() => setSealedDelta((v) => Math.max(1, v - 1))}
-                      className="w-9 h-9 rounded-full border border-[#e0e0e0] text-lg font-bold text-[#444] hover:bg-[#f5f6f7] cursor-pointer transition"
+                      className="w-9 h-9 rounded-full border border-hairline text-lg font-bold text-ink-secondary hover:bg-[#f5f6f7] cursor-pointer transition"
                     >−</button>
                     <span className="text-3xl font-black tabular-nums w-10 text-center">{sealedDelta}</span>
                     <button
                       onClick={() => setSealedDelta((v) => v + 1)}
-                      className="w-9 h-9 rounded-full border border-[#e0e0e0] text-lg font-bold text-[#444] hover:bg-[#f5f6f7] cursor-pointer transition"
+                      className="w-9 h-9 rounded-full border border-hairline text-lg font-bold text-ink-secondary hover:bg-[#f5f6f7] cursor-pointer transition"
                     >+</button>
                   </div>
                   <div className="flex gap-1.5 justify-center">
@@ -198,7 +198,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                         className={`text-[11px] font-bold px-3 py-1 rounded-lg border-none cursor-pointer transition ${
                           sealedDelta === n
                             ? 'bg-primary-700 text-white'
-                            : 'bg-[#f5f6f7] text-[#666] hover:bg-primary-50 hover:text-primary-700'
+                            : 'bg-[#f5f6f7] text-ink-muted hover:bg-primary-50 hover:text-primary-700'
                         }`}
                       >{n}</button>
                     ))}
@@ -207,7 +207,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
                 {/* 메모 */}
                 <div>
-                  <label className="text-[10px] font-bold text-[#888] uppercase tracking-wide block mb-1.5">
+                  <label className="text-[10px] font-bold text-ink-muted uppercase tracking-wide block mb-1.5">
                     메모 (선택)
                   </label>
                   <input
@@ -215,16 +215,16 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                     placeholder="예: 마켓컬리, 유통기한 6/30"
-                    className="w-full border border-[#ddd] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary-700 transition"
+                    className="w-full border border-hairline rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary-700 transition"
                     style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                   />
                 </div>
 
                 {/* 프리뷰 */}
-                <div className="bg-[#f9f9f9] rounded-xl px-3.5 py-2.5 text-[12px] text-[#555]">
+                <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[12px] text-ink-muted">
                   입고 후 재고:{' '}
-                  <span className="font-bold text-[#161616]">{fmt(afterTotal)}</span>
-                  <span className="text-[#aaa] ml-1">
+                  <span className="font-bold text-ink">{fmt(afterTotal)}</span>
+                  <span className="text-ink-faint ml-1">
                     (+{sealedDelta}{ingredient.container_unit})
                   </span>
                 </div>
@@ -241,39 +241,39 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
             {tab === 'adjust' && (
               <div className="flex flex-col gap-4">
-                <p className="text-[11px] text-[#aaa]">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다.</p>
+                <p className="text-[11px] text-ink-faint">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다.</p>
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-[10px] font-bold text-[#888] block mb-1.5">
+                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
                       미개봉 ({ingredient.container_unit})
                     </label>
                     <input
                       type="number"
                       value={adjSealed}
                       onChange={(e) => setAdjSealed(e.target.value)}
-                      className="w-full border border-[#ddd] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                       style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                       min={0}
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-[10px] font-bold text-[#888] block mb-1.5">
+                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
                       개봉 잔량 ({ingredient.base_unit})
                     </label>
                     <input
                       type="number"
                       value={adjOpened}
                       onChange={(e) => setAdjOpened(e.target.value)}
-                      className="w-full border border-[#ddd] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                       style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                       min={0}
                     />
                   </div>
                 </div>
 
-                <div className="bg-[#f9f9f9] rounded-xl px-3.5 py-2.5 text-[11px] text-[#888]">
+                <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
                   조정 후:{' '}
-                  <span className="font-bold text-[#161616]">
+                  <span className="font-bold text-ink">
                     {fmt(
                       (parseInt(adjSealed, 10) || 0) * ingredient.container_size +
                       (parseFloat(adjOpened) || 0)
@@ -296,34 +296,34 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
               <div className="flex flex-col gap-4">
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-[10px] font-bold text-[#888] block mb-1.5">
+                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
                       1{ingredient.container_unit}당 {ingredient.base_unit} 수
                     </label>
                     <input
                       type="number"
                       value={containerSize}
                       onChange={(e) => setContainerSize(e.target.value)}
-                      className="w-full border border-[#ddd] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                       style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                       min={1}
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-[10px] font-bold text-[#888] block mb-1.5">
+                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
                       발주 기준 ({ingredient.container_unit})
                     </label>
                     <input
                       type="number"
                       value={reorderAt}
                       onChange={(e) => setReorderAt(e.target.value)}
-                      className="w-full border border-[#ddd] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                       style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                       min={0}
                     />
                   </div>
                 </div>
 
-                <div className="bg-[#f9f9f9] rounded-xl px-3.5 py-2.5 text-[11px] text-[#888]">
+                <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
                   1{ingredient.container_unit} = {containerSize || '?'}{ingredient.base_unit} ·{' '}
                   {reorderAt || '?'}{ingredient.container_unit} 이하면 발주 알림
                 </div>
@@ -336,7 +336,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                   {saving ? '저장 중…' : '설정 저장'}
                 </button>
 
-                <div className="border-t border-[#f0f0f0] pt-3">
+                <div className="border-t border-hairline pt-3">
                   {!confirmDelete ? (
                     <button
                       onClick={() => setConfirmDelete(true)}
@@ -346,13 +346,13 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                     </button>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      <p className="text-[11px] text-[#888] text-center">
+                      <p className="text-[11px] text-ink-muted text-center">
                         <span className="font-bold text-rose-500">{ingredient.name}</span>을(를) 삭제합니다. 복구 불가.
                       </p>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setConfirmDelete(false)}
-                          className="flex-1 text-[12px] font-bold py-2 rounded-xl cursor-pointer border border-[#e0e0e0] hover:bg-[#f5f6f7] transition"
+                          className="flex-1 text-[12px] font-bold py-2 rounded-xl cursor-pointer border border-hairline hover:bg-[#f5f6f7] transition"
                         >
                           취소
                         </button>

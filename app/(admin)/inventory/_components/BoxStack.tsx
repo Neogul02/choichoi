@@ -49,7 +49,7 @@ export default function BoxStack({ ingredient, maxDisplay = 12 }: Props) {
 
   if (qty === 0) {
     return (
-      <div className="flex items-center gap-1.5 py-2 text-xs text-[#bbb] font-medium">
+      <div className="flex items-center gap-1.5 py-2 text-xs text-ink-faint font-medium">
         재고 없음
       </div>
     );
@@ -64,7 +64,7 @@ export default function BoxStack({ ingredient, maxDisplay = 12 }: Props) {
         <BoxIcon fill={openedRatio} color={color} isOpened isCount={unit_type === 'count'} />
       )}
       {overflow > 0 && (
-        <span className="text-xs text-[#999] font-semibold self-end pb-1">+{overflow}</span>
+        <span className="text-xs text-ink-faint font-semibold self-end pb-1">+{overflow}</span>
       )}
     </div>
   );

@@ -70,29 +70,29 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
       <div className="flex justify-between items-center mb-3">
         <h3 className="m-0 text-lg font-bold">날짜별 매출 프리뷰</h3>
         <div className="flex items-center gap-1.5">
-          <button className="w-8 h-8 rounded-lg bg-white border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-[#444] hover:bg-[#f0f0f0] text-lg leading-none font-bold" onClick={() => onMonthChange(-1)}>‹</button>
-          <strong className="min-w-[108px] text-center text-[13px] font-bold text-[#333]">{monthYearLabel}</strong>
-          <button className="w-8 h-8 rounded-lg bg-white border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-[#444] hover:bg-[#f0f0f0] text-lg leading-none font-bold" onClick={() => onMonthChange(1)}>›</button>
+          <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(-1)}>‹</button>
+          <strong className="min-w-[108px] text-center text-[13px] font-bold text-ink-secondary">{monthYearLabel}</strong>
+          <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(1)}>›</button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="bg-white border border-[#e4e4e4] rounded-xl px-3 py-2.5 text-center">
-          <div className="text-[11px] text-[#888] font-medium mb-0.5">월 주문</div>
-          <div className="text-[17px] font-extrabold text-[#333]">{calendarSales.totalOrders}<span className="text-[13px] font-semibold ml-0.5">건</span></div>
+        <div className="bg-canvas border border-[#e4e4e4] rounded-xl px-3 py-2.5 text-center">
+          <div className="text-[11px] text-ink-muted font-medium mb-0.5">월 주문</div>
+          <div className="text-[17px] font-extrabold text-ink-secondary">{calendarSales.totalOrders}<span className="text-[13px] font-semibold ml-0.5">건</span></div>
         </div>
         <div className="bg-primary-50 border border-primary-700 rounded-xl px-3 py-2.5 text-center">
-          <div className="text-[11px] text-[#888] font-medium mb-0.5">월 매출</div>
+          <div className="text-[11px] text-ink-muted font-medium mb-0.5">월 매출</div>
           <div className="text-[17px] font-extrabold text-primary-700">₩{formatPrice(calendarSales.monthTotal)}</div>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="py-10 text-center text-[#999] text-sm">달력 매출을 불러오는 중입니다...</div>
+        <div className="py-10 text-center text-ink-faint text-sm">달력 매출을 불러오는 중입니다...</div>
       ) : (
         <div className="grid grid-cols-7 gap-1">
           {DAY_NAMES.map((name, i) => (
-            <div key={name} className={`text-center text-[11px] font-bold py-1.5 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-[#888]'}`}>
+            <div key={name} className={`text-center text-[11px] font-bold py-1.5 ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-ink-muted'}`}>
               {name}
             </div>
           ))}
@@ -107,10 +107,10 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
             const isToday = dateKey === todayStr;
             return (
               <div key={dateKey} className="min-h-[64px] rounded-lg p-1.5" style={{ ...getCellBgStyle(dayRevenue, maxDayRevenue), border: isToday ? '2px solid #084431' : '1px solid #dce8e0' }}>
-                <div className={`text-[11px] font-extrabold leading-none ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-[#444]'}`}>
+                <div className={`text-[11px] font-extrabold leading-none ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-ink-secondary'}`}>
                   {day}{isToday && <span className="ml-0.5 text-primary-700">•</span>}
                 </div>
-                <div className={`mt-1.5 text-[10px] font-semibold leading-tight ${dayRevenue > 0 ? 'text-[#1a3d2b]' : 'text-[#ccc]'}`}>
+                <div className={`mt-1.5 text-[10px] font-semibold leading-tight ${dayRevenue > 0 ? 'text-[#1a3d2b]' : 'text-ink-faint'}`}>
                   {dayRevenue > 0 ? `₩${formatPrice(dayRevenue)}` : '·'}
                 </div>
               </div>
@@ -119,18 +119,18 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
         </div>
       )}
 
-      <div className="mt-4 bg-white border border-[#dce8e0] rounded-xl overflow-hidden">
+      <div className="mt-4 bg-canvas border border-[#dce8e0] rounded-xl overflow-hidden">
         <div className="bg-primary-700 px-4 py-3">
           <h4 className="m-0 text-[14px] font-bold text-white">{monthYearLabel} 예상 정산 계산기</h4>
         </div>
         <div className="px-4 py-1">
-          <div className="flex items-center justify-between py-3 border-b border-[#f0f0f0]">
-            <span className="text-sm text-[#555]">최종 월매출</span>
+          <div className="flex items-center justify-between py-3 border-b border-hairline">
+            <span className="text-sm text-ink-muted">최종 월매출</span>
             <strong className="text-sm font-bold text-[#111]">₩{formatPrice(calendarSales.monthTotal)}</strong>
           </div>
-          <div className="flex items-center justify-between gap-4 py-3 border-b border-[#f0f0f0]">
+          <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-sm text-[#555]">팝업 수수료</span>
+              <span className="text-sm text-ink-muted">팝업 수수료</span>
               <div className="relative">
                 <input
                   type="number"
@@ -139,25 +139,25 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
                   step={1}
                   value={feePercent}
                   onChange={handleFeeChange}
-                  className="w-16 text-right text-sm border border-[#ddd] rounded-lg px-2 py-1 pr-5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-[#fafafa]"
+                  className="w-16 text-right text-sm border border-hairline rounded-lg px-2 py-1 pr-5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-canvas-soft"
                 />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-[#888] font-bold pointer-events-none">%</span>
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-muted font-bold pointer-events-none">%</span>
               </div>
             </div>
             <strong className="text-sm font-bold text-primary-700">₩{formatPrice(afterFee)}</strong>
           </div>
-          <div className="flex items-center justify-between gap-4 py-3 border-b border-[#f0f0f0]">
-            <span className="text-sm text-[#555] shrink-0">재료비</span>
+          <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
+            <span className="text-sm text-ink-muted shrink-0">재료비</span>
             <div className="flex items-center gap-1">
-              <span className="text-[13px] text-[#aaa]">₩</span>
-              <input type="text" inputMode="numeric" value={formatCostDisplay(materialCost)} onChange={handleCostChange(setMaterialCost, MATERIAL_COST_KEY)} onFocus={(e) => e.target.select()} placeholder="0" className="w-28 md:w-36 text-right text-sm border border-[#ddd] rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-[#fafafa]" />
+              <span className="text-[13px] text-ink-faint">₩</span>
+              <input type="text" inputMode="numeric" value={formatCostDisplay(materialCost)} onChange={handleCostChange(setMaterialCost, MATERIAL_COST_KEY)} onFocus={(e) => e.target.select()} placeholder="0" className="w-28 md:w-36 text-right text-sm border border-hairline rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-canvas-soft" />
             </div>
           </div>
-          <div className="flex items-center justify-between gap-4 py-3 border-b border-[#f0f0f0]">
-            <span className="text-sm text-[#555] shrink-0">기타</span>
+          <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
+            <span className="text-sm text-ink-muted shrink-0">기타</span>
             <div className="flex items-center gap-1">
-              <span className="text-[13px] text-[#aaa]">₩</span>
-              <input type="text" inputMode="numeric" value={formatCostDisplay(otherCost)} onChange={handleCostChange(setOtherCost, OTHER_COST_KEY)} onFocus={(e) => e.target.select()} placeholder="0" className="w-28 md:w-36 text-right text-sm border border-[#ddd] rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-[#fafafa]" />
+              <span className="text-[13px] text-ink-faint">₩</span>
+              <input type="text" inputMode="numeric" value={formatCostDisplay(otherCost)} onChange={handleCostChange(setOtherCost, OTHER_COST_KEY)} onFocus={(e) => e.target.select()} placeholder="0" className="w-28 md:w-36 text-right text-sm border border-hairline rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-canvas-soft" />
             </div>
           </div>
           <div className="flex items-center justify-between py-4">

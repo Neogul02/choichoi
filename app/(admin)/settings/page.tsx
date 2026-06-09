@@ -171,7 +171,7 @@ export default function SettingsPage() {
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="bg-white rounded-2xl p-4 md:p-5 max-w-[800px] mx-auto">
+        <div className="bg-canvas rounded-2xl p-4 md:p-5 max-w-[800px] mx-auto">
           <div className="flex items-center justify-between mb-5">
             <h2 className="m-0 text-2xl font-extrabold">설정</h2>
             <div className="flex gap-1.5 bg-[#f5f6f7] p-1 rounded-xl">
@@ -181,8 +181,8 @@ export default function SettingsPage() {
                   onClick={() => setActiveTab(tab)}
                   className={`px-3 py-1.5 text-sm font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 ${
                     activeTab === tab
-                      ? 'bg-white text-[#161616] shadow-sm'
-                      : 'bg-transparent text-[#888] hover:text-[#333]'
+                      ? 'bg-canvas text-ink shadow-sm'
+                      : 'bg-transparent text-ink-muted hover:text-ink-secondary'
                   }`}
                 >
                   {label}
@@ -195,22 +195,22 @@ export default function SettingsPage() {
             <DevToolsSection />
           ) : (<>
 
-          <div className="bg-[#f9f9f9] rounded-xl p-4 mb-4">
+          <div className="bg-canvas-soft rounded-xl p-4 mb-4">
             <h3 className="mt-0 mb-3 text-lg font-bold">{editingId ? '메뉴 수정' : '새 메뉴 추가'}</h3>
             <div className="mb-3">
-              <label className="block mb-1.5 font-semibold text-sm text-[#333]">메뉴 이름</label>
-              <input type="text" name="name" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} placeholder="예: 고메버터 소금빵" className="w-full px-3 py-2 border border-[#ddd] rounded-md text-sm focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
+              <label className="block mb-1.5 font-semibold text-sm text-ink-secondary">메뉴 이름</label>
+              <input type="text" name="name" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} placeholder="예: 고메버터 소금빵" className="w-full px-3 py-2 border border-hairline rounded-md text-sm focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               <div className="mb-3 md:mb-0">
-                <label className="block mb-1.5 font-semibold text-sm text-[#333]">가격 (원)</label>
-                <input type="number" name="price" value={formData.price} onChange={(e) => setFormData((p) => ({ ...p, price: e.target.value }))} placeholder="4900" min="0" step="100" className="w-full px-3 py-2 border border-[#ddd] rounded-md text-sm focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
+                <label className="block mb-1.5 font-semibold text-sm text-ink-secondary">가격 (원)</label>
+                <input type="number" name="price" value={formData.price} onChange={(e) => setFormData((p) => ({ ...p, price: e.target.value }))} placeholder="4900" min="0" step="100" className="w-full px-3 py-2 border border-hairline rounded-md text-sm focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
               </div>
               <div>
-                <label className="block mb-1.5 font-semibold text-sm text-[#333]">색상</label>
+                <label className="block mb-1.5 font-semibold text-sm text-ink-secondary">색상</label>
                 <div className="grid grid-cols-8 gap-2" role="radiogroup" aria-label="메뉴 색상 선택">
                   {COLOR_PALETTE.map((color) => (
-                    <button key={color.value} type="button" className={`w-full aspect-square border-2 border-[#ddd] rounded-full cursor-pointer transition-all duration-150 hover:-translate-y-px ${formData.color === color.value ? 'border-[#111] ring-2 ring-black/15' : ''}`} style={{ backgroundColor: color.value }} onClick={() => setFormData((p) => ({ ...p, color: color.value }))} aria-label={`${color.name} 선택`} aria-pressed={formData.color === color.value} />
+                    <button key={color.value} type="button" className={`w-full aspect-square border-2 border-hairline rounded-full cursor-pointer transition-all duration-150 hover:-translate-y-px ${formData.color === color.value ? 'border-[#111] ring-2 ring-black/15' : ''}`} style={{ backgroundColor: color.value }} onClick={() => setFormData((p) => ({ ...p, color: color.value }))} aria-label={`${color.name} 선택`} aria-pressed={formData.color === color.value} />
                   ))}
                 </div>
               </div>
@@ -224,7 +224,7 @@ export default function SettingsPage() {
                 {isSubmitting ? '처리 중...' : editingId ? '수정 완료' : '메뉴 추가'}
               </button>
               {editingId && (
-                <button className="px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-[#ddd] text-[#333] hover:bg-[#ccc]" onClick={handleCancel} disabled={isSubmitting}>취소</button>
+                <button className="px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-[#ddd] text-ink-secondary hover:bg-[#ccc]" onClick={handleCancel} disabled={isSubmitting}>취소</button>
               )}
             </div>
           </div>
@@ -235,14 +235,14 @@ export default function SettingsPage() {
           ) : (
             <ul className="m-0 p-0 list-none">
               {activeMenuItems.map((item) => (
-                <li key={item.id} data-menu-id={item.id} className={`flex justify-between items-center p-3 bg-white rounded-lg mb-2 shadow-[0_2px_4px_rgba(0,0,0,0.04)] cursor-grab select-none active:cursor-grabbing ${dragOverId === item.id ? 'outline-2 outline-dashed outline-primary-700 bg-primary-50' : ''}`} draggable onDragStart={() => handleDragStart(item.id)} onDragOver={(e) => handleDragOver(e, item.id)} onDrop={() => handleDrop(item.id)} onDragEnd={handleDragEnd}>
+                <li key={item.id} data-menu-id={item.id} className={`flex justify-between items-center p-3 bg-canvas rounded-lg mb-2 shadow-level-1 cursor-grab select-none active:cursor-grabbing ${dragOverId === item.id ? 'outline-2 outline-dashed outline-primary-700 bg-primary-50' : ''}`} draggable onDragStart={() => handleDragStart(item.id)} onDragOver={(e) => handleDragOver(e, item.id)} onDrop={() => handleDrop(item.id)} onDragEnd={handleDragEnd}>
                   <div className="flex items-center gap-3 flex-1">
-                    <div className="w-7 h-7 rounded-md bg-[#f1f3f5] text-[#666] inline-flex items-center justify-center text-base leading-none cursor-grab select-none touch-none shrink-0 active:cursor-grabbing active:bg-[#e9ecef]" role="button" aria-label="순서 이동 핸들" onTouchStart={(e) => handleTouchDragStart(e, item.id)} onTouchMove={handleTouchDragMove} onTouchEnd={handleTouchDragEnd} onTouchCancel={handleTouchDragEnd}>⠿</div>
+                    <div className="w-7 h-7 rounded-md bg-[#f1f3f5] text-ink-muted inline-flex items-center justify-center text-base leading-none cursor-grab select-none touch-none shrink-0 active:cursor-grabbing active:bg-[#e9ecef]" role="button" aria-label="순서 이동 핸들" onTouchStart={(e) => handleTouchDragStart(e, item.id)} onTouchMove={handleTouchDragMove} onTouchEnd={handleTouchDragEnd} onTouchCancel={handleTouchDragEnd}>⠿</div>
                     <div className="w-5 h-5 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
                     <div>
                       <h3 className="m-0 text-sm font-semibold">{item.name}</h3>
-                      <p className="m-0 mt-1 text-xs text-[#666]">₩{item.price.toLocaleString('ko-KR')}</p>
-                      <p className="m-0 mt-1.5 text-[11px] text-[#999]">데스크톱: 드래그 / 모바일: 핸들 터치 이동</p>
+                      <p className="m-0 mt-1 text-xs text-ink-muted">₩{item.price.toLocaleString('ko-KR')}</p>
+                      <p className="m-0 mt-1.5 text-[11px] text-ink-faint">데스크톱: 드래그 / 모바일: 핸들 터치 이동</p>
                     </div>
                   </div>
                   <div className="flex gap-2">

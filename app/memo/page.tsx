@@ -109,7 +109,7 @@ export default function MemoPage() {
           </div>
 
           {showForm && (
-            <div className="bg-white rounded-2xl p-5 md:p-7 mb-6 shadow-[0_4px_24px_rgba(0,0,0,0.09)] border border-[#f0f0f0]">
+            <div className="bg-canvas rounded-2xl p-5 md:p-7 mb-6 shadow-[0_4px_24px_rgba(0,0,0,0.09)] border border-hairline">
               <h3 className="m-0 mb-4 text-xl font-bold text-[#111]">
                 {editingId ? '메모 수정' : '새 메모 작성'}
               </h3>
@@ -119,7 +119,7 @@ export default function MemoPage() {
                 placeholder="제목 (선택)"
                 value={formData.title}
                 onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
-                className="w-full border border-[#ddd] rounded-xl px-4 py-3 text-base font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10"
+                className="w-full border border-hairline rounded-xl px-4 py-3 text-base font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10"
               />
 
               <textarea
@@ -127,15 +127,15 @@ export default function MemoPage() {
                 value={formData.content}
                 onChange={(e) => setFormData((p) => ({ ...p, content: e.target.value }))}
                 rows={10}
-                className="w-full border border-[#ddd] rounded-xl px-4 py-3 text-base font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10 resize-y min-h-[200px]"
+                className="w-full border border-hairline rounded-xl px-4 py-3 text-base font-[inherit] mb-3 focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10 resize-y min-h-[200px]"
               />
 
               <div className="flex items-center gap-2.5 mb-5">
-                <span className="text-[13px] font-semibold text-[#555]">배경색</span>
+                <span className="text-[13px] font-semibold text-ink-muted">배경색</span>
                 {MEMO_COLORS.map((c) => (
                   <button
                     key={c.value}
-                    className={`w-7 h-7 rounded-full border-2 cursor-pointer transition-transform duration-200 p-0 ${formData.color === c.value ? 'border-[#111] scale-110 shadow-[0_0_0_2px_rgba(0,0,0,0.12)]' : 'border-[#ddd] hover:scale-105'}`}
+                    className={`w-7 h-7 rounded-full border-2 cursor-pointer transition-transform duration-200 p-0 ${formData.color === c.value ? 'border-[#111] scale-110 shadow-[0_0_0_2px_rgba(0,0,0,0.12)]' : 'border-hairline hover:scale-105'}`}
                     style={{ backgroundColor: c.value }}
                     onClick={() => setFormData((p) => ({ ...p, color: c.value }))}
                     aria-label={c.name}
@@ -148,13 +148,13 @@ export default function MemoPage() {
                 className="rounded-xl px-5 py-4 mb-5 min-h-[100px] border border-black/5 overflow-hidden"
                 style={{ backgroundColor: formData.color }}
               >
-                <p className="m-0 mb-0.5 text-[11px] font-semibold text-[#aaa] uppercase tracking-wide">미리보기</p>
+                <p className="m-0 mb-0.5 text-[11px] font-semibold text-ink-faint uppercase tracking-wide">미리보기</p>
                 {formData.title && (
                   <strong className="block mt-1.5 mb-2 text-base font-bold text-[#111] break-words [overflow-wrap:anywhere]">
                     {formData.title}
                   </strong>
                 )}
-                <p className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-[#333] break-words [overflow-wrap:anywhere]">
+                <p className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-ink-secondary break-words [overflow-wrap:anywhere]">
                   {formData.content || '내용이 여기에 표시됩니다...'}
                 </p>
               </div>
@@ -168,7 +168,7 @@ export default function MemoPage() {
                   {editingId ? '수정 완료' : '메모 추가'}
                 </button>
                 <button
-                  className="flex-1 py-3 rounded-xl border-none font-bold cursor-pointer text-sm bg-[#f0f0f0] text-[#555] transition hover:bg-[#e0e0e0]"
+                  className="flex-1 py-3 rounded-xl border-none font-bold cursor-pointer text-sm bg-canvas-soft text-ink-muted transition hover:bg-[#ececeb]"
                   onClick={resetForm}
                 >
                   취소
@@ -184,7 +184,7 @@ export default function MemoPage() {
               ))}
             </div>
           ) : memos.length === 0 ? (
-            <p className="m-0 text-[#999] text-sm">메모가 없습니다. 새 메모를 추가하세요.</p>
+            <p className="m-0 text-ink-faint text-sm">메모가 없습니다. 새 메모를 추가하세요.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
               {memos.map((memo) => (
@@ -198,11 +198,11 @@ export default function MemoPage() {
                       {memo.title}
                     </h3>
                   )}
-                  <p className="m-0 mb-4 text-sm leading-relaxed text-[#333] whitespace-pre-wrap break-words [overflow-wrap:anywhere] grow">
+                  <p className="m-0 mb-4 text-sm leading-relaxed text-ink-secondary whitespace-pre-wrap break-words [overflow-wrap:anywhere] grow">
                     {memo.content}
                   </p>
                   <div className="flex justify-between items-center mt-auto pt-3 border-t border-black/5">
-                    <span className="text-xs text-[#888]">
+                    <span className="text-xs text-ink-muted">
                       {new Date(memo.updated_at).toLocaleDateString('ko-KR')}
                     </span>
                     <div className="flex gap-1.5 shrink-0">

@@ -1,17 +1,33 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #e6f4ee;
+  /* ── Brand — choichoi 고유 초록 유지 ── */
+  --color-primary-50:  #e6f4ee;
   --color-primary-100: #b8deca;
+  --color-primary-200: #8ac8a6;
   --color-primary-600: #0a5239;
   --color-primary-700: #084431;
   --color-primary-800: #063424;
+
+  /* ── Canvas / Surface ── */
+  --color-canvas:      #ffffff;
+  --color-canvas-soft: #f6f5f4;
+  --color-surface:     #ffffff;
+
+  /* ── Ink (텍스트 계층) ── */
+  --color-ink:           #161616;
+  --color-ink-secondary: #31302e;
+  --color-ink-muted:     #615d59;
+  --color-ink-faint:     #a39e98;
+
+  /* ── Hairline (구분선 / 테두리) ── */
+  --color-hairline: #e6e6e6;
 }
 
 :root {
   font-family: "Pretendard Variable", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
   color: #161616;
-  background: #f5f6f7;
+  background: #f6f5f4;
 }
 
 * {
@@ -21,38 +37,85 @@
 body {
   margin: 0;
   color: #161616;
-  background: #f5f6f7;
+  background: #f6f5f4;
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
 }
 
+/* ── Elevation — Notion 스타일 극미세 레이어 그림자 ── */
+@utility shadow-level-1 {
+  box-shadow:
+    rgba(0, 0, 0, 0.01)  0 0.175px 1.041px,
+    rgba(0, 0, 0, 0.02)  0 0.8px   2.925px,
+    rgba(0, 0, 0, 0.027) 0 2.025px 7.847px,
+    rgba(0, 0, 0, 0.04)  0 4px     18px;
+}
+
+@utility shadow-level-2 {
+  box-shadow:
+    rgba(0, 0, 0, 0.01)  0 0.175px 1.041px,
+    rgba(0, 0, 0, 0.02)  0 0.8px   2.925px,
+    rgba(0, 0, 0, 0.027) 0 2.025px 7.847px,
+    rgba(0, 0, 0, 0.04)  0 4px     18px,
+    rgba(0, 0, 0, 0.05)  0 23px    52px;
+}
+
+/* ── Typography scale (Pretendard + 음수 tracking) ── */
+@utility text-display {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+@utility text-heading-1 {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.23;
+  letter-spacing: -0.025em;
+}
+@utility text-heading-2 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.27;
+  letter-spacing: -0.011em;
+}
+@utility text-title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.006em;
+}
+@utility text-body-md {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+@utility text-body-sm {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.33;
+}
+@utility text-caption {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.43;
+}
+@utility text-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.33;
+  letter-spacing: 0.008em;
+  text-transform: uppercase;
+}
+
 @keyframes slideIn {
-  from {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(-10px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #bbb;
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--color-hairline); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #ccc; }

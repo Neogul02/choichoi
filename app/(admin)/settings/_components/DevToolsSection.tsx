@@ -351,11 +351,11 @@ export default function DevToolsSection() {
       <EmojiPhysics items={physicsItems} active={physicsActive} />
 
       {/* DB 상태 */}
-      <div className="bg-[#f9f9f9] rounded-xl p-4">
+      <div className="bg-canvas-soft rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="m-0 text-base font-bold">DB 상태</h3>
           <button
-            className="px-3 py-1 text-xs font-semibold bg-white border border-[#e0e0e0] text-[#555] rounded-lg cursor-pointer hover:bg-[#f0f0f0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1 text-xs font-semibold bg-canvas border border-hairline text-ink-muted rounded-lg cursor-pointer hover:bg-canvas-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             onClick={loadDbStats}
             disabled={dbLoading}
           >
@@ -377,23 +377,23 @@ export default function DevToolsSection() {
             </div>
           </>
         ) : (
-          <div className="py-6 text-center text-sm text-[#bbb]">데이터를 불러오는 중...</div>
+          <div className="py-6 text-center text-sm text-ink-faint">데이터를 불러오는 중...</div>
         )}
       </div>
 
       {/* DB 스키마 */}
-      <div className="bg-[#f9f9f9] rounded-xl p-4">
+      <div className="bg-canvas-soft rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="m-0 text-base font-bold">DB 스키마</h3>
           <div className="flex gap-1.5">
             <button
-              className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-[#e0e0e0] text-[#555] rounded-lg cursor-pointer hover:bg-[#f0f0f0] transition-colors"
+              className="px-2.5 py-1 text-[11px] font-semibold bg-canvas border border-hairline text-ink-muted rounded-lg cursor-pointer hover:bg-canvas-soft transition-colors"
               onClick={() => setSchemaOpen(new Set(DB_SCHEMA.map((t) => t.name)))}
             >
               전체 펼치기
             </button>
             <button
-              className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-[#e0e0e0] text-[#555] rounded-lg cursor-pointer hover:bg-[#f0f0f0] transition-colors"
+              className="px-2.5 py-1 text-[11px] font-semibold bg-canvas border border-hairline text-ink-muted rounded-lg cursor-pointer hover:bg-canvas-soft transition-colors"
               onClick={() => setSchemaOpen(new Set())}
             >
               전체 접기
@@ -402,38 +402,38 @@ export default function DevToolsSection() {
         </div>
         <div className="space-y-2">
           {DB_SCHEMA.map((table) => (
-            <div key={table.name} className="bg-white border border-[#eeeeee] rounded-xl overflow-hidden">
+            <div key={table.name} className="bg-canvas border border-[#eeeeee] rounded-xl overflow-hidden">
               <button
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 border-none bg-transparent cursor-pointer text-left hover:bg-[#fafafa] transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 border-none bg-transparent cursor-pointer text-left hover:bg-canvas-soft transition-colors"
                 onClick={() => toggleSchema(table.name)}
               >
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: table.color }} />
-                <span className="font-mono text-sm font-bold text-[#222] flex-1">{table.name}</span>
-                <span className="text-[11px] text-[#bbb]">{table.columns.length}개 컬럼</span>
-                <span className="text-[10px] text-[#ccc] ml-1">{schemaOpen.has(table.name) ? '▲' : '▼'}</span>
+                <span className="font-mono text-sm font-bold text-ink flex-1">{table.name}</span>
+                <span className="text-[11px] text-ink-faint">{table.columns.length}개 컬럼</span>
+                <span className="text-[10px] text-ink-faint ml-1">{schemaOpen.has(table.name) ? '▲' : '▼'}</span>
               </button>
               {schemaOpen.has(table.name) && (
-                <div className="overflow-x-auto border-t border-[#f0f0f0]">
+                <div className="overflow-x-auto border-t border-hairline">
                   <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="bg-[#fafafa]">
-                        <th className="px-3 py-2 text-left font-semibold text-[#888] border-b border-[#eeeeee] w-[30%]">컬럼</th>
-                        <th className="px-3 py-2 text-left font-semibold text-[#888] border-b border-[#eeeeee] w-[20%]">타입</th>
-                        <th className="px-3 py-2 text-left font-semibold text-[#888] border-b border-[#eeeeee] w-[10%]">Null</th>
-                        <th className="px-3 py-2 text-left font-semibold text-[#888] border-b border-[#eeeeee]">설명</th>
+                      <tr className="bg-canvas-soft">
+                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee] w-[30%]">컬럼</th>
+                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee] w-[20%]">타입</th>
+                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee] w-[10%]">Null</th>
+                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee]">설명</th>
                       </tr>
                     </thead>
                     <tbody>
                       {table.columns.map((col, i) => (
-                        <tr key={col.name} className={i % 2 === 0 ? 'bg-white' : 'bg-[#fafafa]'}>
-                          <td className="px-3 py-2 font-mono font-semibold text-[#333]">{col.name}</td>
+                        <tr key={col.name} className={i % 2 === 0 ? 'bg-canvas' : 'bg-canvas-soft'}>
+                          <td className="px-3 py-2 font-mono font-semibold text-ink-secondary">{col.name}</td>
                           <td className="px-3 py-2">
                             <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-[#f0f4ff] text-[#3949AB]">
                               {col.type}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-[#aaa]">{col.nullable ? 'YES' : ''}</td>
-                          <td className="px-3 py-2 text-[#666]">
+                          <td className="px-3 py-2 text-ink-faint">{col.nullable ? 'YES' : ''}</td>
+                          <td className="px-3 py-2 text-ink-muted">
                             {col.note?.includes('FK') ? (
                               <span className="inline-flex items-center gap-1">
                                 <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200">FK</span>
@@ -458,8 +458,8 @@ export default function DevToolsSection() {
           ))}
         </div>
         {/* 관계 요약 */}
-        <div className="mt-3 px-3 py-2.5 bg-white border border-[#eeeeee] rounded-xl">
-          <p className="m-0 mb-2 text-[11px] font-bold text-[#999] uppercase tracking-widest">테이블 관계</p>
+        <div className="mt-3 px-3 py-2.5 bg-canvas border border-[#eeeeee] rounded-xl">
+          <p className="m-0 mb-2 text-[11px] font-bold text-ink-faint uppercase tracking-widest">테이블 관계</p>
           <div className="flex flex-wrap gap-2 text-[11px] font-mono">
             {[
               { from: 'orders', to: 'order_items', label: '1:N' },
@@ -470,9 +470,9 @@ export default function DevToolsSection() {
             ].map(({ from, to, label }) => (
               <span key={`${from}-${to}`} className="flex items-center gap-1 bg-[#f5f6f7] px-2 py-1 rounded-md">
                 <span className="text-[#3949AB] font-semibold">{from}</span>
-                <span className="text-[#999]">→</span>
+                <span className="text-ink-faint">→</span>
                 <span className="text-[#F57C00] font-semibold">{to}</span>
-                <span className="text-[#bbb] ml-0.5">({label})</span>
+                <span className="text-ink-faint ml-0.5">({label})</span>
               </span>
             ))}
           </div>
@@ -480,13 +480,13 @@ export default function DevToolsSection() {
       </div>
 
       {/* 폭죽 테스트 */}
-      <div className="bg-[#f9f9f9] rounded-xl p-4">
+      <div className="bg-canvas-soft rounded-xl p-4">
         <h3 className="m-0 mb-3 text-base font-bold">폭죽 테스트</h3>
         <div className="flex flex-wrap gap-2">
           {CONFETTI_EFFECTS.map((e) => (
             <button
               key={e.label}
-              className="px-4 py-2 text-sm font-semibold bg-white border border-[#e0e0e0] text-[#333] rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
+              className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-ink-secondary rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
               onClick={e.fn}
             >
               {e.label}
@@ -496,26 +496,26 @@ export default function DevToolsSection() {
       </div>
 
       {/* 과일 이모지 테스트 */}
-      <div className="bg-[#f9f9f9] rounded-xl p-4">
+      <div className="bg-canvas-soft rounded-xl p-4">
         <h3 className="m-0 mb-3 text-base font-bold">과일 이모지 테스트</h3>
         <div className="flex flex-wrap gap-2">
           {EMOJI_MAP.map(({ keyword, emoji }) => (
             <button
               key={keyword}
-              className="px-4 py-2 text-sm font-semibold bg-white border border-[#e0e0e0] text-[#333] rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
+              className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-ink-secondary rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
               onClick={() => firePhysics([{ id: 0, name: keyword, price: 0, count: 2 }])}
             >
               {emoji} {keyword}
             </button>
           ))}
           <button
-            className="px-4 py-2 text-sm font-semibold bg-white border border-[#e0e0e0] text-[#333] rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
+            className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-ink-secondary rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
             onClick={() => firePhysics(EMOJI_MAP.map(({ keyword }, i) => ({ id: i, name: keyword, price: 0, count: 1 })))}
           >
             🎉 전체
           </button>
           <button
-            className="px-4 py-2 text-sm font-semibold bg-white border border-[#e0e0e0] text-red-400 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 active:scale-95"
+            className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-red-400 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 active:scale-95"
             onClick={() => setPhysicsActive(false)}
           >
             초기화
@@ -524,28 +524,28 @@ export default function DevToolsSection() {
       </div>
 
       {/* API 요청 테스트 */}
-      <div className="bg-[#f9f9f9] rounded-xl p-4">
+      <div className="bg-canvas-soft rounded-xl p-4">
         <h3 className="m-0 mb-3 text-base font-bold">API 요청 테스트</h3>
         <div className="space-y-1.5 mb-4">
           {API_ACTIONS.map((action) => (
             <button
               key={action.label}
-              className="w-full flex items-start gap-3 px-3 py-2.5 bg-white border border-[#eeeeee] rounded-xl cursor-pointer text-left hover:border-[#3949AB] hover:bg-[#f0f4ff] transition-all duration-150 group"
+              className="w-full flex items-start gap-3 px-3 py-2.5 bg-canvas border border-[#eeeeee] rounded-xl cursor-pointer text-left hover:border-[#3949AB] hover:bg-[#f0f4ff] transition-all duration-150 group"
               onClick={() => runApi(action)}
             >
               <span className="font-mono text-[12px] font-bold text-[#3949AB] shrink-0 pt-px group-hover:text-[#3949AB]">
                 {action.label}
               </span>
-              <span className="text-[11px] text-[#888] leading-relaxed pt-px">{action.desc}</span>
+              <span className="text-[11px] text-ink-muted leading-relaxed pt-px">{action.desc}</span>
             </button>
           ))}
         </div>
 
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold text-[#999] uppercase tracking-widest">요청 로그</span>
+          <span className="text-[11px] font-bold text-ink-faint uppercase tracking-widest">요청 로그</span>
           {logs.length > 0 && (
             <button
-              className="text-xs text-[#bbb] hover:text-[#666] border-none bg-transparent cursor-pointer transition-colors"
+              className="text-xs text-ink-faint hover:text-ink-muted border-none bg-transparent cursor-pointer transition-colors"
               onClick={() => { setLogs([]); setExpanded(new Set()); }}
             >
               전체 삭제
@@ -554,28 +554,28 @@ export default function DevToolsSection() {
         </div>
 
         {logs.length === 0 ? (
-          <div className="py-8 text-center text-sm text-[#ccc] border border-dashed border-[#e0e0e0] rounded-xl bg-white">
+          <div className="py-8 text-center text-sm text-ink-faint border border-dashed border-hairline rounded-xl bg-canvas">
             위 버튼을 클릭하면 요청 결과가 여기에 표시됩니다
           </div>
         ) : (
           <ul className="m-0 p-0 list-none space-y-1.5">
             {logs.map((log) => (
-              <li key={log.id} className="border border-[#eeeeee] rounded-xl overflow-hidden bg-white">
+              <li key={log.id} className="border border-[#eeeeee] rounded-xl overflow-hidden bg-canvas">
                 <button
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 border-none bg-transparent cursor-pointer text-left hover:bg-[#fafafa] transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 border-none bg-transparent cursor-pointer text-left hover:bg-canvas-soft transition-colors"
                   onClick={() => toggleLog(log.id)}
                 >
                   <StatusDot status={log.status} />
                   <div className="flex-1 min-w-0">
-                    <span className="font-mono text-xs font-semibold text-[#333] block truncate">{log.label}</span>
-                    <span className="text-[10px] text-[#bbb] truncate block">{log.desc}</span>
+                    <span className="font-mono text-xs font-semibold text-ink-secondary block truncate">{log.label}</span>
+                    <span className="text-[10px] text-ink-faint truncate block">{log.desc}</span>
                   </div>
                   {log.ms !== undefined && (
                     <span className={`text-[11px] shrink-0 font-bold tabular-nums ${log.ms < 300 ? 'text-green-600' : log.ms < 1000 ? 'text-amber-500' : 'text-red-500'}`}>
                       {log.ms}ms
                     </span>
                   )}
-                  <span className="text-[11px] text-[#ccc] shrink-0 tabular-nums">
+                  <span className="text-[11px] text-ink-faint shrink-0 tabular-nums">
                     {log.ts.toLocaleTimeString('ko-KR')}
                   </span>
                   <span className="text-[10px] text-[#ddd]">{expanded.has(log.id) ? '▲' : '▼'}</span>
@@ -592,7 +592,7 @@ export default function DevToolsSection() {
       </div>
 
       {/* 환경 정보 */}
-      <div className="bg-[#f9f9f9] rounded-xl p-4">
+      <div className="bg-canvas-soft rounded-xl p-4">
         <h3 className="m-0 mb-3 text-base font-bold">환경 정보</h3>
         <ul className="m-0 p-0 list-none space-y-2">
           <EnvRow label="NEXT_PUBLIC_SUPABASE_URL" value={process.env.NEXT_PUBLIC_SUPABASE_URL} />
@@ -606,7 +606,7 @@ export default function DevToolsSection() {
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: 'blue' | 'gray' | 'green' | 'rose' }) {
-  const styles = { blue: 'bg-blue-50 text-blue-700', gray: 'bg-white text-[#555] border border-[#eee]', green: 'bg-green-50 text-green-700', rose: 'bg-rose-50 text-rose-700' };
+  const styles = { blue: 'bg-blue-50 text-blue-700', gray: 'bg-canvas text-ink-muted border border-hairline', green: 'bg-green-50 text-green-700', rose: 'bg-rose-50 text-rose-700' };
   return (
     <div className={`rounded-xl p-3 ${styles[color]}`}>
       <p className="m-0 text-[11px] opacity-60 mb-1 font-semibold">{label}</p>
@@ -626,10 +626,10 @@ function EnvRow({ label, value }: { label: string; value: string | undefined }) 
   const ok = !!value;
   const display = value ? (value.length > 45 ? value.slice(0, 22) + '…' + value.slice(-10) : value) : '(미설정)';
   return (
-    <li className="flex items-center gap-3 text-xs bg-white border border-[#eeeeee] rounded-lg px-3 py-2">
+    <li className="flex items-center gap-3 text-xs bg-canvas border border-[#eeeeee] rounded-lg px-3 py-2">
       <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-green-500' : 'bg-red-400'}`} />
-      <span className="font-mono text-[#555] shrink-0">{label}</span>
-      <span className={`font-mono truncate ${ok ? 'text-[#999]' : 'text-red-500 font-semibold'}`}>{display}</span>
+      <span className="font-mono text-ink-muted shrink-0">{label}</span>
+      <span className={`font-mono truncate ${ok ? 'text-ink-faint' : 'text-red-500 font-semibold'}`}>{display}</span>
     </li>
   );
 }

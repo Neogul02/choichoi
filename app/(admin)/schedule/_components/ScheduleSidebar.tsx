@@ -52,15 +52,15 @@ export default function ScheduleSidebar({
     onSelectEvent(event);
   };
 
-  const inputCls = 'w-full px-2 py-1 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700';
+  const inputCls = 'w-full px-2 py-1 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700';
 
   return (
-    <div className="w-full md:w-[210px] shrink-0">
-      <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+    <div className="w-full md:w-[230px] shrink-0">
+      <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
         <div className="flex justify-between items-center mb-2.5">
           <h2 className="m-0 text-sm font-extrabold">일정 목록</h2>
           <button
-            className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showAddEvent ? 'bg-[#eee] text-[#555]' : 'bg-primary-700 text-white hover:bg-primary-800'}`}
+            className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showAddEvent ? 'bg-canvas-soft text-ink-muted' : 'bg-primary-700 text-white hover:bg-primary-800'}`}
             onClick={onToggleAddEvent}
           >
             {showAddEvent ? '취소' : '+ 추가'}
@@ -68,7 +68,7 @@ export default function ScheduleSidebar({
         </div>
 
         {showAddEvent && (
-          <div className="bg-[#f9f9f9] rounded-lg p-2.5 mb-2.5 flex flex-col gap-1.5">
+          <div className="bg-canvas-soft rounded-lg p-2.5 mb-2.5 flex flex-col gap-1.5">
             <input
               type="text" placeholder="일정 이름" value={newEvent.name}
               onChange={e => onUpdateNewEvent({ name: e.target.value })}
@@ -76,13 +76,13 @@ export default function ScheduleSidebar({
               className={inputCls}
             />
             <div className="flex flex-col gap-0.5">
-              <label className="text-[10px] font-semibold text-[#666]">
+              <label className="text-[10px] font-semibold text-ink-muted">
                 시작일 {startWeekday && <span className="text-primary-700">{startWeekday}요일</span>}
               </label>
               <input type="date" value={newEvent.startDate} onChange={e => onUpdateNewEvent({ startDate: e.target.value })} className={inputCls} />
             </div>
             <div className="flex flex-col gap-0.5">
-              <label className="text-[10px] font-semibold text-[#666]">종료일</label>
+              <label className="text-[10px] font-semibold text-ink-muted">종료일</label>
               <input type="date" value={newEvent.endDate} onChange={e => onUpdateNewEvent({ endDate: e.target.value })} className={inputCls} />
             </div>
             <button className="w-full p-1.5 border-none rounded bg-primary-700 text-white text-xs font-bold cursor-pointer hover:bg-primary-800 transition" onClick={onCreateEvent}>
@@ -92,16 +92,16 @@ export default function ScheduleSidebar({
         )}
 
         {isEventsLoading ? (
-          <p className="text-[#999] text-xs m-0">불러오는 중...</p>
+          <p className="text-ink-faint text-xs m-0">불러오는 중...</p>
         ) : events.length === 0 ? (
-          <p className="text-[#999] text-xs m-0">일정이 없습니다.</p>
+          <p className="text-ink-faint text-xs m-0">일정이 없습니다.</p>
         ) : (
           <ul className="list-none m-0 p-0 flex flex-col gap-1">
             {events.map(event => (
               <li
                 key={event.id}
                 className={`px-2.5 py-2 rounded-lg border-[1.5px] transition ${
-                  selectedEvent?.id === event.id ? 'border-primary-700 bg-primary-50' : 'border-[#eee] hover:border-primary-700 hover:bg-primary-50'
+                  selectedEvent?.id === event.id ? 'border-primary-700 bg-primary-50' : 'border-hairline hover:border-primary-700 hover:bg-primary-50'
                 } ${editingId === event.id ? 'cursor-default' : 'cursor-pointer'}`}
                 onClick={() => editingId !== event.id && handleSelect(event)}
               >
@@ -116,17 +116,17 @@ export default function ScheduleSidebar({
                       autoFocus
                     />
                     <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] font-semibold text-[#666]">시작일</label>
+                      <label className="text-[10px] font-semibold text-ink-muted">시작일</label>
                       <input type="date" value={editForm.startDate} onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))} className={inputCls} />
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] font-semibold text-[#666]">종료일</label>
+                      <label className="text-[10px] font-semibold text-ink-muted">종료일</label>
                       <input type="date" value={editForm.endDate} onChange={e => setEditForm(f => ({ ...f, endDate: e.target.value }))} className={inputCls} />
                     </div>
                     <div className="flex gap-1 mt-0.5">
                       <button
                         onClick={e => cancelEdit(e)}
-                        className="flex-1 py-1 rounded border border-[#ddd] bg-white text-[11px] font-semibold text-[#666] cursor-pointer hover:bg-[#f5f5f5] transition"
+                        className="flex-1 py-1 rounded border border-hairline bg-canvas text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-canvas-soft transition"
                       >
                         취소
                       </button>
@@ -143,13 +143,13 @@ export default function ScheduleSidebar({
                   /* 기본 뷰 */
                   <div className="flex items-center gap-1.5">
                     <div className="flex-1 min-w-0">
-                      <strong className="block text-[12px] font-bold text-[#222] truncate">{event.name}</strong>
-                      <span className="text-[10px] text-[#888]">{event.start_date} ~ {event.end_date}</span>
+                      <strong className="block text-[12px] font-bold text-ink truncate">{event.name}</strong>
+                      <span className="text-[10px] text-ink-muted">{event.start_date} ~ {event.end_date}</span>
                     </div>
                     <button
                       onClick={e => openEdit(e, event)}
                       title="수정"
-                      className="bg-transparent border-none text-[#ccc] cursor-pointer leading-none hover:text-primary-700 transition p-0.5"
+                      className="bg-transparent border-none text-ink-faint cursor-pointer leading-none hover:text-primary-700 transition p-0.5"
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -159,7 +159,7 @@ export default function ScheduleSidebar({
                     <button
                       onClick={e => onDeleteEvent(e, event)}
                       title="삭제"
-                      className="bg-transparent border-none text-[#ccc] text-base cursor-pointer leading-none hover:text-red-500 transition"
+                      className="bg-transparent border-none text-ink-faint text-base cursor-pointer leading-none hover:text-red-500 transition"
                     >
                       ×
                     </button>

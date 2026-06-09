@@ -390,11 +390,11 @@ export default function DevToolsPage() {
           <h2 className="m-0 text-2xl font-extrabold">개발자 도구</h2>
 
           {/* DB 상태 */}
-          <section className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
             <div className="flex items-center justify-between mb-4">
               <h3 className="m-0 text-lg font-bold">DB 상태</h3>
               <button
-                className="px-3 py-1.5 text-xs font-semibold bg-[#f5f6f7] text-[#555] rounded-lg border-none cursor-pointer hover:bg-[#eee] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-xs font-semibold bg-[#f5f6f7] text-ink-muted rounded-lg border-none cursor-pointer hover:bg-canvas-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 onClick={loadDbStats}
                 disabled={dbLoading}
               >
@@ -422,12 +422,12 @@ export default function DevToolsPage() {
                 </div>
               </>
             ) : (
-              <div className="py-8 text-center text-sm text-[#bbb]">DB 데이터를 불러오는 중...</div>
+              <div className="py-8 text-center text-sm text-ink-faint">DB 데이터를 불러오는 중...</div>
             )}
           </section>
 
           {/* DB 스키마 */}
-          <section className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
             <h3 className="m-0 mb-4 text-lg font-bold">DB 스키마</h3>
             <div className="space-y-5">
               {DB_SCHEMA.map((group) => (
@@ -444,13 +444,13 @@ export default function DevToolsPage() {
           </section>
 
           {/* 폭죽 테스트 */}
-          <section className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
             <h3 className="m-0 mb-4 text-lg font-bold">폭죽 테스트</h3>
             <div className="flex flex-wrap gap-2">
               {CONFETTI_EFFECTS.map((effect) => (
                 <button
                   key={effect.label}
-                  className="px-4 py-2 text-sm font-semibold bg-[#f5f6f7] text-[#333] rounded-lg border-none cursor-pointer hover:bg-primary-700 hover:text-white transition-all duration-200 active:scale-95"
+                  className="px-4 py-2 text-sm font-semibold bg-[#f5f6f7] text-ink-secondary rounded-lg border-none cursor-pointer hover:bg-primary-700 hover:text-white transition-all duration-200 active:scale-95"
                   onClick={effect.fn}
                 >
                   {effect.label}
@@ -460,10 +460,10 @@ export default function DevToolsPage() {
           </section>
 
           {/* API 테스트 */}
-          <section className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
             <h3 className="m-0 mb-4 text-lg font-bold">API 요청 테스트</h3>
 
-            <div className="flex flex-wrap gap-2 mb-5 pb-4 border-b border-[#f0f0f0]">
+            <div className="flex flex-wrap gap-2 mb-5 pb-4 border-b border-hairline">
               {API_ACTIONS.map((action) => (
                 <button
                   key={action.label}
@@ -476,10 +476,10 @@ export default function DevToolsPage() {
             </div>
 
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-[#999] uppercase tracking-widest">요청 로그</span>
+              <span className="text-[11px] font-bold text-ink-faint uppercase tracking-widest">요청 로그</span>
               {logs.length > 0 && (
                 <button
-                  className="text-xs text-[#bbb] hover:text-[#666] border-none bg-transparent cursor-pointer transition-colors"
+                  className="text-xs text-ink-faint hover:text-ink-muted border-none bg-transparent cursor-pointer transition-colors"
                   onClick={() => { setLogs([]); setExpanded(new Set()); }}
                 >
                   전체 삭제
@@ -488,7 +488,7 @@ export default function DevToolsPage() {
             </div>
 
             {logs.length === 0 ? (
-              <div className="py-10 text-center text-sm text-[#ccc] border border-dashed border-[#eee] rounded-xl">
+              <div className="py-10 text-center text-sm text-ink-faint border border-dashed border-hairline rounded-xl">
                 위 버튼을 클릭하면 요청 결과가 여기에 표시됩니다
               </div>
             ) : (
@@ -496,11 +496,11 @@ export default function DevToolsPage() {
                 {logs.map((log) => (
                   <li key={log.id} className="border border-[#eeeeee] rounded-xl overflow-hidden">
                     <button
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-[#fafafa] border-none cursor-pointer text-left hover:bg-[#f3f4f6] transition-colors"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-canvas-soft border-none cursor-pointer text-left hover:bg-[#f3f4f6] transition-colors"
                       onClick={() => toggleExpand(log.id)}
                     >
                       <StatusDot status={log.status} />
-                      <span className="font-mono text-xs flex-1 text-[#333] truncate">{log.label}</span>
+                      <span className="font-mono text-xs flex-1 text-ink-secondary truncate">{log.label}</span>
                       {log.ms !== undefined && (
                         <span
                           className={`text-[11px] shrink-0 font-semibold ${
@@ -510,10 +510,10 @@ export default function DevToolsPage() {
                           {log.ms}ms
                         </span>
                       )}
-                      <span className="text-[11px] text-[#bbb] shrink-0 tabular-nums">
+                      <span className="text-[11px] text-ink-faint shrink-0 tabular-nums">
                         {log.ts.toLocaleTimeString('ko-KR')}
                       </span>
-                      <span className="text-[10px] text-[#ccc]">{expanded.has(log.id) ? '▲' : '▼'}</span>
+                      <span className="text-[10px] text-ink-faint">{expanded.has(log.id) ? '▲' : '▼'}</span>
                     </button>
                     {expanded.has(log.id) && (
                       <pre className="m-0 p-3 text-[11px] leading-relaxed bg-[#1e1e2e] text-[#cdd6f4] overflow-x-auto max-h-[360px] overflow-y-auto">
@@ -527,7 +527,7 @@ export default function DevToolsPage() {
           </section>
 
           {/* 환경 정보 */}
-          <section className="bg-white rounded-2xl p-4 md:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
             <h3 className="m-0 mb-3 text-lg font-bold">환경 정보</h3>
             <ul className="m-0 p-0 list-none space-y-2">
               <EnvRow label="NEXT_PUBLIC_SUPABASE_URL" value={process.env.NEXT_PUBLIC_SUPABASE_URL} />
@@ -553,7 +553,7 @@ function StatCard({
 }) {
   const styles = {
     blue: 'bg-blue-50 text-blue-700',
-    gray: 'bg-[#f5f6f7] text-[#555]',
+    gray: 'bg-[#f5f6f7] text-ink-muted',
     green: 'bg-green-50 text-green-700',
     rose: 'bg-rose-50 text-rose-700',
   };
@@ -584,7 +584,7 @@ const GROUP_COLORS: Record<string, { badge: string; dot: string }> = {
 const TYPE_STYLES: Record<ColDef['type'], string> = {
   int:       'bg-blue-100 text-blue-700',
   float:     'bg-cyan-100 text-cyan-700',
-  text:      'bg-[#f0f0f0] text-[#555]',
+  text:      'bg-canvas-soft text-ink-muted',
   bool:      'bg-purple-100 text-purple-700',
   timestamp: 'bg-amber-100 text-amber-700',
   date:      'bg-teal-100 text-teal-700',
@@ -605,9 +605,9 @@ function GroupBadge({ label, color }: { label: string; color: string }) {
 function SchemaTable({ table }: { table: TableDef }) {
   return (
     <div className="border border-[#ececec] rounded-xl overflow-hidden">
-      <div className="flex items-baseline gap-2 px-3 py-2 bg-[#f9f9f9] border-b border-[#ececec]">
-        <span className="font-mono text-[13px] font-bold text-[#1a1a1a]">{table.name}</span>
-        <span className="text-[11px] text-[#aaa]">{table.desc}</span>
+      <div className="flex items-baseline gap-2 px-3 py-2 bg-canvas-soft border-b border-[#ececec]">
+        <span className="font-mono text-[13px] font-bold text-ink">{table.name}</span>
+        <span className="text-[11px] text-ink-faint">{table.desc}</span>
       </div>
       <div className="divide-y divide-[#f3f3f3]">
         {table.columns.map((col) => (
@@ -621,8 +621,8 @@ function SchemaTable({ table }: { table: TableDef }) {
               )}
               {!col.pk && !col.fk && <span className="w-5" />}
             </div>
-            <span className={`font-mono text-[12px] flex-1 ${col.nullable ? 'text-[#888]' : 'text-[#222] font-medium'}`}>
-              {col.name}{col.nullable && <span className="text-[10px] text-[#bbb] ml-0.5">?</span>}
+            <span className={`font-mono text-[12px] flex-1 ${col.nullable ? 'text-ink-muted' : 'text-ink font-medium'}`}>
+              {col.name}{col.nullable && <span className="text-[10px] text-ink-faint ml-0.5">?</span>}
             </span>
             <div className="flex items-center gap-1 shrink-0">
               {col.fk && (
@@ -632,7 +632,7 @@ function SchemaTable({ table }: { table: TableDef }) {
                 {col.note ? `enum` : col.type}
               </span>
               {col.note && (
-                <span className="text-[10px] text-[#bbb] hidden md:inline">({col.note})</span>
+                <span className="text-[10px] text-ink-faint hidden md:inline">({col.note})</span>
               )}
             </div>
           </div>
@@ -652,8 +652,8 @@ function EnvRow({ label, value }: { label: string; value: string | undefined }) 
   return (
     <li className="flex items-center gap-3 text-xs">
       <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-green-500' : 'bg-red-400'}`} />
-      <span className="font-mono text-[#555] shrink-0">{label}</span>
-      <span className={`font-mono truncate ${ok ? 'text-[#888]' : 'text-red-500 font-semibold'}`}>{display}</span>
+      <span className="font-mono text-ink-muted shrink-0">{label}</span>
+      <span className={`font-mono truncate ${ok ? 'text-ink-muted' : 'text-red-500 font-semibold'}`}>{display}</span>
     </li>
   );
 }

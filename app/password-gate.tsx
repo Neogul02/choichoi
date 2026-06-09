@@ -98,18 +98,18 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   if (!checked) return null;
 
   if (!isAuthed) {
-    const inputClass = 'w-full border border-[#ddd] rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-white';
+    const inputClass = 'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas';
     return (
       <div className="min-h-screen bg-[#f5f6f7] flex items-center justify-center p-4">
         <div className="w-full max-w-[360px]">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-black text-[#1a1a1a] m-0 mb-1">ChoiChoi POS</h1>
-            <p className="m-0 text-[#888] text-sm">운영 화면 접근을 위해 정보를 입력해주세요.</p>
+            <h1 className="text-2xl font-black text-ink m-0 mb-1">ChoiChoi POS</h1>
+            <p className="m-0 text-ink-muted text-sm">운영 화면 접근을 위해 정보를 입력해주세요.</p>
           </div>
-          <form className="bg-white rounded-2xl p-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)]" onSubmit={onSubmit}>
+          <form className="bg-canvas rounded-2xl p-5 shadow-level-1" onSubmit={onSubmit}>
             <div className="relative mb-3">
               <select
-                className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-[#999]' : 'text-[#1a1a1a]'} ${popupEvents.length === 1 ? 'opacity-70 cursor-default' : ''}`}
+                className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'} ${popupEvents.length === 1 ? 'opacity-70 cursor-default' : ''}`}
                 value={selectedPopupId}
                 onChange={(e) => setSelectedPopupId(e.target.value ? Number(e.target.value) : '')}
                 disabled={popupEvents.length === 1}
@@ -119,7 +119,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#999]">
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </span>
             </div>

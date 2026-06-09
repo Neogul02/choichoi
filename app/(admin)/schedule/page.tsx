@@ -326,7 +326,7 @@ export default function SchedulePage() {
           />
 
           {/* ── 스케줄 그리드 ── */}
-          <div className="flex-1 min-w-0 bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div className="flex-1 min-w-0 bg-canvas rounded-2xl p-4 shadow-level-1">
             {selectedEvent && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -334,38 +334,38 @@ export default function SchedulePage() {
                     <h3 className="m-0 text-base font-extrabold">{selectedEvent.name}</h3>
                     {totalWeeks > 1 && (
                       <div className="flex items-center gap-1">
-                        <button className="w-6 h-6 rounded bg-[#f0f0f0] border-none cursor-pointer font-bold text-[#555] hover:bg-[#e0e0e0] transition text-xs disabled:opacity-30" onClick={() => setWeekOffset(w => w - 1)} disabled={weekOffset === 0}>&lt;</button>
-                        <span className="text-[11px] font-semibold text-[#555] whitespace-nowrap">
+                        <button className="w-6 h-6 rounded bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-xs disabled:opacity-30" onClick={() => setWeekOffset(w => w - 1)} disabled={weekOffset === 0}>&lt;</button>
+                        <span className="text-[11px] font-semibold text-ink-muted whitespace-nowrap">
                           {visibleDates[0] && `${visibleDates[0].getMonth() + 1}/${visibleDates[0].getDate()}`}~{visibleDates[visibleDates.length - 1] && `${visibleDates[visibleDates.length - 1].getMonth() + 1}/${visibleDates[visibleDates.length - 1].getDate()}`}
-                          <span className="text-[#bbb] ml-1">({weekOffset + 1}/{totalWeeks})</span>
+                          <span className="text-ink-faint ml-1">({weekOffset + 1}/{totalWeeks})</span>
                         </span>
-                        <button className="w-6 h-6 rounded bg-[#f0f0f0] border-none cursor-pointer font-bold text-[#555] hover:bg-[#e0e0e0] transition text-xs disabled:opacity-30" onClick={() => setWeekOffset(w => w + 1)} disabled={weekOffset >= totalWeeks - 1}>&gt;</button>
+                        <button className="w-6 h-6 rounded bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-xs disabled:opacity-30" onClick={() => setWeekOffset(w => w + 1)} disabled={weekOffset >= totalWeeks - 1}>&gt;</button>
                       </div>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-[#bbb] font-semibold">드래그</span>
+                    <span className="text-[10px] text-ink-faint font-semibold">드래그</span>
                     {(['move', 'copy'] as const).map(mode => (
-                      <button key={mode} className={`px-2.5 py-1 rounded-lg border-none text-[11px] font-bold cursor-pointer transition ${dragMode === mode ? 'bg-primary-700 text-white' : 'bg-[#f0f0f0] text-[#555] hover:bg-[#e0e0e0]'}`} onClick={() => setDragMode(mode)}>
+                      <button key={mode} className={`px-2.5 py-1 rounded-lg border-none text-[11px] font-bold cursor-pointer transition ${dragMode === mode ? 'bg-primary-700 text-white' : 'bg-canvas-soft text-ink-muted hover:bg-[#ececeb]'}`} onClick={() => setDragMode(mode)}>
                         {mode === 'move' ? '이동' : '복사'}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {isSlotsLoading ? <p className="text-[#999] text-sm">불러오는 중...</p> : (
-                  <div className="overflow-x-auto rounded-lg border border-[#eee] [scrollbar-width:thin] [scrollbar-color:#ccc_transparent]">
+                {isSlotsLoading ? <p className="text-ink-faint text-sm">불러오는 중...</p> : (
+                  <div className="overflow-x-auto rounded-lg border border-hairline [scrollbar-width:thin] [scrollbar-color:#ccc_transparent]">
                     <table className="w-full border-collapse" style={{ minWidth: `${56 + visibleDates.length * 88}px` }}>
                       <thead>
                         <tr>
-                          <th className="bg-[#f9f9f9] w-[56px] min-w-[56px] text-[11px] text-[#666] font-semibold text-center sticky left-0 z-[2] border border-[#eee] px-1 py-2">역할</th>
+                          <th className="bg-canvas-soft w-[56px] min-w-[56px] text-[11px] text-ink-muted font-semibold text-center sticky left-0 z-[2] border border-hairline px-1 py-2">역할</th>
                           {visibleDates.map((date, i) => {
                             const day = date.getDay();
                             const isSat = day === 6, isSun = day === 0;
                             return (
-                              <th key={i} className={`text-center border border-[#eee] px-1 py-1.5 ${isSun ? 'bg-red-50' : isSat ? 'bg-blue-50' : 'bg-[#f9f9f9]'}`} style={{ minWidth: '88px' }}>
+                              <th key={i} className={`text-center border border-hairline px-1 py-1.5 ${isSun ? 'bg-red-50' : isSat ? 'bg-blue-50' : 'bg-canvas-soft'}`} style={{ minWidth: '88px' }}>
                                 <div className={`font-bold text-[12px] leading-tight ${isSun ? 'text-red-500' : isSat ? 'text-blue-500' : ''}`}>{DAY_NAMES[day]}</div>
-                                <div className={`text-[10px] ${isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-[#888]'}`}>{date.getMonth() + 1}/{date.getDate()}</div>
+                                <div className={`text-[10px] ${isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-ink-muted'}`}>{date.getMonth() + 1}/{date.getDate()}</div>
                               </th>
                             );
                           })}
@@ -374,7 +374,7 @@ export default function SchedulePage() {
                       <tbody>
                         {ROLES.map(role => (
                           <tr key={role}>
-                            <td className="text-[11px] font-bold text-[#555] text-center bg-[#fafafa] whitespace-nowrap sticky left-0 z-[1] border border-[#eee] px-1 py-1.5">{role}</td>
+                            <td className="text-[11px] font-bold text-ink-muted text-center bg-canvas-soft whitespace-nowrap sticky left-0 z-[1] border border-hairline px-1 py-1.5">{role}</td>
                             {visibleDates.map((date, i) => {
                               const dateStr = toLocalDateStr(date);
                               const cellSlots = getSlotsForCell(dateStr, role);
@@ -383,23 +383,23 @@ export default function SchedulePage() {
                               const day = date.getDay();
                               const dayCellBg = isOver ? '' : day === 0 ? 'bg-red-50/60' : day === 6 ? 'bg-blue-50/60' : '';
                               return (
-                                <td key={i} className={`p-1 align-top border border-[#eee] transition duration-150 ${dayCellBg} ${isOver ? 'bg-primary-50 outline-2 outline-dashed outline-primary-700 outline-offset-[-2px]' : ''}`} style={{ minHeight: '60px' }} data-cell data-date={dateStr} data-role={role} onDragOver={e => handleDragOver(e, dateStr, role)} onDragLeave={handleDragLeave} onDrop={e => handleDrop(e, dateStr, role)}>
+                                <td key={i} className={`p-1 align-top border border-hairline transition duration-150 ${dayCellBg} ${isOver ? 'bg-primary-50 outline-2 outline-dashed outline-primary-700 outline-offset-[-2px]' : ''}`} style={{ minHeight: '60px' }} data-cell data-date={dateStr} data-role={role} onDragOver={e => handleDragOver(e, dateStr, role)} onDragLeave={handleDragLeave} onDrop={e => handleDrop(e, dateStr, role)}>
                                   <div className="flex flex-col gap-1" style={{ minHeight: '52px' }}>
                                     {cellSlots.map(slot =>
                                       editingSlotId === slot.id ? (
                                         <div key={slot.id} className="flex flex-col gap-1 w-full bg-[#f0f4ff] border border-primary-700 rounded-lg p-1.5">
-                                          <select value={editWorkerId} onChange={e => setEditWorkerId(e.target.value ? Number(e.target.value) : '')} autoFocus className="w-full px-1 py-1 border border-[#ddd] rounded text-[10px] focus:outline-none focus:border-primary-700">
+                                          <select value={editWorkerId} onChange={e => setEditWorkerId(e.target.value ? Number(e.target.value) : '')} autoFocus className="w-full px-1 py-1 border border-hairline rounded text-[10px] focus:outline-none focus:border-primary-700">
                                             <option value="">근무자 선택</option>
                                             {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                           </select>
-                                          <input type="text" value={editWorkTime} onChange={e => setEditWorkTime(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleEditSave(slot.id); if (e.key === 'Escape') setEditingSlotId(null); }} placeholder="09-18" className="w-full px-1 py-1 border border-[#ddd] rounded text-[10px] focus:outline-none focus:border-primary-700" />
+                                          <input type="text" value={editWorkTime} onChange={e => setEditWorkTime(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleEditSave(slot.id); if (e.key === 'Escape') setEditingSlotId(null); }} placeholder="09-18" className="w-full px-1 py-1 border border-hairline rounded text-[10px] focus:outline-none focus:border-primary-700" />
                                           <label className="flex items-center gap-1 text-[10px] cursor-pointer select-none">
                                             <input type="checkbox" checked={editBreak} onChange={e => setEditBreak(e.target.checked)} className="w-3 h-3 cursor-pointer" />
                                             쉬는시간 1시간 차감
                                           </label>
                                           <div className="flex gap-1">
                                             <button className="flex-1 py-0.5 border-none rounded text-[10px] font-bold cursor-pointer bg-primary-700 text-white hover:bg-primary-800 transition" onClick={() => handleEditSave(slot.id)}>저장</button>
-                                            <button className="flex-1 py-0.5 border-none rounded text-[10px] font-bold cursor-pointer bg-[#eee] text-[#333] hover:bg-[#ddd] transition" onClick={() => setEditingSlotId(null)}>취소</button>
+                                            <button className="flex-1 py-0.5 border-none rounded text-[10px] font-bold cursor-pointer bg-canvas-soft text-ink-secondary hover:bg-[#ececeb] transition" onClick={() => setEditingSlotId(null)}>취소</button>
                                           </div>
                                         </div>
                                       ) : (
@@ -408,24 +408,24 @@ export default function SchedulePage() {
                                             <span className="text-[11px] font-bold leading-tight whitespace-nowrap">{slot.person_name}</span>
                                             {slot.work_time && <span className="text-[9px] opacity-75 leading-none whitespace-nowrap">{slot.work_time}{slot.break_time && ' -1h'}</span>}
                                           </div>
-                                          <button className="bg-white/15 border-none rounded w-[15px] h-[15px] flex items-center justify-center cursor-pointer text-[10px] p-0 hover:bg-white/35 transition shrink-0" onClick={e => handleEditStart(e, slot)}>✎</button>
-                                          <button className="bg-white/15 border-none rounded w-[15px] h-[15px] flex items-center justify-center cursor-pointer text-xs p-0 hover:bg-white/35 transition shrink-0" onClick={e => { e.stopPropagation(); handleRemovePerson(slot.id); }}>×</button>
+                                          <button className="bg-canvas/15 border-none rounded w-[15px] h-[15px] flex items-center justify-center cursor-pointer text-[10px] p-0 hover:bg-canvas/35 transition shrink-0" onClick={e => handleEditStart(e, slot)}>✎</button>
+                                          <button className="bg-canvas/15 border-none rounded w-[15px] h-[15px] flex items-center justify-center cursor-pointer text-xs p-0 hover:bg-canvas/35 transition shrink-0" onClick={e => { e.stopPropagation(); handleRemovePerson(slot.id); }}>×</button>
                                         </div>
                                       )
                                     )}
                                     {isAdding ? (
                                       <div className="flex flex-col gap-1 w-full">
                                         {workers.length === 0 ? (
-                                          <p className="text-[10px] text-[#999] m-0 text-center py-1">근무자를 먼저 등록하세요</p>
+                                          <p className="text-[10px] text-ink-faint m-0 text-center py-1">근무자를 먼저 등록하세요</p>
                                         ) : (
-                                          <select value={addWorkerId} onChange={e => setAddWorkerId(e.target.value ? Number(e.target.value) : '')} autoFocus className="w-full px-1 py-1 border border-[#ddd] rounded text-[10px] focus:outline-none focus:border-primary-700">
+                                          <select value={addWorkerId} onChange={e => setAddWorkerId(e.target.value ? Number(e.target.value) : '')} autoFocus className="w-full px-1 py-1 border border-hairline rounded text-[10px] focus:outline-none focus:border-primary-700">
                                             <option value="">근무자 선택</option>
                                             {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                           </select>
                                         )}
                                         {workers.length > 0 && (
                                           <>
-                                            <input type="text" placeholder="09-18" value={addWorkTime} onChange={e => setAddWorkTime(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddPerson(dateStr, role); if (e.key === 'Escape') setAddingTo(null); }} className="w-full px-1 py-1 border border-[#ddd] rounded text-[10px] focus:outline-none focus:border-primary-700" />
+                                            <input type="text" placeholder="09-18" value={addWorkTime} onChange={e => setAddWorkTime(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddPerson(dateStr, role); if (e.key === 'Escape') setAddingTo(null); }} className="w-full px-1 py-1 border border-hairline rounded text-[10px] focus:outline-none focus:border-primary-700" />
                                             <label className="flex items-center gap-1 text-[10px] cursor-pointer select-none">
                                               <input type="checkbox" checked={addBreak} onChange={e => setAddBreak(e.target.checked)} className="w-3 h-3 cursor-pointer" />
                                               쉬는시간 1시간 차감
@@ -434,11 +434,11 @@ export default function SchedulePage() {
                                         )}
                                         <div className="flex gap-1">
                                           {workers.length > 0 && <button className="flex-1 py-0.5 border-none rounded text-[10px] font-semibold cursor-pointer bg-primary-700 text-white hover:bg-primary-800 transition" onClick={() => handleAddPerson(dateStr, role)}>추가</button>}
-                                          <button className="flex-1 py-0.5 border-none rounded text-[10px] font-semibold cursor-pointer bg-[#eee] text-[#333] hover:bg-[#ddd] transition" onClick={() => setAddingTo(null)}>취소</button>
+                                          <button className="flex-1 py-0.5 border-none rounded text-[10px] font-semibold cursor-pointer bg-canvas-soft text-ink-secondary hover:bg-[#ececeb] transition" onClick={() => setAddingTo(null)}>취소</button>
                                         </div>
                                       </div>
                                     ) : (
-                                      <button className="flex items-center justify-center w-5 h-5 rounded border-[1.5px] border-dashed border-[#ccc] bg-transparent text-[#bbb] text-sm cursor-pointer hover:border-primary-700 hover:text-primary-700 hover:bg-primary-50 transition leading-none p-0" onClick={() => { setAddingTo({ date: dateStr, role }); setAddWorkerId(''); setAddWorkTime(''); }}>+</button>
+                                      <button className="flex items-center justify-center w-5 h-5 rounded border-[1.5px] border-dashed border-[#ccc] bg-transparent text-ink-faint text-sm cursor-pointer hover:border-primary-700 hover:text-primary-700 hover:bg-primary-50 transition leading-none p-0" onClick={() => { setAddingTo({ date: dateStr, role }); setAddWorkerId(''); setAddWorkTime(''); }}>+</button>
                                     )}
                                   </div>
                                 </td>
@@ -457,44 +457,44 @@ export default function SchedulePage() {
 
         {selectedEvent && (
           <div className="mt-4">
-            <div className="flex rounded-xl overflow-hidden border border-[#eee] mb-2 w-fit bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            <div className="flex rounded-xl overflow-hidden border border-hairline mb-2 w-fit bg-canvas shadow-level-1">
               {(['workers', 'salary'] as const).map(tab => (
-                <button key={tab} className={`px-4 py-2 text-[11px] font-bold border-none cursor-pointer transition ${bottomTab === tab ? 'bg-primary-700 text-white' : 'bg-white text-[#555] hover:bg-[#f5f5f5]'}`} onClick={() => setBottomTab(tab)}>
+                <button key={tab} className={`px-4 py-2 text-[11px] font-bold border-none cursor-pointer transition ${bottomTab === tab ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`} onClick={() => setBottomTab(tab)}>
                   {tab === 'workers' ? '근무자 관리' : '급여 계산'}
                 </button>
               ))}
             </div>
 
             {bottomTab === 'workers' && (
-              <div className="bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+              <div className="bg-canvas rounded-2xl p-4 shadow-level-1">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="m-0 text-base font-extrabold">{selectedEvent.name} 근무자</h3>
-                  <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showWorkerForm ? 'bg-[#eee] text-[#555]' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => showWorkerForm ? setShowWorkerForm(false) : openWorkerForm()}>
+                  <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showWorkerForm ? 'bg-canvas-soft text-ink-muted' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => showWorkerForm ? setShowWorkerForm(false) : openWorkerForm()}>
                     {showWorkerForm ? '취소' : '+ 추가'}
                   </button>
                 </div>
                 {showWorkerForm && (
-                  <div className="bg-[#f9f9f9] rounded-lg p-3 mb-3 flex flex-wrap gap-2 items-end">
-                    <div className="flex rounded-lg overflow-hidden border border-[#ddd] shrink-0">
+                  <div className="bg-canvas-soft rounded-lg p-3 mb-3 flex flex-wrap gap-2 items-end">
+                    <div className="flex rounded-lg overflow-hidden border border-hairline shrink-0">
                       {WORKER_ROLE_LIST.map(r => (
-                        <button key={r} type="button" onClick={() => setWorkerForm(p => ({ ...p, worker_role: r }))} className={`px-3 py-1.5 text-xs font-bold border-none cursor-pointer transition ${workerForm.worker_role === r ? 'bg-primary-700 text-white' : 'bg-white text-[#555] hover:bg-[#f0f0f0]'}`}>{r}</button>
+                        <button key={r} type="button" onClick={() => setWorkerForm(p => ({ ...p, worker_role: r }))} className={`px-3 py-1.5 text-xs font-bold border-none cursor-pointer transition ${workerForm.worker_role === r ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}>{r}</button>
                       ))}
                     </div>
-                    <input type="text" placeholder="이름 *" value={workerForm.name} onChange={e => setWorkerForm(p => ({ ...p, name: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[120px]" />
+                    <input type="text" placeholder="이름 *" value={workerForm.name} onChange={e => setWorkerForm(p => ({ ...p, name: e.target.value }))} className="px-2 py-1.5 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700 min-w-[120px]" />
                     <div className="flex items-center gap-1.5 py-1">
                       {WORKER_COLORS.map(c => (
                         <button key={c} type="button" onClick={() => setWorkerForm(p => ({ ...p, color: c }))} className="w-5 h-5 rounded-full border-2 transition" style={{ backgroundColor: c, borderColor: workerForm.color === c ? '#222' : 'transparent' }} />
                       ))}
                     </div>
-                    <input type="tel" placeholder="전화번호" value={workerForm.phone} onChange={e => setWorkerForm(p => ({ ...p, phone: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[130px]" />
-                    <input type="text" placeholder="은행 종류 (예: 카카오뱅크)" value={workerForm.bank_name} onChange={e => setWorkerForm(p => ({ ...p, bank_name: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[150px]" />
-                    <input type="text" placeholder="계좌번호" value={workerForm.bank_account} onChange={e => setWorkerForm(p => ({ ...p, bank_account: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[150px]" />
-                    <input type="number" placeholder="시급 (원)" value={workerForm.hourly_rate} onChange={e => setWorkerForm(p => ({ ...p, hourly_rate: e.target.value }))} className="px-2 py-1.5 border border-[#ddd] rounded text-xs focus:outline-none focus:border-primary-700 min-w-[100px]" />
+                    <input type="tel" placeholder="전화번호" value={workerForm.phone} onChange={e => setWorkerForm(p => ({ ...p, phone: e.target.value }))} className="px-2 py-1.5 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700 min-w-[130px]" />
+                    <input type="text" placeholder="은행 종류 (예: 카카오뱅크)" value={workerForm.bank_name} onChange={e => setWorkerForm(p => ({ ...p, bank_name: e.target.value }))} className="px-2 py-1.5 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700 min-w-[150px]" />
+                    <input type="text" placeholder="계좌번호" value={workerForm.bank_account} onChange={e => setWorkerForm(p => ({ ...p, bank_account: e.target.value }))} className="px-2 py-1.5 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700 min-w-[150px]" />
+                    <input type="number" placeholder="시급 (원)" value={workerForm.hourly_rate} onChange={e => setWorkerForm(p => ({ ...p, hourly_rate: e.target.value }))} className="px-2 py-1.5 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700 min-w-[100px]" />
                     <button className="px-3 py-1.5 border-none rounded bg-primary-700 text-white text-xs font-bold cursor-pointer hover:bg-primary-800 transition" onClick={handleSaveWorker}>{editingWorkerId ? '수정 완료' : '등록'}</button>
                   </div>
                 )}
                 {workers.length === 0 ? (
-                  <p className="text-[#999] text-sm m-0">등록된 근무자가 없습니다.</p>
+                  <p className="text-ink-faint text-sm m-0">등록된 근무자가 없습니다.</p>
                 ) : (
                   <div className="flex flex-col gap-4">
                     {WORKER_ROLE_LIST.map(roleGroup => {
@@ -503,24 +503,24 @@ export default function SchedulePage() {
                       return (
                         <div key={roleGroup}>
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-extrabold text-[#444]">{roleGroup}</span>
-                            <span className="text-[10px] text-[#bbb]">{grouped.length}명</span>
+                            <span className="text-xs font-extrabold text-ink-secondary">{roleGroup}</span>
+                            <span className="text-[10px] text-ink-faint">{grouped.length}명</span>
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                             {grouped.map(w => (
-                              <div key={w.id} className={`bg-[#f9f9f9] rounded-lg p-2.5 border transition cursor-grab active:cursor-grabbing select-none ${draggingWorkerId === w.id ? 'opacity-40 border-primary-400' : 'border-[#eee] hover:border-primary-300 hover:shadow-sm'}`} draggable onDragStart={e => { e.dataTransfer.effectAllowed = 'copy'; setDraggingWorkerId(w.id); }} onDragEnd={handleDragEnd}>
+                              <div key={w.id} className={`bg-canvas-soft rounded-lg p-2.5 border transition cursor-grab active:cursor-grabbing select-none ${draggingWorkerId === w.id ? 'opacity-40 border-primary-400' : 'border-hairline hover:border-primary-300 hover:shadow-sm'}`} draggable onDragStart={e => { e.dataTransfer.effectAllowed = 'copy'; setDraggingWorkerId(w.id); }} onDragEnd={handleDragEnd}>
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center gap-1.5">
                                     <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: w.color || '#6366f1' }} />
                                     <strong className="text-[13px] font-bold">{w.name}</strong>
                                   </div>
                                   <div className="flex gap-1">
-                                    <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:bg-[#eee] transition" onClick={() => openWorkerForm(w)}>✎</button>
-                                    <button className="bg-white border border-[#ddd] rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:text-red-500 hover:border-red-300 transition" onClick={() => handleDeleteWorker(w.id, w.name)}>×</button>
+                                    <button className="bg-canvas border border-hairline rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:bg-canvas-soft transition" onClick={() => openWorkerForm(w)}>✎</button>
+                                    <button className="bg-canvas border border-hairline rounded px-1.5 py-0.5 text-[10px] cursor-pointer hover:text-red-500 hover:border-red-300 transition" onClick={() => handleDeleteWorker(w.id, w.name)}>×</button>
                                   </div>
                                 </div>
-                                {w.phone && <p className="m-0 text-[10px] text-[#777]">{w.phone}</p>}
-                                {(w.bank_name || w.bank_account) && <p className="m-0 text-[10px] text-[#777] truncate">{[w.bank_name, w.bank_account].filter(Boolean).join(' ')}</p>}
+                                {w.phone && <p className="m-0 text-[10px] text-ink-muted">{w.phone}</p>}
+                                {(w.bank_name || w.bank_account) && <p className="m-0 text-[10px] text-ink-muted truncate">{[w.bank_name, w.bank_account].filter(Boolean).join(' ')}</p>}
                                 {w.hourly_rate > 0 && <p className="m-0 text-[10px] font-semibold text-primary-700">{w.hourly_rate.toLocaleString('ko-KR')}원/h</p>}
                               </div>
                             ))}
@@ -544,8 +544,8 @@ export default function SchedulePage() {
               />
             )}
             {bottomTab === 'salary' && salaryGroups.length === 0 && (
-              <div className="bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                <p className="text-[#999] text-sm m-0">근무 데이터가 없습니다.</p>
+              <div className="bg-canvas rounded-2xl p-4 shadow-level-1">
+                <p className="text-ink-faint text-sm m-0">근무 데이터가 없습니다.</p>
               </div>
             )}
           </div>

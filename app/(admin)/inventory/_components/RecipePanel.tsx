@@ -25,8 +25,8 @@ export default function RecipePanel({ recipes, ingredients, onSelectMenu }: Prop
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[13px] font-extrabold text-[#161616]">레시피 관리</h3>
-        <span className="text-[10px] text-[#bbb]">메뉴를 탭하면 편집</span>
+        <h3 className="text-[13px] font-extrabold text-ink">레시피 관리</h3>
+        <span className="text-[10px] text-ink-faint">메뉴를 탭하면 편집</span>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -34,11 +34,11 @@ export default function RecipePanel({ recipes, ingredients, onSelectMenu }: Prop
           <button
             key={menu_id}
             onClick={() => onSelectMenu({ menu_id, menu_name: name })}
-            className="w-full text-left bg-[#f9f9f9] hover:bg-primary-50 border-[1.5px] border-[#eee] hover:border-primary-200 rounded-xl px-3.5 py-3 cursor-pointer transition"
+            className="w-full text-left bg-canvas-soft hover:bg-primary-50 border-[1.5px] border-hairline hover:border-primary-200 rounded-xl px-3.5 py-3 cursor-pointer transition"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[12px] font-extrabold text-[#222]">{name}</span>
-              <span className="text-[10px] text-[#aaa]">재료 {items.length}종 →</span>
+              <span className="text-[12px] font-extrabold text-ink">{name}</span>
+              <span className="text-[10px] text-ink-faint">재료 {items.length}종 →</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {items.map((r) => {
@@ -46,14 +46,14 @@ export default function RecipePanel({ recipes, ingredients, onSelectMenu }: Prop
                 return (
                   <span
                     key={r.ingredient_id}
-                    className="flex items-center gap-1 text-[10px] bg-white text-[#555] font-medium px-2 py-0.5 rounded-full border border-[#e8e8e8]"
+                    className="flex items-center gap-1 text-[10px] bg-canvas text-ink-muted font-medium px-2 py-0.5 rounded-full border border-[#e8e8e8]"
                   >
                     <span
                       className="w-1.5 h-1.5 rounded-full"
                       style={{ backgroundColor: ing?.color ?? '#ccc' }}
                     />
                     {ing?.name ?? r.ingredient_id}
-                    <span className="text-[#bbb]">{r.qty_per_unit}{ing?.base_unit}</span>
+                    <span className="text-ink-faint">{r.qty_per_unit}{ing?.base_unit}</span>
                   </span>
                 );
               })}
