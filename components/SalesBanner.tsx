@@ -35,7 +35,7 @@ const HIDDEN_BG = 'linear-gradient(135deg, #1f2a26 0%, #2f3d36 55%, #3d4a43 100%
 const HIDDEN_SHADOW = '0 6px 28px rgba(30,40,35,0.35)';
 
 export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastPayment }: Props) {
-  const [hidden, setHidden] = useState(false);
+  const [hidden, setHidden] = useState(true);
   const [bannerScope, animateBanner] = useAnimate();
   const [revenueScope, animateRevenue] = useAnimate();
   const isFirst = useRef(true);

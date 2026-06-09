@@ -11,6 +11,7 @@ import { HOURS } from '@/app/(admin)/stats/_lib/hourly';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
+import { analyzePopupSales } from '@/app/actions/gemini';
 
 type Metric = 'revenue' | 'orderCount';
 
@@ -63,6 +64,31 @@ export default function PopupStatsSection({
 }: Props) {
   const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
   const [metric, setMetric] = useState<Metric>('revenue');
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  function handleSelectPopup(id: number | null) {
+    setAiAnalysis(null);
+    setAiError(null);
+    onSelectPopup(id);
+  }
+
+  async function handleAiAnalyze() {
+    if (!selectedPopup || popupDailySales.length === 0) return;
+    setAiLoading(true);
+    setAiError(null);
+    const res = await analyzePopupSales(
+      selectedPopup.name,
+      selectedPopup.start_date,
+      selectedPopup.end_date,
+      popupDailySales,
+      popupMenuBreakdown,
+    );
+    setAiLoading(false);
+    if (res.success) setAiAnalysis(res.data ?? '');
+    else setAiError(res.error ?? '오류가 발생했습니다.');
+  }
 
   const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
   const popupTotalOrders = useMemo(() => popupDailySales.reduce((s, d) => s + d.orderCount, 0), [popupDailySales]);
@@ -100,7 +126,7 @@ export default function PopupStatsSection({
         <>
           <select
             value={selectedPopupId ?? ''}
-            onChange={(e) => onSelectPopup(e.target.value ? Number(e.target.value) : null)}
+            onChange={(e) => handleSelectPopup(e.target.value ? Number(e.target.value) : null)}
             className="w-full border border-[#d8e8e0] rounded-lg px-3 py-2.5 text-sm font-semibold bg-white text-[#333] outline-none focus:border-primary-700 mb-4"
           >
             <option value="">팝업을 선택하세요</option>
@@ -222,6 +248,24 @@ export default function PopupStatsSection({
                     </p>
                   </div>
                 )}
+
+                <div className="bg-white rounded-xl p-3 border border-[#e4e4e4] mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="m-0 text-sm font-bold text-[#333]">AI 매출 분석</h4>
+                    <button
+                      onClick={handleAiAnalyze}
+                      disabled={aiLoading || popupDailySales.length === 0}
+                      className="px-3 py-1.5 rounded-full text-[11px] font-semibold bg-primary-700 text-white disabled:opacity-50 cursor-pointer"
+                    >
+                      {aiLoading ? '분석 중...' : 'AI 분석하기'}
+                    </button>
+                  </div>
+                  {aiError && <p className="text-red-500 text-xs m-0">{aiError}</p>}
+                  {aiAnalysis && <p className="text-sm text-[#444] leading-relaxed whitespace-pre-wrap m-0">{aiAnalysis}</p>}
+                  {!aiAnalysis && !aiError && !aiLoading && (
+                    <p className="text-[#bbb] text-xs m-0">버튼을 눌러 이 팝업의 매출을 AI로 분석하세요.</p>
+                  )}
+                </div>
 
                 {popupMenuBreakdown.length > 0 ? (
                   <div className="bg-white rounded-xl p-3 border border-[#e4e4e4]">
