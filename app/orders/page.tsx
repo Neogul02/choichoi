@@ -64,9 +64,9 @@ export default function OrdersPage() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="flex items-center justify-between bg-white mt-[-10px] rounded-2xl px-4 py-3.5 md:px-5 mb-3 md:mb-4 shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+          className="flex items-center justify-between bg-canvas mt-[-10px] rounded-2xl px-4 py-3.5 md:px-5 mb-3 md:mb-4 shadow-level-1"
         >
-          <h1 className="m-0 text-lg font-black text-[#161616]">주문 현황</h1>
+          <h1 className="m-0 text-lg font-black text-ink">주문 현황</h1>
           {pendingOrders.length > 0 && (
             <motion.span
               key={pendingOrders.length}
@@ -84,7 +84,7 @@ export default function OrdersPage() {
           {pendingOrdersQuery.isLoading ? (
             <div className="animate-pulse flex flex-col gap-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                <div key={i} className="bg-canvas rounded-xl p-4 shadow-level-1">
                   <div className="h-4 bg-gray-100 rounded w-1/3 mb-3" />
                   <div className="h-3 bg-gray-100 rounded w-full mb-2" />
                   <div className="h-3 bg-gray-100 rounded w-2/3 mb-4" />
@@ -96,9 +96,9 @@ export default function OrdersPage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="bg-white rounded-xl p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)] text-center"
+              className="bg-canvas rounded-xl p-8 shadow-level-1 text-center"
             >
-              <p className="m-0 text-[#aaa] text-sm">대기 중인 주문이 없습니다.</p>
+              <p className="m-0 text-ink-faint text-sm">대기 중인 주문이 없습니다.</p>
             </motion.div>
           ) : (
             <ul className="m-0 p-0 list-none flex flex-col gap-3">
@@ -111,13 +111,13 @@ export default function OrdersPage() {
                     animate="visible"
                     exit="exit"
                     layout
-                    className="bg-white rounded-xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                    className="bg-canvas rounded-xl p-4 shadow-level-1"
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[#888] text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                        <span className="text-ink-muted text-xs font-medium">{formatKSTTime(order.created_at)}</span>
                         {order.cashier_name && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#f0f0f0] text-[#666]">{order.cashier_name}</span>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas-soft text-ink-muted">{order.cashier_name}</span>
                         )}
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">대기 중</span>
                       </div>
@@ -126,8 +126,8 @@ export default function OrdersPage() {
                     <ul className="m-0 p-0 list-none mb-3">
                       {order.items.map((item, idx) => (
                         <li key={idx} className="flex justify-between items-center py-1.5 border-b border-[#f5f5f5] last:border-0">
-                          <span className="text-sm font-semibold text-[#333]">{item.name}</span>
-                          <span className="text-sm text-[#888]">× {item.quantity}</span>
+                          <span className="text-sm font-semibold text-ink-secondary">{item.name}</span>
+                          <span className="text-sm text-ink-muted">× {item.quantity}</span>
                         </li>
                       ))}
                     </ul>

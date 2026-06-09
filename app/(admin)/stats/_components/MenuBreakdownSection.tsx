@@ -18,12 +18,12 @@ function MenuTooltip({ active, payload }: MenuTooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
-    <div className="bg-white border border-[#e0e0e0] rounded-lg p-2.5 text-xs shadow-md">
+    <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
       <div className="flex items-center gap-1.5 mb-1">
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-        <p className="font-bold text-[#333]">{item.name}</p>
+        <p className="font-bold text-ink-secondary">{item.name}</p>
       </div>
-      <p className="text-[#555]">판매량: {item.totalQuantity}개</p>
+      <p className="text-ink-muted">판매량: {item.totalQuantity}개</p>
       <p className="text-primary-700">매출: ₩{formatPrice(item.totalRevenue)}</p>
     </div>
   );
@@ -55,7 +55,7 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
         {PERIOD_KEYS.map((key) => (
           <button
             key={key}
-            className={`px-3.5 py-1.5 rounded-full border cursor-pointer text-[13px] font-semibold transition-all duration-200 ${period === key ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] border-[#ddd] text-[#555] hover:bg-[#eee] hover:border-[#ccc]'}`}
+            className={`px-3.5 py-1.5 rounded-full border cursor-pointer text-[13px] font-semibold transition-all duration-200 ${period === key ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] border-hairline text-ink-muted hover:bg-canvas-soft hover:border-[#ccc]'}`}
             onClick={() => onPeriodChange(key)}
           >
             {PERIOD_LABELS[key]}
@@ -64,9 +64,9 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-[#999]">불러오는 중...</p>
+        <p className="text-sm text-ink-faint">불러오는 중...</p>
       ) : breakdown.length === 0 ? (
-        <p className="m-0 text-[#999] text-sm">해당 기간 판매 내역이 없습니다.</p>
+        <p className="m-0 text-ink-faint text-sm">해당 기간 판매 내역이 없습니다.</p>
       ) : (
         <div style={{ height: Math.max(200, breakdown.length * 44) }}>
           <ResponsiveContainer width="100%" height="100%">

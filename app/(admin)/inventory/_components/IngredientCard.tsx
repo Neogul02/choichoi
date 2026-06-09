@@ -28,10 +28,10 @@ function formatDetail(ing: Ingredient): string {
 }
 
 const STATUS_STYLES: Record<IngredientStatus, { chip: string; border: string; bg: string }> = {
-  out:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-[#e8e8e8]',   bg: 'bg-white' },
-  low:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-rose-200',    bg: 'bg-white' },
-  warn: { chip: 'bg-amber-100 text-amber-600',      border: 'border-amber-200',   bg: 'bg-white' },
-  ok:   { chip: 'bg-emerald-100 text-emerald-600',  border: 'border-[#e8e8e8]',   bg: 'bg-white' },
+  out:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-[#e8e8e8]',   bg: 'bg-canvas' },
+  low:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-rose-200',    bg: 'bg-canvas' },
+  warn: { chip: 'bg-amber-100 text-amber-600',      border: 'border-amber-200',   bg: 'bg-canvas' },
+  ok:   { chip: 'bg-emerald-100 text-emerald-600',  border: 'border-[#e8e8e8]',   bg: 'bg-canvas' },
 };
 
 const STATUS_LABELS: Record<IngredientStatus, string> = {
@@ -57,11 +57,11 @@ export default function IngredientCard({ ingredient, recipes, onClick }: Props) 
   return (
     <button
       onClick={onClick}
-      className={`${styles.bg} w-full text-left rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] border-[1.5px] ${styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
+      className={`${styles.bg} w-full text-left rounded-2xl p-3.5 shadow-level-1 border-[1.5px] ${styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
     >
       {/* 헤더 */}
       <div className="flex items-center gap-1.5 flex-wrap mb-1">
-        <span className="font-extrabold text-[#222] text-[13px]">{ingredient.name}</span>
+        <span className="font-extrabold text-ink text-[13px]">{ingredient.name}</span>
         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CATEGORY_COLOR[ingredient.category] ?? 'bg-gray-100 text-gray-500'}`}>
           {ingredient.category}
         </span>
@@ -75,14 +75,14 @@ export default function IngredientCard({ ingredient, recipes, onClick }: Props) 
 
       {/* 잔량 */}
       <div className="flex items-baseline gap-1.5 mt-0.5 mb-1.5">
-        <span className="text-xl font-black tabular-nums text-[#161616]">
+        <span className="text-xl font-black tabular-nums text-ink">
           {formatRemaining(ingredient)}
         </span>
-        <span className="text-[11px] text-[#999]">{formatDetail(ingredient)}</span>
+        <span className="text-[11px] text-ink-faint">{formatDetail(ingredient)}</span>
       </div>
 
       {/* 컨테이너 정보 */}
-      <div className="text-[11px] text-[#bbb] mb-2">
+      <div className="text-[11px] text-ink-faint mb-2">
         1{ingredient.container_unit} = {ingredient.container_size}{ingredient.base_unit}
       </div>
 
@@ -90,7 +90,7 @@ export default function IngredientCard({ ingredient, recipes, onClick }: Props) 
       {usedInMenus.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {usedInMenus.map((name) => (
-            <span key={name} className="text-[10px] bg-[#f5f6f7] text-[#666] font-medium px-2 py-0.5 rounded-full border border-[#e8e8e8]">
+            <span key={name} className="text-[10px] bg-[#f5f6f7] text-ink-muted font-medium px-2 py-0.5 rounded-full border border-[#e8e8e8]">
               {name}
             </span>
           ))}

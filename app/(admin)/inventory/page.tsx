@@ -47,8 +47,8 @@ export default function InventoryPage() {
 
           <div className="flex items-center justify-between px-0.5">
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-extrabold text-[#161616]">재고</h2>
-              {isLoading && <span className="text-[11px] text-[#bbb]">불러오는 중…</span>}
+              <h2 className="text-xl font-extrabold text-ink">재고</h2>
+              {isLoading && <span className="text-[11px] text-ink-faint">불러오는 중…</span>}
             </div>
             <button
               onClick={() => setAddOpen(true)}
@@ -66,7 +66,7 @@ export default function InventoryPage() {
           />
 
           {filtered.length === 0 && !isLoading ? (
-            <p className="text-[12px] text-[#bbb] px-0.5">재료가 없습니다.</p>
+            <p className="text-[12px] text-ink-faint px-0.5">재료가 없습니다.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filtered.map((ing) => (
@@ -80,11 +80,11 @@ export default function InventoryPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
             <LiveLog logs={logs} isLoading={logLoading} />
           </div>
 
-          <div className="bg-white rounded-2xl p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
             <RecipePanel
               recipes={recipes}
               ingredients={ingredients}

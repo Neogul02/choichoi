@@ -26,7 +26,7 @@ export default function FilterBar({ category, sort, onCategoryChange, onSortChan
             className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
               category === c
                 ? 'bg-primary-700 text-white'
-                : 'bg-white text-[#666] border border-[#e0e0e0] hover:bg-primary-50 hover:text-primary-700'
+                : 'bg-canvas text-ink-muted border border-hairline hover:bg-primary-50 hover:text-primary-700'
             }`}
           >
             {c}
@@ -41,7 +41,7 @@ export default function FilterBar({ category, sort, onCategoryChange, onSortChan
             className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
               sort === o.value
                 ? 'bg-[#161616] text-white'
-                : 'bg-white text-[#888] border border-[#e0e0e0] hover:text-[#161616]'
+                : 'bg-canvas text-ink-muted border border-hairline hover:text-ink'
             }`}
           >
             {o.label}

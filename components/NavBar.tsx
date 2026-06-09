@@ -130,13 +130,13 @@ export default function NavBar() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.22, ease: 'easeInOut' }}
-              className="overflow-hidden bg-white border-b border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+              className="overflow-hidden bg-canvas border-b border-hairline shadow-level-1"
             >
               <div className="px-3 md:px-5 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
                 {/* 1단: 로고 + 접속자 + 모바일 전용 액션 */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <h1 className="m-0 text-xl md:text-2xl font-extrabold text-[#161616] shrink-0">ChoiChoi</h1>
+                    <h1 className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0">ChoiChoi</h1>
                     {popupName && (
                       <span className="hidden md:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
                         {popupName}
@@ -144,7 +144,7 @@ export default function NavBar() {
                     )}
                     {activeCashiers.length > 0 && (
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="hidden md:inline text-[11px] text-[#bbb] shrink-0">접속</span>
+                        <span className="hidden md:inline text-[11px] text-ink-faint shrink-0">접속</span>
                         <div className="flex gap-1 flex-wrap">
                           {activeCashiers.map((name) => (
                             <span key={name} className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -156,13 +156,14 @@ export default function NavBar() {
                       </div>
                     )}
                   </div>
+
                   {/* 모바일 전용 우측 액션 */}
                   <div className="flex md:hidden items-center gap-1.5 shrink-0">
                     {isAdmin ? (
                       <button
                         onClick={handleLogout}
                         title="관리자 로그아웃"
-                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -174,14 +175,14 @@ export default function NavBar() {
                       <>
                         <button
                           onClick={openModal}
-                          className="px-3 py-1.5 text-[13px] rounded-lg font-semibold whitespace-nowrap bg-[#f5f6f7] text-[#999] hover:bg-primary-700 hover:text-white border-none cursor-pointer transition-all duration-200"
+                          className="px-3 py-1.5 text-[13px] rounded-lg font-semibold whitespace-nowrap bg-canvas-soft text-ink-faint hover:bg-primary-700 hover:text-white border-none cursor-pointer transition-all duration-200"
                         >
                           관리자
                         </button>
                         <button
                           onClick={handleCashierLogout}
                           title="로그아웃"
-                          className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
+                          className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -204,7 +205,7 @@ export default function NavBar() {
                             className={`block px-3 py-1.5 md:px-4 md:py-2 text-[13px] md:text-sm rounded-lg no-underline font-semibold transition-all duration-200 whitespace-nowrap ${
                               pathname === href
                                 ? 'bg-primary-700 text-white'
-                                : 'bg-[#f5f6f7] text-[#161616] hover:bg-primary-700 hover:text-white'
+                                : 'bg-canvas-soft text-ink hover:bg-primary-700 hover:text-white'
                             }`}
                           >
                             {label}
@@ -213,14 +214,15 @@ export default function NavBar() {
                       ))}
                     </ul>
                   </nav>
+
                   {/* 데스크탑 전용 우측 액션 */}
                   <div className="hidden md:flex items-center gap-2">
-                    <div className="w-px h-5 bg-[#e5e5e5] shrink-0" />
+                    <div className="w-px h-5 bg-hairline shrink-0" />
                     {isAdmin ? (
                       <button
                         onClick={handleLogout}
                         title="관리자 로그아웃"
-                        className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
+                        className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -232,14 +234,14 @@ export default function NavBar() {
                       <>
                         <button
                           onClick={openModal}
-                          className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 text-[13px] md:text-sm rounded-lg font-semibold transition-all duration-200 whitespace-nowrap bg-[#f5f6f7] text-[#999] hover:bg-primary-700 hover:text-white border-none cursor-pointer"
+                          className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 text-[13px] md:text-sm rounded-lg font-semibold transition-all duration-200 whitespace-nowrap bg-canvas-soft text-ink-faint hover:bg-primary-700 hover:text-white border-none cursor-pointer"
                         >
                           관리자
                         </button>
                         <button
                           onClick={handleCashierLogout}
                           title="로그아웃"
-                          className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
+                          className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -259,7 +261,7 @@ export default function NavBar() {
           <button
             onClick={toggle}
             aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
-            className="flex items-center justify-center w-9 h-4 rounded-full bg-[#e8e8e8] hover:bg-[#d8d8d8] transition-colors group cursor-pointer"
+            className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline hover:bg-[#d0d0d0] transition-colors group cursor-pointer"
           >
             <motion.svg
               animate={{ rotate: collapsed ? 180 : 0 }}
@@ -268,7 +270,7 @@ export default function NavBar() {
               height="6"
               viewBox="0 0 12 6"
               fill="none"
-              className="text-[#aaa] group-hover:text-[#888] transition-colors"
+              className="text-ink-faint group-hover:text-ink-muted transition-colors"
             >
               <path d="M1 5L6 1L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </motion.svg>
@@ -293,10 +295,10 @@ export default function NavBar() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.94, opacity: 0, y: 8 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              className="bg-white rounded-2xl p-5 shadow-[0_8px_40px_rgba(0,0,0,0.18)] w-full max-w-[320px]"
+              className="bg-canvas rounded-2xl p-5 shadow-level-2 w-full max-w-[320px]"
             >
-              <h2 className="m-0 mb-1 text-lg font-black text-[#161616]">관리자 로그인</h2>
-              <p className="m-0 mb-4 text-[13px] text-[#999]">관리자 비밀번호를 입력해주세요.</p>
+              <h2 className="m-0 mb-1 text-lg font-black text-ink">관리자 로그인</h2>
+              <p className="m-0 mb-4 text-[13px] text-ink-faint">관리자 비밀번호를 입력해주세요.</p>
               <form onSubmit={handleLogin}>
                 <input
                   ref={inputRef}
@@ -304,7 +306,7 @@ export default function NavBar() {
                   value={modal.password}
                   onChange={(e) => setModal({ ...modal, password: e.target.value })}
                   placeholder="비밀번호"
-                  className="w-full border border-[#ddd] rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 mb-3"
+                  className="w-full border border-hairline rounded px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 mb-3"
                   style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                 />
                 {modal.error && <p className="m-0 mb-3 text-[13px] text-rose-500">{modal.error}</p>}
@@ -312,7 +314,7 @@ export default function NavBar() {
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="flex-1 py-2.5 rounded-lg border border-[#ddd] bg-white text-[13px] font-semibold text-[#666] cursor-pointer hover:bg-[#f5f5f5] transition-colors"
+                    className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas text-[13px] font-semibold text-ink-muted cursor-pointer hover:bg-canvas-soft transition-colors"
                   >
                     취소
                   </button>

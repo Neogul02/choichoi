@@ -28,9 +28,9 @@ function HourlyTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white border border-[#e0e0e0] rounded-lg p-2.5 text-xs shadow-md">
-      <p className="font-bold mb-1 text-[#333]">{d.label}</p>
-      <p className="text-[#555]">주문: {d.orderCount}건</p>
+    <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+      <p className="font-bold mb-1 text-ink-secondary">{d.label}</p>
+      <p className="text-ink-muted">주문: {d.orderCount}건</p>
       <p className="text-primary-700">매출: ₩{formatPrice(d.revenue)}</p>
     </div>
   );
@@ -110,7 +110,7 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="m-0 text-lg font-bold">시간대별 판매 현황</h3>
-          <p className="m-0 text-xs text-[#aaa] mt-0.5">{subtitle}</p>
+          <p className="m-0 text-xs text-ink-faint mt-0.5">{subtitle}</p>
         </div>
       </div>
 
@@ -118,7 +118,7 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
         {PERIODS.map(({ key, label }) => (
           <button
             key={key}
-            className={`px-3.5 py-1.5 rounded-full border cursor-pointer text-[13px] font-semibold transition-all duration-200 ${period === key ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] border-[#ddd] text-[#555] hover:bg-[#eee] hover:border-[#ccc]'}`}
+            className={`px-3.5 py-1.5 rounded-full border cursor-pointer text-[13px] font-semibold transition-all duration-200 ${period === key ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] border-hairline text-ink-muted hover:bg-canvas-soft hover:border-[#ccc]'}`}
             onClick={() => { setPeriod(key); if (key !== 'popup') setPeriodOrders([]); }}
           >
             {label}
@@ -129,12 +129,12 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
       {period === 'popup' && (
         <div className="flex flex-wrap gap-1.5 mb-4">
           {popupEvents.length === 0 ? (
-            <p className="text-xs text-[#aaa]">등록된 팝업이 없습니다.</p>
+            <p className="text-xs text-ink-faint">등록된 팝업이 없습니다.</p>
           ) : (
             popupEvents.map((p) => (
               <button
                 key={p.id}
-                className={`px-3 py-1 rounded-lg border cursor-pointer text-[12px] font-medium transition-all duration-200 ${selectedPopupId === p.id ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-[#f5f6f7] border-[#ddd] text-[#666] hover:bg-[#eee]'}`}
+                className={`px-3 py-1 rounded-lg border cursor-pointer text-[12px] font-medium transition-all duration-200 ${selectedPopupId === p.id ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-[#f5f6f7] border-hairline text-ink-muted hover:bg-canvas-soft'}`}
                 onClick={() => setSelectedPopupId(p.id)}
               >
                 {p.name}
@@ -145,17 +145,17 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
       )}
 
       {isLoading ? (
-        <p className="text-sm text-[#999]">불러오는 중...</p>
+        <p className="text-sm text-ink-faint">불러오는 중...</p>
       ) : period === 'popup' && !selectedPopupId ? (
-        <div className="rounded-xl border border-dashed border-[#ddd] p-4 text-center text-sm text-[#bbb]">
+        <div className="rounded-xl border border-dashed border-hairline p-4 text-center text-sm text-ink-faint">
           팝업을 선택하면 해당 기간의 시간대별 매출을 확인할 수 있습니다.
         </div>
       ) : !hasData ? (
-        <p className="text-sm text-[#999]">해당 기간 판매 내역이 없습니다.</p>
+        <p className="text-sm text-ink-faint">해당 기간 판매 내역이 없습니다.</p>
       ) : (
         <>
           {peakHour && (
-            <p className="text-xs text-[#888] mb-3">
+            <p className="text-xs text-ink-muted mb-3">
               피크 시간대{' '}
               <span className="font-bold text-primary-700">{peakHour.label}</span>
               {` · ₩${formatPrice(peakHour.revenue)} · ${peakHour.orderCount}건`}

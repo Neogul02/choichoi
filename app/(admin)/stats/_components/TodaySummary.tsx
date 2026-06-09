@@ -35,14 +35,14 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
 
   if (!tier) {
     return (
-      <div className="rounded-2xl p-5 md:p-6 bg-white border border-[#e5e5e5] flex flex-col gap-3">
+      <div className="rounded-2xl p-5 md:p-6 bg-canvas border border-hairline flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <p className="m-0 text-[11px] font-bold tracking-[0.12em] uppercase text-primary-600">오늘 매출</p>
           <button
             type="button"
             onClick={onRefresh}
             disabled={isLoading}
-            className="text-[11px] text-[#888] hover:text-primary-700 font-semibold disabled:opacity-50"
+            className="text-[11px] text-ink-muted hover:text-primary-700 font-semibold disabled:opacity-50"
           >
             {isLoading ? '...' : '새로고침'}
           </button>
@@ -51,8 +51,8 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
           ₩{summary.totalRevenue.toLocaleString('ko-KR')}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-[#666] font-semibold">{summary.totalOrders}건</span>
-          <span className="text-xs text-[#999]">₩50,000 달성 시 BRONZE 랭크</span>
+          <span className="text-sm text-ink-muted font-semibold">{summary.totalOrders}건</span>
+          <span className="text-xs text-ink-faint">₩50,000 달성 시 BRONZE 랭크</span>
         </div>
       </div>
     );
@@ -64,12 +64,12 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
       style={{ background: tier.bg, boxShadow: tier.shadow }}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-      <div className="absolute -bottom-8 -right-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
+      <div className="absolute -bottom-8 -right-8 w-40 h-40 rounded-full bg-canvas/5 pointer-events-none" />
 
       <div className="relative">
         <div className="flex items-center justify-between mb-3 md:mb-4">
           <div
-            className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25"
+            className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-canvas/20 backdrop-blur-sm border border-white/25"
             style={{ color: tier.accent }}
           >
             <TierEmblem lv={tier.lv} size={14} />
@@ -81,7 +81,7 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
             type="button"
             onClick={onRefresh}
             disabled={isLoading}
-            className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 disabled:opacity-50 transition"
+            className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-canvas/15 hover:bg-canvas/25 backdrop-blur-sm border border-white/20 disabled:opacity-50 transition"
             style={{ color: tier.accent }}
           >
             {isLoading ? '...' : '새로고침'}
@@ -111,7 +111,7 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
                   : '도달 ✨'}
               </span>
             </div>
-            <div className="h-2 rounded-full overflow-hidden bg-white/20">
+            <div className="h-2 rounded-full overflow-hidden bg-canvas/20">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{

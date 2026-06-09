@@ -87,18 +87,18 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 48, opacity: 0 }}
           transition={{ type: 'spring', damping: 28, stiffness: 340 }}
-          className="bg-white w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
+          className="bg-canvas w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 헤더 */}
           <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
             <div>
-              <h2 className="text-[15px] font-extrabold text-[#161616]">{target.menu_name}</h2>
-              <p className="text-[11px] text-[#aaa] mt-0.5">재료 {menuRecipes.length}종</p>
+              <h2 className="text-[15px] font-extrabold text-ink">{target.menu_name}</h2>
+              <p className="text-[11px] text-ink-faint mt-0.5">재료 {menuRecipes.length}종</p>
             </div>
             <button
               onClick={onClose}
-              className="text-[#bbb] hover:text-[#555] text-xl leading-none cursor-pointer transition"
+              className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition"
             >
               ✕
             </button>
@@ -107,7 +107,7 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
           {/* 재료 목록 */}
           <div className="flex-1 overflow-y-auto px-5 pb-2">
             {menuRecipes.length === 0 && (
-              <p className="text-[12px] text-[#bbb] py-4 text-center">재료가 없습니다</p>
+              <p className="text-[12px] text-ink-faint py-4 text-center">재료가 없습니다</p>
             )}
             <div className="divide-y divide-[#f5f5f5]">
               {menuRecipes.map((r) => {
@@ -125,7 +125,7 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: ing?.color ?? '#ccc' }}
                     />
-                    <span className="text-[13px] font-semibold text-[#333] flex-1">
+                    <span className="text-[13px] font-semibold text-ink-secondary flex-1">
                       {ing?.name ?? r.ingredient_id}
                     </span>
                     {isEditing ? (
@@ -134,12 +134,12 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
                           type="number"
                           value={editQty}
                           onChange={(e) => setEditQty(e.target.value)}
-                          className="w-14 border border-[#ddd] rounded-lg text-xs text-center px-1.5 py-1 focus:outline-none focus:border-primary-700"
+                          className="w-14 border border-hairline rounded-lg text-xs text-center px-1.5 py-1 focus:outline-none focus:border-primary-700"
                           style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                           autoFocus
                           min={0}
                         />
-                        <span className="text-[10px] text-[#aaa]">{ing?.base_unit}</span>
+                        <span className="text-[10px] text-ink-faint">{ing?.base_unit}</span>
                         <button
                           onClick={() => handleEditSave(r.ingredient_id)}
                           disabled={saving}
@@ -147,13 +147,13 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
                         >저장</button>
                         <button
                           onClick={() => setEditKey(null)}
-                          className="text-[11px] font-bold px-2 py-0.5 bg-[#eee] text-[#555] rounded-lg cursor-pointer hover:bg-[#ddd] transition border-none"
+                          className="text-[11px] font-bold px-2 py-0.5 bg-canvas-soft text-ink-muted rounded-lg cursor-pointer hover:bg-[#ddd] transition border-none"
                         >취소</button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[13px] tabular-nums text-[#555] font-semibold">{r.qty_per_unit}</span>
-                        <span className="text-[11px] text-[#aaa]">{ing?.base_unit}</span>
+                        <span className="text-[13px] tabular-nums text-ink-muted font-semibold">{r.qty_per_unit}</span>
+                        <span className="text-[11px] text-ink-faint">{ing?.base_unit}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(r.ingredient_id); }}
                           disabled={saving}
@@ -168,13 +168,13 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
           </div>
 
           {/* 재료 추가 */}
-          <div className="px-5 pb-5 pt-3 border-t border-[#f0f0f0] shrink-0">
-            <p className="text-[10px] font-bold text-[#888] uppercase tracking-wide mb-2">재료 추가</p>
+          <div className="px-5 pb-5 pt-3 border-t border-hairline shrink-0">
+            <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wide mb-2">재료 추가</p>
             <div className="flex gap-2">
               <select
                 value={addIngId}
                 onChange={(e) => setAddIngId(e.target.value)}
-                className="flex-1 border border-[#ddd] rounded-xl text-xs px-3 py-2 focus:outline-none focus:border-primary-700 bg-white cursor-pointer"
+                className="flex-1 border border-hairline rounded-xl text-xs px-3 py-2 focus:outline-none focus:border-primary-700 bg-canvas cursor-pointer"
               >
                 <option value="">재료 선택</option>
                 {available.map((i) => (
@@ -188,11 +188,11 @@ export default function RecipeModal({ target, recipes, ingredients, onClose, onR
                 placeholder="수량"
                 value={addQty}
                 onChange={(e) => setAddQty(e.target.value)}
-                className="w-16 border border-[#ddd] rounded-xl text-xs text-center px-2 py-2 focus:outline-none focus:border-primary-700"
+                className="w-16 border border-hairline rounded-xl text-xs text-center px-2 py-2 focus:outline-none focus:border-primary-700"
                 style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                 min={0.1}
               />
-              <span className="text-[11px] text-[#aaa] self-center shrink-0">
+              <span className="text-[11px] text-ink-faint self-center shrink-0">
                 {ingMap.get(addIngId)?.base_unit ?? ''}
               </span>
               <button

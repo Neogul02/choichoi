@@ -78,8 +78,8 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
       style={{ background, boxShadow }}
     >
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-      <div className="absolute -bottom-6 -right-6 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
-      <div className="absolute -bottom-2 -right-2 w-16 h-16 rounded-full bg-white/5 pointer-events-none" />
+      <div className="absolute -bottom-6 -right-6 w-32 h-32 rounded-full bg-canvas/5 pointer-events-none" />
+      <div className="absolute -bottom-2 -right-2 w-16 h-16 rounded-full bg-canvas/5 pointer-events-none" />
 
       <div className="relative flex items-center justify-between">
         <div>
@@ -95,7 +95,7 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
           </div>
         </div>
 
-        <div className={`self-stretch w-px mx-4 md:mx-6 ${hidden ? 'bg-white/10' : 'bg-white/20'}`} />
+        <div className={`self-stretch w-px mx-4 md:mx-6 ${hidden ? 'bg-canvas/10' : 'bg-canvas/20'}`} />
 
         <div className="text-right">
           <p className="m-0 text-[11px] font-bold tracking-[0.12em] uppercase mb-1.5 transition-colors duration-500" style={{ color: labelColor }}>

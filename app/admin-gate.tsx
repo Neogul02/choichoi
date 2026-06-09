@@ -66,16 +66,16 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-[#f5f6f7] flex items-center justify-center p-4">
         <div className="w-full max-w-[360px]">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-black text-[#1a1a1a] m-0 mb-1">관리자 인증</h1>
-            <p className="m-0 text-[#888] text-sm">관리자 전용 페이지입니다.</p>
+            <h1 className="text-2xl font-black text-ink m-0 mb-1">관리자 인증</h1>
+            <p className="m-0 text-ink-muted text-sm">관리자 전용 페이지입니다.</p>
           </div>
           <form
-            className="bg-white rounded-2xl p-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)]"
+            className="bg-canvas rounded-2xl p-5 shadow-level-1"
             onSubmit={onSubmit}
           >
             <input
               type="password"
-              className="w-full border border-[#ddd] rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3"
+              className="w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="관리자 비밀번호"
