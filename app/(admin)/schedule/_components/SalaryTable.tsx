@@ -20,11 +20,19 @@ interface Props {
 
 export default function SalaryTable({ eventName, salaryGroups, grandTotal, localRates, onRateChange, onPaymentToggle }: Props) {
   const [draftRates, setDraftRates] = useState<Record<string, string>>({});
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  function copyToClipboard(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 1500);
+    });
+  }
 
   return (
     <div className="mt-5 bg-white rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
       <h3 className="m-0 mb-4 text-lg font-extrabold">급여 계산서 — {eventName}</h3>
-      <div className="overflow-x-auto [scrollbar-width:thin]">
+      <div className="overflow-x-auto [scrollbar-width:thin] select-text">
         <table className="w-full border-collapse text-sm min-w-[600px]">
           <thead>
             <tr className="bg-[#f9f9f9]">
@@ -79,9 +87,19 @@ export default function SalaryTable({ eventName, salaryGroups, grandTotal, local
                     {idx === 0 && (
                       <td className="border border-[#eee] px-3 py-2 text-right font-bold text-primary-700 align-top" rowSpan={group.entries.length}>
                         <div>{rate > 0 ? `${finalPay.toLocaleString('ko-KR')}원` : '-'}</div>
-                        {group.worker && (group.worker.bank_name || group.worker.bank_account) && (
-                          <div className="mt-1 text-xs font-medium text-[#555]">
-                            {[group.worker.bank_name, group.worker.bank_account].filter(Boolean).join(' ')}
+                        {group.worker && group.worker.bank_account && (
+                          <div className="mt-1 flex items-center gap-1">
+                            <span className="text-xs font-medium text-[#555]">
+                              {[group.worker.bank_name, group.worker.bank_account].filter(Boolean).join(' ')}
+                            </span>
+                            <button
+                              onClick={() => copyToClipboard(group.worker!.bank_account!, `account-${group.key}`)}
+                              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition cursor-pointer"
+                              style={copiedKey === `account-${group.key}` ? { background: '#22c55e', color: '#fff', borderColor: '#22c55e' } : { background: '#f5f5f5', color: '#666', borderColor: '#ddd' }}
+                              title="계좌번호 복사"
+                            >
+                              {copiedKey === `account-${group.key}` ? '✓' : '복사'}
+                            </button>
                           </div>
                         )}
                       </td>
