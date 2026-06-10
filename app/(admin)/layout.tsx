@@ -1,5 +1,9 @@
-import AdminGate from '@/app/admin-gate';
+import { redirect } from 'next/navigation';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <AdminGate>{children}</AdminGate>;
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/pos');
+  return <>{children}</>;
 }

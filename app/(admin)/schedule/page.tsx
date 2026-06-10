@@ -1,7 +1,6 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
-import { toast } from 'sonner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent,
@@ -11,6 +10,7 @@ import {
 } from '@/app/actions/schedule';
 import type { PopupEvent, ScheduleSlot, Worker } from '@/types/database';
 import { toLocalDateStr, parseWorkHours, formatHours } from '@/lib/utils';
+import { showMsg } from '@/lib/toast';
 import ScheduleSidebar from './_components/ScheduleSidebar';
 import SalaryTable, { type SalaryGroup } from './_components/SalaryTable';
 
@@ -96,11 +96,6 @@ export default function SchedulePage() {
     loadEvents();
     try { const s = localStorage.getItem(LOCAL_RATES_KEY); if (s) setLocalRates(JSON.parse(s)); } catch { /* ignore */ }
   }, []);
-
-  const showMsg = (msg: string) => {
-    const isError = msg.startsWith('오류') || msg.endsWith('하세요') || msg.includes('앞입니다') || msg.includes('찾을 수 없습니다');
-    if (isError) toast.error(msg); else toast.success(msg);
-  };
 
   const loadWorkers = async (eventId: number) => {
     const r = await fetchWorkers(eventId);
