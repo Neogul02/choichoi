@@ -1,11 +1,17 @@
 const KRW_FORMATTER = new Intl.NumberFormat('ko-KR');
+const KST_TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+const HEX_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 export function formatKSTTime(isoString: string): string {
   const s = isoString.replace(' ', 'T');
   const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
-  const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
-  const kst = new Date(utcMs + 9 * 3600 * 1000);
-  return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}:${String(kst.getUTCSeconds()).padStart(2, '0')}`;
+  return KST_TIME_FORMATTER.format(new Date(hasOffset ? s : s + 'Z'));
 }
 
 export function formatRevenueTick(value: number): string {
@@ -43,7 +49,7 @@ export function formatPrice(price: number): string {
 }
 
 export function hexWithAlpha(hex: string, alpha: number): string {
-  const match = hex.trim().match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  const match = hex.trim().match(HEX_REGEX);
   if (!match) return hex;
   let normalized = match[1];
   if (normalized.length === 3) normalized = normalized.split('').map((ch) => ch + ch).join('');
@@ -54,7 +60,7 @@ export function getShortcutBadgeColors(color: string): { backgroundColor: string
   if (!color || typeof color !== 'string') return { backgroundColor: '#111', color: '#fff' };
 
   const hex = color.trim();
-  const match = hex.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  const match = hex.match(HEX_REGEX);
   if (!match) return { backgroundColor: color, color: '#fff' };
 
   let normalized = match[1];
