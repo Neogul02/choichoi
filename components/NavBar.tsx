@@ -75,7 +75,12 @@ export default function NavBar() {
   const handleAdminLogout = async () => {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
-    router.push('/admin-login');
+    try {
+      localStorage.removeItem(CASHIER_NAME_KEY);
+      localStorage.removeItem(POPUP_ID_KEY);
+      localStorage.removeItem(POPUP_NAME_KEY);
+    } catch { /* ignore */ }
+    window.location.href = '/pos';
   };
 
   const handleCashierLogout = () => {
@@ -105,7 +110,7 @@ export default function NavBar() {
                 {/* 1단: 로고 + 접속자 + 모바일 전용 액션 */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <h1 className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0">ChoiChoi</h1>
+                    <Link href="/pos" className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0 no-underline hover:opacity-70 transition-opacity">ChoiChoi</Link>
                     {popupName && (
                       <span className="hidden md:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
                         {popupName}
@@ -141,24 +146,16 @@ export default function NavBar() {
                         </svg>
                       </button>
                     ) : (
-                      <>
-                        <Link
-                          href="/admin-login"
-                          className="px-3 py-1.5 text-[13px] rounded-lg font-semibold whitespace-nowrap bg-canvas-soft text-ink-faint hover:bg-primary-700 hover:text-white no-underline transition-all duration-200"
-                        >
-                          관리자
-                        </Link>
-                        <button
-                          onClick={handleCashierLogout}
-                          title="로그아웃"
-                          className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                            <polyline points="9 22 9 12 15 12 15 22"/>
-                          </svg>
-                        </button>
-                      </>
+                      <button
+                        onClick={handleCashierLogout}
+                        title="로그아웃"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                          <polyline points="9 22 9 12 15 12 15 22"/>
+                        </svg>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -200,24 +197,16 @@ export default function NavBar() {
                         </svg>
                       </button>
                     ) : (
-                      <>
-                        <Link
-                          href="/admin-login"
-                          className="shrink-0 px-3 py-1.5 md:px-4 md:py-2 text-[13px] md:text-sm rounded-lg font-semibold transition-all duration-200 whitespace-nowrap bg-canvas-soft text-ink-faint hover:bg-primary-700 hover:text-white no-underline"
-                        >
-                          관리자
-                        </Link>
-                        <button
-                          onClick={handleCashierLogout}
-                          title="로그아웃"
-                          className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                            <polyline points="9 22 9 12 15 12 15 22"/>
-                          </svg>
-                        </button>
-                      </>
+                      <button
+                        onClick={handleCashierLogout}
+                        title="로그아웃"
+                        className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                          <polyline points="9 22 9 12 15 12 15 22"/>
+                        </svg>
+                      </button>
                     )}
                   </div>
                 </div>
