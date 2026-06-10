@@ -51,6 +51,13 @@ export default function SchedulePage() {
   const [workerForm, setWorkerForm] = useState<WorkerForm>(EMPTY_WORKER_FORM);
   const [localRates, setLocalRates] = useState<Record<string, number>>({});
 
+  // Import workers
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importEventId, setImportEventId] = useState<number | ''>('');
+  const [importCandidates, setImportCandidates] = useState<Worker[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSelectedIds, setImportSelectedIds] = useState<Set<number>>(new Set());
+
   // Slots
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [isSlotsLoading, setIsSlotsLoading] = useState(false);
@@ -168,6 +175,28 @@ export default function SchedulePage() {
     const r = await removeWorker(id);
     if (r.success) setWorkers(p => p.filter(w => w.id !== id));
     else showMsg(`오류: ${r.error}`);
+  };
+
+  const handleImportSource = async (eventId: number) => {
+    setImportEventId(eventId);
+    setImportLoading(true);
+    setImportSelectedIds(new Set());
+    const r = await fetchWorkers(eventId);
+    if (r.success && r.data) setImportCandidates(r.data);
+    setImportLoading(false);
+  };
+
+  const handleImportWorkers = async () => {
+    if (!selectedEvent) return;
+    const toImport = importCandidates.filter(w => importSelectedIds.has(w.id));
+    if (toImport.length === 0) { showMsg('불러올 근무자를 선택하세요'); return; }
+    let count = 0;
+    for (const w of toImport) {
+      const r = await createNewWorker({ event_id: selectedEvent.id, name: w.name, color: w.color, phone: w.phone ?? '', bank_name: w.bank_name ?? '', bank_account: w.bank_account ?? '', hourly_rate: w.hourly_rate, worker_role: w.worker_role ?? '프론트' });
+      if (r.success && r.data) { setWorkers(p => [...p, r.data!].sort((a, b) => a.name.localeCompare(b.name))); count++; }
+    }
+    showMsg(`${count}명의 근무자를 불러왔습니다`);
+    setShowImportModal(false); setImportEventId(''); setImportCandidates([]); setImportSelectedIds(new Set());
   };
 
   // ── Slots ─────────────────────────────────────────────────────────────────
@@ -469,9 +498,14 @@ export default function SchedulePage() {
               <div className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="m-0 text-base font-extrabold">{selectedEvent.name} 근무자</h3>
-                  <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showWorkerForm ? 'bg-canvas-soft text-ink-muted' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => showWorkerForm ? setShowWorkerForm(false) : openWorkerForm()}>
-                    {showWorkerForm ? '취소' : '+ 추가'}
-                  </button>
+                  <div className="flex gap-1.5">
+                    <button className="px-2.5 py-1 border border-hairline rounded-lg text-[11px] font-bold cursor-pointer transition bg-canvas text-ink-secondary hover:bg-canvas-soft" onClick={() => { setShowImportModal(true); setImportEventId(''); setImportCandidates([]); setImportSelectedIds(new Set()); }}>
+                      ↓ 불러오기
+                    </button>
+                    <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showWorkerForm ? 'bg-canvas-soft text-ink-muted' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => showWorkerForm ? setShowWorkerForm(false) : openWorkerForm()}>
+                      {showWorkerForm ? '취소' : '+ 추가'}
+                    </button>
+                  </div>
                 </div>
                 {showWorkerForm && (
                   <div className="bg-canvas-soft rounded-lg p-3 mb-3 flex flex-wrap gap-2 items-end">
@@ -520,8 +554,8 @@ export default function SchedulePage() {
                                   </div>
                                 </div>
                                 {w.phone && <p className="m-0 text-[10px] text-ink-muted">{w.phone}</p>}
-                                {(w.bank_name || w.bank_account) && <p className="m-0 text-[10px] text-ink-muted truncate">{[w.bank_name, w.bank_account].filter(Boolean).join(' ')}</p>}
                                 {w.hourly_rate > 0 && <p className="m-0 text-[10px] font-semibold text-primary-700">{w.hourly_rate.toLocaleString('ko-KR')}원/h</p>}
+                                {(w.bank_name || w.bank_account) && <p className="m-0 text-[10px] text-ink-muted truncate">{[w.bank_name, w.bank_account].filter(Boolean).join(' ')}</p>}
                               </div>
                             ))}
                           </div>
@@ -551,6 +585,78 @@ export default function SchedulePage() {
           </div>
         )}
       </main>
+
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowImportModal(false)}>
+          <div className="bg-canvas rounded-xl shadow-xl border border-hairline w-[360px] max-w-[92vw] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-hairline">
+              <h3 className="m-0 text-sm font-extrabold">과거 근무자 불러오기</h3>
+              <button className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition" onClick={() => setShowImportModal(false)}>×</button>
+            </div>
+            <div className="p-4 flex flex-col gap-3 overflow-y-auto">
+              <div>
+                <label className="text-[11px] font-semibold text-ink-muted block mb-1">일정 선택</label>
+                <select
+                  value={importEventId}
+                  onChange={e => e.target.value ? handleImportSource(Number(e.target.value)) : (setImportEventId(''), setImportCandidates([]))}
+                  className="w-full px-2 py-1.5 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700"
+                >
+                  <option value="">일정을 선택하세요</option>
+                  {events.filter(ev => ev.id !== selectedEvent?.id).map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.name} ({ev.start_date})</option>
+                  ))}
+                </select>
+              </div>
+
+              {importLoading && <p className="text-xs text-ink-faint text-center py-2">불러오는 중...</p>}
+
+              {!importLoading && importEventId !== '' && importCandidates.length === 0 && (
+                <p className="text-xs text-ink-faint text-center py-2">해당 일정에 근무자가 없습니다.</p>
+              )}
+
+              {!importLoading && importCandidates.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-semibold text-ink-muted">근무자 선택</label>
+                    <button
+                      className="text-[10px] text-primary-700 font-semibold cursor-pointer bg-transparent border-none hover:underline"
+                      onClick={() => setImportSelectedIds(importSelectedIds.size === importCandidates.length ? new Set() : new Set(importCandidates.map(w => w.id)))}
+                    >
+                      {importSelectedIds.size === importCandidates.length ? '전체 해제' : '전체 선택'}
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {importCandidates.map(w => (
+                      <label key={w.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-hairline cursor-pointer hover:bg-canvas-soft transition select-none">
+                        <input
+                          type="checkbox"
+                          checked={importSelectedIds.has(w.id)}
+                          onChange={() => setImportSelectedIds(prev => { const s = new Set(prev); s.has(w.id) ? s.delete(w.id) : s.add(w.id); return s; })}
+                          className="w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: w.color || '#6366f1' }} />
+                        <span className="text-xs font-semibold flex-1">{w.name}</span>
+                        <span className="text-[10px] text-ink-faint">{w.worker_role ?? '프론트'}</span>
+                        {w.hourly_rate > 0 && <span className="text-[10px] text-primary-700 font-semibold">{w.hourly_rate.toLocaleString('ko-KR')}원/h</span>}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 px-4 py-3 border-t border-hairline">
+              <button className="flex-1 py-1.5 rounded-lg border border-hairline bg-canvas text-xs font-bold cursor-pointer hover:bg-canvas-soft transition" onClick={() => setShowImportModal(false)}>취소</button>
+              <button
+                className="flex-1 py-1.5 rounded-lg border-none bg-primary-700 text-white text-xs font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleImportWorkers}
+                disabled={importSelectedIds.size === 0}
+              >
+                {importSelectedIds.size > 0 ? `${importSelectedIds.size}명 불러오기` : '불러오기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
