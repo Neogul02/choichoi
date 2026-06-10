@@ -11,7 +11,7 @@ export default function LandingPage() {
       <div className="flex flex-col gap-4 w-full max-w-xs">
         <Link
           href="/pos"
-          className="block bg-primary-700 text-white text-center px-6 py-6 rounded-2xl no-underline shadow-[0_4px_20px_rgba(8,68,49,0.25)] hover:bg-primary-800 active:scale-[0.98] transition-all duration-200"
+          className="block bg-primary-700 text-white text-center px-6 py-6 rounded-xl no-underline shadow-[0_4px_20px_rgba(8,68,49,0.25)] hover:bg-primary-800 active:scale-[0.98] transition-all duration-200"
         >
           <div className="w-10 h-10 rounded-xl bg-canvas/15 flex items-center justify-center mx-auto mb-3">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -25,7 +25,7 @@ export default function LandingPage() {
 
         <Link
           href="/display"
-          className="block bg-canvas text-ink text-center px-6 py-6 rounded-2xl no-underline shadow-level-1 hover:shadow-[0_6px_24px_rgba(0,0,0,0.13)] active:scale-[0.98] transition-all duration-200"
+          className="block bg-canvas text-ink text-center px-6 py-6 rounded-xl no-underline shadow-level-1 hover:shadow-[0_6px_24px_rgba(0,0,0,0.13)] active:scale-[0.98] transition-all duration-200"
         >
           <div className="w-10 h-10 rounded-xl bg-canvas-soft flex items-center justify-center mx-auto mb-3">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

@@ -171,7 +171,7 @@ export default function SettingsPage() {
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="bg-canvas rounded-2xl p-4 md:p-5 max-w-[800px] mx-auto">
+        <div className="bg-canvas rounded-xl p-4 md:p-5 max-w-[800px] mx-auto">
           <div className="flex items-center justify-between mb-5">
             <h2 className="m-0 text-2xl font-extrabold">설정</h2>
             <div className="flex gap-1.5 bg-[#f5f6f7] p-1 rounded-xl">

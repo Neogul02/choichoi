@@ -430,7 +430,7 @@ export default function PosPage() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="bg-canvas mt-[-10px] rounded-2xl p-3 md:p-4 mb-2 md:mb-3 shadow-level-1"
+          className="bg-canvas mt-[-10px] rounded-xl p-3 md:p-4 mb-2 md:mb-3 shadow-level-1 border border-hairline"
         >
           <div className="rounded-xl p-3 bg-[#fff5f5] border-2 border-rose-500 mb-2">
             <div className="flex items-center justify-between mb-1">
@@ -611,7 +611,7 @@ export default function PosPage() {
 
           {/* 최근 주문 */}
           <section
-            className="bg-canvas rounded-xl mb-4 p-3.5 md:p-4 shadow-level-1"
+            className="bg-canvas rounded-xl mb-4 p-3.5 md:p-4 shadow-level-1 border border-hairline"
             aria-label="최근 주문"
           >
             <h2 className="m-0 mb-3 text-base md:text-lg font-bold text-ink-secondary">
@@ -666,7 +666,7 @@ export default function PosPage() {
                 type="button"
                 onClick={handleCheckout}
                 disabled={checkoutMutation.isPending || orderedItems.length === 0}
-                className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-[#ccc] disabled:cursor-not-allowed"
+                className="w-full px-5 py-4 rounded-xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-[#ccc] disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-2.5">
                   <span className="min-w-7 h-7 px-2 rounded-full bg-canvas/20 text-xs font-black flex items-center justify-center tabular-nums">

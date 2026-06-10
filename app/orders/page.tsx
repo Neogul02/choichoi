@@ -64,7 +64,7 @@ export default function OrdersPage() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="flex items-center justify-between bg-canvas mt-[-10px] rounded-2xl px-4 py-3.5 md:px-5 mb-3 md:mb-4 shadow-level-1"
+          className="flex items-center justify-between bg-canvas mt-[-10px] rounded-xl px-4 py-3.5 md:px-5 mb-3 md:mb-4 shadow-level-1 border border-hairline"
         >
           <h1 className="m-0 text-lg font-black text-ink">주문 현황</h1>
           {pendingOrders.length > 0 && (
@@ -84,7 +84,7 @@ export default function OrdersPage() {
           {pendingOrdersQuery.isLoading ? (
             <div className="animate-pulse flex flex-col gap-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-canvas rounded-xl p-4 shadow-level-1">
+                <div key={i} className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
                   <div className="h-4 bg-gray-100 rounded w-1/3 mb-3" />
                   <div className="h-3 bg-gray-100 rounded w-full mb-2" />
                   <div className="h-3 bg-gray-100 rounded w-2/3 mb-4" />
@@ -111,7 +111,7 @@ export default function OrdersPage() {
                     animate="visible"
                     exit="exit"
                     layout
-                    className="bg-canvas rounded-xl p-4 shadow-level-1"
+                    className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline"
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2 flex-wrap">

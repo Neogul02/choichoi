@@ -35,7 +35,7 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
 
   if (!tier) {
     return (
-      <div className="rounded-2xl p-5 md:p-6 bg-canvas border border-hairline flex flex-col gap-3">
+      <div className="rounded-xl p-5 md:p-6 bg-canvas border border-hairline flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <p className="m-0 text-[11px] font-bold tracking-[0.12em] uppercase text-primary-600">오늘 매출</p>
           <button
@@ -60,7 +60,7 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
 
   return (
     <div
-      className="relative rounded-2xl p-5 md:p-6 overflow-hidden text-white transition-all duration-500"
+      className="relative rounded-xl p-5 md:p-6 overflow-hidden text-white transition-all duration-500"
       style={{ background: tier.bg, boxShadow: tier.shadow }}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />

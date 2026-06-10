@@ -12,7 +12,7 @@ export default function MakeableHero({ makeable }: Props) {
   const tightest = sandos.reduce((a, b) => (a.count <= b.count ? a : b), sandos[0]);
 
   return (
-    <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
+    <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline">
       <div className="flex items-baseline justify-between mb-2.5">
         <h3 className="text-[12px] font-extrabold text-ink">
           지금{' '}

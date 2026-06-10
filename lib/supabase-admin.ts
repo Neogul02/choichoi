@@ -273,7 +273,7 @@ export async function getMonthlySalesByDate(year: number, month: number): Promis
     totalOrders += Number(row.order_count);
   }
 
-  return { byDate, monthTotal, totalOrders };
+  return { byDate, monthTotal, totalOrders, manualByDate: {} };
 }
 
 export async function updateMenuOrder(orderedIds: number[]): Promise<void> {
@@ -410,6 +410,7 @@ export async function getAllMemos(): Promise<Memo[]> {
   const { data, error } = await supabaseAdmin
     .from('memos')
     .select('*')
+    .order('is_pinned', { ascending: false })
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -439,6 +440,17 @@ export async function updateMemo(id: number, title: string, content: string, col
 export async function deleteMemo(id: number): Promise<void> {
   const { error } = await supabaseAdmin.from('memos').delete().eq('id', id);
   if (error) throw error;
+}
+
+export async function toggleMemoPin(id: number, isPinned: boolean): Promise<Memo> {
+  const { data, error } = await supabaseAdmin
+    .from('memos')
+    .update({ is_pinned: isPinned, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Memo;
 }
 
 // ── Menu Sales ────────────────────────────────────────────────────────────────
@@ -790,4 +802,30 @@ export async function getDailySalesForMonth(year: number, month: number): Promis
 export async function deleteDailySales(id: number): Promise<void> {
   const { error } = await supabaseAdmin.from('daily_sales').delete().eq('id', id);
   if (error) throw error;
+}
+
+export async function getOrdersByDate(kstDateStr: string): Promise<import('@/types/api').OrderRecordWithItems[]> {
+  const { start, end } = getKSTDateBounds(kstDateStr);
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .select('id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))')
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('id', { ascending: false })
+    .limit(10000);
+  if (error) throw error;
+  return (data ?? []).map((order: any) => ({
+    id: order.id,
+    total_price: Number(order.total_price),
+    created_at: order.created_at,
+    payment_status: order.payment_status,
+    cashier_name: order.cashier_name,
+    is_prepared: order.is_prepared,
+    items: (order.order_items ?? []).map((item: any) => ({
+      menu_item_id: item.menu_item_id,
+      name: item.menu_items?.name ?? '알 수 없음',
+      quantity: item.quantity,
+      subtotal: Number(item.subtotal),
+    })),
+  }));
 }

@@ -80,11 +80,11 @@ export default function InventoryPage() {
             </div>
           )}
 
-          <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
+          <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline">
             <LiveLog logs={logs} isLoading={logLoading} />
           </div>
 
-          <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
+          <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline">
             <RecipePanel
               recipes={recipes}
               ingredients={ingredients}

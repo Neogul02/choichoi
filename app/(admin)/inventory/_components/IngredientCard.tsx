@@ -57,7 +57,7 @@ export default function IngredientCard({ ingredient, recipes, onClick }: Props) 
   return (
     <button
       onClick={onClick}
-      className={`${styles.bg} w-full text-left rounded-2xl p-3.5 shadow-level-1 border-[1.5px] ${styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
+      className={`${styles.bg} w-full text-left rounded-xl p-3.5 shadow-level-1 border-[1.5px] ${styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
     >
       {/* 헤더 */}
       <div className="flex items-center gap-1.5 flex-wrap mb-1">

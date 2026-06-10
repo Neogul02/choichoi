@@ -39,6 +39,7 @@ export interface CalendarSalesData {
   byDate: Record<string, number>;
   monthTotal: number;
   totalOrders: number;
+  manualByDate: Record<string, ManualSalesEntry>;
 }
 
 export interface OrderRecord {
