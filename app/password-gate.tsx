@@ -197,8 +197,7 @@ export default function PasswordGate({
     localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
 
     setIsAuthed(true)
-    router.push('/pos') // 로그인 후 POS로 이동
-    router.refresh()
+    window.location.href = '/pos'
   }
 
   if (!isAuthed) {
