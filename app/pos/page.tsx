@@ -1,6 +1,9 @@
 'use client'
 
 import NavBar from '@/components/NavBar'
+import CheerPanel from '@/components/CheerPanel'
+import { usePresence } from '@/hooks/usePresence'
+import { useCheers } from '@/hooks/useCheers'
 import SalesBanner from '@/components/SalesBanner'
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -22,6 +25,44 @@ import {
   getShortcutBadgeColors,
   hexWithAlpha,
 } from '@/lib/utils'
+
+const CHEER_EMOJIS = ['❤️', '🎉', '✨', '🔥', '💪', '👏', '🌟', '💖', '🥰', '🎊'];
+interface EmojiParticle { id: number; emoji: string; x: number; delay: number; dur: number; }
+
+function FloatingEmojis({ burstKey }: { burstKey: number }) {
+  const [particles, setParticles] = useState<EmojiParticle[]>([]);
+  useEffect(() => {
+    if (!burstKey) return () => {};
+    const items = Array.from({ length: 14 }, (_, i) => ({
+      id: Date.now() + i,
+      emoji: CHEER_EMOJIS[Math.floor(Math.random() * CHEER_EMOJIS.length)],
+      x: 3 + Math.random() * 94,
+      delay: Math.random() * 0.5,
+      dur: 1.6 + Math.random() * 0.8,
+    }));
+    setParticles(items);
+    const t = setTimeout(() => setParticles([]), 3500);
+    return () => clearTimeout(t);
+  }, [burstKey]);
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      <AnimatePresence>
+        {particles.map((p) => (
+          <motion.div
+            key={p.id}
+            initial={{ y: 0, opacity: 1, scale: 0.5 }}
+            animate={{ y: -900, opacity: [1, 1, 0], scale: [0.5, 1.2, 1] }}
+            transition={{ duration: p.dur, delay: p.delay, ease: 'easeOut' }}
+            style={{ left: `${p.x}%`, bottom: 0, position: 'absolute', transform: 'translateX(-50%)' }}
+            className="text-5xl select-none"
+          >
+            {p.emoji}
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 function fireConfetti() {
   const colors = [
@@ -105,6 +146,9 @@ export default function PosPage() {
   const [cashierName, setCashierName] = useState<string | null>(null)
   const [popupId, setPopupId] = useState('0')
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeCashiers = usePresence(cashierName)
+  const { totalToday, cheer, milestoneKey } = useCheers(popupId === '0' ? null : popupId)
+  const handleCheer = useCallback(() => { cheer('_') }, [cheer])
 
   useEffect(() => {
     setCashierName(localStorage.getItem(CASHIER_NAME_KEY))
@@ -422,7 +466,7 @@ export default function PosPage() {
 
   return (
     <>
-      <NavBar />
+      <NavBar activeCashiers={activeCashiers} cheerTotal={totalToday} />
 
       <main className="min-h-screen p-3 md:p-5 pb-24 md:pb-5 md:px-8 max-w-[1100px] mx-auto">
         {/* 결제 대기 헤더 */}
@@ -691,6 +735,8 @@ export default function PosPage() {
           lastPayment={lastPayment}
         />
       </main>
+      <CheerPanel totalToday={totalToday} onCheer={handleCheer} />
+      <FloatingEmojis burstKey={milestoneKey} />
     </>
   )
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePresence } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -33,7 +33,7 @@ function useTodayLabel(): string {
   return label;
 }
 
-export default function NavBar() {
+export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal }: { activeCashiers?: string[]; cheerTotal?: number } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const todayLabel = useTodayLabel();
@@ -41,14 +41,24 @@ export default function NavBar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [cashierName, setCashierName] = useState<string | null>(null);
   const [popupName, setPopupName] = useState<string | null>(null);
+  const [popupId, setPopupId] = useState('0');
 
-  const activeCashiers = usePresence(cashierName);
+  const ownActiveCashiers = usePresence(activeCashiersProp !== undefined ? null : cashierName);
+  const activeCashiers = activeCashiersProp ?? ownActiveCashiers;
+  const [floatHeart, setFloatHeart] = useState(0);
+  const cheerPrevRef = useRef(cheerTotal ?? 0);
+
+  useEffect(() => {
+    if ((cheerTotal ?? 0) > cheerPrevRef.current) setFloatHeart((k) => k + 1);
+    cheerPrevRef.current = cheerTotal ?? 0;
+  }, [cheerTotal]);
 
   useEffect(() => {
     try {
       setCollapsed(localStorage.getItem(NAV_COLLAPSED_KEY) === 'true');
       setCashierName(localStorage.getItem(CASHIER_NAME_KEY));
       setPopupName(localStorage.getItem(POPUP_NAME_KEY));
+      setPopupId(localStorage.getItem(POPUP_ID_KEY) ?? '0');
     } catch { /* ignore */ }
 
     const supabase = createSupabaseBrowserClient();
@@ -116,7 +126,7 @@ export default function NavBar() {
                         {popupName}
                       </span>
                     )}
-                    {activeCashiers.length > 0 && (
+                    {(activeCashiers.length > 0 || (cheerTotal ?? 0) > 0) && (
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="hidden md:inline text-[11px] text-ink-faint shrink-0">접속</span>
                         <div className="flex gap-1 flex-wrap">
@@ -127,6 +137,33 @@ export default function NavBar() {
                             </span>
                           ))}
                         </div>
+                        {(cheerTotal ?? 0) > 0 && (
+                          <span className="relative inline-flex items-center shrink-0">
+                            <motion.span
+                              key={cheerTotal}
+                              initial={{ scale: 1.7 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+                              className="text-[11px] font-bold text-rose-400 inline-block"
+                            >
+                              ❤️ {cheerTotal}
+                            </motion.span>
+                            <AnimatePresence>
+                              {floatHeart > 0 && (
+                                <motion.span
+                                  key={floatHeart}
+                                  initial={{ y: 0, opacity: 1, scale: 1 }}
+                                  animate={{ y: -18, opacity: 0, scale: 0.6 }}
+                                  transition={{ duration: 0.55, ease: 'easeOut' }}
+                                  onAnimationComplete={() => setFloatHeart(0)}
+                                  className="absolute text-[10px] pointer-events-none left-1/2 -translate-x-1/2"
+                                >
+                                  ❤️
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

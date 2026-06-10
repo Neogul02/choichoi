@@ -27,6 +27,7 @@ function fireConfetti() {
   }, 240);
 }
 
+
 function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
   return (
     <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1">
