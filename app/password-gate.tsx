@@ -93,7 +93,10 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     }
   };
 
-  if (pathname === '/display' || pathname === '/') return <>{children}</>;
+  const adminPaths = ['/stats', '/schedule', '/settings', '/inventory', '/devtools', '/admin-login'];
+  if (pathname === '/display' || pathname === '/' || adminPaths.some((p) => pathname.startsWith(p))) {
+    return <>{children}</>;
+  }
 
   if (!checked) return null;
 
