@@ -1129,3 +1129,13 @@ export async function getTodayCheersByPopup(
   if (error) throw error
   return data ?? []
 }
+
+export async function resetTodayCheersByPopup(popupId: number): Promise<void> {
+  const today = getKSTDateStr()
+  const { error } = await supabaseAdmin
+    .from('cheers')
+    .delete()
+    .eq('popup_id', popupId)
+    .eq('date', today)
+  if (error) throw error
+}
