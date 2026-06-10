@@ -161,8 +161,7 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
               {` · ₩${formatPrice(peakHour.revenue)} · ${peakHour.orderCount}건`}
             </p>
           )}
-          <div style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={hourlyData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="hourlyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -197,7 +196,6 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
         </>
       )}
     </div>

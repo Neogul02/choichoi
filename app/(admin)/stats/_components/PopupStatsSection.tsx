@@ -270,8 +270,7 @@ export default function PopupStatsSection({
                 {popupMenuBreakdown.length > 0 ? (
                   <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4]">
                     <h4 className="m-0 mb-3 text-sm font-bold text-ink-secondary">메뉴별 판매</h4>
-                    <div style={{ height: popupMenuChartHeight }}>
-                      <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={popupMenuChartHeight}>
                         <BarChart layout="vertical" data={popupMenuBreakdown} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                           <XAxis type="number" tickFormatter={String} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
@@ -285,7 +284,6 @@ export default function PopupStatsSection({
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
-                    </div>
                   </div>
                 ) : (
                   <p className="text-ink-faint text-sm">메뉴 판매 내역이 없습니다.</p>
