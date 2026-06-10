@@ -126,7 +126,7 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
             key={lastPayment.id}
             initial={{ opacity: 1, y: 0, scale: 0.75 }}
             animate={{ opacity: [1, 1, 0.8, 0], y: -64, scale: [0.75, 1.25, 1.1, 0.9] }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, transition: { duration: 0.15 } }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
             className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap"
           >
