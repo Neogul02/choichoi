@@ -25,6 +25,7 @@ import {
   getShortcutBadgeColors,
   hexWithAlpha,
 } from '@/lib/utils'
+import { getTier } from '@/lib/tiers'
 
 const CHEER_EMOJIS = ['❤️', '🎉', '✨', '🔥', '💪', '👏', '🌟', '💖', '🥰', '🎊'];
 interface EmojiParticle { id: number; emoji: string; x: number; delay: number; dur: number; }
@@ -122,6 +123,25 @@ function fireConfetti() {
 
 const CASHIER_NAME_KEY = 'choichoi_cashier_name'
 
+const TIER_CONFETTI_COLORS: Record<string, string[]> = {
+  BRONZE:     ['#cd7f32', '#e0a36b', '#f4d4b0', '#a0531f', '#e8956d'],
+  SILVER:     ['#a8b1bd', '#cfd5dd', '#ffffff', '#6b7785', '#e0e4e8'],
+  GOLD:       ['#f59e0b', '#fcd34d', '#fef3c7', '#c2410c', '#f97316'],
+  PLATINUM:   ['#0d9488', '#2dd4bf', '#99f6e4', '#ccfbf1', '#0f766e'],
+  DIAMOND:    ['#2563eb', '#60a5fa', '#bfdbfe', '#3b82f6', '#93c5fd'],
+  MASTER:     ['#7c3aed', '#a78bfa', '#ede9fe', '#c084fc', '#6d28d9'],
+  CHALLENGER: ['#fbbf24', '#fde68a', '#dc2626', '#f59e0b', '#ef4444'],
+}
+
+function fireTierConfetti(tierName: string) {
+  const colors = TIER_CONFETTI_COLORS[tierName] ?? ['#f43f5e', '#fbbf24']
+  confetti({ particleCount: 130, spread: 85, origin: { x: 0.5, y: 0.5 }, colors, startVelocity: 52, gravity: 1.0, ticks: 130, scalar: 1.2 })
+  setTimeout(() => {
+    confetti({ particleCount: 65, spread: 65, origin: { x: 0.15, y: 0.65 }, angle: 65, colors, startVelocity: 40, gravity: 1.0, ticks: 100 })
+    confetti({ particleCount: 65, spread: 65, origin: { x: 0.85, y: 0.65 }, angle: 115, colors, startVelocity: 40, gravity: 1.0, ticks: 100 })
+  }, 150)
+}
+
 const cartItemVariants: Variants = {
   hidden: { opacity: 0, height: 0, marginBottom: 0 },
   visible: {
@@ -146,6 +166,7 @@ export default function PosPage() {
   const [cashierName, setCashierName] = useState<string | null>(null)
   const [popupId, setPopupId] = useState('0')
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevTierLvRef = useRef(0)
   const activeCashiers = usePresence(cashierName)
   const { totalToday, cheer, reset: resetCheers, milestoneKey } = useCheers(popupId === '0' ? null : popupId)
   const handleCheer = useCallback(() => { cheer('_') }, [cheer])
@@ -243,7 +264,13 @@ export default function PosPage() {
   })
 
   useEffect(() => {
-    if (salesQuery.data) setTodaySales(salesQuery.data)
+    if (salesQuery.data) {
+      if (prevTierLvRef.current === 0) {
+        const { tier } = getTier(salesQuery.data.totalRevenue)
+        prevTierLvRef.current = tier?.lv ?? 1
+      }
+      setTodaySales(salesQuery.data)
+    }
   }, [salesQuery.data])
 
   const menuQuery = useQuery<MenuItem[]>({
@@ -376,7 +403,16 @@ export default function PosPage() {
         toast.success(`결제 완료! ${label}`, { id: 'checkout-success' })
         if (result.inventoryError) toast.error(`재고 차감 실패: ${result.inventoryError}`)
 
-        if (result.sales) setTodaySales(result.sales)
+        if (result.sales) {
+          const { tier: newTier } = getTier(result.sales.totalRevenue)
+          const newLv = newTier?.lv ?? 1
+          if (newLv > prevTierLvRef.current) {
+            fireTierConfetti(newTier!.name)
+            toast.success(`🏆 ${newTier!.ko} 달성!`, { duration: 4000, id: 'tier-up' })
+          }
+          prevTierLvRef.current = newLv
+          setTodaySales(result.sales)
+        }
         setFlashKey((k) => k + 1)
 
         if (lastPaymentTimerRef.current)
