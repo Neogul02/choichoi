@@ -17,7 +17,7 @@ import HourlySalesSection from './_components/HourlySalesSection';
 export default function StatsPage() {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats();
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown();
-  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth } = useCalendar();
+  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, saveDay, removeDay } = useCalendar();
   const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading: isPopupStatsLoading } = usePopupStats();
 
   const todayStr = getKSTDateStr();
@@ -33,7 +33,7 @@ export default function StatsPage() {
 
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
 
-          <div className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <MenuBreakdownSection
               breakdown={breakdown}
               period={breakdownPeriod}
@@ -43,11 +43,11 @@ export default function StatsPage() {
             />
           </div>
 
-          <div className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <HourlySalesSection todayOrders={todayOrders} isLoadingToday={isLoading} popupEvents={popupEvents} />
           </div>
 
-          <div className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <TodayOrdersSection
               orders={todayOrders}
               todayRevenue={todayRevenue}
@@ -56,7 +56,7 @@ export default function StatsPage() {
             />
           </div>
 
-          <div className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <CalendarSection
               calendarSales={calendarSales}
               calendarMonth={calendarMonth}
@@ -64,10 +64,12 @@ export default function StatsPage() {
               todayStr={todayStr}
               maxDayRevenue={maxDayRevenue}
               onMonthChange={changeMonth}
+              saveDay={saveDay}
+              removeDay={removeDay}
             />
           </div>
 
-          <div className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <PopupStatsSection
               popupEvents={popupEvents}
               selectedPopupId={selectedPopupId}

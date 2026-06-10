@@ -56,7 +56,7 @@ export default function ScheduleSidebar({
 
   return (
     <div className="w-full md:w-[230px] shrink-0">
-      <div className="bg-canvas rounded-2xl p-3.5 shadow-level-1">
+      <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline">
         <div className="flex justify-between items-center mb-2.5">
           <h2 className="m-0 text-sm font-extrabold">일정 목록</h2>
           <button

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { getEmoji } from '@/lib/emoji-map';
 import type { CartItem } from '@/types/display';
 
@@ -85,70 +85,68 @@ export default function EmojiPhysics({ items, active }: Props) {
   const rafRef = useRef<number | null>(null);
   const prevActiveRef = useRef(false);
 
-  const runLoop = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const W = canvas.width;
-    const H = canvas.height;
-    const GRAVITY = 0.38;
-    const FLOOR_BOUNCE = 0.55;
-    const WALL_BOUNCE = 0.65;
-    const FADE_SPEED = 0.012;
-
-    ctx.clearRect(0, 0, W, H);
-    particlesRef.current = particlesRef.current.filter((p) => p.opacity > 0);
-    resolveCollisions(particlesRef.current);
-
-    for (const p of particlesRef.current) {
-      p.vy += GRAVITY;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.rotation += p.rotationSpeed;
-
-      if (p.x - p.size / 2 < 0) {
-        p.x = p.size / 2;
-        p.vx = Math.abs(p.vx) * WALL_BOUNCE;
-        p.rotationSpeed *= -0.8;
-      } else if (p.x + p.size / 2 > W) {
-        p.x = W - p.size / 2;
-        p.vx = -Math.abs(p.vx) * WALL_BOUNCE;
-        p.rotationSpeed *= -0.8;
-      }
-
-      if (p.y + p.size / 2 > H) {
-        p.y = H - p.size / 2;
-        p.vy = -Math.abs(p.vy) * FLOOR_BOUNCE;
-        p.vx *= 0.85;
-        p.rotationSpeed *= 0.8;
-        if (Math.abs(p.vy) < 1.5) p.fadingOut = true;
-      }
-
-      if (p.fadingOut) {
-        p.opacity = Math.max(0, p.opacity - FADE_SPEED);
-      }
-
-      ctx.save();
-      ctx.globalAlpha = p.opacity;
-      ctx.font = `${p.size}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.translate(p.x, p.y);
-      ctx.rotate((p.rotation * Math.PI) / 180);
-      ctx.fillText(p.emoji, 0, 0);
-      ctx.restore();
-    }
-
-    rafRef.current = requestAnimationFrame(runLoop);
-  }, []);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     let cleanup = () => {};
 
     if (canvas) {
+      const runLoop = () => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const W = canvas.width;
+        const H = canvas.height;
+        const GRAVITY = 0.38;
+        const FLOOR_BOUNCE = 0.55;
+        const WALL_BOUNCE = 0.65;
+        const FADE_SPEED = 0.012;
+
+        ctx.clearRect(0, 0, W, H);
+        particlesRef.current = particlesRef.current.filter((p) => p.opacity > 0);
+        resolveCollisions(particlesRef.current);
+
+        for (const p of particlesRef.current) {
+          p.vy += GRAVITY;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.rotation += p.rotationSpeed;
+
+          if (p.x - p.size / 2 < 0) {
+            p.x = p.size / 2;
+            p.vx = Math.abs(p.vx) * WALL_BOUNCE;
+            p.rotationSpeed *= -0.8;
+          } else if (p.x + p.size / 2 > W) {
+            p.x = W - p.size / 2;
+            p.vx = -Math.abs(p.vx) * WALL_BOUNCE;
+            p.rotationSpeed *= -0.8;
+          }
+
+          if (p.y + p.size / 2 > H) {
+            p.y = H - p.size / 2;
+            p.vy = -Math.abs(p.vy) * FLOOR_BOUNCE;
+            p.vx *= 0.85;
+            p.rotationSpeed *= 0.8;
+            if (Math.abs(p.vy) < 1.5) p.fadingOut = true;
+          }
+
+          if (p.fadingOut) {
+            p.opacity = Math.max(0, p.opacity - FADE_SPEED);
+          }
+
+          ctx.save();
+          ctx.globalAlpha = p.opacity;
+          ctx.font = `${p.size}px serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.fillText(p.emoji, 0, 0);
+          ctx.restore();
+        }
+
+        rafRef.current = requestAnimationFrame(runLoop);
+      };
+
       const resize = () => {
         canvas.width = canvas.offsetWidth;
         canvas.height = canvas.offsetHeight;
@@ -163,7 +161,7 @@ export default function EmojiPhysics({ items, active }: Props) {
     }
 
     return cleanup;
-  }, [runLoop]);
+  }, []);
 
   useEffect(() => {
     const wasActive = prevActiveRef.current;

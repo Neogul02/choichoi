@@ -74,10 +74,10 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
       onClick={() => setHidden((v) => !v)}
       aria-label={hidden ? '매출 보기' : '매출 가리기'}
       aria-pressed={hidden}
-      className="group relative w-full text-left text-white rounded-2xl p-4 md:p-5 mb-3 md:mb-4 will-change-transform overflow-hidden cursor-pointer border-none active:scale-[0.997] transition-all duration-500"
+      className="group relative w-full text-left text-white rounded-xl p-4 md:p-5 mb-3 md:mb-4 will-change-transform overflow-hidden cursor-pointer border-none active:scale-[0.997] transition-all duration-500"
       style={{ background, boxShadow }}
     >
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
       <div className="absolute -bottom-6 -right-6 w-32 h-32 rounded-full bg-canvas/5 pointer-events-none" />
       <div className="absolute -bottom-2 -right-2 w-16 h-16 rounded-full bg-canvas/5 pointer-events-none" />
 

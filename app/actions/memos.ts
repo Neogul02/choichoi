@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { wrap } from './_base';
-import { getAllMemos, createMemo, updateMemo, deleteMemo } from '@/lib/supabase-admin';
+import { getAllMemos, createMemo, updateMemo, deleteMemo, toggleMemoPin } from '@/lib/supabase-admin';
 import type { ApiResponse, FetchMemosResponse } from '@/types/api';
 import type { Memo } from '@/types/database';
 
@@ -27,3 +27,7 @@ export async function editMemo(id: number, title: string, content: string, color
 }
 
 export async function removeMemo(id: number): Promise<ApiResponse> { return wrap(() => deleteMemo(id)); }
+
+export async function toggleMemoPinned(id: number, isPinned: boolean): Promise<ApiResponse<Memo>> {
+  return wrap(() => toggleMemoPin(id, isPinned));
+}

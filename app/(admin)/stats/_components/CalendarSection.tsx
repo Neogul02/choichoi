@@ -2,11 +2,20 @@
 
 import { useState } from 'react';
 import { formatPrice } from '@/lib/utils';
-import type { CalendarSalesData } from '@/types/api';
+import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
+import DayDetailModal from './DayDetailModal';
 
 const MATERIAL_COST_KEY = 'choichoi_material_cost';
 const OTHER_COST_KEY = 'choichoi_other_cost';
 const FEE_PERCENT_KEY = 'choichoi_fee_percent';
+
+function formatDayRevenue(n: number): string {
+  if (n <= 0) return '·';
+  const man = n / 10000;
+  if (man < 1) return `₩${n.toLocaleString('ko-KR')}`;
+  if (man < 10) return `${man.toFixed(1)}만`;
+  return `${Math.round(man)}만`;
+}
 
 function getCellBgStyle(revenue: number, maxRevenue: number) {
   if (revenue <= 0 || maxRevenue <= 0) return { backgroundColor: '#f8faf9' };
@@ -26,9 +35,13 @@ interface Props {
   todayStr: string;
   maxDayRevenue: number;
   onMonthChange: (offset: number) => void;
+  saveDay: (date: string, revenue: number, orders: number, note: string | null) => Promise<boolean>;
+  removeDay: (id: number) => Promise<void>;
 }
 
-export default function CalendarSection({ calendarSales, calendarMonth, isLoading, todayStr, maxDayRevenue, onMonthChange }: Props) {
+export default function CalendarSection({ calendarSales, calendarMonth, isLoading, todayStr, maxDayRevenue, onMonthChange, saveDay, removeDay }: Props) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const manualByDate: Record<string, ManualSalesEntry> = calendarSales.manualByDate ?? {};
   const [materialCost, setMaterialCost] = useState(() => {
     try { const s = localStorage.getItem(MATERIAL_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
   });
@@ -66,7 +79,8 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
   const formatCostDisplay = (val: number) => val === 0 ? '' : val.toLocaleString('ko-KR');
 
   return (
-    <div className="bg-[#f4f7f5] rounded-xl p-4 mb-4 md:mb-5">
+    <>
+    <div className="bg-canvas-soft rounded-xl p-4 mb-4 md:mb-5 border border-hairline">
       <div className="flex justify-between items-center mb-3">
         <h3 className="m-0 text-lg font-bold">날짜별 매출 프리뷰</h3>
         <div className="flex items-center gap-1.5">
@@ -106,12 +120,23 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
             const dayRevenue = Number(calendarSales.byDate?.[dateKey] || 0);
             const isToday = dateKey === todayStr;
             return (
-              <div key={dateKey} className="min-h-[64px] rounded-lg p-1.5" style={{ ...getCellBgStyle(dayRevenue, maxDayRevenue), border: isToday ? '2px solid #084431' : '1px solid #dce8e0' }}>
-                <div className={`text-[11px] font-extrabold leading-none ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-ink-secondary'}`}>
-                  {day}{isToday && <span className="ml-0.5 text-primary-700">•</span>}
+              <div
+                key={dateKey}
+                onClick={() => setSelectedDate(dateKey)}
+                className="min-h-[64px] rounded-lg p-1.5 cursor-pointer active:scale-[0.97] transition-transform"
+                style={{
+                  ...getCellBgStyle(dayRevenue, maxDayRevenue),
+                  border: isToday ? '2px solid #084431' : manualByDate[dateKey] ? '1.5px solid #fbbf24' : '1px solid #dce8e0',
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <span className={`text-[11px] font-extrabold leading-none ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-ink-secondary'}`}>
+                    {day}{isToday && <span className="ml-0.5 text-primary-700">•</span>}
+                  </span>
+                  {manualByDate[dateKey] && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 mt-0.5" />}
                 </div>
-                <div className={`mt-1.5 text-[10px] font-semibold leading-tight ${dayRevenue > 0 ? 'text-[#1a3d2b]' : 'text-ink-faint'}`}>
-                  {dayRevenue > 0 ? `₩${formatPrice(dayRevenue)}` : '·'}
+                <div className={`mt-1.5 text-[10px] font-semibold leading-tight ${dayRevenue > 0 || manualByDate[dateKey] ? 'text-[#1a3d2b]' : 'text-ink-faint'}`}>
+                  {manualByDate[dateKey] ? formatDayRevenue(manualByDate[dateKey].total_revenue) : formatDayRevenue(dayRevenue)}
                 </div>
               </div>
             );
@@ -169,5 +194,17 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
         </div>
       </div>
     </div>
+
+      {selectedDate && (
+        <DayDetailModal
+          date={selectedDate}
+          manualEntry={manualByDate[selectedDate]}
+          onClose={() => setSelectedDate(null)}
+          onSaved={() => setSelectedDate(null)}
+          saveDay={saveDay}
+          removeDay={removeDay}
+        />
+      )}
+    </>
   );
 }

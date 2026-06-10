@@ -326,7 +326,7 @@ export default function SchedulePage() {
           />
 
           {/* ── 스케줄 그리드 ── */}
-          <div className="flex-1 min-w-0 bg-canvas rounded-2xl p-4 shadow-level-1">
+          <div className="flex-1 min-w-0 bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
             {selectedEvent && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -457,7 +457,7 @@ export default function SchedulePage() {
 
         {selectedEvent && (
           <div className="mt-4">
-            <div className="flex rounded-xl overflow-hidden border border-hairline mb-2 w-fit bg-canvas shadow-level-1">
+            <div className="flex rounded-xl overflow-hidden border border-hairline mb-2 w-fit bg-canvas shadow-level-1 border border-hairline">
               {(['workers', 'salary'] as const).map(tab => (
                 <button key={tab} className={`px-4 py-2 text-[11px] font-bold border-none cursor-pointer transition ${bottomTab === tab ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`} onClick={() => setBottomTab(tab)}>
                   {tab === 'workers' ? '근무자 관리' : '급여 계산'}
@@ -466,7 +466,7 @@ export default function SchedulePage() {
             </div>
 
             {bottomTab === 'workers' && (
-              <div className="bg-canvas rounded-2xl p-4 shadow-level-1">
+              <div className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
                 <div className="flex justify-between items-center mb-3">
                   <h3 className="m-0 text-base font-extrabold">{selectedEvent.name} 근무자</h3>
                   <button className={`px-2.5 py-1 border-none rounded-lg text-[11px] font-bold cursor-pointer transition ${showWorkerForm ? 'bg-canvas-soft text-ink-muted' : 'bg-primary-700 text-white hover:bg-primary-800'}`} onClick={() => showWorkerForm ? setShowWorkerForm(false) : openWorkerForm()}>
@@ -544,7 +544,7 @@ export default function SchedulePage() {
               />
             )}
             {bottomTab === 'salary' && salaryGroups.length === 0 && (
-              <div className="bg-canvas rounded-2xl p-4 shadow-level-1">
+              <div className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
                 <p className="text-ink-faint text-sm m-0">근무 데이터가 없습니다.</p>
               </div>
             )}

@@ -15,7 +15,7 @@ export default function LowStockAlert({ ingredients, onRestock }: Props) {
   if (critical.length === 0) return null;
 
   return (
-    <div className="bg-rose-50 border-[1.5px] border-rose-200 rounded-2xl px-3.5 py-2.5 flex flex-wrap gap-2 items-center">
+    <div className="bg-rose-50 border-[1.5px] border-rose-200 rounded-xl px-3.5 py-2.5 flex flex-wrap gap-2 items-center">
       <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wide shrink-0">
         ⚠ 발주 필요
       </span>

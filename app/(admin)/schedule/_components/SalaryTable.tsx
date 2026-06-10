@@ -30,7 +30,7 @@ export default function SalaryTable({ eventName, salaryGroups, grandTotal, local
   }
 
   return (
-    <div className="mt-5 bg-canvas rounded-2xl p-4 shadow-level-1">
+    <div className="mt-5 bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
       <h3 className="m-0 mb-4 text-lg font-extrabold">급여 계산서 — {eventName}</h3>
       <div className="overflow-x-auto [scrollbar-width:thin] select-text">
         <table className="w-full border-collapse text-sm min-w-[600px]">

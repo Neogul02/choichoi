@@ -71,6 +71,7 @@ export interface Memo {
   title: string | null;
   content: string;
   color: string;
+  is_pinned: boolean;
   created_at: string;
   updated_at: string;
 }

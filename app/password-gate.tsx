@@ -106,7 +106,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
             <h1 className="text-2xl font-black text-ink m-0 mb-1">ChoiChoi POS</h1>
             <p className="m-0 text-ink-muted text-sm">운영 화면 접근을 위해 정보를 입력해주세요.</p>
           </div>
-          <form className="bg-canvas rounded-2xl p-5 shadow-level-1" onSubmit={onSubmit}>
+          <form className="bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline" onSubmit={onSubmit}>
             <div className="relative mb-3">
               <select
                 className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'} ${popupEvents.length === 1 ? 'opacity-70 cursor-default' : ''}`}

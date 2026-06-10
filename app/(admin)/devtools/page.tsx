@@ -390,7 +390,7 @@ export default function DevToolsPage() {
           <h2 className="m-0 text-2xl font-extrabold">개발자 도구</h2>
 
           {/* DB 상태 */}
-          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <section className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <div className="flex items-center justify-between mb-4">
               <h3 className="m-0 text-lg font-bold">DB 상태</h3>
               <button
@@ -427,7 +427,7 @@ export default function DevToolsPage() {
           </section>
 
           {/* DB 스키마 */}
-          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <section className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <h3 className="m-0 mb-4 text-lg font-bold">DB 스키마</h3>
             <div className="space-y-5">
               {DB_SCHEMA.map((group) => (
@@ -444,7 +444,7 @@ export default function DevToolsPage() {
           </section>
 
           {/* 폭죽 테스트 */}
-          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <section className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <h3 className="m-0 mb-4 text-lg font-bold">폭죽 테스트</h3>
             <div className="flex flex-wrap gap-2">
               {CONFETTI_EFFECTS.map((effect) => (
@@ -460,7 +460,7 @@ export default function DevToolsPage() {
           </section>
 
           {/* API 테스트 */}
-          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <section className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <h3 className="m-0 mb-4 text-lg font-bold">API 요청 테스트</h3>
 
             <div className="flex flex-wrap gap-2 mb-5 pb-4 border-b border-hairline">
@@ -527,7 +527,7 @@ export default function DevToolsPage() {
           </section>
 
           {/* 환경 정보 */}
-          <section className="bg-canvas rounded-2xl p-4 md:p-5 shadow-level-1">
+          <section className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <h3 className="m-0 mb-3 text-lg font-bold">환경 정보</h3>
             <ul className="m-0 p-0 list-none space-y-2">
               <EnvRow label="NEXT_PUBLIC_SUPABASE_URL" value={process.env.NEXT_PUBLIC_SUPABASE_URL} />

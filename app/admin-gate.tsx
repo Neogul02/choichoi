@@ -70,7 +70,7 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
             <p className="m-0 text-ink-muted text-sm">관리자 전용 페이지입니다.</p>
           </div>
           <form
-            className="bg-canvas rounded-2xl p-5 shadow-level-1"
+            className="bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline"
             onSubmit={onSubmit}
           >
             <input
