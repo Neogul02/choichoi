@@ -36,9 +36,23 @@ const CreateIngredientSchema = z.object({
   reorder_at_containers: z.number().int().min(0, '재주문 기준은 0 이상이어야 합니다'),
 });
 
+const UUID = z.string().uuid('올바른 ID 형식이어야 합니다');
+const POS_INT = z.number().int().positive();
+
 const RestockSchema = z.object({
   sealed: z.number().int().min(0, '밀봉 수량은 0 이상이어야 합니다'),
   opened: z.number().min(0, '개봉 수량은 0 이상이어야 합니다'),
+});
+
+const SaveRecipeSchema = z.object({
+  menu_id: POS_INT,
+  ingredient_id: UUID,
+  qty: z.number().positive('수량은 0보다 커야 합니다'),
+});
+
+const RemoveRecipeSchema = z.object({
+  menu_id: POS_INT,
+  ingredient_id: UUID,
 });
 
 export async function fetchIngredients(): Promise<FetchIngredientsResponse> { return wrap(getIngredients); }
@@ -47,6 +61,8 @@ export async function fetchRecentDeductions(limit?: number): Promise<FetchDeduct
 export async function fetchRecentOrderLogs(limit?: number): Promise<FetchOrderLogsResponse> { return wrap(() => getRecentOrderLogs(limit)); }
 
 export async function restockIngredient(id: string, sealed: number, opened: number, note?: string, by?: string): Promise<ApiResponse> {
+  const idParsed = UUID.safeParse(id);
+  if (!idParsed.success) return { success: false, error: idParsed.error.issues[0].message };
   const parsed = RestockSchema.safeParse({ sealed, opened });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   return wrap(() => addRestock(id, sealed, opened, note, by));
@@ -57,15 +73,15 @@ export async function setPhysicalInventory(id: string, sealed: number, opened: n
 }
 
 export async function saveRecipe(menu_id: number, ingredient_id: string, qty: number): Promise<ApiResponse> {
-  const parsed = z.object({
-    qty: z.number().positive('수량은 0보다 커야 합니다'),
-  }).safeParse({ qty });
+  const parsed = SaveRecipeSchema.safeParse({ menu_id, ingredient_id, qty });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => upsertRecipe(menu_id, ingredient_id, qty));
+  return wrap(() => upsertRecipe(parsed.data.menu_id, parsed.data.ingredient_id, parsed.data.qty));
 }
 
 export async function removeRecipe(menu_id: number, ingredient_id: string): Promise<ApiResponse> {
-  return wrap(() => deleteRecipe(menu_id, ingredient_id));
+  const parsed = RemoveRecipeSchema.safeParse({ menu_id, ingredient_id });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  return wrap(() => deleteRecipe(parsed.data.menu_id, parsed.data.ingredient_id));
 }
 
 export async function updateIngredientSettings(
@@ -86,5 +102,7 @@ export async function createIngredient(data: {
 }
 
 export async function deleteIngredientById(id: string): Promise<ApiResponse> {
+  const parsed = UUID.safeParse(id);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   return wrap(() => deleteIngredient(id));
 }
