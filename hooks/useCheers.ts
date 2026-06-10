@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { cheerWorker, getTodayCheers } from '@/app/actions/cheers'
+import { cheerWorker, getTodayCheers, resetTodayCheers } from '@/app/actions/cheers'
 
 export function useCheers(popupId: string | null) {
   const [counts, setCounts] = useState<Record<string, number>>({})
@@ -26,6 +26,10 @@ export function useCheers(popupId: string | null) {
 
     const ch = supabase
       .channel(`cheers-${popupId}`)
+      .on('broadcast', { event: 'cheer_reset' }, () => {
+        setCounts({})
+        prevTotalRef.current = 0
+      })
       .on('broadcast', { event: 'cheer_event' }, ({ payload }) => {
         const { workerName, count, total } = payload as {
           workerName: string
@@ -70,7 +74,16 @@ export function useCheers(popupId: string | null) {
     [popupId],
   )
 
+  const reset = useCallback(async () => {
+    if (!popupId || popupId === '0') return
+    const result = await resetTodayCheers(Number(popupId))
+    if (!result.success) return
+    setCounts({})
+    prevTotalRef.current = 0
+    channelRef.current?.send({ type: 'broadcast', event: 'cheer_reset', payload: {} })
+  }, [popupId])
+
   const totalToday = Object.values(counts).reduce((a, b) => a + b, 0)
 
-  return { counts, cheer, totalToday, milestoneKey }
+  return { counts, cheer, reset, totalToday, milestoneKey }
 }

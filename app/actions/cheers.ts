@@ -1,6 +1,6 @@
 'use server'
 
-import { incrementCheer, getTodayCheersByPopup } from '@/lib/supabase-admin'
+import { incrementCheer, getTodayCheersByPopup, resetTodayCheersByPopup } from '@/lib/supabase-admin'
 
 export async function cheerWorker(
   popupId: number,
@@ -22,5 +22,16 @@ export async function getTodayCheers(
     return Object.fromEntries(rows.map((r) => [r.worker_name, r.count]))
   } catch {
     return {}
+  }
+}
+
+export async function resetTodayCheers(
+  popupId: number,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await resetTodayCheersByPopup(popupId)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: String(e) }
   }
 }

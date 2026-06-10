@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePresence } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
@@ -33,7 +34,7 @@ function useTodayLabel(): string {
   return label;
 }
 
-export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal }: { activeCashiers?: string[]; cheerTotal?: number } = {}) {
+export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal, onResetCheers }: { activeCashiers?: string[]; cheerTotal?: number; onResetCheers?: () => void } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const todayLabel = useTodayLabel();
@@ -47,6 +48,8 @@ export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal 
   const activeCashiers = activeCashiersProp ?? ownActiveCashiers;
   const [floatHeart, setFloatHeart] = useState(0);
   const cheerPrevRef = useRef(cheerTotal ?? 0);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
+  const cheerCounterRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if ((cheerTotal ?? 0) > cheerPrevRef.current) setFloatHeart((k) => k + 1);
@@ -138,13 +141,21 @@ export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal 
                           ))}
                         </div>
                         {(cheerTotal ?? 0) > 0 && (
-                          <span className="relative inline-flex items-center shrink-0">
+                          <span
+                            ref={cheerCounterRef}
+                            className="relative inline-flex items-center shrink-0"
+                            onMouseEnter={() => {
+                              const r = cheerCounterRef.current?.getBoundingClientRect();
+                              if (r) setTooltipPos({ top: r.bottom + 6, left: r.left + r.width / 2 });
+                            }}
+                            onMouseLeave={() => setTooltipPos(null)}
+                          >
                             <motion.span
                               key={cheerTotal}
                               initial={{ scale: 1.7 }}
                               animate={{ scale: 1 }}
                               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-                              className="text-[11px] font-bold text-rose-400 inline-block"
+                              className="text-[11px] font-bold text-rose-400 inline-block cursor-default"
                             >
                               ❤️ {cheerTotal}
                             </motion.span>
@@ -273,6 +284,31 @@ export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal 
         </div>
       </div>
 
-    </>
+      {tooltipPos && createPortal(
+        <div
+          style={{ position: 'fixed', top: tooltipPos.top, left: tooltipPos.left, transform: 'translateX(-50%)', zIndex: 9999 }}
+          onMouseEnter={() => {
+            const r = cheerCounterRef.current?.getBoundingClientRect();
+            if (r) setTooltipPos({ top: r.bottom + 6, left: r.left + r.width / 2 });
+          }}
+          onMouseLeave={() => setTooltipPos(null)}
+          className="flex flex-col items-center pointer-events-auto"
+        >
+          <span className="w-2 h-2 bg-[#1a1a1a] rotate-45 -mb-1 shrink-0" />
+          <div className="bg-[#1a1a1a] text-white text-[11px] font-semibold rounded-lg px-3 py-2 whitespace-nowrap shadow-lg flex flex-col items-center gap-1.5">
+            <span>오늘 총 {cheerTotal?.toLocaleString()}번 응원했어요 🎉</span>
+            {onResetCheers && (
+              <button
+                onClick={() => { onResetCheers(); setTooltipPos(null); }}
+                className="text-[10px] text-rose-300 hover:text-white border border-rose-400/40 hover:border-white/40 rounded px-2 py-0.5 cursor-pointer bg-transparent transition-colors"
+              >
+                초기화
+              </button>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+  </>
   );
 }

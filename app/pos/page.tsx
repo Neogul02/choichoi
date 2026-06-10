@@ -147,7 +147,7 @@ export default function PosPage() {
   const [popupId, setPopupId] = useState('0')
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeCashiers = usePresence(cashierName)
-  const { totalToday, cheer, milestoneKey } = useCheers(popupId === '0' ? null : popupId)
+  const { totalToday, cheer, reset: resetCheers, milestoneKey } = useCheers(popupId === '0' ? null : popupId)
   const handleCheer = useCallback(() => { cheer('_') }, [cheer])
 
   useEffect(() => {
@@ -466,7 +466,7 @@ export default function PosPage() {
 
   return (
     <>
-      <NavBar activeCashiers={activeCashiers} cheerTotal={totalToday} />
+      <NavBar activeCashiers={activeCashiers} cheerTotal={totalToday} onResetCheers={resetCheers} />
 
       <main className="min-h-screen p-3 md:p-5 pb-24 md:pb-5 md:px-8 max-w-[1100px] mx-auto">
         {/* 결제 대기 헤더 */}
