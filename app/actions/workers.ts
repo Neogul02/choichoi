@@ -294,6 +294,66 @@ export async function checkSignupCode(code: string): Promise<ApiResponse> {
   return { success: true }
 }
 
+export interface CreateWorkerAccountInput {
+  inviteCode: string
+  email: string
+  password: string
+  name: string
+  phone: string
+  bankName?: string
+  bankAccount?: string
+}
+
+export async function createWorkerAccount(
+  input: CreateWorkerAccountInput,
+): Promise<ApiResponse<{ userId: string }>> {
+  try {
+    // 1. 초대 코드 검증
+    const expected = process.env.SIGNUP_CODE
+    if (!expected || input.inviteCode.trim() !== expected.trim()) {
+      return { success: false, error: '초대 코드가 올바르지 않습니다.' }
+    }
+
+    // 2. admin API로 유저 생성 (이메일 인증 메일 없음, rate limit 없음)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: input.email.trim(),
+      password: input.password.trim(),
+      email_confirm: true,
+      user_metadata: { role: 'worker', name: input.name.trim() },
+    })
+
+    if (authError || !authData.user) {
+      const msg = authError?.message ?? '계정 생성 실패'
+      if (msg.includes('already been registered') || msg.includes('already registered')) {
+        return { success: false, error: '이미 가입된 이메일입니다.' }
+      }
+      return { success: false, error: `계정 생성 오류: ${msg}` }
+    }
+
+    const userId = authData.user.id
+
+    // 3. user_profiles INSERT
+    const { error: profileError } = await supabaseAdmin.from('user_profiles').insert([{
+      id: userId,
+      name: input.name.trim(),
+      phone: input.phone.trim() || null,
+      bank_name: input.bankName?.trim() || null,
+      bank_account: input.bankAccount?.trim() || null,
+      worker_role: 'worker',
+    }])
+
+    if (profileError) {
+      // 프로필 실패 시 생성된 auth 유저도 정리
+      await supabaseAdmin.auth.admin.deleteUser(userId)
+      return { success: false, error: `프로필 저장 실패: ${profileError.message}` }
+    }
+
+    return { success: true, data: { userId } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function deleteMyAccount(): Promise<ApiResponse> {
   try {
     const supabase = await createSupabaseServerClient()
