@@ -31,6 +31,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  const role = user.user_metadata?.role
+  const adminPrefixes = ['/stats', '/schedule', '/settings', '/inventory', '/devtools']
+  const isAdminPath = adminPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
+
+  if (isAdminPath && role !== 'admin') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/pos'
+    return NextResponse.redirect(url)
+  }
+
   return supabaseResponse
 }
 

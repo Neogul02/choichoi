@@ -162,6 +162,7 @@ export async function createOrder(
   items: OrderItemInput[],
   totalPrice: number,
   cashierName?: string,
+  popupId?: string | number | null,
 ): Promise<Order> {
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
@@ -171,6 +172,7 @@ export async function createOrder(
         payment_method: 'cash',
         payment_status: 'completed',
         cashier_name: cashierName ?? null,
+        popup_id: popupId && popupId !== '0' ? Number(popupId) : null,
       },
     ])
     .select()
@@ -739,6 +741,7 @@ export async function createWorker(input: WorkerInput): Promise<Worker> {
         bank_account: input.bank_account || null,
         hourly_rate: input.hourly_rate ?? 0,
         worker_role: input.worker_role || '프론트',
+        user_profile_id: input.user_profile_id || null,
       },
     ])
     .select()
