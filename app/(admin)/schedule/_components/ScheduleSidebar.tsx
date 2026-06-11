@@ -55,8 +55,8 @@ export default function ScheduleSidebar({
   const inputCls = 'w-full px-2 py-1 border border-hairline rounded text-xs focus:outline-none focus:border-primary-700';
 
   return (
-    <div className="w-full md:w-[230px] shrink-0">
-      <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline">
+    <div className="w-full md:w-[230px] shrink-0 h-full">
+      <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline h-full">
         <div className="flex justify-between items-center mb-2.5">
           <h2 className="m-0 text-sm font-extrabold">일정 목록</h2>
           <button
@@ -96,7 +96,7 @@ export default function ScheduleSidebar({
         ) : events.length === 0 ? (
           <p className="text-ink-faint text-xs m-0">일정이 없습니다.</p>
         ) : (
-          <ul className="list-none m-0 p-0 flex flex-col gap-1">
+          <ul className="list-none m-0 p-0 flex flex-col gap-1 max-h-[300px] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#ccc_transparent]">
             {events.map(event => (
               <li
                 key={event.id}

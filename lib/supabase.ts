@@ -21,4 +21,5 @@ export interface WorkerInput {
   bank_account?: string;
   hourly_rate?: number;
   worker_role?: string;
+  user_profile_id?: string;
 }

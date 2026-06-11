@@ -49,6 +49,7 @@ export interface Worker {
   hourly_rate: number;
   payment_done: boolean;
   worker_role: string | null;
+  user_profile_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -8,8 +8,9 @@ import SalesBanner from '@/components/SalesBanner'
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import confetti from 'canvas-confetti'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
+import { fireConfetti, fireTierConfetti } from '@/lib/confetti'
+import FloatingEmojis from '@/components/FloatingEmojis'
 import { fetchMenuItems } from '@/app/actions/menu';
 import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from '@/app/actions/orders'
 import type { MenuItem } from '@/types/database'
@@ -27,120 +28,7 @@ import {
 } from '@/lib/utils'
 import { getTier } from '@/lib/tiers'
 
-const CHEER_EMOJIS = ['❤️', '🎉', '✨', '🔥', '💪', '👏', '🌟', '💖', '🥰', '🎊'];
-interface EmojiParticle { id: number; emoji: string; x: number; delay: number; dur: number; }
-
-function FloatingEmojis({ burstKey }: { burstKey: number }) {
-  const [particles, setParticles] = useState<EmojiParticle[]>([]);
-  useEffect(() => {
-    if (!burstKey) return () => {};
-    const items = Array.from({ length: 14 }, (_, i) => ({
-      id: Date.now() + i,
-      emoji: CHEER_EMOJIS[Math.floor(Math.random() * CHEER_EMOJIS.length)],
-      x: 3 + Math.random() * 94,
-      delay: Math.random() * 0.5,
-      dur: 1.6 + Math.random() * 0.8,
-    }));
-    setParticles(items);
-    const t = setTimeout(() => setParticles([]), 3500);
-    return () => clearTimeout(t);
-  }, [burstKey]);
-  return (
-    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-      <AnimatePresence>
-        {particles.map((p) => (
-          <motion.div
-            key={p.id}
-            initial={{ y: 0, opacity: 1, scale: 0.5 }}
-            animate={{ y: -900, opacity: [1, 1, 0], scale: [0.5, 1.2, 1] }}
-            transition={{ duration: p.dur, delay: p.delay, ease: 'easeOut' }}
-            style={{ left: `${p.x}%`, bottom: 0, position: 'absolute', transform: 'translateX(-50%)' }}
-            className="text-5xl select-none"
-          >
-            {p.emoji}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function fireConfetti() {
-  const colors = [
-    '#f43f5e',
-    '#fb7185',
-    '#fda4af',
-    '#fbbf24',
-    '#34d399',
-    '#60a5fa',
-    '#a78bfa',
-  ]
-  confetti({
-    particleCount: 90,
-    spread: 70,
-    origin: { x: 0.5, y: 0.55 },
-    colors,
-    startVelocity: 42,
-    gravity: 1.1,
-    ticks: 100,
-    scalar: 1.1,
-  })
-  setTimeout(() => {
-    confetti({
-      particleCount: 55,
-      spread: 58,
-      origin: { x: 0.18, y: 0.62 },
-      angle: 65,
-      colors,
-      startVelocity: 36,
-      gravity: 1.1,
-      ticks: 80,
-    })
-    confetti({
-      particleCount: 55,
-      spread: 58,
-      origin: { x: 0.82, y: 0.62 },
-      angle: 115,
-      colors,
-      startVelocity: 36,
-      gravity: 1.1,
-      ticks: 80,
-    })
-  }, 110)
-  setTimeout(() => {
-    confetti({
-      particleCount: 35,
-      spread: 100,
-      origin: { x: 0.5, y: 0.48 },
-      colors,
-      startVelocity: 22,
-      gravity: 0.75,
-      ticks: 70,
-      scalar: 0.85,
-    })
-  }, 240)
-}
-
 const CASHIER_NAME_KEY = 'choichoi_cashier_name'
-
-const TIER_CONFETTI_COLORS: Record<string, string[]> = {
-  BRONZE:     ['#cd7f32', '#e0a36b', '#f4d4b0', '#a0531f', '#e8956d'],
-  SILVER:     ['#a8b1bd', '#cfd5dd', '#ffffff', '#6b7785', '#e0e4e8'],
-  GOLD:       ['#f59e0b', '#fcd34d', '#fef3c7', '#c2410c', '#f97316'],
-  PLATINUM:   ['#0d9488', '#2dd4bf', '#99f6e4', '#ccfbf1', '#0f766e'],
-  DIAMOND:    ['#2563eb', '#60a5fa', '#bfdbfe', '#3b82f6', '#93c5fd'],
-  MASTER:     ['#7c3aed', '#a78bfa', '#ede9fe', '#c084fc', '#6d28d9'],
-  CHALLENGER: ['#fbbf24', '#fde68a', '#dc2626', '#f59e0b', '#ef4444'],
-}
-
-function fireTierConfetti(tierName: string) {
-  const colors = TIER_CONFETTI_COLORS[tierName] ?? ['#f43f5e', '#fbbf24']
-  confetti({ particleCount: 130, spread: 85, origin: { x: 0.5, y: 0.5 }, colors, startVelocity: 52, gravity: 1.0, ticks: 130, scalar: 1.2 })
-  setTimeout(() => {
-    confetti({ particleCount: 65, spread: 65, origin: { x: 0.15, y: 0.65 }, angle: 65, colors, startVelocity: 40, gravity: 1.0, ticks: 100 })
-    confetti({ particleCount: 65, spread: 65, origin: { x: 0.85, y: 0.65 }, angle: 115, colors, startVelocity: 40, gravity: 1.0, ticks: 100 })
-  }, 150)
-}
 
 const cartItemVariants: Variants = {
   hidden: { opacity: 0, height: 0, marginBottom: 0 },
@@ -303,6 +191,7 @@ export default function PosPage() {
     },
     staleTime: 30_000,
   })
+
   const recentOrders = useMemo(
     () => (recentOrdersQuery.data ?? []).slice(0, 5),
     [recentOrdersQuery.data],
@@ -377,7 +266,7 @@ export default function PosPage() {
     { previousCounts: Record<number, number> }
   >({
     mutationFn: ({ items, totalPrice, cashierName: name }) =>
-      saveOrder(items, totalPrice, name ?? undefined),
+      saveOrder(items, totalPrice, name ?? undefined, popupId),
     onMutate: () => {
       const previousCounts = { ...counts }
       resetOrder()
@@ -770,6 +659,8 @@ export default function PosPage() {
           flashKey={flashKey}
           lastPayment={lastPayment}
         />
+
+
       </main>
       <CheerPanel totalToday={totalToday} onCheer={handleCheer} />
       <FloatingEmojis burstKey={milestoneKey} />

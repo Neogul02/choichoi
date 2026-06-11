@@ -41,6 +41,28 @@ export const TIERS: Tier[] = [
     labelText: '#fde68a', mute: 'rgba(255,255,255,0.92)' },
 ];
 
+export const WORKER_TIER_THRESHOLDS = [0, 500_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000]
+export const WORKER_TIERS = TIERS.map((t, i) => ({ ...t, threshold: WORKER_TIER_THRESHOLDS[i] }))
+
+const TIER_DOT_COLORS   = ['#cd7f32','#a8b1bd','#f59e0b','#2dd4bf','#60a5fa','#a78bfa','#fbbf24']
+const TIER_BG_COLORS    = ['#f4d4b020','#f3f4f620','#fef3c720','#ccfbf120','#dbeafe20','#ede9fe20','#fde68a20']
+const TIER_BORDER_COLORS= ['#cd7f3260','#a8b1bd60','#f59e0b60','#2dd4bf60','#60a5fa60','#a78bfa60','#fbbf2460']
+
+export function getWorkerTier(revenue: number) {
+  let idx = 0
+  for (let i = 0; i < WORKER_TIER_THRESHOLDS.length; i++) {
+    if (revenue >= WORKER_TIER_THRESHOLDS[i]) idx = i
+  }
+  return {
+    current: WORKER_TIERS[idx],
+    next: WORKER_TIERS[idx + 1] ?? null,
+    idx,
+    dot: TIER_DOT_COLORS[idx],
+    bg: TIER_BG_COLORS[idx],
+    border: TIER_BORDER_COLORS[idx],
+  }
+}
+
 export function getTier(revenue: number): { tier: Tier | null; next: Tier | null } {
   let current: Tier | null = null;
   let next: Tier | null = null;

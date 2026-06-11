@@ -46,3 +46,4 @@ export async function fetchManualSalesByDate(date: string): Promise<ApiResponse<
 }
 export async function removeManualSales(id: number): Promise<ApiResponse> { return wrap(() => deleteDailySales(id)); }
 export async function fetchOrdersByDate(date: string): Promise<ApiResponse<import('@/types/api').OrderRecordWithItems[]>> { return wrap(() => getOrdersByDate(date)); }
+

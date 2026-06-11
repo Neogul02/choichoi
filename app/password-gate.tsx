@@ -1,57 +1,52 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import axios from 'axios'
-import { usePathname, useRouter } from 'next/navigation'
-import { fetchPopupEvents } from '@/app/actions/schedule'
+import { useEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { fetchPopupEvents } from '@/app/actions/schedule'
+import { registerProfile, checkSignupCode } from '@/app/actions/workers'
 import type { PopupEvent } from '@/types/database'
 
-const AUTH_KEY = 'choichoi_popup_token'
-const CASHIER_NAME_KEY = 'choichoi_cashier_name'
-const POPUP_ID_KEY = 'choichoi_popup_id'
-const POPUP_NAME_KEY = 'choichoi_popup_name'
-const VALIDATE_API_PATH = '/api/auth/verify/validate'
+export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
+export const POPUP_ID_KEY = 'choichoi_popup_id'
+export const POPUP_NAME_KEY = 'choichoi_popup_name'
 
-export { POPUP_ID_KEY, POPUP_NAME_KEY }
+type View = 'login' | 'signup'
 
-type Tab = 'staff' | 'admin'
-
-function clearStaffStorage() {
+function clearStorage() {
   try {
-    localStorage.removeItem(AUTH_KEY)
     localStorage.removeItem(CASHIER_NAME_KEY)
     localStorage.removeItem(POPUP_ID_KEY)
     localStorage.removeItem(POPUP_NAME_KEY)
-  } catch {
-    /* ignore */
-  }
+  } catch { /* ignore */ }
 }
 
-export default function PasswordGate({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function PasswordGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const router = useRouter()
 
   const [checked, setChecked] = useState(false)
   const [isAuthed, setIsAuthed] = useState(false)
-  const [tab, setTab] = useState<Tab>('staff')
-
-  // Staff fields
-  const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
+  const [view, setView] = useState<View>('login')
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([])
   const [selectedPopupId, setSelectedPopupId] = useState<number | ''>('')
 
-  // Admin fields
-  const [email, setEmail] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
+  // 로그인 필드
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+
+  // 회원가입 필드 (비번 없음 — 초기 비번 = 전화번호)
+  const [signupName, setSignupName] = useState('')
+  const [signupEmail, setSignupEmail] = useState('')
+  const [signupPhone, setSignupPhone] = useState('')
+  const [signupBankName, setSignupBankName] = useState('')
+  const [signupBankAccount, setSignupBankAccount] = useState('')
+  const [signupHealthCert, setSignupHealthCert] = useState<File | null>(null)
+  const [signupInviteCode, setSignupInviteCode] = useState('')
 
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchPopupEvents().then((result) => {
@@ -66,312 +61,230 @@ export default function PasswordGate({
     const supabase = createSupabaseBrowserClient()
 
     const checkAuth = async () => {
-      // 1. Supabase 세션 확인 (관리자)
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (session) {
-        setIsAuthed(true)
-        setChecked(true)
-        return
-      }
-
-      // 2. 직원 토큰 확인
-      const storedToken = localStorage.getItem(AUTH_KEY)
-      if (!storedToken) {
-        setChecked(true)
-        return
-      }
-
-      try {
-        const { data } = await axios.post(VALIDATE_API_PATH, {
-          token: storedToken,
-        })
-        if (data.valid) {
-          setIsAuthed(true)
-        } else {
-          clearStaffStorage()
-        }
-      } catch {
-        clearStaffStorage()
-      }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && localStorage.getItem(POPUP_ID_KEY)) setIsAuthed(true)
       setChecked(true)
     }
 
     checkAuth()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_, session) => {
-      if (session) setIsAuthed(true)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      if (!session) setIsAuthed(false)
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  // 인증 불필요 경로
   if (pathname === '/display' || pathname === '/') return <>{children}</>
-
   if (!checked) return null
 
-  // 직원 로그인
-  const onSubmitStaff = async (e: React.FormEvent<HTMLFormElement>) => {
+  const inputClass =
+    'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas'
+
+  const onLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedPopupId) {
-      setError('팝업을 선택해주세요.')
+    if (!selectedPopupId) { setError('팝업을 선택해주세요.'); return }
+    if (!loginEmail.trim() || !loginPassword) {
+      setError('이메일과 비밀번호를 입력해주세요.')
       return
     }
-    if (!name.trim()) {
-      setError('이름을 입력해주세요.')
-      return
-    }
-    if (!password) {
-      setError('비밀번호를 입력해주세요.')
-      return
-    }
-
-    setError('')
-    setIsSubmitting(true)
-
-    try {
-      const { data } = await axios.post('/api/auth/verify', { password })
-      if (!data.success) {
-        setError(data.message || '비밀번호가 올바르지 않습니다.')
-        setIsSubmitting(false)
-        return
-      }
-      const popup = popupEvents.find((p) => p.id === selectedPopupId)
-      localStorage.setItem(AUTH_KEY, data.token)
-      localStorage.setItem(CASHIER_NAME_KEY, name.trim())
-      localStorage.setItem(POPUP_ID_KEY, String(selectedPopupId))
-      localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
-      setIsAuthed(true)
-    } catch (err) {
-      const msg = axios.isAxiosError(err)
-        ? err.response?.data?.message
-        : undefined
-      setError(msg || '검증 중 오류가 발생했습니다. 다시 시도해주세요.')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // 관리자 로그인
-  const onSubmitAdmin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!selectedPopupId) {
-      setError('팝업을 선택해주세요.')
-      return
-    }
-    if (!name.trim()) {
-      setError('이름을 입력해주세요.')
-      return
-    }
-    if (!email.trim()) {
-      setError('이메일을 입력해주세요.')
-      return
-    }
-    if (!adminPassword) {
-      setError('비밀번호를 입력해주세요.')
-      return
-    }
-
     setError('')
     setIsSubmitting(true)
 
     const supabase = createSupabaseBrowserClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: adminPassword,
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: loginEmail.trim(),
+      password: loginPassword,
     })
 
-    if (authError) {
+    if (authError || !data.user) {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.')
       setIsSubmitting(false)
       return
     }
 
-    const popup = popupEvents.find((p) => p.id === selectedPopupId)
-    localStorage.setItem(CASHIER_NAME_KEY, name.trim())
-    localStorage.setItem(POPUP_ID_KEY, String(selectedPopupId))
-    localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
+    // user_profiles에서 이름 + role 조회 → user_metadata 동기화
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('name, worker_role')
+      .eq('id', data.user.id)
+      .maybeSingle()
 
+    const isAdmin = profile?.worker_role === 'admin'
+    await supabase.auth.updateUser({
+      data: { role: isAdmin ? 'admin' : 'worker', name: profile?.name ?? data.user.user_metadata?.name },
+    })
+
+    const name = profile?.name ?? data.user.user_metadata?.name ?? ''
+    const popup = popupEvents.find((p) => p.id === selectedPopupId)
+    try {
+      if (name) localStorage.setItem(CASHIER_NAME_KEY, name)
+      localStorage.setItem(POPUP_ID_KEY, String(selectedPopupId))
+      localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
+    } catch { /* ignore */ }
+
+    setIsSubmitting(false)
     setIsAuthed(true)
-    window.location.href = '/pos'
   }
 
-  if (!isAuthed) {
-    const inputClass =
-      'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas'
+  const onSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!signupName.trim()) { setError('이름을 입력해주세요.'); return }
+    if (!signupEmail.trim()) { setError('이메일을 입력해주세요.'); return }
+    if (!signupPhone.trim()) { setError('전화번호를 입력해주세요. (초기 비밀번호로 사용됩니다)'); return }
+    if (!signupInviteCode.trim()) { setError('초대 코드를 입력해주세요.'); return }
 
+    setError('')
+    setIsSubmitting(true)
+
+    const codeCheck = await checkSignupCode(signupInviteCode)
+    if (!codeCheck.success) {
+      setError(codeCheck.error ?? '초대 코드가 올바르지 않습니다.')
+      setIsSubmitting(false)
+      return
+    }
+
+    const supabase = createSupabaseBrowserClient()
+
+    // 전화번호 = 초기 비밀번호
+    const { data, error: signupError } = await supabase.auth.signUp({
+      email: signupEmail.trim(),
+      password: signupPhone.trim(),
+      options: { data: { role: 'worker', name: signupName.trim() } },
+    })
+
+    if (signupError || !data.user) {
+      setError(signupError?.message ?? '회원가입 중 오류가 발생했습니다.')
+      setIsSubmitting(false)
+      return
+    }
+
+    // 보건증 업로드
+    let healthCertUrl: string | undefined
+    if (signupHealthCert) {
+      const ext = signupHealthCert.name.split('.').pop()
+      const path = `${data.user.id}/health_cert.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('health-certs')
+        .upload(path, signupHealthCert, { upsert: true })
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('health-certs').getPublicUrl(path)
+        healthCertUrl = urlData.publicUrl
+      }
+    }
+
+    // user_profiles INSERT (서버 액션 — SERVICE_ROLE_KEY)
+    const profileRes = await registerProfile({
+      userId: data.user.id,
+      name: signupName.trim(),
+      phone: signupPhone.trim(),
+      bankName: signupBankName.trim() || undefined,
+      bankAccount: signupBankAccount.trim() || undefined,
+      healthCertUrl,
+    })
+
+    if (!profileRes.success) {
+      setError('프로필 저장 실패: ' + profileRes.error)
+      setIsSubmitting(false)
+      return
+    }
+
+    setIsSubmitting(false)
+    setInfo(`가입 완료! 초기 비밀번호는 전화번호(${signupPhone.trim()})입니다.`)
+    setView('login')
+    setSignupName(''); setSignupEmail(''); setSignupPhone('')
+    setSignupBankName(''); setSignupBankAccount(''); setSignupHealthCert(null); setSignupInviteCode('')
+  }
+
+
+  if (!isAuthed) {
     return (
       <div className='min-h-screen bg-[#f5f6f7] flex items-center justify-center p-4'>
         <div className='w-full max-w-[360px]'>
-          {/* 탭 토글 */}
-          <div className='flex rounded-xl overflow-hidden border border-hairline mb-5 bg-canvas shadow-level-1'>
-            {(['staff', 'admin'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                type='button'
-                onClick={() => {
-                  setTab(t)
-                  setError('')
-                  setPassword('')
-                  setAdminPassword('')
-                }}
-                className={`flex-1 py-2.5 text-[13px] font-bold border-none cursor-pointer transition ${tab === t ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}
-              >
-                {t === 'staff' ? '일반' : '관리자'}
-              </button>
-            ))}
-          </div>
-
           <div className='text-center mb-5'>
-            <h1 className='text-2xl font-black text-ink m-0 mb-1'>
-              ChoiChoi POS
-            </h1>
+            <h1 className='text-2xl font-black text-ink m-0 mb-1'>ChoiChoi POS</h1>
             <p className='m-0 text-ink-muted text-sm'>
-              {tab === 'staff'
-                ? '운영 화면 접근을 위해 정보를 입력해주세요.'
-                : '관리자 계정으로 로그인해주세요.'}
+              {view === 'login' ? '로그인하여 시작하세요.' : '새 계정을 만들어 팀에 합류하세요.'}
             </p>
           </div>
 
-          {tab === 'staff' ? (
-            <form
-              className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline'
-              onSubmit={onSubmitStaff}
-            >
+          {view === 'login' && (
+            <form className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline' onSubmit={onLogin}>
+              {info && <div className='text-emerald-600 text-[13px] mb-3 bg-emerald-50 rounded-lg px-3 py-2'>{info}</div>}
               <div className='relative mb-3'>
                 <select
                   className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'} ${popupEvents.length === 1 ? 'opacity-70 cursor-default' : ''}`}
                   value={selectedPopupId}
-                  onChange={(e) =>
-                    setSelectedPopupId(
-                      e.target.value ? Number(e.target.value) : '',
-                    )
-                  }
+                  onChange={(e) => setSelectedPopupId(e.target.value ? Number(e.target.value) : '')}
                   disabled={popupEvents.length === 1}
                 >
                   <option value=''>팝업 선택</option>
                   {popupEvents.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
                 <span className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint'>
                   <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
-                    <path
-                      d='M2 4l4 4 4-4'
-                      stroke='currentColor'
-                      strokeWidth='1.5'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                    />
+                    <path d='M2 4l4 4 4-4' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
                   </svg>
                 </span>
               </div>
-              <input
-                type='text'
-                className={inputClass}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder='이름'
-                autoFocus={popupEvents.length === 1}
-                autoComplete='name'
-              />
-              <input
-                type='password'
-                className={inputClass}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder='비밀번호'
-                autoComplete='current-password'
-              />
-              {error && (
-                <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>
-              )}
-              <button
-                type='submit'
-                className='w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed'
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? '확인 중...' : '입장하기'}
+              <input type='email' className={inputClass} value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)} placeholder='이메일' autoComplete='email' />
+              <input type='password' className={inputClass} value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)} placeholder='비밀번호' autoComplete='current-password' />
+              {error && <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>}
+              <button type='submit' disabled={isSubmitting}
+                className='w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mb-3'>
+                {isSubmitting ? '로그인 중...' : '로그인'}
               </button>
-            </form>
-          ) : (
-            <form
-              className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline'
-              onSubmit={onSubmitAdmin}
-            >
-              <div className='relative mb-3'>
-                <select
-                  className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'} ${popupEvents.length === 1 ? 'opacity-70 cursor-default' : ''}`}
-                  value={selectedPopupId}
-                  onChange={(e) =>
-                    setSelectedPopupId(
-                      e.target.value ? Number(e.target.value) : '',
-                    )
-                  }
-                  disabled={popupEvents.length === 1}
-                >
-                  <option value=''>팝업 선택</option>
-                  {popupEvents.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <span className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint'>
-                  <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
-                    <path
-                      d='M2 4l4 4 4-4'
-                      stroke='currentColor'
-                      strokeWidth='1.5'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                    />
-                  </svg>
-                </span>
-              </div>
-              <input
-                type='text'
-                className={inputClass}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder='이름'
-                autoComplete='name'
-              />
-              <input
-                type='email'
-                className={inputClass}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder='이메일'
-                autoFocus
-                autoComplete='email'
-              />
-              <input
-                type='password'
-                className={inputClass}
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder='비밀번호'
-                autoComplete='current-password'
-              />
-              {error && (
-                <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>
-              )}
-              <button
-                type='submit'
-                className='w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed'
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? '로그인 중...' : '관리자 로그인'}
+              <button type='button' onClick={() => { setError(''); setInfo(''); setView('signup') }}
+                className='w-full text-center text-[13px] text-ink-muted hover:text-primary-700 transition-colors bg-transparent border-none cursor-pointer'>
+                처음이신가요? 회원가입
               </button>
             </form>
           )}
+
+          {view === 'signup' && (
+            <form className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline' onSubmit={onSignup}>
+              <div className='text-[12px] text-ink-muted bg-canvas-soft rounded-lg px-3 py-2 mb-3'>
+                💡 초기 비밀번호는 전화번호로 설정됩니다.
+              </div>
+              <input type='text' className={inputClass} value={signupName}
+                onChange={(e) => setSignupName(e.target.value)} placeholder='이름 *' autoFocus autoComplete='name' />
+              <input type='email' className={inputClass} value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)} placeholder='이메일 *' autoComplete='email' />
+              <input type='tel' className={inputClass} value={signupPhone}
+                onChange={(e) => setSignupPhone(e.target.value)} placeholder='전화번호 * (초기 비밀번호)' autoComplete='tel' />
+              <input type='text' className={inputClass} value={signupBankName}
+                onChange={(e) => setSignupBankName(e.target.value)} placeholder='은행명 (선택)' />
+              <input type='text' className={inputClass} value={signupBankAccount}
+                onChange={(e) => setSignupBankAccount(e.target.value)} placeholder='계좌번호 (선택)' />
+
+              <input type='text' className={inputClass} value={signupInviteCode}
+                onChange={(e) => setSignupInviteCode(e.target.value)} placeholder='초대 코드 *' autoComplete='off' />
+
+              <div className='mb-3'>
+                <button type='button' onClick={() => fileInputRef.current?.click()}
+                  className='w-full border border-dashed border-hairline rounded-lg px-3 py-2.5 text-[13px] text-ink-muted hover:border-primary-700 hover:text-primary-700 transition-colors bg-transparent cursor-pointer'>
+                  {signupHealthCert ? `보건증: ${signupHealthCert.name}` : '보건증 사본 업로드 (선택)'}
+                </button>
+                <input ref={fileInputRef} type='file' accept='image/*,application/pdf' className='hidden'
+                  onChange={(e) => setSignupHealthCert(e.target.files?.[0] ?? null)} />
+              </div>
+
+              {error && <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>}
+              <button type='submit' disabled={isSubmitting}
+                className='w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mb-3'>
+                {isSubmitting ? '가입 중...' : '회원가입'}
+              </button>
+              <button type='button' onClick={() => { setError(''); setView('login') }}
+                className='w-full text-center text-[13px] text-ink-muted hover:text-primary-700 transition-colors bg-transparent border-none cursor-pointer'>
+                이미 계정이 있으신가요? 로그인
+              </button>
+            </form>
+          )}
+
         </div>
       </div>
     )

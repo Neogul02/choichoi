@@ -34,13 +34,13 @@ const SaveOrderSchema = z.object({
   totalPrice: z.number().int().positive('총 금액이 올바르지 않습니다'),
 });
 
-export async function saveOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string): Promise<SaveOrderResponse> {
+export async function saveOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string, popupId?: string | null): Promise<SaveOrderResponse> {
   const parsed = SaveOrderSchema.safeParse({ items, totalPrice });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
   try {
     console.log(`[saveOrder] Starting order creation. Items: ${items.length}, Total: ${totalPrice}`);
-    const order = await createOrder(items, totalPrice, cashierName);
+    const order = await createOrder(items, totalPrice, cashierName, popupId);
     const sales = await getTodaysSales();
 
     let inventoryError: string | undefined;
@@ -51,6 +51,19 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
     } catch (err) {
       inventoryError = extractErrorMessage(err);
       console.error(`[saveOrder] deductForOrder failed for order ${order.id}:`, err);
+    }
+
+    if (cashierName) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js')
+        const adminClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        )
+        await adminClient.rpc('increment_worker_revenue', { p_name: cashierName, p_amount: totalPrice })
+      } catch (err) {
+        console.error('[saveOrder] revenue increment failed:', err)
+      }
     }
 
     return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales, inventoryError };
