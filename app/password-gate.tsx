@@ -42,6 +42,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [signupBankAccount, setSignupBankAccount] = useState('')
   const [signupHealthCert, setSignupHealthCert] = useState<File | null>(null)
   const [signupInviteCode, setSignupInviteCode] = useState('')
+  const [signupConsent, setSignupConsent] = useState(false)
+  const [showPrivacyDetail, setShowPrivacyDetail] = useState(false)
 
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
@@ -133,6 +135,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     if (!signupEmail.trim()) { setError('이메일을 입력해주세요.'); return }
     if (!signupPhone.trim()) { setError('전화번호를 입력해주세요. (초기 비밀번호로 사용됩니다)'); return }
     if (!signupInviteCode.trim()) { setError('초대 코드를 입력해주세요.'); return }
+    if (!signupConsent) { setError('개인정보 수집·이용에 동의해주세요.'); return }
 
     setError('')
     setIsSubmitting(true)
@@ -174,7 +177,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setInfo(`가입 완료! 초기 비밀번호는 전화번호(${signupPhone.trim()})입니다.`)
     setView('login')
     setSignupName(''); setSignupEmail(''); setSignupPhone('')
-    setSignupBankName(''); setSignupBankAccount(''); setSignupHealthCert(null); setSignupInviteCode('')
+    setSignupBankName(''); setSignupBankAccount(''); setSignupHealthCert(null); setSignupInviteCode(''); setSignupConsent(false)
   }
 
 
@@ -244,6 +247,35 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
               <input type='text' className={inputClass} value={signupInviteCode}
                 onChange={(e) => setSignupInviteCode(e.target.value)} placeholder='초대 코드 *' autoComplete='off' />
+
+              {/* 개인정보 수집·이용 동의 */}
+              <div className='mb-3 border border-hairline rounded-lg p-3 bg-canvas-soft'>
+                <div className='flex items-start gap-2'>
+                  <input
+                    id='signup-consent'
+                    type='checkbox'
+                    checked={signupConsent}
+                    onChange={(e) => setSignupConsent(e.target.checked)}
+                    className='mt-0.5 cursor-pointer accent-primary-700'
+                  />
+                  <label htmlFor='signup-consent' className='text-[13px] text-ink cursor-pointer select-none'>
+                    <span className='font-semibold'>[필수]</span> 개인정보 수집·이용에 동의합니다.{' '}
+                    <button type='button' onClick={() => setShowPrivacyDetail(v => !v)}
+                      className='text-primary-700 underline bg-transparent border-none cursor-pointer text-[12px] p-0'>
+                      {showPrivacyDetail ? '접기' : '내용 보기'}
+                    </button>
+                  </label>
+                </div>
+                {showPrivacyDetail && (
+                  <div className='mt-2 text-[11px] text-ink-muted leading-relaxed border-t border-hairline pt-2 space-y-1'>
+                    <p className='m-0'><span className='font-semibold'>수집 항목:</span> 이름, 이메일, 전화번호, 계좌정보, 보건증 사본</p>
+                    <p className='m-0'><span className='font-semibold'>수집 목적:</span> 근무 일정 관리, 급여 지급, 위생 관리(보건증 확인)</p>
+                    <p className='m-0'><span className='font-semibold'>보유 기간:</span> 고용 관계 종료 후 1년</p>
+                    <p className='m-0'><span className='font-semibold'>제3자 제공:</span> 없음</p>
+                    <p className='m-0 text-[10px] text-ink-faint'>동의를 거부할 수 있으나, 거부 시 서비스 이용이 제한됩니다.</p>
+                  </div>
+                )}
+              </div>
 
               <div className='mb-3'>
                 <button type='button' onClick={() => fileInputRef.current?.click()}
