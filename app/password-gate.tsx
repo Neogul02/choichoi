@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchPopupEvents } from '@/app/actions/schedule'
-import { registerProfile, checkSignupCode } from '@/app/actions/workers'
+import { createWorkerAccount } from '@/app/actions/workers'
 import type { PopupEvent } from '@/types/database'
 
 export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
@@ -137,56 +137,37 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setError('')
     setIsSubmitting(true)
 
-    const codeCheck = await checkSignupCode(signupInviteCode)
-    if (!codeCheck.success) {
-      setError(codeCheck.error ?? '초대 코드가 올바르지 않습니다.')
-      setIsSubmitting(false)
-      return
-    }
-
-    const supabase = createSupabaseBrowserClient()
-
-    // 전화번호 = 초기 비밀번호
-    const { data, error: signupError } = await supabase.auth.signUp({
+    // 서버 액션: 초대코드 검증 + 계정 생성 + 프로필 INSERT (이메일 발송 없음)
+    const result = await createWorkerAccount({
+      inviteCode: signupInviteCode,
       email: signupEmail.trim(),
       password: signupPhone.trim(),
-      options: { data: { role: 'worker', name: signupName.trim() } },
-    })
-
-    if (signupError || !data.user) {
-      setError(signupError?.message ?? '회원가입 중 오류가 발생했습니다.')
-      setIsSubmitting(false)
-      return
-    }
-
-    // 보건증 업로드
-    let healthCertUrl: string | undefined
-    if (signupHealthCert) {
-      const ext = signupHealthCert.name.split('.').pop()
-      const path = `${data.user.id}/health_cert.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('health-certs')
-        .upload(path, signupHealthCert, { upsert: true })
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('health-certs').getPublicUrl(path)
-        healthCertUrl = urlData.publicUrl
-      }
-    }
-
-    // user_profiles INSERT (서버 액션 — SERVICE_ROLE_KEY)
-    const profileRes = await registerProfile({
-      userId: data.user.id,
       name: signupName.trim(),
       phone: signupPhone.trim(),
       bankName: signupBankName.trim() || undefined,
       bankAccount: signupBankAccount.trim() || undefined,
-      healthCertUrl,
     })
 
-    if (!profileRes.success) {
-      setError('프로필 저장 실패: ' + profileRes.error)
+    if (!result.success) {
+      setError(result.error ?? '회원가입 중 오류가 발생했습니다.')
       setIsSubmitting(false)
       return
+    }
+
+    // 보건증 업로드 (선택, 클라이언트 스토리지)
+    if (signupHealthCert && result.data?.userId) {
+      const supabase = createSupabaseBrowserClient()
+      const ext = signupHealthCert.name.split('.').pop()
+      const path = `${result.data.userId}/health_cert.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('health-certs')
+        .upload(path, signupHealthCert, { upsert: true })
+      if (uploadError) {
+        console.error('[signup] 보건증 업로드 실패:', uploadError.message)
+      } else {
+        const { data: urlData } = supabase.storage.from('health-certs').getPublicUrl(path)
+        await supabase.from('user_profiles').update({ health_cert_url: urlData.publicUrl }).eq('id', result.data.userId)
+      }
     }
 
     setIsSubmitting(false)
