@@ -48,6 +48,19 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
       console.log(`[saveOrder] Triggering inventory deduction for order ${order.id}`);
       await deductForOrder(order.id);
       console.log(`[saveOrder] Inventory deduction successful for order ${order.id}`);
+      // 재고 소진 알림 (fire-and-forget)
+      import('@supabase/supabase-js').then(({ createClient }) => {
+        const admin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        )
+        return admin.from('ingredients').select('name').eq('sealed_count', 0).lte('opened_remaining', 0)
+      }).then(async (res) => {
+        if (!res || !('data' in res) || !res.data?.length) return
+        const names = res.data.map((r: { name: string }) => r.name).join(', ')
+        const { notifyDiscord } = await import('@/lib/discord')
+        await notifyDiscord('delete', '⚠️ 재고 소진', `다음 재료가 소진되었습니다: **${names}**`)
+      }).catch(() => {})
     } catch (err) {
       inventoryError = extractErrorMessage(err);
       console.error(`[saveOrder] deductForOrder failed for order ${order.id}:`, err);
@@ -89,4 +102,22 @@ export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: strin
 export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getPendingOrders(popupId)); }
 export async function fetchOrdersByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> { return wrap(() => getOrdersByPeriod(startISO, endISO, popupId)); }
 export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(() => prepareOrder(id)); }
-export async function removeOrder(id: number): Promise<ApiResponse> { return wrap(() => deleteOrder(id)); }
+export async function removeOrder(id: number): Promise<ApiResponse> {
+  try {
+    const { createClient } = await import('@supabase/supabase-js')
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+    const { data: order } = await admin.from('orders').select('total_price, cashier_name').eq('id', id).maybeSingle()
+    const result = await wrap(() => deleteOrder(id))
+    if (result.success && order) {
+      const { notifyDiscord } = await import('@/lib/discord')
+      const price = Number(order.total_price).toLocaleString()
+      await notifyDiscord('delete', '🗑️ 주문 삭제', `주문 #${id} — ₩${price}${order.cashier_name ? ` (${order.cashier_name})` : ''}`)
+    }
+    return result
+  } catch {
+    return wrap(() => deleteOrder(id))
+  }
+}
