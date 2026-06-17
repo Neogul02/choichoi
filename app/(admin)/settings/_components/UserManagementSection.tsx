@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fetchAllUserProfiles } from '@/app/actions/workers'
+import { fetchAllUserProfiles, setUserRole } from '@/app/actions/workers'
 import type { UserProfile } from '@/app/actions/workers'
+import { toast } from 'sonner'
 
 export default function UserManagementSection() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [pendingId, setPendingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAllUserProfiles().then((res) => {
@@ -14,6 +16,20 @@ export default function UserManagementSection() {
       setIsLoading(false)
     })
   }, [])
+
+  const handleRoleToggle = async (user: UserProfile) => {
+    const newRole = user.worker_role === 'admin' ? 'worker' : 'admin'
+    const label = newRole === 'admin' ? '관리자' : '직원'
+    setPendingId(user.id)
+    const res = await setUserRole(user.id, newRole)
+    setPendingId(null)
+    if (res.success) {
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, worker_role: newRole } : u))
+      toast.success(`${user.name}님을 ${label}로 변경했습니다.`)
+    } else {
+      toast.error(`변경 실패: ${res.error}`)
+    }
+  }
 
   if (isLoading) return <p className='text-ink-muted text-sm'>불러오는 중...</p>
   if (users.length === 0) return <p className='text-ink-muted text-sm'>등록된 직원이 없습니다.</p>
@@ -40,7 +56,7 @@ export default function UserManagementSection() {
                 <span>🏦 {u.bank_name && u.bank_account ? `${u.bank_name} ${u.bank_account}` : '계좌 미등록'}</span>
               </div>
             </div>
-            <div className='shrink-0'>
+            <div className='flex flex-col items-end gap-2 shrink-0'>
               {u.health_cert_url ? (
                 <a
                   href={u.health_cert_url}
@@ -55,6 +71,17 @@ export default function UserManagementSection() {
                   보건증 없음
                 </span>
               )}
+              <button
+                onClick={() => handleRoleToggle(u)}
+                disabled={pendingId === u.id}
+                className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
+                  u.worker_role === 'admin'
+                    ? 'bg-canvas text-ink-muted border-hairline hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+                    : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
+                }`}
+              >
+                {pendingId === u.id ? '변경 중...' : u.worker_role === 'admin' ? '직원으로 변경' : '관리자로 승격'}
+              </button>
             </div>
           </div>
         </div>

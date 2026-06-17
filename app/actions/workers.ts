@@ -357,6 +357,24 @@ export async function createWorkerAccount(
   }
 }
 
+export async function setUserRole(userId: string, role: 'admin' | 'worker'): Promise<ApiResponse> {
+  try {
+    const { error } = await supabaseAdmin
+      .from('user_profiles')
+      .update({ worker_role: role })
+      .eq('id', userId)
+    if (error) return { success: false, error: error.message }
+
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      user_metadata: { role },
+    })
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function deleteMyAccount(): Promise<ApiResponse> {
   try {
     const supabase = await createSupabaseServerClient()
