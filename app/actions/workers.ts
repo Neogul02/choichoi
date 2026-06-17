@@ -359,15 +359,19 @@ export async function createWorkerAccount(
 
 export async function setUserRole(userId: string, role: 'admin' | 'worker'): Promise<ApiResponse> {
   try {
+    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
+
     const { error } = await supabaseAdmin
       .from('user_profiles')
       .update({ worker_role: role })
       .eq('id', userId)
     if (error) return { success: false, error: error.message }
 
-    await supabaseAdmin.auth.admin.updateUserById(userId, {
-      user_metadata: { role },
-    })
+    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { role } })
+
+    const label = role === 'admin' ? '관리자' : '직원'
+    const { notifyDiscord } = await import('@/lib/discord')
+    await notifyDiscord('edit', `🔐 권한 변경`, `**${profile?.name ?? userId}** → ${label}`)
 
     return { success: true }
   } catch (err) {
@@ -381,9 +385,16 @@ export async function deleteMyAccount(): Promise<ApiResponse> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
+    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', user.id).maybeSingle()
+    const name = profile?.name ?? user.email ?? user.id
+
     await supabaseAdmin.from('user_profiles').delete().eq('id', user.id)
     const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id)
     if (error) return { success: false, error: error.message }
+
+    const { notifyDiscord } = await import('@/lib/discord')
+    await notifyDiscord('delete', '🚪 직원 탈퇴', `**${name}** (${user.email}) 계정이 삭제되었습니다.`)
+
     return { success: true }
   } catch (err) {
     return { success: false, error: String(err) }
