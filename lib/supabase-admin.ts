@@ -68,15 +68,18 @@ export async function getMenuItems(): Promise<MenuItem[]> {
   return data ?? []
 }
 
-export async function getTodaysSales(): Promise<TodaysSales> {
+export async function getTodaysSales(popupId?: string | number | null): Promise<TodaysSales> {
   const { start, end } = getKSTDateBounds()
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('orders')
     .select('total_price')
     .gte('created_at', start)
     .lte('created_at', end)
     .limit(10000)
 
+  if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
+
+  const { data, error } = await query
   if (error) throw error
 
   const totalRevenue =
@@ -90,9 +93,9 @@ export async function getTodaysSales(): Promise<TodaysSales> {
   }
 }
 
-export async function getTodaysOrderList(): Promise<OrderRecord[]> {
+export async function getTodaysOrderList(popupId?: string | number | null): Promise<OrderRecord[]> {
   const { start, end } = getKSTDateBounds()
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('orders')
     .select('id,total_price,created_at,payment_status,cashier_name,is_prepared')
     .gte('created_at', start)
@@ -100,15 +103,19 @@ export async function getTodaysOrderList(): Promise<OrderRecord[]> {
     .order('id', { ascending: false })
     .limit(10000)
 
+  if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
+
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
 }
 
 export async function getTodaysOrderListWithItems(
   limit?: number,
+  popupId?: string | number | null,
 ): Promise<OrderRecordWithItems[]> {
   const { start, end } = getKSTDateBounds()
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('orders')
     .select(
       'id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))',
@@ -117,6 +124,10 @@ export async function getTodaysOrderListWithItems(
     .lte('created_at', end)
     .order('id', { ascending: false })
     .limit(limit ?? 10000)
+
+  if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
+
+  const { data, error } = await query
 
   if (error) throw error
 
@@ -213,9 +224,9 @@ export async function deleteOrder(id: number): Promise<void> {
   if (orderError) throw orderError
 }
 
-export async function getPendingOrders(): Promise<OrderRecordWithItems[]> {
+export async function getPendingOrders(popupId?: string | number | null): Promise<OrderRecordWithItems[]> {
   const { start, end } = getKSTDateBounds()
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('orders')
     .select(
       'id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))',
@@ -224,6 +235,10 @@ export async function getPendingOrders(): Promise<OrderRecordWithItems[]> {
     .lte('created_at', end)
     .eq('is_prepared', false)
     .order('id', { ascending: false })
+
+  if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
+
+  const { data, error } = await query
 
   if (error) throw error
 
@@ -658,19 +673,24 @@ export async function getDailySalesByPeriod(
 export async function getOrdersByPeriod(
   startISO: string,
   endISO: string,
+  popupId?: string | number | null,
 ): Promise<Array<{ created_at: string; total_price: number }>> {
   const PAGE_SIZE = 1000
   const MAX_ROWS = 10000
   const result: Array<{ created_at: string; total_price: number }> = []
 
   for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('orders')
       .select('created_at, total_price')
       .gte('created_at', startISO)
       .lte('created_at', endISO)
       .order('created_at', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
+
+    if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
+
+    const { data, error } = await query
 
     if (error) throw error
     if (!data || data.length === 0) break
@@ -1064,9 +1084,10 @@ export async function deleteDailySales(id: number): Promise<void> {
 
 export async function getOrdersByDate(
   kstDateStr: string,
+  popupId?: string | number | null,
 ): Promise<import('@/types/api').OrderRecordWithItems[]> {
   const { start, end } = getKSTDateBounds(kstDateStr)
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('orders')
     .select(
       'id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))',
@@ -1075,6 +1096,10 @@ export async function getOrdersByDate(
     .lte('created_at', end)
     .order('id', { ascending: false })
     .limit(10000)
+
+  if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
+
+  const { data, error } = await query
   if (error) throw error
   return (data ?? []).map((order: any) => ({
     id: order.id,

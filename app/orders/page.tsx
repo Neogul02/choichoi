@@ -1,7 +1,7 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
@@ -18,6 +18,11 @@ const pendingCardVariants: Variants = {
 
 export default function OrdersPage() {
   const queryClient = useQueryClient();
+  const [popupId, setPopupId] = useState('0');
+
+  useEffect(() => {
+    setPopupId(localStorage.getItem('choichoi_popup_id') ?? '0');
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -33,9 +38,9 @@ export default function OrdersPage() {
   }, [queryClient]);
 
   const pendingOrdersQuery = useQuery<OrderRecordWithItems[]>({
-    queryKey: ['pending-orders'],
+    queryKey: ['pending-orders', popupId],
     queryFn: async () => {
-      const result = await fetchPendingOrders();
+      const result = await fetchPendingOrders(popupId);
       if (!result.success) throw new Error(result.error || '미처리 주문 로딩 실패');
       return result.data ?? [];
     },

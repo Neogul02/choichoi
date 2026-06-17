@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchPopupEvents } from '@/app/actions/schedule'
 import { createWorkerAccount } from '@/app/actions/workers'
+import { notifyLoginEvent } from '@/app/actions/discord'
 import type { PopupEvent } from '@/types/database'
 
 export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
@@ -125,6 +126,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
     } catch { /* ignore */ }
 
+    notifyLoginEvent(name, loginEmail.trim()).catch(() => {})
     setIsSubmitting(false)
     setIsAuthed(true)
   }

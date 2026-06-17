@@ -142,9 +142,9 @@ export default function PosPage() {
   }, [popupId])
 
   const salesQuery = useQuery<TodaysSales>({
-    queryKey: ['today-sales'],
+    queryKey: ['today-sales', popupId],
     queryFn: async () => {
-      const result = await fetchTodaysSales()
+      const result = await fetchTodaysSales(popupId)
       if (!result.success) throw new Error(result.error || '매출 로딩 실패')
       return result.data ?? { totalRevenue: 0, totalOrders: 0 }
     },
@@ -182,9 +182,9 @@ export default function PosPage() {
   }, [menuItems])
 
   const recentOrdersQuery = useQuery<OrderRecordWithItems[]>({
-    queryKey: ['today-orders-recent'],
+    queryKey: ['today-orders-recent', popupId],
     queryFn: async () => {
-      const result = await fetchTodaysOrdersWithItems(10)
+      const result = await fetchTodaysOrdersWithItems(10, popupId)
       if (!result.success)
         throw new Error(result.error || '최근 주문 로딩 실패')
       return result.data ?? []

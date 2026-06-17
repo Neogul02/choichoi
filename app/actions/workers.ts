@@ -348,6 +348,9 @@ export async function createWorkerAccount(
       return { success: false, error: `프로필 저장 실패: ${profileError.message}` }
     }
 
+    const { notifyDiscord } = await import('@/lib/discord')
+    await notifyDiscord('add', '👤 새 직원 가입', `**${input.name.trim()}** (${input.email.trim()})`)
+
     return { success: true, data: { userId } }
   } catch (err) {
     return { success: false, error: String(err) }
