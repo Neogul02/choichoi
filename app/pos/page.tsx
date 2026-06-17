@@ -1,9 +1,7 @@
 'use client'
 
 import NavBar from '@/components/NavBar'
-import CheerPanel from '@/components/CheerPanel'
 import { usePresence } from '@/hooks/usePresence'
-import { useCheers } from '@/hooks/useCheers'
 import SalesBanner from '@/components/SalesBanner'
 import { useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -56,8 +54,6 @@ export default function PosPage() {
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevTierLvRef = useRef(0)
   const activeCashiers = usePresence(cashierName)
-  const { totalToday, cheer, reset: resetCheers, milestoneKey } = useCheers(popupId === '0' ? null : popupId)
-  const handleCheer = useCallback(() => { cheer('_') }, [cheer])
 
   useEffect(() => {
     setCashierName(localStorage.getItem(CASHIER_NAME_KEY))
@@ -391,7 +387,7 @@ export default function PosPage() {
 
   return (
     <>
-      <NavBar activeCashiers={activeCashiers} cheerTotal={totalToday} onResetCheers={resetCheers} />
+      <NavBar activeCashiers={activeCashiers} />
 
       <main className="min-h-screen p-3 md:p-5 pb-24 md:pb-5 md:px-8 max-w-[1100px] mx-auto">
         {/* 결제 대기 헤더 */}
@@ -662,8 +658,7 @@ export default function PosPage() {
 
 
       </main>
-      <CheerPanel totalToday={totalToday} onCheer={handleCheer} />
-      <FloatingEmojis burstKey={milestoneKey} />
+      <FloatingEmojis burstKey={0} />
     </>
   )
 }

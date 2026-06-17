@@ -34,7 +34,7 @@ function useTodayLabel(): string {
   return label;
 }
 
-export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal, onResetCheers }: { activeCashiers?: PresenceUser[]; cheerTotal?: number; onResetCheers?: () => void } = {}) {
+export default function NavBar({ activeCashiers: activeCashiersProp }: { activeCashiers?: PresenceUser[] } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const todayLabel = useTodayLabel();
@@ -46,15 +46,6 @@ export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal,
 
   const ownActiveCashiers = usePresence(activeCashiersProp !== undefined ? null : cashierName);
   const activeCashiers = activeCashiersProp ?? ownActiveCashiers;
-  const [floatHeart, setFloatHeart] = useState(0);
-  const cheerPrevRef = useRef(cheerTotal ?? 0);
-  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
-  const cheerCounterRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if ((cheerTotal ?? 0) > cheerPrevRef.current) setFloatHeart((k) => k + 1);
-    cheerPrevRef.current = cheerTotal ?? 0;
-  }, [cheerTotal]);
 
   useEffect(() => {
     try {
@@ -142,7 +133,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal,
                         {popupName}
                       </span>
                     )}
-                    {(activeCashiers.length > 0 || (cheerTotal ?? 0) > 0) && (
+                    {activeCashiers.length > 0 && (
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="hidden md:inline text-[11px] text-ink-faint shrink-0">접속</span>
                         <div className="flex gap-1 flex-wrap">
@@ -161,41 +152,6 @@ export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal,
                               </span>
                             ))}
                         </div>
-                        {(cheerTotal ?? 0) > 0 && (
-                          <span
-                            ref={cheerCounterRef}
-                            className="relative inline-flex items-center shrink-0"
-                            onMouseEnter={() => {
-                              const r = cheerCounterRef.current?.getBoundingClientRect();
-                              if (r) setTooltipPos({ top: r.bottom + 6, left: r.left + r.width / 2 });
-                            }}
-                            onMouseLeave={() => setTooltipPos(null)}
-                          >
-                            <motion.span
-                              key={cheerTotal}
-                              initial={{ scale: 1.7 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-                              className="text-[11px] font-bold text-rose-400 inline-block cursor-default"
-                            >
-                              ❤️ {cheerTotal}
-                            </motion.span>
-                            <AnimatePresence>
-                              {floatHeart > 0 && (
-                                <motion.span
-                                  key={floatHeart}
-                                  initial={{ y: 0, opacity: 1, scale: 1 }}
-                                  animate={{ y: -18, opacity: 0, scale: 0.6 }}
-                                  transition={{ duration: 0.55, ease: 'easeOut' }}
-                                  onAnimationComplete={() => setFloatHeart(0)}
-                                  className="absolute text-[10px] pointer-events-none left-1/2 -translate-x-1/2"
-                                >
-                                  ❤️
-                                </motion.span>
-                              )}
-                            </AnimatePresence>
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
@@ -279,31 +235,6 @@ export default function NavBar({ activeCashiers: activeCashiersProp, cheerTotal,
         </div>
       </div>
 
-      {tooltipPos && createPortal(
-        <div
-          style={{ position: 'fixed', top: tooltipPos.top, left: tooltipPos.left, transform: 'translateX(-50%)', zIndex: 9999 }}
-          onMouseEnter={() => {
-            const r = cheerCounterRef.current?.getBoundingClientRect();
-            if (r) setTooltipPos({ top: r.bottom + 6, left: r.left + r.width / 2 });
-          }}
-          onMouseLeave={() => setTooltipPos(null)}
-          className="flex flex-col items-center pointer-events-auto"
-        >
-          <span className="w-2 h-2 bg-[#1a1a1a] rotate-45 -mb-1 shrink-0" />
-          <div className="bg-[#1a1a1a] text-white text-[11px] font-semibold rounded-lg px-3 py-2 whitespace-nowrap shadow-lg flex flex-col items-center gap-1.5">
-            <span>오늘 총 {cheerTotal?.toLocaleString()}번 응원했어요 🎉</span>
-            {onResetCheers && (
-              <button
-                onClick={() => { onResetCheers(); setTooltipPos(null); }}
-                className="text-[10px] text-rose-300 hover:text-white border border-rose-400/40 hover:border-white/40 rounded px-2 py-0.5 cursor-pointer bg-transparent transition-colors"
-              >
-                초기화
-              </button>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
   </>
   );
 }
