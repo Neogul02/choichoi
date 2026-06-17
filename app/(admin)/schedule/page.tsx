@@ -6,7 +6,7 @@ import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent,
   fetchScheduleByEvent, addScheduleEntry, removeScheduleEntry,
   moveScheduleEntry, editScheduleEntry, copyScheduleEntry,
-  fetchWorkers, editWorker, markWorkerPayment,
+  fetchWorkers, editWorker, markWorkerPayment, createNewWorker,
 } from '@/app/actions/schedule';
 import { fetchAllUserProfiles, findOrCreateWorkerFromProfile } from '@/app/actions/workers';
 import type { UserProfile } from '@/app/actions/workers';
@@ -70,6 +70,13 @@ export default function SchedulePage() {
   const [draggingProfileId, setDraggingProfileId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<DragCell | null>(null);
   const touchDragRef = useRef<number | null>(null);
+  const touchProfileRef = useRef<string | null>(null);
+  const touchWorkerRef = useRef<number | null>(null);
+
+  // 임시 근무자 추가 폼
+  const [showTempWorkerForm, setShowTempWorkerForm] = useState(false);
+  const [tempWorkerName, setTempWorkerName] = useState('');
+  const [draggingWorkerId, setDraggingWorkerId] = useState<number | null>(null);
 
   // Color picker
   const [colorPickerWorkerId, setColorPickerWorkerId] = useState<number | null>(null);
@@ -184,12 +191,21 @@ export default function SchedulePage() {
     if (editingSlotId === id) { e.preventDefault(); return; }
     e.dataTransfer.effectAllowed = dragMode === 'copy' ? 'copy' : 'move'; setDraggedSlotId(id);
   };
-  const handleDragEnd = () => { setDraggedSlotId(null); setDraggingProfileId(null); setDragOverCell(null); };
+  const handleDragEnd = () => { setDraggedSlotId(null); setDraggingProfileId(null); setDraggingWorkerId(null); setDragOverCell(null); };
   const handleDragOver = (e: React.DragEvent<HTMLTableCellElement>, dateStr: string, role: string) => { e.preventDefault(); setDragOverCell({ date: dateStr, role }); };
   const handleDragLeave = () => setDragOverCell(null);
 
   const handleDrop = async (e: React.DragEvent<HTMLTableCellElement>, dateStr: string, role: string) => {
     e.preventDefault();
+    if (draggingWorkerId !== null) {
+      const worker = workers.find(w => w.id === draggingWorkerId);
+      if (worker && selectedEvent) {
+        const sr = await addScheduleEntry(selectedEvent.id, dateStr, role, worker.name, '', worker.id, false);
+        if (sr.success && sr.data) { setSlots(p => [...p, sr.data!]); showMsg('인원이 추가되었습니다'); }
+        else showMsg(`오류: ${sr.error}`);
+      }
+      setDraggingWorkerId(null); setDragOverCell(null); return;
+    }
     if (draggingProfileId !== null) {
       if (!selectedEvent) { setDraggingProfileId(null); setDragOverCell(null); return; }
       const r = await findOrCreateWorkerFromProfile(selectedEvent.id, draggingProfileId);
@@ -222,11 +238,37 @@ export default function SchedulePage() {
     if (editingSlotId === id) return; e.preventDefault(); touchDragRef.current = id; setDraggedSlotId(id);
   };
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!touchDragRef.current) return;
+    if (!touchDragRef.current && !touchProfileRef.current) return;
+    e.preventDefault();
     const t = e.touches[0]; const el = document.elementFromPoint(t.clientX, t.clientY)?.closest('[data-cell]');
     if (el) setDragOverCell({ date: el.getAttribute('data-date')!, role: el.getAttribute('data-role')! });
+    else setDragOverCell(null);
   };
   const handleTouchEnd = async () => {
+    if (touchWorkerRef.current && dragOverCell) {
+      const worker = workers.find(w => w.id === touchWorkerRef.current);
+      if (worker && selectedEvent) {
+        const sr = await addScheduleEntry(selectedEvent.id, dragOverCell.date, dragOverCell.role, worker.name, '', worker.id, false);
+        if (sr.success && sr.data) { setSlots(p => [...p, sr.data!]); showMsg('인원이 추가되었습니다'); }
+        else showMsg(`오류: ${sr.error}`);
+      }
+      touchWorkerRef.current = null; setDraggingWorkerId(null); setDragOverCell(null); return;
+    }
+    if (touchProfileRef.current && dragOverCell) {
+      const profileId = touchProfileRef.current;
+      if (selectedEvent) {
+        const r = await findOrCreateWorkerFromProfile(selectedEvent.id, profileId);
+        if (r.success && r.data) {
+          const worker = r.data;
+          setWorkers(p => p.find(w => w.id === worker.id) ? p : [...p, worker]);
+          const sr = await addScheduleEntry(selectedEvent.id, dragOverCell.date, dragOverCell.role, worker.name, '', worker.id, false);
+          if (sr.success && sr.data) { setSlots(p => [...p, sr.data!]); showMsg('인원이 추가되었습니다'); }
+          else showMsg(`오류: ${sr.error}`);
+        } else showMsg(`오류: ${r.error}`);
+      }
+      touchProfileRef.current = null; setDraggingProfileId(null); setDragOverCell(null);
+      return;
+    }
     if (touchDragRef.current && dragOverCell) {
       const { date, role } = dragOverCell;
       const slot = slots.find(s => s.id === touchDragRef.current);
@@ -439,7 +481,68 @@ export default function SchedulePage() {
 
                 {/* 직원 풀 */}
                 <div>
-                  <h3 className="m-0 mb-0.5 text-sm font-extrabold">직원 풀</h3>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <h3 className="m-0 text-sm font-extrabold">직원 풀</h3>
+                    <button
+                      onClick={() => { setShowTempWorkerForm(p => !p); setTempWorkerName(''); }}
+                      className="text-[11px] text-primary-600 font-bold hover:text-primary-800 transition"
+                    >
+                      {showTempWorkerForm ? '취소' : '+ 임시 근무자'}
+                    </button>
+                  </div>
+                  {showTempWorkerForm && (
+                    <form
+                      className="flex gap-1.5 mb-3"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const name = tempWorkerName.trim();
+                        if (!name || !selectedEvent) return;
+                        const COLORS = ['#22c55e', '#6366f1', '#ef4444', '#f97316', '#64748b'];
+                        const color = COLORS[workers.length % COLORS.length];
+                        const r = await createNewWorker({ event_id: selectedEvent.id, name, color, hourly_rate: 0, user_profile_id: null });
+                        if (r.success && r.data) {
+                          setWorkers(p => [...p, r.data!]);
+                          showMsg(`${name} 추가됨`);
+                          setShowTempWorkerForm(false);
+                          setTempWorkerName('');
+                        } else showMsg(`오류: ${r.error}`);
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        value={tempWorkerName}
+                        onChange={e => setTempWorkerName(e.target.value)}
+                        placeholder="이름 입력"
+                        className="flex-1 text-sm border border-hairline rounded-lg px-2.5 py-1.5 bg-canvas focus:outline-none focus:border-primary-400"
+                      />
+                      <button type="submit" className="text-sm bg-primary-600 text-white rounded-lg px-3 py-1.5 font-bold hover:bg-primary-700 transition">추가</button>
+                    </form>
+                  )}
+                  {/* 임시 근무자 (user_profile 없는 workers) */}
+                  {workers.filter(w => !w.user_profile_id).length > 0 && (
+                    <div className="mb-3">
+                      <p className="m-0 text-[10px] text-ink-faint mb-1.5 font-semibold uppercase tracking-wide">임시 근무자</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {workers.filter(w => !w.user_profile_id).map(worker => (
+                          <div
+                            key={worker.id}
+                            className="rounded-lg p-2.5 border border-hairline bg-canvas-soft hover:border-primary-300 hover:shadow-sm transition cursor-grab active:cursor-grabbing select-none"
+                            draggable
+                            onDragStart={e => { e.dataTransfer.effectAllowed = 'copy'; setDraggingWorkerId(worker.id); }}
+                            onDragEnd={handleDragEnd}
+                            onTouchStart={e => { e.preventDefault(); touchWorkerRef.current = worker.id; setDraggingWorkerId(worker.id); }}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: worker.color }} />
+                              <strong className="text-[13px] font-bold truncate flex-1">{worker.name}</strong>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <p className="m-0 text-[11px] text-ink-muted mb-3">카드를 스케줄로 드래그해서 배치하세요</p>
                   {userProfiles.length === 0 ? (
                     <p className="text-ink-faint text-sm m-0">등록된 직원이 없습니다.</p>
@@ -454,6 +557,9 @@ export default function SchedulePage() {
                             draggable
                             onDragStart={e => { e.dataTransfer.effectAllowed = 'copy'; setDraggingProfileId(profile.id); }}
                             onDragEnd={handleDragEnd}
+                            onTouchStart={e => { e.preventDefault(); touchProfileRef.current = profile.id; setDraggingProfileId(profile.id); }}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
                           >
                             <div className="flex items-center gap-1.5 mb-1">
                               <span

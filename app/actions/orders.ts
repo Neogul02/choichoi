@@ -41,7 +41,7 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
   try {
     console.log(`[saveOrder] Starting order creation. Items: ${items.length}, Total: ${totalPrice}`);
     const order = await createOrder(items, totalPrice, cashierName, popupId);
-    const sales = await getTodaysSales();
+    const sales = await getTodaysSales(popupId);
 
     let inventoryError: string | undefined;
     try {
@@ -83,10 +83,10 @@ export async function resetTodaysSales(): Promise<ResetSalesResponse> {
   }
 }
 
-export async function fetchTodaysSales(): Promise<FetchTodaysSalesResponse> { return wrap(getTodaysSales); }
-export async function fetchTodaysOrders(): Promise<FetchOrdersResponse> { return wrap(getTodaysOrderList); }
-export async function fetchTodaysOrdersWithItems(limit?: number): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit)); }
-export async function fetchPendingOrders(): Promise<FetchOrdersWithItemsResponse> { return wrap(getPendingOrders); }
-export async function fetchOrdersByPeriod(startISO: string, endISO: string): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> { return wrap(() => getOrdersByPeriod(startISO, endISO)); }
+export async function fetchTodaysSales(popupId?: string | null): Promise<FetchTodaysSalesResponse> { return wrap(() => getTodaysSales(popupId)); }
+export async function fetchTodaysOrders(popupId?: string | null): Promise<FetchOrdersResponse> { return wrap(() => getTodaysOrderList(popupId)); }
+export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit, popupId)); }
+export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getPendingOrders(popupId)); }
+export async function fetchOrdersByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> { return wrap(() => getOrdersByPeriod(startISO, endISO, popupId)); }
 export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(() => prepareOrder(id)); }
 export async function removeOrder(id: number): Promise<ApiResponse> { return wrap(() => deleteOrder(id)); }

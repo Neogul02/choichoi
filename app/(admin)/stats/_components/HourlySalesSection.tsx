@@ -58,7 +58,7 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
         const popup = popupEvents.find((p) => p.id === selectedPopupId);
         if (!popup) return;
         setIsPeriodLoading(true);
-        const res = await fetchOrdersByPeriod(`${popup.start_date}T00:00:00+09:00`, `${popup.end_date}T23:59:59+09:00`);
+        const res = await fetchOrdersByPeriod(`${popup.start_date}T00:00:00+09:00`, `${popup.end_date}T23:59:59+09:00`, String(selectedPopupId));
         if (!isCurrent) return;
         setPeriodOrders(res.success && res.data ? res.data : []);
         setIsPeriodLoading(false);

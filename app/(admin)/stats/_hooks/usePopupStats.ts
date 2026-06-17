@@ -36,7 +36,7 @@ export function usePopupStats() {
       const [menuRes, dailyRes, rawRes] = await Promise.all([
         fetchMenuSalesBreakdown(startISO, endISO),
         fetchDailySalesByPeriod(startISO, endISO),
-        fetchOrdersByPeriod(startISO, endISO),
+        fetchOrdersByPeriod(startISO, endISO, String(selectedPopupId)),
       ]);
       if (!isCurrent) return;
       if (menuRes.success && menuRes.data) setPopupMenuBreakdown(menuRes.data);
