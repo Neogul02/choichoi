@@ -107,7 +107,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       localStorage.removeItem(POPUP_ID_KEY);
       localStorage.removeItem(POPUP_NAME_KEY);
     } catch { /* ignore */ }
-    window.location.href = '/';
+    window.location.href = '/pos';
   };
 
   return (
