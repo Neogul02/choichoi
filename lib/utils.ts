@@ -28,6 +28,18 @@ export function formatDateLabel(dateStr: string): string {
 export const MIN_HOURLY_WAGE = 10_320;
 export const EFFECTIVE_MIN_WAGE = Math.round(MIN_HOURLY_WAGE * 1.2);
 
+// Supabase Auth 호출이 락 경합 등으로 무한정 멈추는 경우를 막기 위한 안전장치.
+// 지정 시간 내에 끝나지 않으면 reject해서 UI가 영원히 로딩 상태에 갇히지 않도록 한다.
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} 응답이 없습니다 (시간 초과). 새로고침 후 다시 시도해주세요.`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 // breakMinutes: 0=없음, 30=30분, 60=1시간
 export function parseWorkHours(workTime: string | null, breakMinutes: number = 0): number {
   if (!workTime) return 0;
