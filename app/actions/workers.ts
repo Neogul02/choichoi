@@ -466,3 +466,22 @@ export async function findOrCreateWorkerFromProfile(
     return { success: false, error: String(err) }
   }
 }
+
+export async function findWorkerByProfileId(
+  profileId: string,
+): Promise<ApiResponse<Worker>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('workers')
+      .select('*')
+      .eq('user_profile_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return { success: false, error: error.message }
+    if (!data) return { success: false, error: '연결된 Worker 레코드가 없습니다.' }
+    return { success: true, data: data as Worker }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}

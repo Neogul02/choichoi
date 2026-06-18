@@ -63,7 +63,7 @@ export default function SchedulePage() {
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
   const [editWorkerId, setEditWorkerId] = useState<number | ''>('');
   const [editWorkTime, setEditWorkTime] = useState('');
-  const [editBreak, setEditBreak] = useState(false);
+  const [editBreak, setEditBreak] = useState<0 | 30 | 60>(0);
 
   // Drag
   const [draggedSlotId, setDraggedSlotId] = useState<number | null>(null);
@@ -152,7 +152,7 @@ export default function SchedulePage() {
 
   const handleEditStart = (e: React.MouseEvent, slot: ScheduleSlot) => {
     e.stopPropagation();
-    setEditingSlotId(slot.id); setEditWorkerId(slot.worker_id ?? ''); setEditWorkTime(slot.work_time ?? ''); setEditBreak(slot.break_time ?? false);
+    setEditingSlotId(slot.id); setEditWorkerId(slot.worker_id ?? ''); setEditWorkTime(slot.work_time ?? ''); setEditBreak((slot.break_time ?? 0) as 0 | 30 | 60);
   };
 
   const handleEditSave = async (id: number) => {
@@ -200,7 +200,7 @@ export default function SchedulePage() {
     if (draggingWorkerId !== null) {
       const worker = workers.find(w => w.id === draggingWorkerId);
       if (worker && selectedEvent) {
-        const sr = await addScheduleEntry(selectedEvent.id, dateStr, role, worker.name, '', worker.id, false);
+        const sr = await addScheduleEntry(selectedEvent.id, dateStr, role, worker.name, '', worker.id, 0);
         if (sr.success && sr.data) { setSlots(p => [...p, sr.data!]); showMsg('인원이 추가되었습니다'); }
         else showMsg(`오류: ${sr.error}`);
       }
@@ -212,7 +212,7 @@ export default function SchedulePage() {
       if (r.success && r.data) {
         const worker = r.data;
         setWorkers(p => p.find(w => w.id === worker.id) ? p : [...p, worker]);
-        const sr = await addScheduleEntry(selectedEvent.id, dateStr, role, worker.name, '', worker.id, false);
+        const sr = await addScheduleEntry(selectedEvent.id, dateStr, role, worker.name, '', worker.id, 0);
         if (sr.success && sr.data) { setSlots(p => [...p, sr.data!]); showMsg('인원이 추가되었습니다'); }
         else showMsg(`오류: ${sr.error}`);
       } else {
@@ -248,7 +248,7 @@ export default function SchedulePage() {
     if (touchWorkerRef.current && dragOverCell) {
       const worker = workers.find(w => w.id === touchWorkerRef.current);
       if (worker && selectedEvent) {
-        const sr = await addScheduleEntry(selectedEvent.id, dragOverCell.date, dragOverCell.role, worker.name, '', worker.id, false);
+        const sr = await addScheduleEntry(selectedEvent.id, dragOverCell.date, dragOverCell.role, worker.name, '', worker.id, 0);
         if (sr.success && sr.data) { setSlots(p => [...p, sr.data!]); showMsg('인원이 추가되었습니다'); }
         else showMsg(`오류: ${sr.error}`);
       }
@@ -261,7 +261,7 @@ export default function SchedulePage() {
         if (r.success && r.data) {
           const worker = r.data;
           setWorkers(p => p.find(w => w.id === worker.id) ? p : [...p, worker]);
-          const sr = await addScheduleEntry(selectedEvent.id, dragOverCell.date, dragOverCell.role, worker.name, '', worker.id, false);
+          const sr = await addScheduleEntry(selectedEvent.id, dragOverCell.date, dragOverCell.role, worker.name, '', worker.id, 0);
           if (sr.success && sr.data) { setSlots(p => [...p, sr.data!]); showMsg('인원이 추가되었습니다'); }
           else showMsg(`오류: ${sr.error}`);
         } else showMsg(`오류: ${r.error}`);
@@ -293,6 +293,7 @@ export default function SchedulePage() {
       const key = slot.worker_id ? `w:${slot.worker_id}` : `n:${slot.person_name}`;
       if (!map.has(key)) map.set(key, { key, worker, name: worker?.name ?? slot.person_name, entries: [] });
       map.get(key)!.entries.push({ date: slot.schedule_date, role: slot.role, workTime: slot.work_time, breakTime: slot.break_time, hours: parseWorkHours(slot.work_time, slot.break_time) });
+
     }
     return Array.from(map.values()).sort((a, b) => {
       const calcPay = (g: SalaryGroup) => {
@@ -396,10 +397,15 @@ export default function SchedulePage() {
                                             {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                           </select>
                                           <input type="text" value={editWorkTime} onChange={e => setEditWorkTime(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleEditSave(slot.id); if (e.key === 'Escape') setEditingSlotId(null); }} placeholder="09-18" className="w-full px-1 py-1 border border-hairline rounded text-[10px] focus:outline-none focus:border-primary-700" />
-                                          <label className="flex items-center gap-1 text-[10px] cursor-pointer select-none">
-                                            <input type="checkbox" checked={editBreak} onChange={e => setEditBreak(e.target.checked)} className="w-3 h-3 cursor-pointer" />
-                                            쉬는시간 1시간 차감
-                                          </label>
+                                          <div className="flex gap-1 items-center text-[10px]">
+                                            <span className="text-ink-muted shrink-0">휴게:</span>
+                                            {([0, 30, 60] as const).map(v => (
+                                              <button key={v} type="button" onClick={() => setEditBreak(v)}
+                                                className={`px-1.5 py-0.5 rounded border text-[9px] font-bold cursor-pointer transition ${editBreak === v ? 'bg-primary-700 text-white border-primary-700' : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'}`}>
+                                                {v === 0 ? '없음' : v === 30 ? '30분' : '1시간'}
+                                              </button>
+                                            ))}
+                                          </div>
                                           <div className="flex gap-1">
                                             <button className="flex-1 py-0.5 border-none rounded text-[10px] font-bold cursor-pointer bg-primary-700 text-white hover:bg-primary-800 transition" onClick={() => handleEditSave(slot.id)}>저장</button>
                                             <button className="flex-1 py-0.5 border-none rounded text-[10px] font-bold cursor-pointer bg-canvas-soft text-ink-secondary hover:bg-[#ececeb] transition" onClick={() => setEditingSlotId(null)}>취소</button>
@@ -409,7 +415,7 @@ export default function SchedulePage() {
                                         <div key={slot.id} className={`flex items-center gap-0.5 w-full text-white rounded-lg px-1.5 py-1 cursor-grab select-none touch-none transition ${draggedSlotId === slot.id ? 'opacity-30' : ''}`} style={{ backgroundColor: workers.find(w => w.id === slot.worker_id)?.color ?? '#6366f1' }} draggable onDragStart={e => handleDragStart(e, slot.id)} onDragEnd={handleDragEnd} onTouchStart={e => handleTouchStart(e, slot.id)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}>
                                           <div className="flex flex-col min-w-0 flex-1">
                                             <span className="text-[11px] font-bold leading-tight whitespace-nowrap">{slot.person_name}</span>
-                                            {slot.work_time && <span className="text-[9px] opacity-75 leading-none whitespace-nowrap">{slot.work_time}{slot.break_time && ' -1h'}</span>}
+                                            {slot.work_time && <span className="text-[9px] opacity-75 leading-none whitespace-nowrap">{slot.work_time}{slot.break_time > 0 && ` -${slot.break_time}m`}</span>}
                                           </div>
                                           <button className="bg-canvas/15 border-none rounded w-[15px] h-[15px] flex items-center justify-center cursor-pointer text-[10px] p-0 hover:bg-canvas/35 transition shrink-0" onClick={e => handleEditStart(e, slot)}>✎</button>
                                           <button className="bg-canvas/15 border-none rounded w-[15px] h-[15px] flex items-center justify-center cursor-pointer text-xs p-0 hover:bg-canvas/35 transition shrink-0" onClick={e => { e.stopPropagation(); handleRemovePerson(slot.id); }}>×</button>

@@ -7,8 +7,13 @@ import { getWorkerTier } from '@/lib/tiers'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import NavBar from '@/components/NavBar'
 import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount } from '@/app/actions/workers'
+import { getMyContracts } from '@/app/actions/contracts'
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
+import type { ContractRecord } from '@/app/actions/contracts'
+import dynamic from 'next/dynamic'
+
+const WorkerSignModal = dynamic(() => import('@/components/WorkerSignModal'), { ssr: false })
 
 
 export default function MyPage() {
@@ -39,6 +44,9 @@ export default function MyPage() {
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [isDeletePending, startDeleteTransition] = useTransition()
 
+  const [contracts, setContracts] = useState<ContractRecord[]>([])
+  const [signingContract, setSigningContract] = useState<ContractRecord | null>(null)
+
   useEffect(() => {
     const load = async () => {
       const supabase = createSupabaseBrowserClient()
@@ -48,7 +56,11 @@ export default function MyPage() {
         setAuthEmail(user.email ?? null)
         setIsAdmin(user.user_metadata?.role === 'admin')
       }
-      const [profileRes, statsRes] = await Promise.all([getMyProfile(), getMyOrderStats()])
+      const [profileRes, statsRes, contractsRes] = await Promise.all([
+        getMyProfile(),
+        getMyOrderStats(),
+        getMyContracts(),
+      ])
       if (profileRes.success && profileRes.data) {
         setProfile(profileRes.data)
         setIsAdmin(profileRes.data.worker_role === 'admin')
@@ -56,6 +68,9 @@ export default function MyPage() {
       if (statsRes.success && statsRes.data) {
         setStats(statsRes.data)
         setActivePopupIdx(Math.max(0, (statsRes.data.byPopup.length ?? 1) - 1))
+      }
+      if (contractsRes.success && contractsRes.data) {
+        setContracts(contractsRes.data)
       }
       setLoading(false)
     }
@@ -279,6 +294,66 @@ export default function MyPage() {
           </section>
         )}
 
+        {/* 내 근로계약서 */}
+        <section className='bg-canvas border border-hairline rounded-xl p-5 shadow-level-1'>
+          <h2 className='text-[15px] font-bold text-ink mb-4'>내 근로계약서</h2>
+          {contracts.length === 0 ? (
+            <p className='text-[13px] text-ink-muted'>계약서가 없습니다.</p>
+          ) : (
+            <div className='space-y-2'>
+              {contracts.map((c) => (
+                <div key={c.id} className='flex items-start justify-between gap-3 rounded-xl border border-hairline p-3 bg-canvas-soft'>
+                  <div className='text-[12px] space-y-0.5 flex-1 min-w-0'>
+                    <div className='flex items-center gap-2 flex-wrap'>
+                      <p className='text-ink font-semibold'>
+                        {c.start_date}{c.end_date ? ` ~ ${c.end_date}` : ' ~'}
+                      </p>
+                      {c.worker_signed_at ? (
+                        <span className='text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200'>
+                          서명 완료
+                        </span>
+                      ) : (
+                        <span className='text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200'>
+                          서명 대기
+                        </span>
+                      )}
+                    </div>
+                    <p className='text-ink-muted'>
+                      시급 {c.hourly_rate.toLocaleString('ko-KR')}원
+                      {c.workplace ? ` · ${c.workplace}` : ''}
+                    </p>
+                    <p className='text-ink-faint text-[11px]'>
+                      발급: {c.issued_at.slice(0, 10)}
+                      {c.worker_signed_at && ` · 서명: ${c.worker_signed_at.slice(0, 10)}`}
+                    </p>
+                  </div>
+                  <div className='flex items-center gap-1.5 shrink-0'>
+                    {c.pdf_signed_url && (
+                      <a
+                        href={c.pdf_signed_url}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-50 text-primary-700 border border-primary-200 text-[11px] font-semibold hover:bg-primary-100 transition-colors no-underline'
+                      >
+                        PDF
+                      </a>
+                    )}
+                    {!c.worker_signed_at && (
+                      <button
+                        type='button'
+                        onClick={() => setSigningContract(c)}
+                        className='px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-semibold hover:bg-amber-100 transition-colors cursor-pointer border-solid'
+                      >
+                        서명하기
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* 비밀번호 변경 */}
         <section className='bg-canvas border border-hairline rounded-xl p-5 shadow-level-1'>
           <div className='flex items-center justify-between'>
@@ -315,6 +390,20 @@ export default function MyPage() {
             </div>
           )}
         </section>
+
+        {/* 근로계약서 서명 모달 */}
+        {signingContract && (
+          <WorkerSignModal
+            contract={signingContract}
+            workerName={profile?.name ?? authName ?? ''}
+            workerPhone={profile?.phone ?? undefined}
+            onClose={() => setSigningContract(null)}
+            onSuccess={(updated) => {
+              setContracts(prev => prev.map(c => c.id === updated.id ? updated : c))
+              setSigningContract(null)
+            }}
+          />
+        )}
 
         {/* 계정 탈퇴 */}
         <section className='bg-canvas border border-rose-200 rounded-xl p-5 shadow-level-1'>

@@ -9,9 +9,7 @@ import DevToolsSection from './_components/DevToolsSection';
 import UserManagementSection from './_components/UserManagementSection';
 
 type ActiveTab = 'menu' | 'devtools' | 'users';
-
 type ColorOption = { name: string; value: string };
-type MenuFormData = { name: string; price: string; color: string };
 
 const COLOR_PALETTE: ColorOption[] = [
   { name: '빨강', value: '#E53935' },
@@ -24,239 +22,279 @@ const COLOR_PALETTE: ColorOption[] = [
   { name: '보라', value: '#8E24AA' },
 ];
 
-const INITIAL_FORM: MenuFormData = { name: '', price: '', color: COLOR_PALETTE[0].value };
+const INITIAL_ADD = { name: '', price: '', color: COLOR_PALETTE[0].value };
+
+type InlineEdit = { name: string; price: string; color: string };
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('menu');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [addForm, setAddForm] = useState(INITIAL_ADD);
+
+  // 인라인 편집: id → 편집 중인 값
+  const [inlineEdits, setInlineEdits] = useState<Record<number, InlineEdit>>({});
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  // 드래그
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<MenuFormData>(INITIAL_FORM);
 
-  const loadMenuItems = async () => {
-    setIsLoading(true);
-    const result = await getAllMenu();
-    if (result.success && result.data) setMenuItems(result.data);
-    setIsLoading(false);
-  };
+  useEffect(() => {
+    getAllMenu().then(r => {
+      if (r.success && r.data) setMenuItems(r.data);
+      setIsLoading(false);
+    });
+  }, []);
 
-  useEffect(() => { loadMenuItems(); }, []);
+  const activeMenuItems = useMemo(() => menuItems.filter(m => m.is_active), [menuItems]);
 
-  const validateForm = (): number | null => {
-    if (!formData.name || !formData.price) { toast.error('모든 필드를 입력해주세요'); return null; }
-    const price = parseFloat(formData.price);
-    if (isNaN(price) || price <= 0) { toast.error('가격은 0보다 큰 숫자여야 합니다'); return null; }
-    return price;
-  };
-
-  const handleAddMenuItem = async () => {
-    const price = validateForm();
-    if (price === null) return;
-    setIsSubmitting(true);
-    const result = await createNewMenuItem(formData.name, price, formData.color);
-    setIsSubmitting(false);
-    if (result.success && result.data) {
-      setMenuItems(p => [...p, result.data!]);
-      setFormData(INITIAL_FORM);
-      toast.success('메뉴가 추가되었습니다');
+  // ── 추가 ──────────────────────────────────────────────
+  const handleAdd = async () => {
+    if (!addForm.name || !addForm.price) { toast.error('이름과 가격을 입력하세요'); return; }
+    const price = parseFloat(addForm.price);
+    if (isNaN(price) || price <= 0) { toast.error('가격은 0보다 큰 숫자여야 합니다'); return; }
+    setIsAdding(true);
+    const res = await createNewMenuItem(addForm.name, price, addForm.color);
+    setIsAdding(false);
+    if (res.success && res.data) {
+      setMenuItems(p => [...p, res.data!]);
+      setAddForm(INITIAL_ADD);
+      toast.success('메뉴가 추가됐습니다');
     } else {
-      toast.error(`오류: ${result.error}`);
+      toast.error(`오류: ${res.error}`);
     }
   };
 
-  const handleEditMenuItem = async () => {
-    const price = validateForm();
-    if (price === null || editingId === null) return;
-    setIsSubmitting(true);
-    const result = await editMenuItem(editingId, formData.name, price, formData.color);
-    setIsSubmitting(false);
-    if (result.success && result.data) {
-      setMenuItems(p => p.map(m => m.id === editingId ? result.data! : m));
-      setFormData(INITIAL_FORM);
-      setEditingId(null);
-      toast.success('메뉴가 수정되었습니다');
+  // ── 인라인 수정 시작 ───────────────────────────────────
+  const startEdit = (item: MenuItem) => {
+    setInlineEdits(p => ({
+      ...p,
+      [item.id]: {
+        name: item.name,
+        price: String(item.price),
+        color: COLOR_PALETTE.some(c => c.value === item.color) ? item.color : COLOR_PALETTE[0].value,
+      },
+    }));
+  };
+
+  const cancelEdit = (id: number) => {
+    setInlineEdits(p => { const n = { ...p }; delete n[id]; return n; });
+  };
+
+  const saveEdit = async (id: number) => {
+    const draft = inlineEdits[id];
+    if (!draft) return;
+    if (!draft.name || !draft.price) { toast.error('이름과 가격을 입력하세요'); return; }
+    const price = parseFloat(draft.price);
+    if (isNaN(price) || price <= 0) { toast.error('가격은 0보다 큰 숫자여야 합니다'); return; }
+    setSavingId(id);
+    const res = await editMenuItem(id, draft.name, price, draft.color);
+    setSavingId(null);
+    if (res.success && res.data) {
+      setMenuItems(p => p.map(m => m.id === id ? res.data! : m));
+      cancelEdit(id);
+      toast.success('수정됐습니다');
     } else {
-      toast.error(`오류: ${result.error}`);
+      toast.error(`오류: ${res.error}`);
     }
   };
 
-  const handleDeleteMenuItem = async (id: number) => {
+  // ── 삭제 ──────────────────────────────────────────────
+  const handleDelete = async (id: number) => {
     if (!confirm('정말 삭제하시겠습니까?')) return;
-    const result = await removeMenuItem(id);
-    if (result.success) {
+    const res = await removeMenuItem(id);
+    if (res.success) {
       setMenuItems(p => p.filter(m => m.id !== id));
-      toast.success('메뉴가 삭제되었습니다');
+      cancelEdit(id);
+      toast.success('삭제됐습니다');
     } else {
-      toast.error(`오류: ${result.error}`);
+      toast.error(`오류: ${res.error}`);
     }
   };
 
-  const handleEditStart = (item: MenuItem) => {
-    const selectedColor = COLOR_PALETTE.some((c) => c.value === item.color) ? item.color : COLOR_PALETTE[0].value;
-    setEditingId(item.id);
-    setFormData({ name: item.name, price: item.price.toString(), color: selectedColor });
-  };
-
-  const handleCancel = () => {
-    setEditingId(null);
-    setFormData(INITIAL_FORM);
-  };
-
+  // ── 드래그 순서 변경 ───────────────────────────────────
   const handleReorder = async (fromId: number, toId: number) => {
-    const activeItems = menuItems.filter((item) => item.is_active);
-    const fromIndex = activeItems.findIndex((item) => item.id === fromId);
-    const toIndex = activeItems.findIndex((item) => item.id === toId);
-    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-
-    const orderedIds = activeItems.map((item) => item.id);
-    const [movedId] = orderedIds.splice(fromIndex, 1);
-    orderedIds.splice(toIndex, 0, movedId);
-
-    const previousItems = [...menuItems];
-    const reorderedActive = orderedIds.map(id => menuItems.find(item => item.id === id)!);
-    const inactiveItems = menuItems.filter(item => !item.is_active);
-    setMenuItems([...reorderedActive, ...inactiveItems]);
-
-    const result = await reorderMenuItems(orderedIds);
-    if (result.success) {
-      toast.success('메뉴 순서가 변경되었습니다');
-    } else {
-      setMenuItems(previousItems);
-      toast.error(`오류: ${result.error}`);
-    }
-  };
-
-  const handleDragStart = (id: number) => setDraggedId(id);
-
-  const handleDragOver = (e: React.DragEvent<HTMLLIElement>, id: number) => {
-    e.preventDefault();
-    if (draggedId !== id) setDragOverId(id);
-  };
-
-  const handleDrop = async (id: number) => {
-    if (!draggedId || draggedId === id) { setDraggedId(null); setDragOverId(null); return; }
-    await handleReorder(draggedId, id);
-    setDraggedId(null);
-    setDragOverId(null);
-  };
-
-  const handleDragEnd = () => { setDraggedId(null); setDragOverId(null); };
-
-  const handleTouchDragStart = (e: React.TouchEvent<HTMLDivElement>, id: number) => {
-    e.preventDefault();
-    setDraggedId(id);
+    const active = menuItems.filter(m => m.is_active);
+    const fi = active.findIndex(m => m.id === fromId);
+    const ti = active.findIndex(m => m.id === toId);
+    if (fi < 0 || ti < 0 || fi === ti) return;
+    const ids = active.map(m => m.id);
+    const [moved] = ids.splice(fi, 1);
+    ids.splice(ti, 0, moved);
+    const prev = [...menuItems];
+    setMenuItems([...ids.map(id => menuItems.find(m => m.id === id)!), ...menuItems.filter(m => !m.is_active)]);
+    const res = await reorderMenuItems(ids);
+    if (res.success) toast.success('순서 변경됐습니다');
+    else { setMenuItems(prev); toast.error(`오류: ${res.error}`); }
   };
 
   const handleTouchDragMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (!draggedId) return;
     const touch = e.touches?.[0];
     if (!touch) return;
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    const dropItem = target?.closest?.('[data-menu-id]');
-    const overId = Number(dropItem?.getAttribute('data-menu-id'));
-    if (overId && overId !== draggedId) setDragOverId(overId);
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-menu-id]');
+    const id = Number(el?.getAttribute('data-menu-id'));
+    if (id && id !== draggedId) setDragOverId(id);
   };
 
   const handleTouchDragEnd = async () => {
     if (draggedId && dragOverId && draggedId !== dragOverId) await handleReorder(draggedId, dragOverId);
-    setDraggedId(null);
-    setDragOverId(null);
+    setDraggedId(null); setDragOverId(null);
   };
-
-  const activeMenuItems = useMemo(() => menuItems.filter((item) => item.is_active), [menuItems]);
 
   return (
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="bg-canvas rounded-xl p-4 md:p-5 max-w-[800px] mx-auto">
+
+          {/* 헤더 */}
           <div className="flex items-center justify-between mb-5">
             <h2 className="m-0 text-2xl font-extrabold">설정</h2>
             <div className="flex gap-1.5 bg-[#f5f6f7] p-1 rounded-xl">
               {([['menu', '메뉴 관리'], ['users', '유저 관리'], ['devtools', '개발자 도구']] as [ActiveTab, string][]).map(([tab, label]) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1.5 text-sm font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 ${
-                    activeTab === tab
-                      ? 'bg-canvas text-ink shadow-sm'
-                      : 'bg-transparent text-ink-muted hover:text-ink-secondary'
-                  }`}
-                >
+                <button key={tab} onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-1.5 text-sm font-semibold rounded-lg border-none cursor-pointer transition-all ${
+                    activeTab === tab ? 'bg-canvas text-ink shadow-sm' : 'bg-transparent text-ink-muted hover:text-ink-secondary'
+                  }`}>
                   {label}
                 </button>
               ))}
             </div>
           </div>
 
-          {activeTab === 'devtools' ? (
-            <DevToolsSection />
-          ) : activeTab === 'users' ? (
-            <UserManagementSection />
-          ) : (<>
-
-          <div className="bg-canvas-soft rounded-xl p-4 mb-4">
-            <h3 className="mt-0 mb-3 text-lg font-bold">{editingId ? '메뉴 수정' : '새 메뉴 추가'}</h3>
-            <div className="mb-3">
-              <label className="block mb-1.5 font-semibold text-sm text-ink-secondary">메뉴 이름</label>
-              <input type="text" name="name" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} placeholder="예: 고메버터 소금빵" className="w-full px-3 py-2 border border-hairline rounded-md text-sm focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-              <div className="mb-3 md:mb-0">
-                <label className="block mb-1.5 font-semibold text-sm text-ink-secondary">가격 (원)</label>
-                <input type="number" name="price" value={formData.price} onChange={(e) => setFormData((p) => ({ ...p, price: e.target.value }))} placeholder="4900" min="0" step="100" className="w-full px-3 py-2 border border-hairline rounded-md text-sm focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/10" />
-              </div>
-              <div>
-                <label className="block mb-1.5 font-semibold text-sm text-ink-secondary">색상</label>
-                <div className="grid grid-cols-8 gap-2" role="radiogroup" aria-label="메뉴 색상 선택">
-                  {COLOR_PALETTE.map((color) => (
-                    <button key={color.value} type="button" className={`w-full aspect-square border-2 border-hairline rounded-full cursor-pointer transition-all duration-150 hover:-translate-y-px ${formData.color === color.value ? 'border-[#111] ring-2 ring-black/15' : ''}`} style={{ backgroundColor: color.value }} onClick={() => setFormData((p) => ({ ...p, color: color.value }))} aria-label={`${color.name} 선택`} aria-pressed={formData.color === color.value} />
-                  ))}
+          {activeTab === 'devtools' ? <DevToolsSection />
+           : activeTab === 'users' ? <UserManagementSection />
+           : (
+            <>
+              {/* 새 메뉴 추가 폼 */}
+              <div className="bg-canvas-soft rounded-xl p-4 mb-5">
+                <h3 className="mt-0 mb-3 text-base font-bold">새 메뉴 추가</h3>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text" value={addForm.name} placeholder="메뉴 이름"
+                    onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))}
+                    className="flex-1 px-3 py-2 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
+                  />
+                  <input
+                    type="number" value={addForm.price} placeholder="가격" min="0" step="100"
+                    onChange={e => setAddForm(p => ({ ...p, price: e.target.value }))}
+                    className="w-28 px-3 py-2 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex gap-1.5">
+                    {COLOR_PALETTE.map(c => (
+                      <button key={c.value} type="button"
+                        onClick={() => setAddForm(p => ({ ...p, color: c.value }))}
+                        className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-all ${addForm.color === c.value ? 'border-ink scale-110' : 'border-transparent'}`}
+                        style={{ backgroundColor: c.value }} aria-label={c.name} />
+                    ))}
+                  </div>
+                  <button onClick={handleAdd} disabled={isAdding}
+                    className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
+                    {isAdding ? '추가 중...' : '추가'}
+                  </button>
                 </div>
               </div>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <button
-                className="flex-1 px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-primary-700 text-white hover:bg-primary-800 disabled:opacity-60 disabled:cursor-not-allowed"
-                onClick={editingId ? handleEditMenuItem : handleAddMenuItem}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? '처리 중...' : editingId ? '수정 완료' : '메뉴 추가'}
-              </button>
-              {editingId && (
-                <button className="px-4 py-2 rounded-md border-none font-semibold cursor-pointer transition-all duration-200 text-sm bg-[#ddd] text-ink-secondary hover:bg-[#ccc]" onClick={handleCancel} disabled={isSubmitting}>취소</button>
-              )}
-            </div>
-          </div>
 
-          <h3 className="mb-3 text-lg font-bold">메뉴 목록</h3>
-          {isLoading ? (
-            <p>로딩 중...</p>
-          ) : (
-            <ul className="m-0 p-0 list-none">
-              {activeMenuItems.map((item) => (
-                <li key={item.id} data-menu-id={item.id} className={`flex justify-between items-center p-3 bg-canvas rounded-lg mb-2 shadow-level-1 cursor-grab select-none active:cursor-grabbing ${dragOverId === item.id ? 'outline-2 outline-dashed outline-primary-700 bg-primary-50' : ''}`} draggable onDragStart={() => handleDragStart(item.id)} onDragOver={(e) => handleDragOver(e, item.id)} onDrop={() => handleDrop(item.id)} onDragEnd={handleDragEnd}>
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-7 h-7 rounded-md bg-[#f1f3f5] text-ink-muted inline-flex items-center justify-center text-base leading-none cursor-grab select-none touch-none shrink-0 active:cursor-grabbing active:bg-[#e9ecef]" role="button" aria-label="순서 이동 핸들" onTouchStart={(e) => handleTouchDragStart(e, item.id)} onTouchMove={handleTouchDragMove} onTouchEnd={handleTouchDragEnd} onTouchCancel={handleTouchDragEnd}>⠿</div>
-                    <div className="w-5 h-5 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
-                    <div>
-                      <h3 className="m-0 text-sm font-semibold">{item.name}</h3>
-                      <p className="m-0 mt-1 text-xs text-ink-muted">₩{item.price.toLocaleString('ko-KR')}</p>
-                      <p className="m-0 mt-1.5 text-[11px] text-ink-faint">데스크톱: 드래그 / 모바일: 핸들 터치 이동</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition-all duration-200 bg-[#3498db] text-white hover:bg-[#2980b9]" onClick={() => handleEditStart(item)}>수정</button>
-                    <button className="px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition-all duration-200 bg-[#ff6b6b] text-white hover:bg-[#ff5252]" onClick={() => handleDeleteMenuItem(item.id)}>삭제</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+              {/* 메뉴 목록 */}
+              <h3 className="mb-3 text-base font-bold">메뉴 목록</h3>
+              {isLoading ? <p className="text-ink-muted text-sm">로딩 중...</p> : (
+                <ul className="m-0 p-0 list-none space-y-1.5">
+                  {activeMenuItems.map(item => {
+                    const draft = inlineEdits[item.id];
+                    const isEditing = !!draft;
+                    const isSaving = savingId === item.id;
+
+                    return (
+                      <li
+                        key={item.id}
+                        data-menu-id={item.id}
+                        draggable={!isEditing}
+                        onDragStart={() => !isEditing && setDraggedId(item.id)}
+                        onDragOver={e => { e.preventDefault(); if (draggedId !== item.id) setDragOverId(item.id); }}
+                        onDrop={() => { if (draggedId && draggedId !== item.id) handleReorder(draggedId, item.id); setDraggedId(null); setDragOverId(null); }}
+                        onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
+                        className={`rounded-xl border transition-all ${
+                          dragOverId === item.id ? 'border-primary-700 bg-primary-50' : 'border-hairline bg-canvas'
+                        } ${isEditing ? 'shadow-level-1' : ''}`}
+                      >
+                        {isEditing ? (
+                          /* ── 인라인 편집 모드 ── */
+                          <div className="p-3">
+                            <div className="flex gap-2 mb-2.5">
+                              <input
+                                type="text" value={draft.name} autoFocus
+                                onChange={e => setInlineEdits(p => ({ ...p, [item.id]: { ...p[item.id], name: e.target.value } }))}
+                                className="flex-1 px-2.5 py-1.5 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
+                                placeholder="메뉴 이름"
+                              />
+                              <input
+                                type="number" value={draft.price} min="0" step="100"
+                                onChange={e => setInlineEdits(p => ({ ...p, [item.id]: { ...p[item.id], price: e.target.value } }))}
+                                className="w-28 px-2.5 py-1.5 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
+                                placeholder="가격"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex gap-1.5">
+                                {COLOR_PALETTE.map(c => (
+                                  <button key={c.value} type="button"
+                                    onClick={() => setInlineEdits(p => ({ ...p, [item.id]: { ...p[item.id], color: c.value } }))}
+                                    className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-all ${draft.color === c.value ? 'border-ink scale-110' : 'border-transparent'}`}
+                                    style={{ backgroundColor: c.value }} aria-label={c.name} />
+                                ))}
+                              </div>
+                              <div className="flex gap-1.5">
+                                <button onClick={() => cancelEdit(item.id)} disabled={isSaving}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-hairline bg-canvas text-ink-muted hover:bg-canvas-soft cursor-pointer disabled:opacity-50 transition-colors">
+                                  취소
+                                </button>
+                                <button onClick={() => saveEdit(item.id)} disabled={isSaving}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border-none bg-primary-700 text-white hover:bg-primary-800 cursor-pointer disabled:opacity-50 transition-colors">
+                                  {isSaving ? '저장 중...' : '저장'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          /* ── 일반 표시 모드 ── */
+                          <div className="flex items-center gap-3 px-3 py-2.5 cursor-grab active:cursor-grabbing select-none">
+                            <div
+                              className="w-6 h-6 rounded-md bg-canvas-soft text-ink-faint inline-flex items-center justify-center text-sm shrink-0 touch-none"
+                              onTouchStart={e => { e.preventDefault(); setDraggedId(item.id); }}
+                              onTouchMove={handleTouchDragMove}
+                              onTouchEnd={handleTouchDragEnd}
+                              onTouchCancel={handleTouchDragEnd}
+                            >⠿</div>
+                            <div className="w-4 h-4 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-semibold text-ink">{item.name}</span>
+                              <span className="ml-2 text-xs text-ink-muted">₩{item.price.toLocaleString('ko-KR')}</span>
+                            </div>
+                            <div className="flex gap-1.5 shrink-0">
+                              <button onClick={() => startEdit(item)}
+                                className="px-2.5 py-1 rounded-md text-xs font-semibold border-none bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer transition-colors">
+                                수정
+                              </button>
+                              <button onClick={() => handleDelete(item.id)}
+                                className="px-2.5 py-1 rounded-md text-xs font-semibold border-none bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer transition-colors">
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
           )}
-        </>)}
+
         </div>
       </main>
     </>

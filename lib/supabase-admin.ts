@@ -459,7 +459,7 @@ export async function addScheduleSlot(
   personName: string,
   workTime: string,
   workerId?: number,
-  breakTime?: boolean,
+  breakTime?: number,
 ): Promise<ScheduleSlot> {
   const { data, error } = await supabaseAdmin
     .from('schedule_slots')
@@ -470,7 +470,7 @@ export async function addScheduleSlot(
         role,
         person_name: personName,
         work_time: workTime || null,
-        break_time: breakTime ?? false,
+        break_time: breakTime ?? 0,
         worker_id: workerId ?? null,
       },
     ])
@@ -493,14 +493,14 @@ export async function updateScheduleSlot(
   personName: string,
   workTime: string,
   workerId?: number | null,
-  breakTime?: boolean,
+  breakTime?: number,
 ): Promise<ScheduleSlot> {
   const { data, error } = await supabaseAdmin
     .from('schedule_slots')
     .update({
       person_name: personName,
       work_time: workTime || null,
-      break_time: breakTime ?? false,
+      break_time: breakTime ?? 0,
       worker_id: workerId ?? null,
       updated_at: new Date().toISOString(),
     })
@@ -531,7 +531,7 @@ export async function copyScheduleSlot(
         role: newRole,
         person_name: source.person_name,
         work_time: source.work_time,
-        break_time: source.break_time ?? false,
+        break_time: source.break_time ?? 0,
         worker_id: source.worker_id,
       },
     ])
