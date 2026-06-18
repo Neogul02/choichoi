@@ -287,6 +287,30 @@ export async function changeMyPassword(currentPassword: string, newPassword: str
   }
 }
 
+export async function resolveLoginEmail(identifier: string): Promise<ApiResponse<{ email: string }>> {
+  try {
+    const trimmed = identifier.trim()
+    if (!trimmed) return { success: false, error: '이메일 또는 이름을 입력해주세요.' }
+    if (trimmed.includes('@')) return { success: true, data: { email: trimmed } }
+
+    const { data: profiles, error } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id')
+      .eq('name', trimmed)
+
+    if (error) return { success: false, error: error.message }
+    if (!profiles || profiles.length === 0) return { success: false, error: '해당 이름의 계정을 찾을 수 없습니다.' }
+    if (profiles.length > 1) return { success: false, error: '동일한 이름의 계정이 여러 개입니다. 이메일로 로그인해주세요.' }
+
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profiles[0].id)
+    if (userError || !userData.user?.email) return { success: false, error: '계정 정보를 불러올 수 없습니다.' }
+
+    return { success: true, data: { email: userData.user.email } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function checkSignupCode(code: string): Promise<ApiResponse> {
   const expected = process.env.SIGNUP_CODE
   if (!expected) return { success: false, error: '초대 코드가 설정되지 않았습니다.' }
