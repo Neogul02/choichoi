@@ -61,7 +61,7 @@ export interface ScheduleSlot {
   role: string;
   person_name: string;
   work_time: string | null;
-  break_time: boolean;
+  break_time: number;
   worker_id: number | null;
   created_at: string;
   updated_at: string;

@@ -55,10 +55,10 @@ export async function editPopupEvent(id: number, name: string, startDate: string
 // ── Schedule Slots ────────────────────────────────────────────────────────────
 
 export async function fetchScheduleByEvent(eventId: number): Promise<FetchSlotsResponse> { return wrap(() => getScheduleByEvent(eventId)); }
-export async function addScheduleEntry(eventId: number, scheduleDate: string, role: string, personName: string, workTime: string, workerId?: number, breakTime?: boolean): Promise<ApiResponse<ScheduleSlot>> { return wrap(() => addScheduleSlot(eventId, scheduleDate, role, personName, workTime, workerId, breakTime)); }
+export async function addScheduleEntry(eventId: number, scheduleDate: string, role: string, personName: string, workTime: string, workerId?: number, breakTime?: number): Promise<ApiResponse<ScheduleSlot>> { return wrap(() => addScheduleSlot(eventId, scheduleDate, role, personName, workTime, workerId, breakTime)); }
 export async function removeScheduleEntry(id: number): Promise<ApiResponse> { return wrap(() => removeScheduleSlot(id)); }
 export async function moveScheduleEntry(id: number, newDate: string, newRole: string): Promise<ApiResponse<ScheduleSlot>> { return wrap(() => moveScheduleSlot(id, newDate, newRole)); }
-export async function editScheduleEntry(id: number, personName: string, workTime: string, workerId?: number | null, breakTime?: boolean): Promise<ApiResponse<ScheduleSlot>> { return wrap(() => updateScheduleSlot(id, personName, workTime, workerId, breakTime)); }
+export async function editScheduleEntry(id: number, personName: string, workTime: string, workerId?: number | null, breakTime?: number): Promise<ApiResponse<ScheduleSlot>> { return wrap(() => updateScheduleSlot(id, personName, workTime, workerId, breakTime)); }
 export async function copyScheduleEntry(id: number, newDate: string, newRole: string): Promise<ApiResponse<ScheduleSlot>> { return wrap(() => copyScheduleSlot(id, newDate, newRole)); }
 
 // ── Workers ───────────────────────────────────────────────────────────────────

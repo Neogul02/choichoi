@@ -25,12 +25,70 @@ export function formatDateLabel(dateStr: string): string {
   return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
 }
 
-export function parseWorkHours(workTime: string | null, breakTime = false): number {
+export const MIN_HOURLY_WAGE = 10_320;
+export const EFFECTIVE_MIN_WAGE = Math.round(MIN_HOURLY_WAGE * 1.2);
+
+// breakMinutes: 0=없음, 30=30분, 60=1시간
+export function parseWorkHours(workTime: string | null, breakMinutes: number = 0): number {
   if (!workTime) return 0;
   const m = workTime.match(/(\d{1,2})(?::(\d{2}))?[-~](\d{1,2})(?::(\d{2}))?/);
   if (!m) return 0;
   const raw = Math.max(0, (parseInt(m[3]) * 60 + parseInt(m[4] ?? '0') - parseInt(m[1]) * 60 - parseInt(m[2] ?? '0')) / 60);
-  return breakTime ? Math.max(0, raw - 1) : raw;
+  return Math.max(0, raw - breakMinutes / 60);
+}
+
+export function parseRawHours(workTime: string | null): number {
+  return parseWorkHours(workTime, 0);
+}
+
+export type BreakCompliance = {
+  rawHours: number;
+  required: boolean;
+  minBreak: number;
+  compliant: boolean;
+};
+
+// breakMinutes: 0=없음, 30=30분, 60=1시간
+export function checkBreakCompliance(workTime: string | null, breakMinutes: number): BreakCompliance {
+  const raw = parseRawHours(workTime);
+  if (raw < 4) return { rawHours: raw, required: false, minBreak: 0, compliant: true };
+  if (raw < 8) return { rawHours: raw, required: true, minBreak: 0.5, compliant: breakMinutes >= 30 };
+  return { rawHours: raw, required: true, minBreak: 1.0, compliant: breakMinutes >= 60 };
+}
+
+export function getISOWeekKey(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  const tmp = new Date(d);
+  tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7));
+  const week1 = new Date(tmp.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((tmp.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return `${tmp.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+export type WeeklyHolidayPayInfo = {
+  weekKey: string;
+  hours: number;
+  eligible: boolean;
+  amount: number;
+};
+
+export function calcWeeklyHolidayPay(
+  entries: Array<{ date: string; hours: number }>,
+  hourlyRate: number,
+): WeeklyHolidayPayInfo[] {
+  const weekMap = new Map<string, number>();
+  for (const e of entries) {
+    const key = getISOWeekKey(e.date);
+    weekMap.set(key, (weekMap.get(key) ?? 0) + e.hours);
+  }
+  return Array.from(weekMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekKey, hours]) => ({
+      weekKey,
+      hours,
+      eligible: hours >= 15,
+      amount: hours >= 15 ? Math.floor((hours / 40) * 8 * hourlyRate) : 0,
+    }));
 }
 
 export function formatHours(h: number): string {
