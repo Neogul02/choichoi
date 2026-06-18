@@ -29,9 +29,21 @@ export default function StatsPage() {
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="max-w-[800px] mx-auto flex flex-col gap-3 md:gap-4">
-          <h2 className="m-0 px-1 text-heading-1 text-ink">매출</h2>
+          <h2 className="m-0 px-1 text-heading-1 text-ink">통계</h2>
 
           <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
+
+          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+            <PopupStatsSection
+              popupEvents={popupEvents}
+              selectedPopupId={selectedPopupId}
+              popupMenuBreakdown={popupMenuBreakdown}
+              popupDailySales={popupDailySales}
+              popupRawOrders={popupRawOrders}
+              isLoading={isPopupStatsLoading}
+              onSelectPopup={setSelectedPopupId}
+            />
+          </div>
 
           <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <MenuBreakdownSection
@@ -69,17 +81,7 @@ export default function StatsPage() {
             />
           </div>
 
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <PopupStatsSection
-              popupEvents={popupEvents}
-              selectedPopupId={selectedPopupId}
-              popupMenuBreakdown={popupMenuBreakdown}
-              popupDailySales={popupDailySales}
-              popupRawOrders={popupRawOrders}
-              isLoading={isPopupStatsLoading}
-              onSelectPopup={setSelectedPopupId}
-            />
-          </div>
+          
         </div>
       </main>
 
