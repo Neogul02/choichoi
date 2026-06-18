@@ -119,11 +119,14 @@ function todayStr(d?: string) {
 function calcNetHours(d: WorkDaySchedule): number {
   const [sh, sm] = d.startTime.split(':').map(Number)
   const [eh, em] = d.endTime.split(':').map(Number)
-  const [bsh] = d.breakStart.split(':').map(Number)
-  const [beh] = d.breakEnd.split(':').map(Number)
-  const raw = (eh * 60 + em - sh * 60 - sm) / 60
-  const brk = d.breakStart && d.breakEnd ? (beh - bsh) : 0
-  return Math.max(0, raw - brk)
+  const rawMins = (eh * 60 + em) - (sh * 60 + sm)
+  let brkMins = 0
+  if (d.breakStart && d.breakEnd) {
+    const [bsh, bsm] = d.breakStart.split(':').map(Number)
+    const [beh, bem] = d.breakEnd.split(':').map(Number)
+    brkMins = (beh * 60 + bem) - (bsh * 60 + bsm)
+  }
+  return Math.max(0, (rawMins - brkMins) / 60)
 }
 
 export function ContractDocument(p: ContractData) {
