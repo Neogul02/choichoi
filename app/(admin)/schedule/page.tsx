@@ -140,8 +140,17 @@ export default function SchedulePage() {
   };
 
   // ── Slots ─────────────────────────────────────────────────────────────────
+  const slotsByCell = useMemo(() => {
+    const map = new Map<string, ScheduleSlot[]>();
+    for (const s of slots) {
+      const key = `${s.schedule_date}|${s.role}`;
+      const bucket = map.get(key);
+      if (bucket) bucket.push(s); else map.set(key, [s]);
+    }
+    return map;
+  }, [slots]);
   const getSlotsForCell = (dateStr: string, role: string) =>
-    slots.filter(s => s.schedule_date === dateStr && s.role === role);
+    slotsByCell.get(`${dateStr}|${role}`) ?? [];
 
   const handleRemovePerson = async (id: number) => {
     if (!confirm('삭제하시겠습니까?')) return;
