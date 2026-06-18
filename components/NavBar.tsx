@@ -79,9 +79,9 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
     }
     loadProfile()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      const role = session?.user?.user_metadata?.role
-      setIsAdmin(role === 'admin')
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsAdmin(user?.user_metadata?.role === 'admin')
     });
     return () => subscription.unsubscribe();
   }, []);
