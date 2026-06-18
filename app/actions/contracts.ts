@@ -242,7 +242,7 @@ export async function fetchWorkerScheduleForContract(
 
     return DAY_ORDER.filter(d => byDay[d]).map(day => {
       const [workTime, { breakTime }] = Object.entries(byDay[day]).sort((a, b) => b[1].count - a[1].count)[0]
-      const [startTime, endTime] = workTime.split('-')
+      const [startTime, endTime] = workTime.split(/[-~]/)
 
       let breakStart = ''
       let breakEnd = ''
