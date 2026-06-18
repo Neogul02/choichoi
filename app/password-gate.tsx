@@ -94,48 +94,51 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setError('')
     setIsSubmitting(true)
 
-    const resolved = await resolveLoginEmail(loginEmail.trim())
-    if (!resolved.success || !resolved.data) {
-      setError(resolved.error ?? '계정을 찾을 수 없습니다.')
-      setIsSubmitting(false)
-      return
-    }
-
-    const supabase = createSupabaseBrowserClient()
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: resolved.data.email,
-      password: loginPassword,
-    })
-
-    if (authError || !data.user) {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
-      setIsSubmitting(false)
-      return
-    }
-
-    // user_profiles에서 이름 + role 조회 → user_metadata 동기화
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('name, worker_role')
-      .eq('id', data.user.id)
-      .maybeSingle()
-
-    const isAdmin = profile?.worker_role === 'admin'
-    await supabase.auth.updateUser({
-      data: { role: isAdmin ? 'admin' : 'worker', name: profile?.name ?? data.user.user_metadata?.name },
-    })
-
-    const name = profile?.name ?? data.user.user_metadata?.name ?? ''
-    const popup = popupEvents.find((p) => p.id === selectedPopupId)
     try {
-      if (name) localStorage.setItem(CASHIER_NAME_KEY, name)
-      localStorage.setItem(POPUP_ID_KEY, String(selectedPopupId))
-      localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
-    } catch { /* ignore */ }
+      const resolved = await resolveLoginEmail(loginEmail.trim())
+      if (!resolved.success || !resolved.data) {
+        setError(resolved.error ?? '계정을 찾을 수 없습니다.')
+        return
+      }
 
-    notifyLoginEvent(name, loginEmail.trim()).catch(() => {})
-    setIsSubmitting(false)
-    setIsAuthed(true)
+      const supabase = createSupabaseBrowserClient()
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: resolved.data.email,
+        password: loginPassword,
+      })
+
+      if (authError || !data.user) {
+        setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+        return
+      }
+
+      // user_profiles에서 이름 + role 조회 → user_metadata 동기화
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('name, worker_role')
+        .eq('id', data.user.id)
+        .maybeSingle()
+
+      const isAdmin = profile?.worker_role === 'admin'
+      await supabase.auth.updateUser({
+        data: { role: isAdmin ? 'admin' : 'worker', name: profile?.name ?? data.user.user_metadata?.name },
+      })
+
+      const name = profile?.name ?? data.user.user_metadata?.name ?? ''
+      const popup = popupEvents.find((p) => p.id === selectedPopupId)
+      try {
+        if (name) localStorage.setItem(CASHIER_NAME_KEY, name)
+        localStorage.setItem(POPUP_ID_KEY, String(selectedPopupId))
+        localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
+      } catch { /* ignore */ }
+
+      notifyLoginEvent(name, resolved.data.email).catch(() => {})
+      setIsAuthed(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '로그인 중 오류가 발생했습니다.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const onSignup = async (e: React.FormEvent) => {
