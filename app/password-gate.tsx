@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchPopupEvents } from '@/app/actions/schedule'
-import { createWorkerAccount } from '@/app/actions/workers'
+import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
 import { notifyLoginEvent } from '@/app/actions/discord'
 import type { PopupEvent } from '@/types/database'
 
@@ -88,15 +88,22 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     e.preventDefault()
     if (!selectedPopupId) { setError('팝업을 선택해주세요.'); return }
     if (!loginEmail.trim() || !loginPassword) {
-      setError('이메일과 비밀번호를 입력해주세요.')
+      setError('이메일(또는 이름)과 비밀번호를 입력해주세요.')
       return
     }
     setError('')
     setIsSubmitting(true)
 
+    const resolved = await resolveLoginEmail(loginEmail.trim())
+    if (!resolved.success || !resolved.data) {
+      setError(resolved.error ?? '계정을 찾을 수 없습니다.')
+      setIsSubmitting(false)
+      return
+    }
+
     const supabase = createSupabaseBrowserClient()
     const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: loginEmail.trim(),
+      email: resolved.data.email,
       password: loginPassword,
     })
 
@@ -215,8 +222,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                   </svg>
                 </span>
               </div>
-              <input type='email' className={inputClass} value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)} placeholder='이메일' autoComplete='email' />
+              <input type='text' className={inputClass} value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)} placeholder='이메일 또는 이름' autoComplete='email' />
               <input type='password' className={inputClass} value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)} placeholder='비밀번호' autoComplete='current-password' />
               {error && <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>}
