@@ -54,7 +54,12 @@ function getKSTDateStr(): string {
 
 function getKSTDateBounds(kstDateStr?: string): { start: string; end: string } {
   const d = kstDateStr ?? getKSTDateStr()
-  return { start: `${d}T00:00:00+09:00`, end: `${d}T23:59:59+09:00` }
+  // created_at은 timestamp without time zone(naive UTC) 컬럼 — +09:00 오프셋 문자열을 그대로 보내면
+  // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
+  return {
+    start: new Date(`${d}T00:00:00+09:00`).toISOString(),
+    end: new Date(`${d}T23:59:59.999+09:00`).toISOString(),
+  }
 }
 
 export async function getMenuItems(): Promise<MenuItem[]> {
