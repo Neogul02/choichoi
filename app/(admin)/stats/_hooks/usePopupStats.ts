@@ -31,8 +31,10 @@ export function usePopupStats() {
       const popup = popupEvents.find((p) => p.id === selectedPopupId);
       if (!popup) return;
       setIsLoading(true);
-      const startISO = `${popup.start_date}T00:00:00+09:00`;
-      const endISO = `${popup.end_date}T23:59:59+09:00`;
+      // created_at은 timestamp without time zone(naive UTC) 컬럼 — +09:00 오프셋 문자열을 그대로 보내면
+      // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
+      const startISO = new Date(`${popup.start_date}T00:00:00+09:00`).toISOString();
+      const endISO = new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString();
       const [menuRes, dailyRes, rawRes] = await Promise.all([
         fetchMenuSalesBreakdown(startISO, endISO),
         fetchDailySalesByPeriod(startISO, endISO),
