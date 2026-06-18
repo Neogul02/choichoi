@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePresence, type PresenceUser } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { withTimeout } from '@/lib/utils';
 
 const NAV_COLLAPSED_KEY = 'choichoi_nav_collapsed';
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
@@ -100,14 +101,19 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   };
 
   const handleLogout = async () => {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
     try {
-      localStorage.removeItem(CASHIER_NAME_KEY);
-      localStorage.removeItem(POPUP_ID_KEY);
-      localStorage.removeItem(POPUP_NAME_KEY);
-    } catch { /* ignore */ }
-    window.location.href = '/';
+      const supabase = createSupabaseBrowserClient();
+      await withTimeout(supabase.auth.signOut(), 4000, '로그아웃');
+    } catch {
+      // signOut이 멈추거나 실패해도 아래에서 로컬 상태를 정리하고 강제로 이동한다
+    } finally {
+      try {
+        localStorage.removeItem(CASHIER_NAME_KEY);
+        localStorage.removeItem(POPUP_ID_KEY);
+        localStorage.removeItem(POPUP_NAME_KEY);
+      } catch { /* ignore */ }
+      window.location.href = '/';
+    }
   };
 
   return (

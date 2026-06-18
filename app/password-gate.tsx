@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchPopupEvents } from '@/app/actions/schedule'
 import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
 import { notifyLoginEvent } from '@/app/actions/discord'
+import { withTimeout } from '@/lib/utils'
 import type { PopupEvent } from '@/types/database'
 
 export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
@@ -95,17 +96,18 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setIsSubmitting(true)
 
     try {
-      const resolved = await resolveLoginEmail(loginEmail.trim())
+      const resolved = await withTimeout(resolveLoginEmail(loginEmail.trim()), 8000, '계정 조회')
       if (!resolved.success || !resolved.data) {
         setError(resolved.error ?? '계정을 찾을 수 없습니다.')
         return
       }
 
       const supabase = createSupabaseBrowserClient()
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: resolved.data.email,
-        password: loginPassword,
-      })
+      const { data, error: authError } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: resolved.data.email, password: loginPassword }),
+        8000,
+        '로그인',
+      )
 
       if (authError || !data.user) {
         setError('이메일 또는 비밀번호가 올바르지 않습니다.')
@@ -113,16 +115,20 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       }
 
       // user_profiles에서 이름 + role 조회 → user_metadata 동기화
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('name, worker_role')
-        .eq('id', data.user.id)
-        .maybeSingle()
+      const { data: profile } = await withTimeout(
+        Promise.resolve(supabase.from('user_profiles').select('name, worker_role').eq('id', data.user.id).maybeSingle()),
+        8000,
+        '프로필 조회',
+      )
 
       const isAdmin = profile?.worker_role === 'admin'
-      await supabase.auth.updateUser({
-        data: { role: isAdmin ? 'admin' : 'worker', name: profile?.name ?? data.user.user_metadata?.name },
-      })
+      await withTimeout(
+        supabase.auth.updateUser({
+          data: { role: isAdmin ? 'admin' : 'worker', name: profile?.name ?? data.user.user_metadata?.name },
+        }),
+        8000,
+        '권한 동기화',
+      )
 
       const name = profile?.name ?? data.user.user_metadata?.name ?? ''
       const popup = popupEvents.find((p) => p.id === selectedPopupId)
