@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatHours, MIN_HOURLY_WAGE, checkBreakCompliance, calcWeeklyHolidayPay, parseRawHours } from '@/lib/utils';
 import type { Worker } from '@/types/database';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
+const INCLUDE_HOLIDAY_KEY = 'choichoi_include_holiday';
 
 export type SalaryEntry = { date: string; role: string; workTime: string | null; breakTime: number; hours: number };
 export type SalaryGroup = { key: string; worker: Worker | null; name: string; entries: SalaryEntry[] };
@@ -22,6 +23,21 @@ export default function SalaryTable({ eventName, salaryGroups, localRates, onRat
   const [draftRates, setDraftRates] = useState<Record<string, string>>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [includeHoliday, setIncludeHoliday] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(INCLUDE_HOLIDAY_KEY);
+      if (saved) setIncludeHoliday(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, []);
+
+  function toggleIncludeHoliday(key: string, checked: boolean) {
+    setIncludeHoliday(prev => {
+      const next = { ...prev, [key]: checked };
+      try { localStorage.setItem(INCLUDE_HOLIDAY_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   function copyToClipboard(text: string, key: string) {
     navigator.clipboard.writeText(text).then(() => {
@@ -144,7 +160,7 @@ export default function SalaryTable({ eventName, salaryGroups, localRates, onRat
                             <input
                               type="checkbox"
                               checked={rateIncludesHoliday}
-                              onChange={e => setIncludeHoliday(p => ({ ...p, [group.key]: e.target.checked }))}
+                              onChange={e => toggleIncludeHoliday(group.key, e.target.checked)}
                               className="w-3 h-3 cursor-pointer accent-emerald-600"
                             />
                             <span className="text-[9px] text-ink-muted">시급에 주휴 포함</span>
