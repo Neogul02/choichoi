@@ -107,7 +107,7 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
               onClick={() => setShowPreview(v => !v)}
               className="md:hidden text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-hairline text-ink-muted hover:border-primary-300 hover:text-primary-700 transition-colors bg-transparent cursor-pointer"
             >
-              {showPreview ? '폼 보기' : 'PDF 미리보기'}
+              {showPreview ? '서명하기' : 'PDF 미리보기'}
             </button>
             <button onClick={onClose}
               className="w-7 h-7 flex items-center justify-center rounded-lg text-ink-muted hover:bg-canvas-soft transition-colors bg-transparent border-none cursor-pointer text-[16px]">
