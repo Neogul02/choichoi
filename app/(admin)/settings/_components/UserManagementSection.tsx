@@ -170,7 +170,7 @@ export default function UserManagementSection() {
                     </a>
                   ) : (
                     <span className="text-[10px] px-2 py-1 rounded-md bg-canvas text-ink-faint border border-hairline">
-                      보건증 없음
+                      보건증 x
                     </span>
                   )}
 
