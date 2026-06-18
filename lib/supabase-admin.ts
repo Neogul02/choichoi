@@ -395,6 +395,7 @@ export async function getPopupEvents(): Promise<PopupEvent[]> {
     .from('popup_events')
     .select('*')
     .order('start_date', { ascending: false })
+    .limit(50)
   if (error) throw error
   return data ?? []
 }
