@@ -71,8 +71,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
     checkAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      if (!session) setIsAuthed(false)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') setIsAuthed(false)
     })
 
     return () => subscription.unsubscribe()
