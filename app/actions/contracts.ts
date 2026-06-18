@@ -208,6 +208,58 @@ export async function getWorkerContracts(
   })
 }
 
+export async function fetchWorkerScheduleForContract(
+  workerId: number,
+  eventId: number,
+): Promise<ApiResponse<import('@/components/ContractDocument').WorkDaySchedule[]>> {
+  return wrap(async () => {
+    const admin = getAdminClient()
+    const { data, error } = await admin
+      .from('schedule_slots')
+      .select('schedule_date, work_time, break_time')
+      .eq('worker_id', workerId)
+      .eq('event_id', eventId)
+      .not('work_time', 'is', null)
+
+    if (error) throw error
+    if (!data?.length) return []
+
+    // 요일별로 그룹화 → 가장 빈번한 work_time 패턴 선택
+    const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
+    const byDay: Record<string, Record<string, { count: number; breakTime: number }>> = {}
+
+    for (const slot of data) {
+      const day = DAY_NAMES[new Date(slot.schedule_date).getDay()]
+      const wt = slot.work_time!
+      if (!byDay[day]) byDay[day] = {}
+      if (!byDay[day][wt]) byDay[day][wt] = { count: 0, breakTime: slot.break_time ?? 0 }
+      byDay[day][wt].count++
+    }
+
+    const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일'] as const
+    const fmt = (mins: number) =>
+      `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+
+    return DAY_ORDER.filter(d => byDay[d]).map(day => {
+      const [workTime, { breakTime }] = Object.entries(byDay[day]).sort((a, b) => b[1].count - a[1].count)[0]
+      const [startTime, endTime] = workTime.split('-')
+
+      let breakStart = ''
+      let breakEnd = ''
+      if (breakTime > 0 && startTime && endTime) {
+        const [sh, sm] = startTime.split(':').map(Number)
+        const [eh, em] = endTime.split(':').map(Number)
+        const totalMins = (eh * 60 + em) - (sh * 60 + sm)
+        const midMins = sh * 60 + sm + Math.floor(totalMins / 2)
+        breakStart = fmt(midMins - Math.floor(breakTime / 2))
+        breakEnd = fmt(midMins - Math.floor(breakTime / 2) + breakTime)
+      }
+
+      return { day, startTime: startTime ?? '', endTime: endTime ?? '', breakStart, breakEnd }
+    })
+  })
+}
+
 export async function signContract(
   contractId: string,
   workerAddress: string,

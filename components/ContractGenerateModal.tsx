@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import SignaturePad from './SignaturePad'
-import { generateContract } from '@/app/actions/contracts'
+import { generateContract, fetchWorkerScheduleForContract } from '@/app/actions/contracts'
 import { fetchPopupEvents } from '@/app/actions/schedule'
 import type { UserProfile } from '@/app/actions/workers'
 import type { PopupEvent } from '@/types/database'
@@ -81,6 +81,7 @@ export default function ContractGenerateModal({ user, workerId, onClose, onSucce
   const [signatureBase64, setSignatureBase64] = useState<string | undefined>()
 
   const [isPending, startTransition] = useTransition()
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(false)
 
   useEffect(() => {
     fetchPopupEvents().then(res => {
@@ -163,6 +164,23 @@ export default function ContractGenerateModal({ user, workerId, onClose, onSucce
     debounceRef.current = setTimeout(() => setPreviewData(contractData), 800)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [contractData])
+
+  const handleLoadFromSchedule = async () => {
+    if (!popupId) { toast.error('팝업 이벤트를 먼저 선택하세요.'); return }
+    setIsLoadingSchedule(true)
+    try {
+      const res = await fetchWorkerScheduleForContract(workerId, parseInt(popupId))
+      if (!res.success) { toast.error(`일정 불러오기 실패: ${res.error}`); return }
+      if (!res.data?.length) { toast.warning('해당 팝업에 연결된 일정이 없습니다.'); return }
+      const newDaySchedules = { ...daySchedules }
+      res.data.forEach(ds => { newDaySchedules[ds.day] = ds })
+      setDaySchedules(newDaySchedules)
+      setSelectedDays(res.data.map(ds => ds.day))
+      toast.success(`${res.data.length}개 근무일을 불러왔습니다.`)
+    } finally {
+      setIsLoadingSchedule(false)
+    }
+  }
 
   const handleSubmit = () => {
     if (!startDate) { toast.error('계약 시작일을 입력하세요.'); return }
@@ -287,7 +305,14 @@ export default function ContractGenerateModal({ user, workerId, onClose, onSucce
 
             {/* 근로일별 근로시간 */}
             <div className={sectionCls}>
-              <p className='text-[11px] font-bold text-ink mb-2'>근로일 및 근로시간</p>
+              <div className='flex items-center justify-between mb-2'>
+                <p className='text-[11px] font-bold text-ink'>근로일 및 근로시간</p>
+                <button type='button' onClick={handleLoadFromSchedule}
+                  disabled={isLoadingSchedule || !popupId}
+                  className='text-[10px] text-primary-700 border border-primary-700 rounded-full px-2.5 py-0.5 disabled:opacity-40 cursor-pointer hover:bg-primary-50 transition-colors bg-transparent'>
+                  {isLoadingSchedule ? '불러오는 중...' : '일정에서 불러오기'}
+                </button>
+              </div>
               <div className='flex gap-1 flex-wrap mb-3'>
                 {DAYS.map(d => (
                   <button key={d} type='button' onClick={() => toggleDay(d)}
