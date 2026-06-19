@@ -68,7 +68,7 @@ export default function PosPage() {
       .channel(`orders-${popupId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
+        { event: 'INSERT', schema: 'public', table: 'orders', filter: `popup_id=eq.${popupId}` },
         () => {
           queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
           queryClient.invalidateQueries({ queryKey: ['today-sales'] })
@@ -77,7 +77,7 @@ export default function PosPage() {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `popup_id=eq.${popupId}` },
         () => {
           queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
           queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })

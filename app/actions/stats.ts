@@ -27,8 +27,8 @@ const ManualSalesSchema = z.object({
 });
 
 export async function fetchMonthlySalesCalendar(year: number, month: number): Promise<FetchCalendarResponse> { return wrap(() => getMonthlySalesByDate(year, month)); }
-export async function fetchMenuSalesBreakdown(startISO: string, endISO: string): Promise<FetchMenuSalesResponse> { return wrap(() => getMenuSalesByPeriod(startISO, endISO)); }
-export async function fetchDailySalesByPeriod(startISO: string, endISO: string): Promise<FetchDailySalesResponse> { return wrap(() => getDailySalesByPeriod(startISO, endISO)); }
+export async function fetchMenuSalesBreakdown(startISO: string, endISO: string, popupId?: string | null): Promise<FetchMenuSalesResponse> { return wrap(() => getMenuSalesByPeriod(startISO, endISO, popupId)); }
+export async function fetchDailySalesByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<FetchDailySalesResponse> { return wrap(() => getDailySalesByPeriod(startISO, endISO, popupId)); }
 
 export async function saveManualSales(saleDate: string, totalRevenue: number, totalOrders: number, note: string | null): Promise<ApiResponse> {
   const parsed = ManualSalesSchema.safeParse({ saleDate, totalRevenue, totalOrders, note });
