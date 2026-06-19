@@ -58,8 +58,23 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
 
     const supabase = createSupabaseBrowserClient();
 
+    const getUserResilient = async () => {
+      try {
+        return await withTimeout(supabase.auth.getUser(), 5000, '권한 확인')
+      } catch {
+        try {
+          const retryClient = createSupabaseBrowserClient()
+          return await withTimeout(retryClient.auth.getUser(), 5000, '권한 확인')
+        } catch {
+          return null
+        }
+      }
+    }
+
     const loadProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const result = await getUserResilient()
+      if (!result) return
+      const { data: { user } } = result
       const role = user?.user_metadata?.role
       setIsAdmin(role === 'admin')
       if (user) {
@@ -81,7 +96,9 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
     loadProfile()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const result = await getUserResilient()
+      if (!result) return
+      const { data: { user } } = result
       setIsAdmin(user?.user_metadata?.role === 'admin')
     });
     return () => subscription.unsubscribe();
