@@ -44,6 +44,9 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   const [cashierName, setCashierName] = useState<string | null>(null);
   const [popupName, setPopupName] = useState<string | null>(null);
   const [popupId, setPopupId] = useState('0');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const ownActiveCashiers = usePresence(activeCashiersProp !== undefined ? null : cashierName);
   const activeCashiers = activeCashiersProp ?? ownActiveCashiers;
@@ -117,20 +120,18 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
     });
   };
 
-  const handleLogout = async () => {
+  const confirmLogout = () => {
     try {
-      const supabase = createSupabaseBrowserClient();
-      await withTimeout(supabase.auth.signOut(), 4000, '로그아웃');
-    } catch {
-      // signOut이 멈추거나 실패해도 아래에서 로컬 상태를 정리하고 강제로 이동한다
-    } finally {
-      try {
-        localStorage.removeItem(CASHIER_NAME_KEY);
-        localStorage.removeItem(POPUP_ID_KEY);
-        localStorage.removeItem(POPUP_NAME_KEY);
-      } catch { /* ignore */ }
-      window.location.href = '/';
-    }
+      localStorage.removeItem(CASHIER_NAME_KEY);
+      localStorage.removeItem(POPUP_ID_KEY);
+      localStorage.removeItem(POPUP_NAME_KEY);
+    } catch { /* ignore */ }
+    // signOut 응답을 기다리지 않고 즉시 이동한다 — 호출이 멈추거나 느려도
+    // /pos에 머무는 일 없이 항상 역할 선택 화면(/)으로 보낸다.
+    try {
+      createSupabaseBrowserClient().auth.signOut().catch(() => {});
+    } catch { /* ignore */ }
+    window.location.href = '/';
   };
 
   return (
@@ -182,7 +183,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                   {/* 모바일 전용 우측 액션 */}
                   <div className="flex md:hidden items-center gap-1.5 shrink-0">
                     <button
-                      onClick={handleLogout}
+                      onClick={() => setShowLogoutConfirm(true)}
                       title="로그아웃"
                       className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                     >
@@ -220,7 +221,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                   <div className="hidden md:flex items-center gap-2">
                     <div className="w-px h-5 bg-hairline shrink-0" />
                     <button
-                      onClick={handleLogout}
+                      onClick={() => setShowLogoutConfirm(true)}
                       title="로그아웃"
                       className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                     >
@@ -258,6 +259,49 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         </div>
       </div>
 
+      {mounted && createPortal(
+        <AnimatePresence>
+          {showLogoutConfirm && (
+            <motion.div
+              key="logout-confirm-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setShowLogoutConfirm(false); }}
+            >
+              <motion.div
+                key="logout-confirm-panel"
+                initial={{ y: 16, opacity: 0, scale: 0.97 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 16, opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="bg-canvas w-full max-w-[320px] rounded-xl shadow-level-2 border border-hairline p-5"
+              >
+                <h3 className="m-0 mb-1.5 text-[16px] font-bold text-ink">로그아웃하시겠습니까?</h3>
+                <p className="m-0 mb-5 text-[13px] text-ink-muted">다시 로그인해야 이용할 수 있습니다.</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowLogoutConfirm(false)}
+                    className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition-colors"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={confirmLogout}
+                    className="flex-1 py-2.5 rounded-lg border-none bg-rose-500 text-white text-[13px] font-bold cursor-pointer hover:bg-rose-600 transition-colors"
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
   </>
   );
 }
