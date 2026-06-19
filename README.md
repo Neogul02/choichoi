@@ -249,8 +249,8 @@ types/
 |--------|-----------|------|
 | `popup_events` | `id`, `name`, `start_date`, `end_date` | 팝업 행사 단위 |
 | `schedule_slots` | `id`, `event_id`, `schedule_date`, `role`, `person_name`, `work_time`, `break_time`, `worker_id` | 근무 배정. `work_time`은 `10:30-19:00`/`10:30~19:00` 두 구분자 혼재 |
-| `workers` | `id`, `event_id`, `name`, `color`, `phone`, `bank_name`, `bank_account`, `hourly_rate`, `payment_done`, `worker_role`, `user_profile_id` | 팝업별 정산 단위. `user_profile_id`로 계정과 연결 |
-| `user_profiles` | `id`, `name`, `phone`, `bank_name`, `bank_account`, `health_cert_url`, `worker_role`, `total_revenue`, `active_title_key`, `title_color` | Auth 계정 1:1, 칭호 컬럼은 있으나 UI 미구현 |
+| `workers` | `id`, `event_id`, `name`, `color`, `phone`, `bank_name`, `bank_account`, `hourly_rate`, `payment_done`, `worker_role`, `user_profile_id` | 팝업별 정산 단위. `user_profile_id`로 계정과 연결. `auth_user_id`/`health_cert_url`/`active_title_key`/`title_color` 컬럼도 있으나 코드에서 미사용(칭호 컬럼은 UI 미구현) |
+| `user_profiles` | `id`, `name`, `phone`, `bank_name`, `bank_account`, `health_cert_url`, `worker_role`, `total_revenue` | Auth 계정 1:1 |
 | `contracts` | `id`, `worker_id`, `popup_id`, `start_date`, `end_date`, `hourly_rate`, `pdf_url`, `pdf_hash`, `contract_data`(jsonb), `worker_address`, `worker_signed_at`, `issued_at` | 근로계약서. PDF는 Storage `contracts` 버킷(비공개) |
 | `memos` | `id`, `title`, `content`, `color` | 캐셔 운영 메모 |
 | `cheers` | `popup_id`, `worker_name`, `date`, `count` | 응원 카운터, 일자별 |
