@@ -36,8 +36,8 @@ export function usePopupStats() {
       const startISO = new Date(`${popup.start_date}T00:00:00+09:00`).toISOString();
       const endISO = new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString();
       const [menuRes, dailyRes, rawRes] = await Promise.all([
-        fetchMenuSalesBreakdown(startISO, endISO),
-        fetchDailySalesByPeriod(startISO, endISO),
+        fetchMenuSalesBreakdown(startISO, endISO, String(selectedPopupId)),
+        fetchDailySalesByPeriod(startISO, endISO, String(selectedPopupId)),
         fetchOrdersByPeriod(startISO, endISO, String(selectedPopupId)),
       ]);
       if (!isCurrent) return;

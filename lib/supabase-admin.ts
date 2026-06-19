@@ -52,7 +52,7 @@ function getKSTDateStr(): string {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().split('T')[0]
 }
 
-function getKSTDateBounds(kstDateStr?: string): { start: string; end: string } {
+export function getKSTDateBounds(kstDateStr?: string): { start: string; end: string } {
   const d = kstDateStr ?? getKSTDateStr()
   // created_at은 timestamp without time zone(naive UTC) 컬럼 — +09:00 오프셋 문자열을 그대로 보내면
   // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
@@ -405,6 +405,16 @@ export async function getPopupEvents(): Promise<PopupEvent[]> {
   return data ?? []
 }
 
+export async function getPopupEventName(popupId: number): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .select('name')
+    .eq('id', popupId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.name ?? null
+}
+
 export async function createPopupEvent(
   name: string,
   startDate: string,
@@ -637,6 +647,7 @@ export async function toggleMemoPin(
 export async function getDailySalesByPeriod(
   startISO: string,
   endISO: string,
+  popupId?: string | number | null,
 ): Promise<DailySalesItem[]> {
   const PAGE_SIZE = 1000
   const MAX_ROWS = 10000
@@ -644,13 +655,17 @@ export async function getDailySalesByPeriod(
     []
 
   for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('orders')
       .select('total_price, created_at')
       .gte('created_at', startISO)
       .lte('created_at', endISO)
       .order('created_at', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
+
+    if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
+
+    const { data, error } = await query
 
     if (error) throw error
     if (!data || data.length === 0) break
@@ -715,10 +730,12 @@ export async function getOrdersByPeriod(
 export async function getMenuSalesByPeriod(
   startISO: string,
   endISO: string,
+  popupId?: string | number | null,
 ): Promise<MenuSalesItem[]> {
   const { data, error } = await supabaseAdmin.rpc('get_menu_sales_by_period', {
     p_start: startISO,
     p_end: endISO,
+    p_popup_id: popupId && popupId !== '0' ? Number(popupId) : null,
   })
 
   if (error) throw error
@@ -744,10 +761,12 @@ export async function getMenuSalesByPeriod(
 
 // ── Workers ───────────────────────────────────────────────────────────────────
 
+export const WORKER_COLUMNS = 'id, event_id, name, color, phone, bank_name, bank_account, hourly_rate, payment_done, worker_role, user_profile_id, created_at, updated_at'
+
 export async function getWorkers(eventId: number): Promise<Worker[]> {
   const { data, error } = await supabaseAdmin
     .from('workers')
-    .select('*')
+    .select(WORKER_COLUMNS)
     .eq('event_id', eventId)
     .order('name', { ascending: true })
   if (error) throw error

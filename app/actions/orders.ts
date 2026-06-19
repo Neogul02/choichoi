@@ -13,6 +13,9 @@ import {
   getOrdersByPeriod,
   clearTodaysOrders,
   deductForOrder,
+  getPopupEventName,
+  getKSTDateBounds,
+  getMenuSalesByPeriod,
 } from '@/lib/supabase-admin';
 import type { OrderItemInput } from '@/lib/supabase';
 import type {
@@ -48,23 +51,24 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
       console.log(`[saveOrder] Triggering inventory deduction for order ${order.id}`);
       await deductForOrder(order.id);
       console.log(`[saveOrder] Inventory deduction successful for order ${order.id}`);
-      // 재고 소진 알림 (fire-and-forget)
-      import('@supabase/supabase-js').then(({ createClient }) => {
-        const admin = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        )
-        return admin.from('ingredients').select('name').eq('sealed_count', 0).lte('opened_remaining', 0)
-      }).then(async (res) => {
-        if (!res || !('data' in res) || !res.data?.length) return
-        const names = res.data.map((r: { name: string }) => r.name).join(', ')
-        const { notifyDiscord } = await import('@/lib/discord')
-        await notifyDiscord('delete', '⚠️ 재고 소진', `다음 재료가 소진되었습니다: **${names}**`)
-      }).catch(() => {})
     } catch (err) {
       inventoryError = extractErrorMessage(err);
       console.error(`[saveOrder] deductForOrder failed for order ${order.id}:`, err);
     }
+
+    // 주문 완료 알림 (fire-and-forget)
+    (async () => {
+      const popupName = popupId && popupId !== '0' ? await getPopupEventName(Number(popupId)) : null;
+      const { start, end } = getKSTDateBounds();
+      const menuToday = await getMenuSalesByPeriod(start, end, popupId);
+      const { notifyDiscord } = await import('@/lib/discord');
+      await notifyDiscord('order', '🧾 주문 완료', `**${popupName ?? '팝업 미지정'}**`, [
+        { name: '주문 내역', value: items.map((i) => `${i.name} x${i.count}`).join(', ') },
+        { name: '이번 주문 금액', value: `₩${totalPrice.toLocaleString('ko-KR')}`, inline: true },
+        { name: '금일 누적 매출', value: `₩${sales.totalRevenue.toLocaleString('ko-KR')} (${sales.totalOrders}건)`, inline: true },
+        { name: '금일 메뉴별 판매', value: menuToday.map((m) => `${m.name} ${m.totalQuantity}개`).join(', ') || '-' },
+      ]);
+    })().catch(() => {});
 
     if (cashierName) {
       try {

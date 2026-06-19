@@ -5,11 +5,17 @@ const COLOR = {
   edit:    0x5865f2,
   delete:  0xed4245,
   reorder: 0x747f8d,
+  order:   0xf2c94c,
 } as const;
 
 type EventType = keyof typeof COLOR;
 
-export async function notifyDiscord(type: EventType, title: string, description: string): Promise<void> {
+export async function notifyDiscord(
+  type: EventType,
+  title: string,
+  description: string,
+  fields?: { name: string; value: string; inline?: boolean }[],
+): Promise<void> {
   if (!WEBHOOK_URL) return;
   try {
     await fetch(WEBHOOK_URL, {
@@ -20,8 +26,9 @@ export async function notifyDiscord(type: EventType, title: string, description:
           title,
           description,
           color: COLOR[type],
+          ...(fields && fields.length > 0 ? { fields } : {}),
           timestamp: new Date().toISOString(),
-          footer: { text: 'ChoiChoi POS · 설정 변경' },
+          footer: { text: 'ChoiChoi POS' },
         }],
       }),
     });
