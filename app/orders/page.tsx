@@ -25,17 +25,18 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
+    const filter = popupId !== '0' ? { filter: `popup_id=eq.${popupId}` } : {};
     const channel = supabase
-      .channel('orders-realtime-orders-page')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+      .channel(`orders-realtime-orders-page-${popupId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', ...filter }, () => {
         queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', ...filter }, () => {
         queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [queryClient]);
+  }, [queryClient, popupId]);
 
   const pendingOrdersQuery = useQuery<OrderRecordWithItems[]>({
     queryKey: ['pending-orders', popupId],
@@ -44,7 +45,6 @@ export default function OrdersPage() {
       if (!result.success) throw new Error(result.error || '미처리 주문 로딩 실패');
       return result.data ?? [];
     },
-    staleTime: 0,
   });
   const pendingOrders = pendingOrdersQuery.data ?? [];
 

@@ -4,11 +4,16 @@ import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { Worker } from '@/types/database'
+import { WORKER_COLUMNS } from '@/lib/supabase-admin'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
+
+// user_profiles 테이블의 실제 컬럼 — active_title_key/title_color는 workers 테이블에만 있고
+// user_profiles에는 존재하지 않음 (CLAUDE.md/README.md 문서 오류, 별도 수정)
+const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role, total_revenue'
 
 export interface UserProfile {
   id: string
@@ -17,8 +22,6 @@ export interface UserProfile {
   bank_name: string | null
   bank_account: string | null
   health_cert_url: string | null
-  active_title_key: string | null
-  title_color: string | null
   worker_role: string
   total_revenue: number
 }
@@ -31,7 +34,7 @@ export async function getMyProfile(): Promise<ApiResponse<UserProfile>> {
 
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
-      .select('*')
+      .select(USER_PROFILE_COLUMNS)
       .eq('id', user.id)
       .maybeSingle()
 
@@ -431,7 +434,7 @@ export async function fetchAllUserProfiles(): Promise<ApiResponse<UserProfile[]>
   try {
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
-      .select('*')
+      .select(USER_PROFILE_COLUMNS)
       .order('name')
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as UserProfile[] }
@@ -448,7 +451,7 @@ export async function findOrCreateWorkerFromProfile(
     // 이미 이 이벤트에 해당 user_profile_id로 등록된 worker 있으면 반환
     const { data: existing } = await supabaseAdmin
       .from('workers')
-      .select('*')
+      .select(WORKER_COLUMNS)
       .eq('event_id', eventId)
       .eq('user_profile_id', profileId)
       .maybeSingle()
@@ -457,7 +460,7 @@ export async function findOrCreateWorkerFromProfile(
     // user_profiles에서 정보 가져오기
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .select('*')
+      .select(USER_PROFILE_COLUMNS)
       .eq('id', profileId)
       .single()
     if (profileError || !profile) return { success: false, error: '프로필을 찾을 수 없습니다.' }

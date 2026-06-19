@@ -761,10 +761,12 @@ export async function getMenuSalesByPeriod(
 
 // ── Workers ───────────────────────────────────────────────────────────────────
 
+export const WORKER_COLUMNS = 'id, event_id, name, color, phone, bank_name, bank_account, hourly_rate, payment_done, worker_role, user_profile_id, created_at, updated_at'
+
 export async function getWorkers(eventId: number): Promise<Worker[]> {
   const { data, error } = await supabaseAdmin
     .from('workers')
-    .select('*')
+    .select(WORKER_COLUMNS)
     .eq('event_id', eventId)
     .order('name', { ascending: true })
   if (error) throw error
