@@ -4,6 +4,7 @@ export const EMOJI_MAP: { keyword: string; emoji: string }[] = [
   { keyword: '망고',   emoji: '🥭' },
   { keyword: '멜론',   emoji: '🍈' },
   { keyword: '천혜향', emoji: '🍊' },
+  { keyword: '복숭아', emoji: '🍑' },
 ];
 
 export function getEmoji(name: string): string {
