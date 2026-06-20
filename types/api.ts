@@ -49,6 +49,7 @@ export interface OrderRecord {
   payment_status: string;
   cashier_name: string | null;
   is_prepared: boolean;
+  popup_name: string | null;
 }
 
 export interface OrderItemDetail {
