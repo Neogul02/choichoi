@@ -102,7 +102,7 @@ export async function getTodaysOrderList(popupId?: string | number | null): Prom
   const { start, end } = getKSTDateBounds()
   let query = supabaseAdmin
     .from('orders')
-    .select('id,total_price,created_at,payment_status,cashier_name,is_prepared')
+    .select('id,total_price,created_at,payment_status,cashier_name,is_prepared,popup_events(name)')
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
@@ -112,7 +112,10 @@ export async function getTodaysOrderList(popupId?: string | number | null): Prom
 
   const { data, error } = await query
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map((order) => ({
+    ...order,
+    popup_name: (order.popup_events as unknown as { name: string } | null)?.name ?? null,
+  })) as unknown as OrderRecord[]
 }
 
 export async function getTodaysOrderListWithItems(
@@ -123,7 +126,7 @@ export async function getTodaysOrderListWithItems(
   let query = supabaseAdmin
     .from('orders')
     .select(
-      'id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))',
+      'id, total_price, created_at, payment_status, cashier_name, is_prepared, popup_events(name), order_items(menu_item_id, quantity, subtotal, menu_items(name))',
     )
     .gte('created_at', start)
     .lte('created_at', end)
@@ -150,6 +153,7 @@ export async function getTodaysOrderListWithItems(
       payment_status: order.payment_status as string,
       cashier_name: (order.cashier_name as string | null) ?? null,
       is_prepared: (order.is_prepared as boolean) ?? false,
+      popup_name: (order.popup_events as unknown as { name: string } | null)?.name ?? null,
       items: rawItems.map((item) => ({
         menu_item_id: item.menu_item_id,
         name: item.menu_items?.name ?? '알 수 없음',
@@ -261,6 +265,7 @@ export async function getPendingOrders(popupId?: string | number | null): Promis
       payment_status: order.payment_status as string,
       cashier_name: (order.cashier_name as string | null) ?? null,
       is_prepared: false,
+      popup_name: null,
       items: rawItems.map((item) => ({
         menu_item_id: item.menu_item_id,
         name: item.menu_items?.name ?? '알 수 없음',
@@ -1133,6 +1138,7 @@ export async function getOrdersByDate(
     payment_status: order.payment_status,
     cashier_name: order.cashier_name,
     is_prepared: order.is_prepared,
+    popup_name: null,
     items: (order.order_items ?? []).map((item: any) => ({
       menu_item_id: item.menu_item_id,
       name: item.menu_items?.name ?? '알 수 없음',
