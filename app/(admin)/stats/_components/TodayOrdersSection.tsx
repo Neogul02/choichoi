@@ -51,6 +51,9 @@ export default function TodayOrdersSection({ orders, todayRevenue, isLoading, on
                     <div className="flex justify-between items-center mb-0.5">
                       <div className="flex items-center gap-1.5">
                         <span className="text-ink-muted text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                        {order.popup_name && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas-soft text-ink-muted">{order.popup_name}</span>
+                        )}
                         {order.cashier_name && (
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas-soft text-ink-muted">{order.cashier_name}</span>
                         )}
