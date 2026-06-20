@@ -12,6 +12,7 @@ import type { MenuItem, PopupEvent } from '@/types/database';
 import type { CartItem, Mode, DisplayState } from '@/types/display';
 import ViewMode from '@/components/display/ViewMode';
 import OrderMode from '@/components/display/OrderMode';
+import ScreenMode from '@/components/display/ScreenMode';
 import CheckoutOverlay from '@/components/display/CheckoutOverlay';
 import BottomBanner from '@/components/display/BottomBanner';
 
@@ -46,6 +47,14 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
         }`}
       >
         주문하기
+      </button>
+      <button
+        onClick={() => setMode('screen')}
+        className={`px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
+          mode === 'screen' ? 'bg-white text-[#1a1a1a] shadow-sm' : 'bg-transparent text-[#999] hover:text-[#555]'
+        }`}
+      >
+        스크린
       </button>
     </div>
   );
@@ -266,7 +275,7 @@ function DisplayContent({ popupId }: { popupId: string }) {
         <AnimatePresence mode="wait">
           {mode === 'view' ? (
             <ViewMode cartItems={cartItems} cartTotalPrice={cartTotalPrice} />
-          ) : (
+          ) : mode === 'order' ? (
             <OrderMode
               menuItems={menuItems}
               localCounts={localCounts}
@@ -274,6 +283,8 @@ function DisplayContent({ popupId }: { popupId: string }) {
               onDecrement={decrement}
               onReset={resetLocalOrder}
             />
+          ) : (
+            <ScreenMode />
           )}
         </AnimatePresence>
 
@@ -284,7 +295,7 @@ function DisplayContent({ popupId }: { popupId: string }) {
         />
       </main>
 
-      <BottomBanner />
+      {mode !== 'screen' && <BottomBanner />}
     </div>
   );
 }
