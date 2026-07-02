@@ -67,6 +67,63 @@ export interface ScheduleSlot {
   updated_at: string;
 }
 
+// ── HR (인사관리) ─────────────────────────────────────────────────────────────
+
+export interface AvailabilityRange {
+  from: string; // YYYY-MM-DD
+  to: string;   // YYYY-MM-DD
+}
+
+export type StaffShift = 'AM' | 'PM' | 'ANY';
+export type StaffStatus = 'candidate' | 'confirmed' | 'rejected' | 'inactive';
+
+export interface StaffProfile {
+  id: number;
+  name: string;
+  phone: string | null;
+  preferred_shift: StaffShift;
+  preferred_days: number[]; // 0=일 ~ 6=토, 빈 배열 = 요일 무관
+  available_ranges: AvailabilityRange[];
+  has_health_cert: boolean;
+  wants_insurance: boolean;
+  hourly_rate: number | null;
+  status: StaffStatus;
+  notes: string | null;
+  user_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RosterSettings {
+  id: number;
+  am_start: string;
+  am_end: string;
+  pm_start: string;
+  pm_end: string;
+  weekday_am_required: number;
+  weekday_pm_required: number;
+  weekend_am_required: number;
+  weekend_pm_required: number;
+  updated_at: string;
+}
+
+export interface RosterRequirement {
+  work_date: string;
+  am_required: number;
+  pm_required: number;
+}
+
+export interface RosterAssignment {
+  id: number;
+  work_date: string;
+  shift: 'AM' | 'PM';
+  staff_id: number;
+  start_time: string | null; // null이면 settings의 파트 기본 시간
+  end_time: string | null;
+  created_at: string;
+  staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'preferred_shift' | 'status'>;
+}
+
 export interface Memo {
   id: number;
   title: string | null;
