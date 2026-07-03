@@ -47,11 +47,13 @@ export async function getHealthCertUrl(path: string): Promise<ApiResponse<{ url:
   }
 }
 
-const STAFF_COLUMNS = 'id, name, phone, staff_role, store_id, preferred_shift_ids, preferred_days, available_ranges, has_health_cert, health_cert_url, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, created_at, updated_at'
+const STAFF_COLUMNS = 'id, name, phone, bank_name, bank_account, staff_role, store_id, preferred_shift_ids, preferred_days, available_ranges, has_health_cert, health_cert_url, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, sort_order, created_at, updated_at'
 
 export interface StaffProfileInput {
   name: string
   phone?: string | null
+  bank_name?: string | null
+  bank_account?: string | null
   staff_role: StaffRole
   store_id?: number | null
   preferred_shift_ids: number[]
@@ -72,9 +74,20 @@ export async function fetchStaffProfiles(): Promise<ApiResponse<StaffProfile[]>>
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .select(STAFF_COLUMNS)
-      .order('created_at', { ascending: false })
+      .order('sort_order', { ascending: true })
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as StaffProfile[] }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function updateStaffOrder(updates: { id: number; sort_order: number }[]): Promise<ApiResponse> {
+  try {
+    await Promise.all(updates.map(({ id, sort_order }) =>
+      supabaseAdmin.from('staff_profiles').update({ sort_order }).eq('id', id)
+    ))
+    return { success: true }
   } catch (err) {
     return { success: false, error: String(err) }
   }
@@ -87,6 +100,8 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
       .insert([{
         name: input.name.trim(),
         phone: input.phone?.trim() || null,
+        bank_name: input.bank_name?.trim() || null,
+        bank_account: input.bank_account?.trim() || null,
         staff_role: input.staff_role,
         store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
         preferred_shift_ids: input.preferred_shift_ids,
@@ -117,6 +132,8 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
       .update({
         name: input.name.trim(),
         phone: input.phone?.trim() || null,
+        bank_name: input.bank_name?.trim() || null,
+        bank_account: input.bank_account?.trim() || null,
         staff_role: input.staff_role,
         store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
         preferred_shift_ids: input.preferred_shift_ids,

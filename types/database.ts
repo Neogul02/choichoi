@@ -88,6 +88,8 @@ export interface StaffProfile {
   id: number;
   name: string;
   phone: string | null;
+  bank_name: string | null;
+  bank_account: string | null;
   staff_role: StaffRole;
   store_id: number | null; // 캐셔만 사용, 주방은 null
   preferred_shift_ids: number[]; // roster_shifts.id 목록, 빈 배열 = 파트 무관
@@ -101,6 +103,7 @@ export interface StaffProfile {
   status: StaffStatus;
   notes: string | null;
   user_profile_id: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }

@@ -27,6 +27,8 @@ export default function StaffFormModal({
 }: Props) {
   const [name, setName] = useState(staff?.name ?? '');
   const [phone, setPhone] = useState(staff?.phone ?? '');
+  const [bankName, setBankName] = useState(staff?.bank_name ?? '');
+  const [bankAccount, setBankAccount] = useState(staff?.bank_account ?? '');
   const [staffRole, setStaffRole] = useState<StaffRole>(staff?.staff_role ?? defaultRole ?? 'cashier');
   const [storeId, setStoreId] = useState<number | null>(staff?.store_id ?? defaultStoreId ?? null);
   const [shiftIds, setShiftIds] = useState<number[]>(staff?.preferred_shift_ids ?? []);
@@ -66,8 +68,8 @@ export default function StaffFormModal({
     if (!id) return;
     const p = userProfiles.find(u => u.id === id);
     if (!p) return;
-    if (!name.trim()) setName(p.name);
-    if (!phone.trim() && p.phone) setPhone(p.phone);
+    setName(p.name);
+    if (p.phone) setPhone(p.phone);
   };
 
   const updateRange = (i: number, patch: Partial<AvailabilityRange>) =>
@@ -78,7 +80,9 @@ export default function StaffFormModal({
     const validRanges = ranges.filter(r => r.from && r.to && r.from <= r.to);
     setIsSaving(true);
     await onSubmit({
-      name, phone: phone || null, staff_role: staffRole,
+      name, phone: phone || null,
+      bank_name: bankName || null, bank_account: bankAccount || null,
+      staff_role: staffRole,
       store_id: staffRole === 'cashier' ? storeId : null,
       preferred_shift_ids: shiftIds.filter(id => (unitShifts ?? []).some(s => s.id === id)),
       preferred_days: days, available_ranges: validRanges,
@@ -149,6 +153,14 @@ export default function StaffFormModal({
             <div className="flex flex-col gap-1">
               <label className={labelCls}>전화번호</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelCls}>은행명</label>
+              <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="국민은행" className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelCls}>계좌번호</label>
+              <input type="text" value={bankAccount} onChange={e => setBankAccount(e.target.value)} placeholder="000-0000-0000-00" className={inputCls} />
             </div>
           </div>
 

@@ -14,6 +14,8 @@ interface Props {
   staffId: number
   name: string
   phone?: string | null
+  bankName?: string | null
+  bankAccount?: string | null
   hourlyRate: number | null
   basePay: number | null
   totalHours: number
@@ -32,8 +34,15 @@ function formatDate(dateStr: string) {
 }
 
 export default function PayrollDetailModal({
-  staffId, name, hourlyRate, basePay, totalHours, year, month, onClose,
+  staffId, name, phone, bankName, bankAccount, hourlyRate, basePay, totalHours, year, month, onClose,
 }: Props) {
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const copyText = (key: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(null), 1500)
+    })
+  }
   const [details, setDetails] = useState<StaffDayDetail[] | null>(null)
   const [adjustments, setAdjustments] = useState<Adjustment[]>([])
   const [newLabel, setNewLabel] = useState('')
@@ -102,6 +111,42 @@ export default function PayrollDetailModal({
         </div>
 
         <div className="p-5 flex flex-col gap-5">
+          {/* 연락처 / 계좌 */}
+          {(phone || bankAccount) && (
+            <div className="flex flex-wrap gap-2">
+              {phone && (
+                <button
+                  onClick={() => copyText('phone', phone)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                >
+                  <span className="text-ink-muted text-[10px] font-semibold">전화</span>
+                  <span className="font-semibold">{phone}</span>
+                  <span className="text-[10px] text-primary-600">{copiedKey === 'phone' ? '복사됨!' : '복사'}</span>
+                </button>
+              )}
+              {bankName && bankAccount && (
+                <button
+                  onClick={() => copyText('bank', bankAccount)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                >
+                  <span className="text-ink-muted text-[10px] font-semibold">{bankName}</span>
+                  <span className="font-semibold">{bankAccount}</span>
+                  <span className="text-[10px] text-primary-600">{copiedKey === 'bank' ? '복사됨!' : '복사'}</span>
+                </button>
+              )}
+              {!bankName && bankAccount && (
+                <button
+                  onClick={() => copyText('bank', bankAccount)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                >
+                  <span className="text-ink-muted text-[10px] font-semibold">계좌</span>
+                  <span className="font-semibold">{bankAccount}</span>
+                  <span className="text-[10px] text-primary-600">{copiedKey === 'bank' ? '복사됨!' : '복사'}</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* 근무 상세 테이블 */}
           <div>
             <h4 className="m-0 mb-2 text-[11px] font-bold text-ink-muted uppercase tracking-wide">근무 상세</h4>

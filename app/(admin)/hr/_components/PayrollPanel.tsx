@@ -140,6 +140,8 @@ export default function PayrollPanel({ defaultRole }: Props) {
           staffId={detailTarget.staffId}
           name={detailTarget.name}
           phone={detailTarget.phone}
+          bankName={detailTarget.bankName}
+          bankAccount={detailTarget.bankAccount}
           hourlyRate={detailTarget.hourlyRate}
           basePay={detailTarget.totalPay}
           totalHours={detailTarget.totalHours}
