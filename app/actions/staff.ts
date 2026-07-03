@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
 
@@ -179,6 +180,37 @@ export async function deleteStaffProfile(id: number): Promise<ApiResponse> {
     const { error } = await supabaseAdmin.from('staff_profiles').delete().eq('id', id)
     if (error) return { success: false, error: error.message }
     return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function getStaffById(staffId: number): Promise<ApiResponse<StaffProfile | null>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('staff_profiles')
+      .select(STAFF_COLUMNS)
+      .eq('id', staffId)
+      .maybeSingle()
+    if (error) return { success: false, error: error.message }
+    return { success: true, data: data as StaffProfile | null }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function getMyStaffProfile(): Promise<ApiResponse<StaffProfile | null>> {
+  try {
+    const supabase = await createSupabaseServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+    const { data, error } = await supabaseAdmin
+      .from('staff_profiles')
+      .select(STAFF_COLUMNS)
+      .eq('user_profile_id', user.id)
+      .maybeSingle()
+    if (error) return { success: false, error: error.message }
+    return { success: true, data: data as StaffProfile | null }
   } catch (err) {
     return { success: false, error: String(err) }
   }

@@ -113,6 +113,17 @@ export async function updateRosterShift(id: number, input: RosterShiftInput): Pr
   }
 }
 
+export async function updateRosterShiftOrder(updates: { id: number; sort_order: number }[]): Promise<ApiResponse> {
+  try {
+    await Promise.all(
+      updates.map(u => supabaseAdmin.from('roster_shifts').update({ sort_order: u.sort_order }).eq('id', u.id))
+    )
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 /** 파트 삭제 — 이 파트의 배정/날짜별 예외도 함께 삭제된다 */
 export async function deleteRosterShift(id: number): Promise<ApiResponse> {
   try {
@@ -336,18 +347,36 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     const holes: AutoFillResult['holes'] = []
 
     for (const dateStr of dates) {
-      for (const shift of shifts) {
-        const required = getRequired(dateStr, shift)
-        let filled = filledCount.get(`${dateStr}|${shift.id}`) ?? 0
-        if (filled >= required) continue
+      const dayAssigned = assignedByDate.get(dateStr) ?? new Set<number>()
+      const weekStart = getWeekStart(dateStr)
 
-        const dayAssigned = assignedByDate.get(dateStr) ?? new Set<number>()
-        const weekStart = getWeekStart(dateStr)
+      // 가능 인원이 적은 파트(제약이 강한 파트)를 먼저 채워야
+      // 오전/오후 둘 다 가능한 유연한 직원이 부족한 파트로 자동 배치된다
+      const pendingShifts = shifts
+        .map(shift => {
+          const required = getRequired(dateStr, shift)
+          const filled = filledCount.get(`${dateStr}|${shift.id}`) ?? 0
+          if (filled >= required) return null
+          const eligibleCount = staff.filter(s =>
+            !dayAssigned.has(s.id) &&
+            (s.max_days_per_week == null || (weeklyCount.get(`${s.id}|${weekStart}`) ?? 0) < s.max_days_per_week) &&
+            checkStaffAvailability(s, dateStr, shift).ok,
+          ).length
+          return { shift, required, eligibleCount }
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+        .sort((a, b) => a.eligibleCount - b.eligibleCount) // 가능 인원 오름차순 = 부족한 파트 우선
+
+      for (const { shift, required } of pendingShifts) {
+        let filled = filledCount.get(`${dateStr}|${shift.id}`) ?? 0
+
+        // 앞 파트 배정 이후 dayAssigned가 갱신됐으므로 eligible 재계산
         const eligible = staff
           .filter(s =>
             !dayAssigned.has(s.id) &&
             (s.max_days_per_week == null || (weeklyCount.get(`${s.id}|${weekStart}`) ?? 0) < s.max_days_per_week) &&
-            checkStaffAvailability(s, dateStr, shift).ok)
+            checkStaffAvailability(s, dateStr, shift).ok,
+          )
           .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0) || a.id - b.id)
 
         for (const s of eligible) {
@@ -358,10 +387,11 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
           workload.set(s.id, (workload.get(s.id) ?? 0) + 1)
           weeklyCount.set(`${s.id}|${weekStart}`, (weeklyCount.get(`${s.id}|${weekStart}`) ?? 0) + 1)
         }
-        assignedByDate.set(dateStr, dayAssigned)
 
         if (filled < required) holes.push({ date: dateStr, shiftName: shift.name, missing: required - filled })
       }
+
+      assignedByDate.set(dateStr, dayAssigned)
     }
 
     if (inserts.length > 0) {
@@ -392,6 +422,55 @@ export interface MyRosterData {
  * 로그인한 근무자 본인의 확정 근무 일정.
  * staff_profiles.user_profile_id로 연결된 프로필이 없으면 data: null (섹션 숨김용).
  */
+export async function bulkAddRosterAssignments(
+  unit: RosterUnit,
+  shiftId: number,
+  staffId: number,
+  dates: string[],
+): Promise<ApiResponse<{ added: number; skipped: number }>> {
+  if (dates.length === 0) return { success: true, data: { added: 0, skipped: 0 } }
+  try {
+    const inserts = dates.map(date => ({
+      work_date: date,
+      shift_id: shiftId,
+      staff_id: staffId,
+      staff_role: unit.staffRole,
+      store_id: unit.storeId,
+    }))
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .upsert(inserts, { onConflict: 'work_date,shift_id,staff_id', ignoreDuplicates: true })
+      .select('id')
+    if (error) return { success: false, error: error.message }
+    const added = (data ?? []).length
+    return { success: true, data: { added, skipped: dates.length - added } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function clearRosterRange(
+  unit: RosterUnit,
+  fromDate: string,
+  toDate: string,
+): Promise<ApiResponse<void>> {
+  try {
+    let q = supabaseAdmin
+      .from('roster_assignments')
+      .delete()
+      .eq('staff_role', unit.staffRole)
+      .gte('work_date', fromDate)
+      .lte('work_date', toDate)
+    const { error } = unit.storeId === null
+      ? await q.is('store_id', null)
+      : await q.eq('store_id', unit.storeId)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   try {
     const supabase = await createSupabaseServerClient()

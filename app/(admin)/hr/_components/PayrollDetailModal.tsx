@@ -1,8 +1,56 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
+import { getStaffById } from '@/app/actions/staff'
+import type { StaffProfile } from '@/types/database'
+import type { ContractData } from '@/components/ContractDocument'
+
+const DAY_CONTRACT: Record<number, string> = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' }
+
+function buildContractData(staff: StaffProfile): ContractData {
+  return {
+    employerName: '초이초이 - (히요리산도)',
+    employerAddress: '경기 동두천시 동두천로119 1층 102호',
+    employerRepresentative: '최진우',
+    employerPhone: '010-8366-2414',
+    workerName: staff.name,
+    workerPhone: staff.phone ?? undefined,
+    startDate: staff.available_ranges[0]?.from ?? '',
+    endDate: staff.available_ranges[0]?.to ?? undefined,
+    workplace: '경기 동두천시 동두천로119 1층 102호',
+    jobDescription: '팝업스토어 운영 (주문 접수, 결제, 재고 관리)',
+    workDays: staff.preferred_days.map(d => ({
+      day: DAY_CONTRACT[d] ?? '',
+      startTime: '10:30',
+      endTime: '18:00',
+      breakStart: '13:00',
+      breakEnd: '14:00',
+    })),
+    weeklyHolidayDay: '',
+    hourlyRate: staff.hourly_rate ?? 0,
+    hasBonus: false,
+    hasOtherAllowance: false,
+    overtimeRate: 50,
+    paymentDay: '25',
+    paymentDirect: false,
+    paymentTransfer: true,
+    insuranceEmployment: staff.wants_insurance,
+    insuranceIndustrial: staff.wants_insurance,
+    insurancePension: false,
+    insuranceHealth: false,
+    issueDate: new Date().toISOString().slice(0, 10),
+  }
+}
+
+const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full text-ink-muted text-sm">계약서 로딩 중...</div>
+  ),
+})
 
 interface Adjustment {
   id: number
@@ -48,10 +96,14 @@ export default function PayrollDetailModal({
   const [newLabel, setNewLabel] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [copied, setCopied] = useState(false)
+  const [contractData, setContractData] = useState<ContractData | null>(null)
 
   useEffect(() => {
     fetchStaffMonthlyDetail(staffId, year, month).then(res => {
       setDetails(res.success && res.data ? res.data : [])
+    })
+    getStaffById(staffId).then(res => {
+      if (res.success && res.data) setContractData(buildContractData(res.data))
     })
   }, [staffId, year, month])
 
@@ -100,7 +152,9 @@ export default function PayrollDetailModal({
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-canvas w-full max-w-[520px] max-h-[90vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline [scrollbar-width:thin]">
+      <div className={`bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex overflow-hidden ${contractData ? 'max-w-[960px]' : 'max-w-[520px]'}`} style={{ maxHeight: '90vh' }}>
+        {/* 좌측: 급여 세부내역 */}
+        <div className="flex flex-col overflow-y-auto [scrollbar-width:thin] flex-1 min-w-0" style={{ maxWidth: contractData ? 520 : undefined }}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-canvas-soft sticky top-0 z-10">
           <div>
@@ -262,6 +316,20 @@ export default function PayrollDetailModal({
             {copied ? '✓ 클립보드에 복사됨!' : '📋 급여 내역 복사 (카카오 / 문자 공유)'}
           </button>
         </div>
+        </div>{/* 좌측 컬럼 끝 */}
+
+        {/* 우측: 근로계약서 */}
+        {contractData && (
+          <div className="border-l border-hairline flex flex-col" style={{ width: 420, minWidth: 420 }}>
+            <div className="px-4 py-4 border-b border-hairline bg-canvas-soft">
+              <p className="m-0 text-[13px] font-bold text-ink">근로계약서</p>
+              <p className="m-0 text-[11px] text-ink-muted mt-0.5">{name} · 최근 계약</p>
+            </div>
+            <div className="flex-1 min-h-0">
+              <PDFPreviewPanel contractData={contractData} />
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body,

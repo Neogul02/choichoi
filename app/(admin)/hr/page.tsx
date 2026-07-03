@@ -18,6 +18,7 @@ import StaffFormModal from './_components/StaffFormModal';
 import StoreManageModal from './_components/StoreManageModal';
 import RosterCalendar from './_components/RosterCalendar';
 import PayrollPanel from './_components/PayrollPanel';
+import StaffAssignModal from './_components/StaffAssignModal';
 import { STATUS_LABELS, STATUS_COLORS, DAY_NAMES, ROLE_LABELS, formatRanges } from './_components/constants';
 
 const HrContractModal = dynamic(() => import('./_components/HrContractModal'), { ssr: false });
@@ -49,6 +50,9 @@ export default function HrPage() {
 
   // HR 독립 근로계약서
   const [contractStaff, setContractStaff] = useState<StaffProfile | null>(null);
+
+  // 일정 일괄 배정
+  const [assigningStaff, setAssigningStaff] = useState<StaffProfile | null>(null);
 
   // 근무자 순서 드래그
   const [draggingStaffId, setDraggingStaffId] = useState<number | null>(null);
@@ -255,7 +259,6 @@ export default function HrPage() {
                         <th className="text-left px-2 py-2 font-semibold text-ink-muted">상태</th>
                         <th className="text-left px-2 py-2 font-semibold text-ink-muted">파트</th>
                         <th className="text-left px-2 py-2 font-semibold text-ink-muted">가용기간</th>
-                        <th className="text-center px-2 py-2 font-semibold text-ink-muted">보건증</th>
                         <th className="px-2 py-2"></th>
                       </tr>
                     </thead>
@@ -270,6 +273,7 @@ export default function HrPage() {
                           onRowClick={() => { setEditingStaff(staff); setShowForm(true); }}
                           onStatusChange={s => handleStatusChange(staff, s)}
                           onContract={() => setContractStaff(staff)}
+                          onAssign={() => setAssigningStaff(staff)}
                           isDragging={draggingStaffId === staff.id}
                           isDragOver={dragOverStaffId === staff.id}
                           onDragStart={() => setDraggingStaffId(staff.id)}
@@ -311,7 +315,7 @@ export default function HrPage() {
             </div>
 
             {rightTab === 'roster'
-              ? <RosterCalendar staffList={staffList} stores={stores} />
+              ? <RosterCalendar staffList={staffList} stores={stores} roleFilter={roleFilter} />
               : <PayrollPanel defaultRole={roleFilter} />
             }
           </div>
@@ -343,11 +347,23 @@ export default function HrPage() {
           onClose={() => setContractStaff(null)}
         />
       )}
+
+      {assigningStaff && (
+        <StaffAssignModal
+          staff={assigningStaff}
+          stores={stores}
+          onClose={() => setAssigningStaff(null)}
+          onAssigned={(count) => {
+            showMsg(count > 0 ? `${count}일 배정 완료` : '새로 배정된 날짜가 없습니다 (이미 배정됨)');
+            setAssigningStaff(null);
+          }}
+        />
+      )}
     </>
   );
 }
 
-function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange, onContract,
+function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange, onContract, onAssign,
   isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: {
   staff: StaffProfile;
   shiftNames: string;
@@ -356,6 +372,7 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
   onRowClick: () => void;
   onStatusChange: (s: StaffStatus) => void;
   onContract: () => void;
+  onAssign: () => void;
   isDragging?: boolean;
   isDragOver?: boolean;
   onDragStart?: () => void;
@@ -391,9 +408,9 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
         <select
           value={staff.status}
           onChange={e => onStatusChange(e.target.value as StaffStatus)}
-          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border cursor-pointer appearance-none ${sc.bg} ${sc.text} ${sc.border}`}
+          className={`text-[10px] font-bold px-1 py-0.5 rounded border cursor-pointer appearance-none ${sc.bg} ${sc.text} ${sc.border}`}
         >
-          {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
+          {(Object.keys(STATUS_LABELS) as StaffStatus[]).filter(s => s !== 'rejected').map(s => (
             <option key={s} value={s}>{STATUS_LABELS[s]}</option>
           ))}
         </select>
@@ -404,21 +421,25 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
       <td className="px-2 py-2.5 text-ink-muted whitespace-nowrap">
         {staff.available_ranges.length === 0 ? '무관' : formatRanges(staff.available_ranges)}
       </td>
-      <td className="px-2 py-2.5 text-center">
-        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
-          staff.has_health_cert ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-        }`}>
-          {staff.has_health_cert ? '보유' : '미보유'}
-        </span>
-      </td>
       <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
-        <button
-          onClick={onContract}
-          title="근로계약서 작성"
-          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
-        >
-          계약서
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onAssign}
+            title="일정 배정"
+            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition cursor-pointer"
+          >
+            배정
+          </button>
+          {staff.user_profile_id && (
+            <button
+              onClick={onContract}
+              title="근로계약서 작성"
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+            >
+              계약서
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   );

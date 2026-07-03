@@ -104,7 +104,8 @@ export async function fetchStaffMonthlyDetail(
       const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
       const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
       const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
-      const hours = Math.round((timeToMinutes(endTime) - timeToMinutes(startTime)) / 60 * 10) / 10
+      const rawMins = timeToMinutes(endTime) - timeToMinutes(startTime)
+      const hours = Math.round((rawMins >= 420 ? rawMins - 60 : rawMins) / 60 * 10) / 10
       return { date: a.work_date, shiftName: shift?.name ?? '파트 미정', startTime, endTime, hours }
     })
 
@@ -152,9 +153,10 @@ export async function fetchMonthlyPayroll(
       if (!shift) continue
       const startStr: string = a.start_time ?? shift.start_time
       const endStr: string = a.end_time ?? shift.end_time
-      const minutes = timeToMinutes(endStr) - timeToMinutes(startStr)
+      const rawMins = timeToMinutes(endStr) - timeToMinutes(startStr)
+      const paidMin = rawMins >= 420 ? rawMins - 60 : rawMins
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
-      totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + minutes })
+      totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
 
     const rows: PayrollRow[] = []
