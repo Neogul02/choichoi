@@ -375,6 +375,27 @@ export async function createWorkerAccount(
       return { success: false, error: `프로필 저장 실패: ${profileError.message}` }
     }
 
+    // 인사관리(staff_profiles)에 같은 이름의 미연결 프로필이 있으면 자동 연결
+    // → 가입 즉시 마이페이지에서 본인 근무 일정을 볼 수 있다
+    try {
+      const digits = (s: string | null) => (s ?? '').replace(/\D/g, '')
+      const { data: staffMatches } = await supabaseAdmin
+        .from('staff_profiles')
+        .select('id, phone')
+        .is('user_profile_id', null)
+        .eq('name', input.name.trim())
+      const phone = digits(input.phone)
+      const match = (staffMatches ?? []).find(s => {
+        const staffPhone = digits(s.phone)
+        // 양쪽에 전화번호가 있으면 일치해야 하고, 동명이인(2건 이상)은 전화번호 일치만 허용
+        if (staffPhone && phone) return staffPhone === phone
+        return (staffMatches ?? []).length === 1
+      })
+      if (match) {
+        await supabaseAdmin.from('staff_profiles').update({ user_profile_id: userId }).eq('id', match.id)
+      }
+    } catch { /* 자동 연결 실패는 가입을 막지 않는다 */ }
+
     const { notifyDiscord } = await import('@/lib/discord')
     await notifyDiscord('add', '👤 새 직원 가입', `**${input.name.trim()}** (${input.email.trim()})`)
 
