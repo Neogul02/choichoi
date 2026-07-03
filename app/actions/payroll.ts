@@ -13,10 +13,56 @@ export interface PayrollRow {
   staffId: number
   name: string
   phone: string | null
+  bankName: string | null
+  bankAccount: string | null
   hourlyRate: number | null
   days: number
   totalHours: number
   totalPay: number | null
+}
+
+export interface StaffWorkAssignment {
+  date: string
+  dayName: string
+  shiftName: string
+  startTime: string
+  endTime: string
+}
+
+export async function fetchStaffAssignmentsInRange(
+  staffId: number,
+  fromDate: string,
+  toDate: string,
+): Promise<ApiResponse<StaffWorkAssignment[]>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('work_date, roster_shifts(name, start_time, end_time)')
+      .eq('staff_id', staffId)
+      .gte('work_date', fromDate)
+      .lte('work_date', toDate)
+      .order('work_date', { ascending: true })
+
+    if (error) return { success: false, error: error.message }
+
+    const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
+    const results: StaffWorkAssignment[] = (data ?? []).map(a => {
+      const shiftRaw = a.roster_shifts
+      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
+      const d = new Date(a.work_date + 'T00:00:00')
+      return {
+        date: a.work_date,
+        dayName: DAY_KO[d.getDay()],
+        shiftName: shift?.name ?? '파트 미정',
+        startTime: shift?.start_time ?? '00:00',
+        endTime: shift?.end_time ?? '00:00',
+      }
+    })
+
+    return { success: true, data: results }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
 }
 
 function timeToMinutes(t: string): number {
@@ -88,7 +134,7 @@ export async function fetchMonthlyPayroll(
         .lte('work_date', to),
       supabaseAdmin
         .from('staff_profiles')
-        .select('id, name, phone, hourly_rate')
+        .select('id, name, phone, bank_name, bank_account, hourly_rate')
         .eq('staff_role', staffRole),
       supabaseAdmin
         .from('roster_shifts')
@@ -117,7 +163,7 @@ export async function fetchMonthlyPayroll(
       if (!staff) continue
       const totalHours = Math.round((minutes / 60) * 10) / 10
       const totalPay = staff.hourly_rate != null ? Math.round(totalHours * staff.hourly_rate) : null
-      rows.push({ staffId, name: staff.name, phone: staff.phone, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
+      rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: (staff as any).bank_name ?? null, bankAccount: (staff as any).bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
     }
 
     rows.sort((a, b) => b.totalHours - a.totalHours)

@@ -6,7 +6,7 @@ import NavBar from '@/components/NavBar';
 import { showMsg } from '@/lib/toast';
 import {
   fetchStaffProfiles, createStaffProfile, updateStaffProfile,
-  updateStaffStatus, deleteStaffProfile,
+  updateStaffStatus, deleteStaffProfile, updateStaffOrder,
 } from '@/app/actions/staff';
 import type { StaffProfileInput } from '@/app/actions/staff';
 import { fetchAllUserProfiles } from '@/app/actions/workers';
@@ -44,11 +44,15 @@ export default function HrPage() {
   const [rightTab, setRightTab] = useState<RightTab>('roster');
 
   // 드래그 리사이저
-  const [leftWidth, setLeftWidth] = useState(420);
+  const [leftWidth, setLeftWidth] = useState(550);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // HR 독립 근로계약서
   const [contractStaff, setContractStaff] = useState<StaffProfile | null>(null);
+
+  // 근무자 순서 드래그
+  const [draggingStaffId, setDraggingStaffId] = useState<number | null>(null);
+  const [dragOverStaffId, setDragOverStaffId] = useState<number | null>(null);
 
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -98,6 +102,27 @@ export default function HrPage() {
     if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
     return true;
   }), [roleStaff, roleFilter, storeFilter, statusFilter, search]);
+
+  const handleStaffDrop = async (targetId: number) => {
+    if (!draggingStaffId || draggingStaffId === targetId) { setDraggingStaffId(null); setDragOverStaffId(null); return; }
+    const filteredIds = filtered.map(s => s.id);
+    const fromIdx = filteredIds.indexOf(draggingStaffId);
+    const toIdx = filteredIds.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) { setDraggingStaffId(null); setDragOverStaffId(null); return; }
+    const newOrder = [...filteredIds];
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, draggingStaffId);
+    const currentOrders = filteredIds.map(id => staffList.find(s => s.id === id)!.sort_order);
+    const updates = newOrder.map((id, i) => ({ id, sort_order: currentOrders[i] }));
+    setStaffList(prev => {
+      const orderMap = new Map(updates.map(u => [u.id, u.sort_order]));
+      return [...prev].map(s => orderMap.has(s.id) ? { ...s, sort_order: orderMap.get(s.id)! } : s)
+        .sort((a, b) => a.sort_order - b.sort_order);
+    });
+    setDraggingStaffId(null);
+    setDragOverStaffId(null);
+    await updateStaffOrder(updates);
+  };
 
   const handleSubmit = async (input: StaffProfileInput) => {
     if (editingStaff) {
@@ -225,6 +250,7 @@ export default function HrPage() {
                   <table className="w-full border-collapse text-[12px]">
                     <thead>
                       <tr className="border-b border-hairline bg-canvas-soft sticky top-0">
+                        <th className="w-5 px-1 py-2"></th>
                         <th className="text-left px-3 py-2 font-semibold text-ink-muted">이름</th>
                         <th className="text-left px-2 py-2 font-semibold text-ink-muted">상태</th>
                         <th className="text-left px-2 py-2 font-semibold text-ink-muted">파트</th>
@@ -244,6 +270,12 @@ export default function HrPage() {
                           onRowClick={() => { setEditingStaff(staff); setShowForm(true); }}
                           onStatusChange={s => handleStatusChange(staff, s)}
                           onContract={() => setContractStaff(staff)}
+                          isDragging={draggingStaffId === staff.id}
+                          isDragOver={dragOverStaffId === staff.id}
+                          onDragStart={() => setDraggingStaffId(staff.id)}
+                          onDragOver={() => setDragOverStaffId(staff.id)}
+                          onDragEnd={() => { setDraggingStaffId(null); setDragOverStaffId(null); }}
+                          onDrop={() => handleStaffDrop(staff.id)}
                         />
                       ))}
                     </tbody>
@@ -315,7 +347,8 @@ export default function HrPage() {
   );
 }
 
-function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange, onContract }: {
+function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange, onContract,
+  isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: {
   staff: StaffProfile;
   shiftNames: string;
   store: Store | null;
@@ -323,14 +356,28 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
   onRowClick: () => void;
   onStatusChange: (s: StaffStatus) => void;
   onContract: () => void;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: () => void;
+  onDragOver?: () => void;
+  onDragEnd?: () => void;
+  onDrop?: () => void;
 }) {
   const sc = STATUS_COLORS[staff.status];
 
   return (
     <tr
-      className={`hover:bg-canvas-soft transition cursor-pointer ${!isLast ? 'border-b border-hairline' : ''}`}
+      draggable
+      onDragStart={e => { e.stopPropagation(); onDragStart?.(); }}
+      onDragOver={e => { e.preventDefault(); e.stopPropagation(); onDragOver?.(); }}
+      onDragEnd={onDragEnd}
+      onDrop={e => { e.preventDefault(); e.stopPropagation(); onDrop?.(); }}
+      className={`transition cursor-pointer ${isDragOver ? 'bg-primary-50 outline outline-2 outline-primary-400 outline-offset-[-1px]' : 'hover:bg-canvas-soft'} ${isDragging ? 'opacity-40' : ''} ${!isLast ? 'border-b border-hairline' : ''}`}
       onClick={onRowClick}
     >
+      <td className="px-1 py-2.5 w-5 cursor-grab" onClick={e => e.stopPropagation()}>
+        <span className="text-ink-faint text-[13px] select-none">⋮⋮</span>
+      </td>
       <td className="px-3 py-2.5">
         <div className="font-bold text-ink leading-tight">{staff.name}</div>
         {staff.phone && <div className="text-[11px] text-ink-muted mt-0.5">{staff.phone}</div>}

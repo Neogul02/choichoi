@@ -4,7 +4,8 @@ import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { StaffProfile, RosterShift } from '@/types/database'
-import type { ContractData, WorkDaySchedule } from '@/components/ContractDocument'
+import type { ContractData, WorkDaySchedule, SpecificWorkDate } from '@/components/ContractDocument'
+import { fetchStaffAssignmentsInRange } from '@/app/actions/payroll'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
@@ -83,6 +84,15 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
   // 특약사항
   const [specialTerms, setSpecialTerms] = useState('')
 
+  // 실제 근무 날짜 (roster_assignments)
+  const [specificWorkDates, setSpecificWorkDates] = useState<SpecificWorkDate[]>([])
+  useEffect(() => {
+    if (!startDate || !endDate) { setSpecificWorkDates([]); return }
+    fetchStaffAssignmentsInRange(staff.id, startDate, endDate).then(res => {
+      setSpecificWorkDates(res.success && res.data ? res.data : [])
+    })
+  }, [staff.id, startDate, endDate])
+
   const toggleDay = (d: string) =>
     setSelectedDays(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d].sort((a, b) => CONTRACT_DAYS.indexOf(a as typeof CONTRACT_DAYS[number]) - CONTRACT_DAYS.indexOf(b as typeof CONTRACT_DAYS[number])))
 
@@ -97,6 +107,7 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
     startDate, endDate: endDate || undefined,
     workplace, jobDescription,
     workDays: selectedDays.map(d => ({ ...daySchedules[d], day: d })),
+    specificWorkDates: specificWorkDates.length > 0 ? specificWorkDates : undefined,
     weeklyHolidayDay,
     hourlyRate: parseInt(hourlyRate) || 0,
     hasBonus: false,
@@ -115,7 +126,7 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
     selectedDays, daySchedules, weeklyHolidayDay,
     hourlyRate, paymentDay, paymentTransfer,
     insuranceEmployment, insuranceIndustrial, insurancePension, insuranceHealth,
-    specialTerms,
+    specialTerms, specificWorkDates,
   ])
 
   const [previewData, setPreviewData] = useState<ContractData>(contractData)
@@ -178,6 +189,13 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
                 <span className="text-ink-faint text-[11px] shrink-0">~</span>
                 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
               </div>
+              {startDate && endDate && (
+                <p className="m-0 mt-1 text-[10px] text-ink-muted">
+                  {specificWorkDates.length > 0
+                    ? `스케줄 ${specificWorkDates.length}일 근무 날짜 반영됨`
+                    : '등록된 스케줄 없음 — 요일 패턴으로 계약서 작성'}
+                </p>
+              )}
             </div>
 
             {/* 근무지 / 업무 */}
