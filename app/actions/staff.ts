@@ -9,7 +9,45 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 
-const STAFF_COLUMNS = 'id, name, phone, staff_role, store_id, preferred_shift_ids, preferred_days, available_ranges, has_health_cert, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, created_at, updated_at'
+export async function uploadHealthCert(staffId: number, file: FormData): Promise<ApiResponse<{ url: string }>> {
+  try {
+    const f = file.get('file') as File | null
+    if (!f) return { success: false, error: '파일이 없습니다.' }
+    const ext = f.name.split('.').pop() ?? 'jpg'
+    const path = `staff/${staffId}/health_cert.${ext}`
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('health-certs')
+      .upload(path, f, { upsert: true, contentType: f.type })
+    if (uploadError) return { success: false, error: uploadError.message }
+    const { data: signed } = await supabaseAdmin.storage
+      .from('health-certs')
+      .createSignedUrl(path, 60 * 60 * 24 * 365) // 1년
+    if (!signed?.signedUrl) return { success: false, error: '서명 URL 생성 실패' }
+    // staff_profiles에 저장 경로 기록
+    const { error: dbError } = await supabaseAdmin
+      .from('staff_profiles')
+      .update({ health_cert_url: path, has_health_cert: true, updated_at: new Date().toISOString() })
+      .eq('id', staffId)
+    if (dbError) return { success: false, error: dbError.message }
+    return { success: true, data: { url: signed.signedUrl } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function getHealthCertUrl(path: string): Promise<ApiResponse<{ url: string }>> {
+  try {
+    const { data } = await supabaseAdmin.storage
+      .from('health-certs')
+      .createSignedUrl(path, 60 * 60 * 2) // 2시간
+    if (!data?.signedUrl) return { success: false, error: 'URL 생성 실패' }
+    return { success: true, data: { url: data.signedUrl } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+const STAFF_COLUMNS = 'id, name, phone, staff_role, store_id, preferred_shift_ids, preferred_days, available_ranges, has_health_cert, health_cert_url, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, created_at, updated_at'
 
 export interface StaffProfileInput {
   name: string
@@ -20,6 +58,7 @@ export interface StaffProfileInput {
   preferred_days: number[]
   available_ranges: AvailabilityRange[]
   has_health_cert: boolean
+  health_cert_url?: string | null
   wants_insurance: boolean
   hourly_rate?: number | null
   max_days_per_week?: number | null
@@ -54,6 +93,7 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,
         has_health_cert: input.has_health_cert,
+        health_cert_url: input.health_cert_url ?? null,
         wants_insurance: input.wants_insurance,
         hourly_rate: input.hourly_rate ?? null,
         max_days_per_week: input.max_days_per_week ?? null,
@@ -83,6 +123,7 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,
         has_health_cert: input.has_health_cert,
+        health_cert_url: input.health_cert_url ?? null,
         wants_insurance: input.wants_insurance,
         hourly_rate: input.hourly_rate ?? null,
         max_days_per_week: input.max_days_per_week ?? null,

@@ -94,6 +94,7 @@ export interface StaffProfile {
   preferred_days: number[]; // 0=일 ~ 6=토, 빈 배열 = 요일 무관
   available_ranges: AvailabilityRange[];
   has_health_cert: boolean;
+  health_cert_url: string | null;
   wants_insurance: boolean;
   hourly_rate: number | null;
   max_days_per_week: number | null; // null = 무제한
@@ -114,6 +115,8 @@ export interface RosterShift {
   end_time: string;
   weekday_required: number;
   weekend_required: number;
+  active_from: string | null; // YYYY-MM-DD, null = 제한 없음
+  active_to: string | null;   // YYYY-MM-DD, null = 종료일 없음
   sort_order: number;
   created_at: string;
 }
