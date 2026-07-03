@@ -24,6 +24,50 @@ function timeToMinutes(t: string): number {
   return h * 60 + (m ?? 0)
 }
 
+export interface StaffDayDetail {
+  date: string
+  shiftName: string
+  startTime: string
+  endTime: string
+  hours: number
+}
+
+export async function fetchStaffMonthlyDetail(
+  staffId: number,
+  year: number,
+  month: number, // 0-indexed
+): Promise<ApiResponse<StaffDayDetail[]>> {
+  try {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const from = `${year}-${pad(month + 1)}-01`
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    const to = `${year}-${pad(month + 1)}-${pad(lastDay)}`
+
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('work_date, shift_id, start_time, end_time, roster_shifts(name, start_time, end_time)')
+      .eq('staff_id', staffId)
+      .gte('work_date', from)
+      .lte('work_date', to)
+      .order('work_date', { ascending: true })
+
+    if (error) return { success: false, error: error.message }
+
+    const details: StaffDayDetail[] = (data ?? []).map(a => {
+      const shiftRaw = a.roster_shifts
+      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
+      const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
+      const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
+      const hours = Math.round((timeToMinutes(endTime) - timeToMinutes(startTime)) / 60 * 10) / 10
+      return { date: a.work_date, shiftName: shift?.name ?? '파트 미정', startTime, endTime, hours }
+    })
+
+    return { success: true, data: details }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function fetchMonthlyPayroll(
   staffRole: StaffRole,
   year: number,
