@@ -10,17 +10,24 @@ import {
 import type { StaffProfileInput } from '@/app/actions/staff';
 import { fetchAllUserProfiles } from '@/app/actions/workers';
 import type { UserProfile } from '@/app/actions/workers';
-import type { StaffProfile, StaffShift, StaffStatus } from '@/types/database';
+import { fetchStores } from '@/app/actions/stores';
+import type { StaffProfile, StaffShift, StaffStatus, StaffRole, Store } from '@/types/database';
 import StaffFormModal from './_components/StaffFormModal';
+import StoreManageModal from './_components/StoreManageModal';
 import RosterCalendar from './_components/RosterCalendar';
-import { STATUS_LABELS, STATUS_COLORS, SHIFT_LABELS, DAY_NAMES, formatRanges } from './_components/constants';
+import { STATUS_LABELS, STATUS_COLORS, SHIFT_LABELS, DAY_NAMES, ROLE_LABELS, formatRanges } from './_components/constants';
 
 type StatusFilter = StaffStatus | 'all';
 type ShiftFilter = StaffShift | 'all';
+type StoreFilter = number | 'all' | 'none'; // none = 매장 미배정
 type MainTab = 'staff' | 'roster';
 
 export default function HrPage() {
   const [mainTab, setMainTab] = useState<MainTab>('staff');
+  const [roleFilter, setRoleFilter] = useState<StaffRole>('cashier');
+  const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
+  const [stores, setStores] = useState<Store[]>([]);
+  const [showStoreManage, setShowStoreManage] = useState(false);
   const [staffList, setStaffList] = useState<StaffProfile[]>([]);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,25 +40,32 @@ export default function HrPage() {
   const [editingStaff, setEditingStaff] = useState<StaffProfile | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchStaffProfiles(), fetchAllUserProfiles()]).then(([staffRes, profileRes]) => {
+    Promise.all([fetchStaffProfiles(), fetchAllUserProfiles(), fetchStores()]).then(([staffRes, profileRes, storesRes]) => {
       if (staffRes.success && staffRes.data) setStaffList(staffRes.data);
       if (profileRes.success && profileRes.data) setUserProfiles(profileRes.data);
+      if (storesRes.success && storesRes.data) setStores(storesRes.data);
       setIsLoading(false);
     });
   }, []);
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<StatusFilter, number> = { all: staffList.length, candidate: 0, confirmed: 0, rejected: 0, inactive: 0 };
-    for (const s of staffList) counts[s.status]++;
-    return counts;
-  }, [staffList]);
+  // 현재 구분(주방/캐셔)의 직원만
+  const roleStaff = useMemo(() => staffList.filter(s => s.staff_role === roleFilter), [staffList, roleFilter]);
 
-  const filtered = useMemo(() => staffList.filter(s => {
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusFilter, number> = { all: roleStaff.length, candidate: 0, confirmed: 0, rejected: 0, inactive: 0 };
+    for (const s of roleStaff) counts[s.status]++;
+    return counts;
+  }, [roleStaff]);
+
+  const filtered = useMemo(() => roleStaff.filter(s => {
+    if (roleFilter === 'cashier' && storeFilter !== 'all') {
+      if (storeFilter === 'none' ? s.store_id !== null : s.store_id !== storeFilter) return false;
+    }
     if (statusFilter !== 'all' && s.status !== statusFilter) return false;
     if (shiftFilter !== 'all' && s.preferred_shift !== shiftFilter && s.preferred_shift !== 'ANY') return false;
     if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
     return true;
-  }), [staffList, statusFilter, shiftFilter, search]);
+  }), [roleStaff, roleFilter, storeFilter, statusFilter, shiftFilter, search]);
 
   const handleSubmit = async (input: StaffProfileInput) => {
     if (editingStaff) {
@@ -116,9 +130,71 @@ export default function HrPage() {
         </div>
 
         {mainTab === 'roster' ? (
-          <RosterCalendar staffList={staffList} />
+          <RosterCalendar staffList={staffList} stores={stores} />
         ) : (
           <>
+        {/* 구분 (주방/캐셔) + 매장 */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
+            {(['cashier', 'kitchen'] as StaffRole[]).map(r => (
+              <button
+                key={r}
+                onClick={() => { setRoleFilter(r); setStoreFilter('all'); }}
+                className={`px-4 py-2 text-[13px] font-bold border-none cursor-pointer transition ${
+                  roleFilter === r ? 'bg-ink text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                }`}
+              >
+                {ROLE_LABELS[r]}
+                <span className={`ml-1 text-[11px] ${roleFilter === r ? 'opacity-70' : 'text-ink-faint'}`}>
+                  {staffList.filter(s => s.staff_role === r).length}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {roleFilter === 'cashier' && (
+            <>
+              <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 flex-wrap">
+                <button
+                  onClick={() => setStoreFilter('all')}
+                  className={`px-3 py-2 text-[12px] font-bold border-none cursor-pointer transition ${
+                    storeFilter === 'all' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                  }`}
+                >
+                  전체 매장
+                </button>
+                {stores.map(store => (
+                  <button
+                    key={store.id}
+                    onClick={() => setStoreFilter(store.id)}
+                    className={`px-3 py-2 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${
+                      storeFilter === store.id ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                    }`}
+                  >
+                    {store.name}
+                  </button>
+                ))}
+                {roleStaff.some(s => s.store_id === null) && (
+                  <button
+                    onClick={() => setStoreFilter('none')}
+                    className={`px-3 py-2 text-[12px] font-bold border-none cursor-pointer transition ${
+                      storeFilter === 'none' ? 'bg-amber-500 text-white' : 'bg-canvas text-amber-600 hover:bg-amber-50'
+                    }`}
+                  >
+                    미배정 {roleStaff.filter(s => s.store_id === null).length}
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setShowStoreManage(true)}
+                className="px-3 py-2 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
+              >
+                ⚙ 매장 관리
+              </button>
+            </>
+          )}
+        </div>
+
         {/* 필터 */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
@@ -172,6 +248,7 @@ export default function HrPage() {
               <StaffCard
                 key={staff.id}
                 staff={staff}
+                store={stores.find(st => st.id === staff.store_id) ?? null}
                 linkedProfile={userProfiles.find(p => p.id === staff.user_profile_id) ?? null}
                 onEdit={() => { setEditingStaff(staff); setShowForm(true); }}
                 onDelete={() => handleDelete(staff)}
@@ -184,10 +261,21 @@ export default function HrPage() {
         )}
       </main>
 
+      {showStoreManage && (
+        <StoreManageModal
+          stores={stores}
+          onStoresChange={setStores}
+          onClose={() => setShowStoreManage(false)}
+        />
+      )}
+
       {showForm && (
         <StaffFormModal
           staff={editingStaff}
           userProfiles={userProfiles}
+          stores={stores}
+          defaultRole={roleFilter}
+          defaultStoreId={typeof storeFilter === 'number' ? storeFilter : null}
           onClose={() => { setShowForm(false); setEditingStaff(null); }}
           onSubmit={handleSubmit}
         />
@@ -196,8 +284,9 @@ export default function HrPage() {
   );
 }
 
-function StaffCard({ staff, linkedProfile, onEdit, onDelete, onStatusChange }: {
+function StaffCard({ staff, store, linkedProfile, onEdit, onDelete, onStatusChange }: {
   staff: StaffProfile;
+  store: Store | null;
   linkedProfile: UserProfile | null;
   onEdit: () => void;
   onDelete: () => void;
@@ -221,6 +310,13 @@ function StaffCard({ staff, linkedProfile, onEdit, onDelete, onStatusChange }: {
                 <option key={s} value={s}>{STATUS_LABELS[s]}</option>
               ))}
             </select>
+            {staff.staff_role === 'cashier' && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                store ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-amber-50 text-amber-600 border-amber-200'
+              }`}>
+                {store ? store.name : '매장 미배정'}
+              </span>
+            )}
             {linkedProfile && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200">
                 계정 연결
@@ -274,6 +370,12 @@ function StaffCard({ staff, linkedProfile, onEdit, onDelete, onStatusChange }: {
             {staff.available_ranges.length === 0 ? '무관' : formatRanges(staff.available_ranges)}
           </span>
         </div>
+        {staff.max_days_per_week != null && (
+          <div className="flex items-center gap-2">
+            <span className="text-ink-faint w-[52px] shrink-0">주 최대</span>
+            <span className="text-ink font-semibold">{staff.max_days_per_week}일</span>
+          </div>
+        )}
         {staff.hourly_rate != null && staff.hourly_rate > 0 && (
           <div className="flex items-center gap-2">
             <span className="text-ink-faint w-[52px] shrink-0">시급</span>

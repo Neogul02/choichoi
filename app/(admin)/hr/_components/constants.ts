@@ -1,6 +1,11 @@
-import type { StaffStatus } from '@/types/database';
+import type { StaffRole, StaffStatus } from '@/types/database';
 
 export { SHIFT_LABELS, DAY_NAMES, checkStaffAvailability } from '@/lib/staffing';
+
+export const ROLE_LABELS: Record<StaffRole, string> = {
+  kitchen: '주방',
+  cashier: '캐셔',
+};
 
 export const STATUS_LABELS: Record<StaffStatus, string> = {
   candidate: '후보',

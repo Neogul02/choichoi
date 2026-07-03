@@ -8,6 +8,13 @@ export const SHIFT_LABELS: Record<StaffShift, string> = {
 
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
+/** 해당 날짜가 속한 주의 시작일(일요일, 달력 표시 기준과 동일) — YYYY-MM-DD */
+export function getWeekStart(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** 특정 날짜+파트에 근무 가능한지 판정. 조건이 비어 있으면(요일/기간 무관) 가능으로 본다. */
 export function checkStaffAvailability(
   staff: StaffProfile,

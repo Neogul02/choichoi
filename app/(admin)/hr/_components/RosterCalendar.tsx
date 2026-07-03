@@ -7,12 +7,15 @@ import {
   addRosterAssignment, removeRosterAssignment, updateRosterAssignmentTime,
   setRosterRequirement, clearRosterRequirement, autoFillRoster,
 } from '@/app/actions/roster';
-import type { StaffProfile, RosterSettings, RosterRequirement, RosterAssignment } from '@/types/database';
-import { DAY_NAMES, STATUS_LABELS, checkStaffAvailability } from './constants';
+import type { RosterUnit } from '@/app/actions/roster';
+import type { StaffProfile, Store, RosterSettings, RosterRequirement, RosterAssignment } from '@/types/database';
+import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability } from './constants';
+import { getWeekStart } from '@/lib/staffing';
 import RosterSettingsModal from './RosterSettingsModal';
 
 interface Props {
   staffList: StaffProfile[];
+  stores: Store[];
 }
 
 type Shift = 'AM' | 'PM';
@@ -22,7 +25,9 @@ function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-export default function RosterCalendar({ staffList }: Props) {
+export default function RosterCalendar({ staffList, stores }: Props) {
+  // 단위 = 주방 전체 또는 캐셔의 특정 매장
+  const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', storeId: null });
   // 월 커서 — SSR/hydration 불일치를 피하려고 마운트 후 초기화
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null);
   const [todayStr, setTodayStr] = useState('');
@@ -41,8 +46,9 @@ export default function RosterCalendar({ staffList }: Props) {
   const [isAutoFilling, setIsAutoFilling] = useState(false);
 
   useEffect(() => {
-    fetchRosterSettings().then(r => { if (r.success && r.data) setSettings(r.data); });
-  }, []);
+    setSettings(null);
+    fetchRosterSettings(unit).then(r => { if (r.success && r.data) setSettings(r.data); });
+  }, [unit]);
 
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
   const monthEnd = cursor ? toDateStr(cursor.y, cursor.m, new Date(cursor.y, cursor.m + 1, 0).getDate()) : '';
@@ -50,7 +56,8 @@ export default function RosterCalendar({ staffList }: Props) {
   useEffect(() => {
     if (!cursor) return;
     setIsLoading(true);
-    fetchRosterRange(monthStart, monthEnd).then(r => {
+    setSelectedDate(null);
+    fetchRosterRange(unit, monthStart, monthEnd).then(r => {
       if (r.success && r.data) {
         setAssignments(r.data.assignments);
         setRequirements(Object.fromEntries(r.data.requirements.map(q => [q.work_date, q])));
@@ -58,7 +65,13 @@ export default function RosterCalendar({ staffList }: Props) {
       setIsLoading(false);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursor]);
+  }, [cursor, unit]);
+
+  // 현재 단위 소속 직원만 (주방 전체 / 해당 매장 캐셔)
+  const unitStaff = useMemo(
+    () => staffList.filter(s => s.staff_role === unit.staffRole && (unit.staffRole === 'kitchen' || s.store_id === unit.storeId)),
+    [staffList, unit],
+  );
 
   const handleAutoFill = async () => {
     if (!cursor) return;
@@ -67,12 +80,12 @@ export default function RosterCalendar({ staffList }: Props) {
     if (from > monthEnd) { showMsg('지난 달은 자동 배정할 수 없습니다'); return; }
     if (!confirm(`${cursor.m + 1}월의 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
     setIsAutoFilling(true);
-    const r = await autoFillRoster(from, monthEnd);
+    const r = await autoFillRoster(unit, from, monthEnd);
     if (r.success && r.data) {
       showMsg(r.data.added === 0
         ? '배정할 수 있는 빈 자리가 없습니다'
         : `${r.data.added}자리 배정 완료${r.data.holes.length > 0 ? ` · ${r.data.holes.length}개 파트는 가능 인원 부족` : ''}`);
-      const reload = await fetchRosterRange(monthStart, monthEnd);
+      const reload = await fetchRosterRange(unit, monthStart, monthEnd);
       if (reload.success && reload.data) {
         setAssignments(reload.data.assignments);
         setRequirements(Object.fromEntries(reload.data.requirements.map(q => [q.work_date, q])));
@@ -94,6 +107,20 @@ export default function RosterCalendar({ staffList }: Props) {
   }, [assignments]);
 
   const getAssigned = (dateStr: string, shift: Shift) => assignMap.get(`${dateStr}|${shift}`) ?? [];
+
+  // 해당 날짜가 속한 주(일~토)에 이 직원이 근무하는 날 수 — 이달 데이터 기준 근사치, 서버 자동 배정은 정확히 검사함
+  const getWeeklyDayCount = (staffId: number, dateStr: string): number => {
+    const weekStart = getWeekStart(dateStr);
+    const endD = new Date(weekStart + 'T00:00:00');
+    endD.setDate(endD.getDate() + 6);
+    const weekEnd = toDateStr(endD.getFullYear(), endD.getMonth(), endD.getDate());
+    const days = new Set(
+      assignments
+        .filter(a => a.staff_id === staffId && a.work_date >= weekStart && a.work_date <= weekEnd)
+        .map(a => a.work_date),
+    );
+    return days.size;
+  };
 
   const getRequired = (dateStr: string, shift: Shift): number => {
     const override = requirements[dateStr];
@@ -132,7 +159,7 @@ export default function RosterCalendar({ staffList }: Props) {
   }, [gridDates, assignMap, requirements, settings]);
 
   const handleAdd = async (dateStr: string, shift: Shift, staffId: number) => {
-    const r = await addRosterAssignment(dateStr, shift, staffId);
+    const r = await addRosterAssignment(unit, dateStr, shift, staffId);
     if (r.success && r.data) setAssignments(p => [...p, r.data!]);
     else showMsg(`오류: ${r.error}`);
   };
@@ -150,13 +177,13 @@ export default function RosterCalendar({ staffList }: Props) {
   };
 
   const handleRequirementChange = async (dateStr: string, am: number, pm: number) => {
-    const r = await setRosterRequirement(dateStr, am, pm);
+    const r = await setRosterRequirement(unit, dateStr, am, pm);
     if (r.success && r.data) setRequirements(p => ({ ...p, [dateStr]: r.data! }));
     else showMsg(`오류: ${r.error}`);
   };
 
   const handleRequirementReset = async (dateStr: string) => {
-    const r = await clearRosterRequirement(dateStr);
+    const r = await clearRosterRequirement(unit, dateStr);
     if (r.success) setRequirements(p => { const n = { ...p }; delete n[dateStr]; return n; });
     else showMsg(`오류: ${r.error}`);
   };
@@ -167,6 +194,41 @@ export default function RosterCalendar({ staffList }: Props) {
     <div className="flex flex-col lg:flex-row gap-4 items-start">
       {/* ── 달력 ── */}
       <div className="flex-1 min-w-0 w-full bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
+        {/* 단위 선택: 주방 / 매장별 캐셔 */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-hairline">
+          <button
+            onClick={() => setUnit({ staffRole: 'kitchen', storeId: null })}
+            className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition ${
+              unit.staffRole === 'kitchen'
+                ? 'bg-ink text-white border-ink'
+                : 'bg-canvas text-ink-muted border-hairline hover:border-ink'
+            }`}
+          >
+            {ROLE_LABELS.kitchen}
+          </button>
+          {stores.map(store => (
+            <button
+              key={store.id}
+              onClick={() => setUnit({ staffRole: 'cashier', storeId: store.id })}
+              className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
+                unit.staffRole === 'cashier' && unit.storeId === store.id
+                  ? 'bg-primary-700 text-white border-primary-700'
+                  : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
+              }`}
+            >
+              {store.name}
+            </button>
+          ))}
+          {stores.length === 0 && (
+            <span className="text-[11px] text-ink-faint">
+              캐셔 스케줄은 직원 관리 탭에서 매장을 먼저 등록하면 여기에 나타납니다
+            </span>
+          )}
+          <span className="ml-auto text-[11px] text-ink-faint">
+            소속 인원 {unitStaff.length}명
+          </span>
+        </div>
+
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <button
@@ -287,10 +349,11 @@ export default function RosterCalendar({ staffList }: Props) {
         <DayPanel
           dateStr={selectedDate}
           settings={settings}
-          staffList={staffList}
+          staffList={unitStaff}
           requirements={requirements[selectedDate] ?? null}
           getAssigned={getAssigned}
           getRequired={getRequired}
+          getWeeklyDayCount={getWeeklyDayCount}
           onAdd={handleAdd}
           onRemove={handleRemove}
           onTimeChange={handleTimeChange}
@@ -305,7 +368,7 @@ export default function RosterCalendar({ staffList }: Props) {
           settings={settings}
           onClose={() => setShowSettings(false)}
           onSave={async (input) => {
-            const r = await saveRosterSettings(input);
+            const r = await saveRosterSettings(unit, input);
             if (r.success && r.data) { setSettings(r.data); setShowSettings(false); showMsg('설정이 저장되었습니다'); }
             else showMsg(`오류: ${r.error}`);
           }}
@@ -319,7 +382,7 @@ export default function RosterCalendar({ staffList }: Props) {
 
 function DayPanel({
   dateStr, settings, staffList, requirements,
-  getAssigned, getRequired, onAdd, onRemove, onTimeChange,
+  getAssigned, getRequired, getWeeklyDayCount, onAdd, onRemove, onTimeChange,
   onRequirementChange, onRequirementReset, onClose,
 }: {
   dateStr: string;
@@ -328,6 +391,7 @@ function DayPanel({
   requirements: RosterRequirement | null;
   getAssigned: (d: string, s: Shift) => RosterAssignment[];
   getRequired: (d: string, s: Shift) => number;
+  getWeeklyDayCount: (staffId: number, d: string) => number;
   onAdd: (d: string, s: Shift, staffId: number) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
   onTimeChange: (id: number, start: string | null, end: string | null) => Promise<void>;
@@ -402,7 +466,13 @@ function DayPanel({
         const assignedIds = new Set(assigned.map(a => a.staff_id));
         const candidates = selectableStaff
           .filter(s => !assignedIds.has(s.id))
-          .map(s => ({ staff: s, avail: checkStaffAvailability(s, dateStr, shift) }))
+          .map(s => {
+            const { reasons } = checkStaffAvailability(s, dateStr, shift);
+            if (s.max_days_per_week != null && getWeeklyDayCount(s.id, dateStr) >= s.max_days_per_week) {
+              reasons.push(`주 ${s.max_days_per_week}일 도달`);
+            }
+            return { staff: s, avail: { ok: reasons.length === 0, reasons } };
+          })
           .sort((a, b) => Number(b.avail.ok) - Number(a.avail.ok));
 
         return (

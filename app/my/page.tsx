@@ -8,9 +8,11 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import NavBar from '@/components/NavBar'
 import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount } from '@/app/actions/workers'
 import { getMyContracts } from '@/app/actions/contracts'
+import { getMyRoster } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
+import type { MyRosterData, MyShift } from '@/app/actions/roster'
 import dynamic from 'next/dynamic'
 
 const WorkerSignModal = dynamic(() => import('@/components/WorkerSignModal'), { ssr: false })
@@ -46,6 +48,7 @@ export default function MyPage() {
 
   const [contracts, setContracts] = useState<ContractRecord[]>([])
   const [signingContract, setSigningContract] = useState<ContractRecord | null>(null)
+  const [myRoster, setMyRoster] = useState<MyRosterData | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -56,11 +59,15 @@ export default function MyPage() {
         setAuthEmail(user.email ?? null)
         setIsAdmin(user.user_metadata?.role === 'admin')
       }
-      const [profileRes, statsRes, contractsRes] = await Promise.all([
+      const [profileRes, statsRes, contractsRes, rosterRes] = await Promise.all([
         getMyProfile(),
         getMyOrderStats(),
         getMyContracts(),
+        getMyRoster(),
       ])
+      if (rosterRes.success && rosterRes.data) {
+        setMyRoster(rosterRes.data)
+      }
       if (profileRes.success && profileRes.data) {
         setProfile(profileRes.data)
         setIsAdmin(profileRes.data.worker_role === 'admin')
@@ -218,6 +225,9 @@ export default function MyPage() {
             </div>
           )}
         </section>
+
+        {/* 내 근무 일정 */}
+        {myRoster && <MyScheduleSection roster={myRoster} />}
 
         {/* 티어 */}
         {profile && (() => {
@@ -425,6 +435,93 @@ export default function MyPage() {
 
       </div>
     </>
+  )
+}
+
+const SCHEDULE_DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
+
+function MyScheduleSection({ roster }: { roster: MyRosterData }) {
+  const [showAll, setShowAll] = useState(false)
+
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const thisMonthPrefix = todayStr.slice(0, 7)
+
+  const upcoming = roster.shifts.filter((s) => s.work_date >= todayStr)
+  const thisMonth = roster.shifts.filter((s) => s.work_date.startsWith(thisMonthPrefix))
+  const monthDays = new Set(thisMonth.map((s) => s.work_date)).size
+  const monthHours = Math.round(thisMonth.reduce((sum, s) => sum + s.hours, 0) * 10) / 10
+  const monthPay = roster.hourlyRate ? Math.round(monthHours * roster.hourlyRate) : null
+
+  const visible = showAll ? upcoming : upcoming.slice(0, 7)
+
+  return (
+    <section className='bg-canvas border border-hairline rounded-xl p-5 shadow-level-1'>
+      <div className='flex items-center justify-between mb-4'>
+        <h2 className='text-[15px] font-bold text-ink'>내 근무 일정</h2>
+        <span className='text-[12px] text-ink-muted'>
+          이번 달 {monthDays}일 · {monthHours}시간
+          {monthPay != null && ` · 예상 ${formatPrice(monthPay)}`}
+        </span>
+      </div>
+
+      {upcoming.length === 0 ? (
+        <p className='text-[13px] text-ink-muted'>예정된 근무가 없습니다.</p>
+      ) : (
+        <>
+          <div className='overflow-hidden rounded-lg border border-hairline'>
+            <table className='w-full text-[13px]'>
+              <tbody>
+                {visible.map((s: MyShift, i) => {
+                  const d = new Date(s.work_date + 'T00:00:00')
+                  const day = d.getDay()
+                  const isToday = s.work_date === todayStr
+                  return (
+                    <tr
+                      key={`${s.work_date}-${s.shift}`}
+                      className={`${i > 0 ? 'border-t border-hairline' : ''} ${isToday ? 'bg-primary-50' : i % 2 === 1 ? 'bg-canvas-soft/50' : ''}`}
+                    >
+                      <td className='px-3 py-2.5 whitespace-nowrap'>
+                        <span className='font-semibold text-ink'>
+                          {d.getMonth() + 1}월 {d.getDate()}일
+                        </span>
+                        <span className={`ml-1 text-[12px] ${day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>
+                          ({SCHEDULE_DAY_NAMES[day]})
+                        </span>
+                        {isToday && (
+                          <span className='ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-700 text-white'>오늘</span>
+                        )}
+                      </td>
+                      <td className='px-3 py-2.5'>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          s.shift === 'AM' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'
+                        }`}>
+                          {s.shift === 'AM' ? '오전' : '오후'}
+                        </span>
+                      </td>
+                      <td className='px-3 py-2.5 text-right whitespace-nowrap'>
+                        <span className='font-medium text-ink'>{s.start_time} ~ {s.end_time}</span>
+                        <span className='ml-1.5 text-[11px] text-ink-faint'>{s.hours}시간</span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {upcoming.length > 7 && (
+            <button
+              type='button'
+              onClick={() => setShowAll((v) => !v)}
+              className='w-full mt-2 py-2 rounded-lg border border-hairline bg-transparent text-[12px] text-ink-muted font-semibold cursor-pointer hover:bg-canvas-soft transition-colors'
+            >
+              {showAll ? '접기' : `${upcoming.length - 7}개 더 보기`}
+            </button>
+          )}
+        </>
+      )}
+    </section>
   )
 }
 
