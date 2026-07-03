@@ -2,24 +2,27 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
-import type { StaffProfile, StaffShift, StaffStatus, AvailabilityRange } from '@/types/database'
+import type { StaffProfile, StaffShift, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 
-const STAFF_COLUMNS = 'id, name, phone, preferred_shift, preferred_days, available_ranges, has_health_cert, wants_insurance, hourly_rate, status, notes, user_profile_id, created_at, updated_at'
+const STAFF_COLUMNS = 'id, name, phone, staff_role, store_id, preferred_shift, preferred_days, available_ranges, has_health_cert, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, created_at, updated_at'
 
 export interface StaffProfileInput {
   name: string
   phone?: string | null
+  staff_role: StaffRole
+  store_id?: number | null
   preferred_shift: StaffShift
   preferred_days: number[]
   available_ranges: AvailabilityRange[]
   has_health_cert: boolean
   wants_insurance: boolean
   hourly_rate?: number | null
+  max_days_per_week?: number | null
   status: StaffStatus
   notes?: string | null
   user_profile_id?: string | null
@@ -45,12 +48,15 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
       .insert([{
         name: input.name.trim(),
         phone: input.phone?.trim() || null,
+        staff_role: input.staff_role,
+        store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
         preferred_shift: input.preferred_shift,
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,
         has_health_cert: input.has_health_cert,
         wants_insurance: input.wants_insurance,
         hourly_rate: input.hourly_rate ?? null,
+        max_days_per_week: input.max_days_per_week ?? null,
         status: input.status,
         notes: input.notes?.trim() || null,
         user_profile_id: input.user_profile_id ?? null,
@@ -71,12 +77,15 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
       .update({
         name: input.name.trim(),
         phone: input.phone?.trim() || null,
+        staff_role: input.staff_role,
+        store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
         preferred_shift: input.preferred_shift,
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,
         has_health_cert: input.has_health_cert,
         wants_insurance: input.wants_insurance,
         hourly_rate: input.hourly_rate ?? null,
+        max_days_per_week: input.max_days_per_week ?? null,
         status: input.status,
         notes: input.notes?.trim() || null,
         user_profile_id: input.user_profile_id ?? null,

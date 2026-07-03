@@ -2,27 +2,33 @@
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { StaffProfile, StaffShift, StaffStatus, AvailabilityRange } from '@/types/database';
+import type { StaffProfile, StaffShift, StaffStatus, StaffRole, Store, AvailabilityRange } from '@/types/database';
 import type { StaffProfileInput } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
-import { STATUS_LABELS, SHIFT_LABELS, DAY_NAMES } from './constants';
+import { STATUS_LABELS, SHIFT_LABELS, DAY_NAMES, ROLE_LABELS } from './constants';
 
 interface Props {
   staff: StaffProfile | null; // null = 신규 등록
   userProfiles: UserProfile[];
+  stores: Store[];
+  defaultRole?: StaffRole;    // 신규 등록 시 현재 보고 있는 구분을 기본값으로
+  defaultStoreId?: number | null;
   onClose: () => void;
   onSubmit: (input: StaffProfileInput) => Promise<void>;
 }
 
-export default function StaffFormModal({ staff, userProfiles, onClose, onSubmit }: Props) {
+export default function StaffFormModal({ staff, userProfiles, stores, defaultRole, defaultStoreId, onClose, onSubmit }: Props) {
   const [name, setName] = useState(staff?.name ?? '');
   const [phone, setPhone] = useState(staff?.phone ?? '');
+  const [staffRole, setStaffRole] = useState<StaffRole>(staff?.staff_role ?? defaultRole ?? 'cashier');
+  const [storeId, setStoreId] = useState<number | null>(staff?.store_id ?? defaultStoreId ?? null);
   const [shift, setShift] = useState<StaffShift>(staff?.preferred_shift ?? 'ANY');
   const [days, setDays] = useState<number[]>(staff?.preferred_days ?? []);
   const [ranges, setRanges] = useState<AvailabilityRange[]>(staff?.available_ranges ?? []);
   const [hasHealthCert, setHasHealthCert] = useState(staff?.has_health_cert ?? false);
   const [wantsInsurance, setWantsInsurance] = useState(staff?.wants_insurance ?? true);
   const [hourlyRate, setHourlyRate] = useState(staff?.hourly_rate?.toString() ?? '');
+  const [maxDaysPerWeek, setMaxDaysPerWeek] = useState<number | null>(staff?.max_days_per_week ?? null);
   const [status, setStatus] = useState<StaffStatus>(staff?.status ?? 'candidate');
   const [notes, setNotes] = useState(staff?.notes ?? '');
   const [userProfileId, setUserProfileId] = useState(staff?.user_profile_id ?? '');
@@ -51,12 +57,15 @@ export default function StaffFormModal({ staff, userProfiles, onClose, onSubmit 
     await onSubmit({
       name,
       phone: phone || null,
+      staff_role: staffRole,
+      store_id: staffRole === 'cashier' ? storeId : null,
       preferred_shift: shift,
       preferred_days: days,
       available_ranges: validRanges,
       has_health_cert: hasHealthCert,
       wants_insurance: wantsInsurance,
       hourly_rate: hourlyRate ? Number(hourlyRate) : null,
+      max_days_per_week: maxDaysPerWeek,
       status,
       notes: notes || null,
       user_profile_id: userProfileId || null,
@@ -94,6 +103,32 @@ export default function StaffFormModal({ staff, userProfiles, onClose, onSubmit 
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" className={inputCls} />
             </div>
           </div>
+
+          {/* 구분 + 매장 */}
+          <div className="flex flex-col gap-1">
+            <label className={labelCls}>구분</label>
+            <div className="flex gap-1.5">
+              {(Object.keys(ROLE_LABELS) as StaffRole[]).map(r => (
+                <button key={r} type="button" className={chipCls(staffRole === r)} onClick={() => setStaffRole(r)}>
+                  {ROLE_LABELS[r]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {staffRole === 'cashier' && (
+            <div className="flex flex-col gap-1">
+              <label className={labelCls}>매장 <span className="text-ink-faint font-normal">(미배정이면 스케줄 달력에 안 나옴)</span></label>
+              <select
+                value={storeId ?? ''}
+                onChange={e => setStoreId(e.target.value ? Number(e.target.value) : null)}
+                className={inputCls}
+              >
+                <option value="">미배정</option>
+                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* 상태 */}
           <div className="flex flex-col gap-1">
@@ -133,6 +168,19 @@ export default function StaffFormModal({ staff, userProfiles, onClose, onSubmit 
                   }`}
                 >
                   {d}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 주 최대 근무일 */}
+          <div className="flex flex-col gap-1">
+            <label className={labelCls}>주 최대 근무일 <span className="text-ink-faint font-normal">(자동 배정 시 이 이상 배정하지 않음)</span></label>
+            <div className="flex gap-1 flex-wrap">
+              <button type="button" className={chipCls(maxDaysPerWeek === null)} onClick={() => setMaxDaysPerWeek(null)}>무제한</button>
+              {[1, 2, 3, 4, 5, 6].map(n => (
+                <button key={n} type="button" className={chipCls(maxDaysPerWeek === n)} onClick={() => setMaxDaysPerWeek(n)}>
+                  {n}일
                 </button>
               ))}
             </div>

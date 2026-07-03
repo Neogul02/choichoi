@@ -76,17 +76,28 @@ export interface AvailabilityRange {
 
 export type StaffShift = 'AM' | 'PM' | 'ANY';
 export type StaffStatus = 'candidate' | 'confirmed' | 'rejected' | 'inactive';
+export type StaffRole = 'kitchen' | 'cashier';
+
+export interface Store {
+  id: number;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
 
 export interface StaffProfile {
   id: number;
   name: string;
   phone: string | null;
+  staff_role: StaffRole;
+  store_id: number | null; // 캐셔만 사용, 주방은 null
   preferred_shift: StaffShift;
   preferred_days: number[]; // 0=일 ~ 6=토, 빈 배열 = 요일 무관
   available_ranges: AvailabilityRange[];
   has_health_cert: boolean;
   wants_insurance: boolean;
   hourly_rate: number | null;
+  max_days_per_week: number | null; // null = 무제한
   status: StaffStatus;
   notes: string | null;
   user_profile_id: string | null;
@@ -96,6 +107,8 @@ export interface StaffProfile {
 
 export interface RosterSettings {
   id: number;
+  staff_role: StaffRole;
+  store_id: number | null;
   am_start: string;
   am_end: string;
   pm_start: string;
@@ -108,7 +121,10 @@ export interface RosterSettings {
 }
 
 export interface RosterRequirement {
+  id: number;
   work_date: string;
+  staff_role: StaffRole;
+  store_id: number | null;
   am_required: number;
   pm_required: number;
 }
@@ -118,6 +134,8 @@ export interface RosterAssignment {
   work_date: string;
   shift: 'AM' | 'PM';
   staff_id: number;
+  staff_role: StaffRole;
+  store_id: number | null;
   start_time: string | null; // null이면 settings의 파트 기본 시간
   end_time: string | null;
   created_at: string;
