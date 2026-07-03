@@ -1,30 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift, AvailabilityRange } from '@/types/database';
 import type { StaffProfileInput } from '@/app/actions/staff';
+import { uploadHealthCert, getHealthCertUrl } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
 import { fetchRosterShifts } from '@/app/actions/roster';
 import { STATUS_LABELS, DAY_NAMES, ROLE_LABELS } from './constants';
 
 interface Props {
-  staff: StaffProfile | null; // null = 신규 등록
+  staff: StaffProfile | null;
   userProfiles: UserProfile[];
   stores: Store[];
-  defaultRole?: StaffRole;    // 신규 등록 시 현재 보고 있는 구분을 기본값으로
+  defaultRole?: StaffRole;
   defaultStoreId?: number | null;
   onClose: () => void;
   onSubmit: (input: StaffProfileInput) => Promise<void>;
+  onDelete?: () => void;
+  onHealthCertUploaded?: (staffId: number, path: string) => void;
 }
 
-export default function StaffFormModal({ staff, userProfiles, stores, defaultRole, defaultStoreId, onClose, onSubmit }: Props) {
+export default function StaffFormModal({
+  staff, userProfiles, stores, defaultRole, defaultStoreId,
+  onClose, onSubmit, onDelete, onHealthCertUploaded,
+}: Props) {
   const [name, setName] = useState(staff?.name ?? '');
   const [phone, setPhone] = useState(staff?.phone ?? '');
+  const [bankName, setBankName] = useState(staff?.bank_name ?? '');
+  const [bankAccount, setBankAccount] = useState(staff?.bank_account ?? '');
   const [staffRole, setStaffRole] = useState<StaffRole>(staff?.staff_role ?? defaultRole ?? 'cashier');
   const [storeId, setStoreId] = useState<number | null>(staff?.store_id ?? defaultStoreId ?? null);
   const [shiftIds, setShiftIds] = useState<number[]>(staff?.preferred_shift_ids ?? []);
-  const [unitShifts, setUnitShifts] = useState<RosterShift[] | null>(null); // null = 로딩 중
+  const [unitShifts, setUnitShifts] = useState<RosterShift[] | null>(null);
   const [days, setDays] = useState<number[]>(staff?.preferred_days ?? []);
   const [ranges, setRanges] = useState<AvailabilityRange[]>(staff?.available_ranges ?? []);
   const [hasHealthCert, setHasHealthCert] = useState(staff?.has_health_cert ?? false);
@@ -36,7 +44,12 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
   const [userProfileId, setUserProfileId] = useState(staff?.user_profile_id ?? '');
   const [isSaving, setIsSaving] = useState(false);
 
-  // 구분/매장이 정해지면 해당 단위의 파트 목록을 불러온다 (없으면 오전/오후 자동 생성)
+  // 보건증 파일
+  const [certPath, setCertPath] = useState<string | null>(staff?.health_cert_url ?? null);
+  const [isUploadingCert, setIsUploadingCert] = useState(false);
+  const [isViewingCert, setIsViewingCert] = useState(false);
+  const certInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (staffRole === 'cashier' && storeId === null) { setUnitShifts([]); return; }
     setUnitShifts(null);
@@ -50,14 +63,15 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
   const toggleShift = (id: number) =>
     setShiftIds(p => p.includes(id) ? p.filter(v => v !== id) : [...p, id]);
 
-  // 계정 연결 시 비어 있는 이름/전화번호를 프로필에서 자동으로 채운다
   const handleProfileLink = (id: string) => {
     setUserProfileId(id);
     if (!id) return;
     const p = userProfiles.find(u => u.id === id);
     if (!p) return;
-    if (!name.trim()) setName(p.name);
-    if (!phone.trim() && p.phone) setPhone(p.phone);
+    setName(p.name);
+    if (p.phone) setPhone(p.phone);
+    if (p.bank_name) setBankName(p.bank_name);
+    if (p.bank_account) setBankAccount(p.bank_account);
   };
 
   const updateRange = (i: number, patch: Partial<AvailabilityRange>) =>
@@ -68,23 +82,49 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
     const validRanges = ranges.filter(r => r.from && r.to && r.from <= r.to);
     setIsSaving(true);
     await onSubmit({
-      name,
-      phone: phone || null,
+      name, phone: phone || null,
+      bank_name: bankName || null, bank_account: bankAccount || null,
       staff_role: staffRole,
       store_id: staffRole === 'cashier' ? storeId : null,
-      // 단위를 바꿨을 때 이전 단위의 파트 선택이 남지 않도록 현재 단위 파트만 유지
       preferred_shift_ids: shiftIds.filter(id => (unitShifts ?? []).some(s => s.id === id)),
-      preferred_days: days,
-      available_ranges: validRanges,
-      has_health_cert: hasHealthCert,
+      preferred_days: days, available_ranges: validRanges,
+      has_health_cert: hasHealthCert, health_cert_url: certPath,
       wants_insurance: wantsInsurance,
       hourly_rate: hourlyRate ? Number(hourlyRate) : null,
-      max_days_per_week: maxDaysPerWeek,
-      status,
-      notes: notes || null,
-      user_profile_id: userProfileId || null,
+      max_days_per_week: maxDaysPerWeek, status,
+      notes: notes || null, user_profile_id: userProfileId || null,
     });
     setIsSaving(false);
+  };
+
+  const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !staff) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    setIsUploadingCert(true);
+    const res = await uploadHealthCert(staff.id, fd);
+    setIsUploadingCert(false);
+    if (res.success && res.data) {
+      const path = `staff/${staff.id}/health_cert.${file.name.split('.').pop() ?? 'jpg'}`;
+      setCertPath(path);
+      setHasHealthCert(true);
+      onHealthCertUploaded?.(staff.id, path);
+    }
+    if (certInputRef.current) certInputRef.current.value = '';
+  };
+
+  const handleViewCert = async () => {
+    if (!certPath) return;
+    setIsViewingCert(true);
+    const res = await getHealthCertUrl(certPath);
+    setIsViewingCert(false);
+    if (res.success && res.data) window.open(res.data.url, '_blank');
+  };
+
+  const handleDelete = () => {
+    if (!confirm(`"${staff?.name}" 정보를 삭제하시겠습니까?`)) return;
+    onDelete?.();
   };
 
   const inputCls = 'w-full px-3 py-2 border border-hairline rounded-lg text-[13px] bg-canvas focus:outline-none focus:border-primary-700';
@@ -116,9 +156,17 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
               <label className={labelCls}>전화번호</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" className={inputCls} />
             </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelCls}>은행명</label>
+              <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="국민은행" className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelCls}>계좌번호</label>
+              <input type="text" value={bankAccount} onChange={e => setBankAccount(e.target.value)} placeholder="000-0000-0000-00" className={inputCls} />
+            </div>
           </div>
 
-          {/* 구분 + 매장 */}
+          {/* 구분 */}
           <div className="flex flex-col gap-1">
             <label className={labelCls}>구분</label>
             <div className="flex gap-1.5">
@@ -133,11 +181,7 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
           {staffRole === 'cashier' && (
             <div className="flex flex-col gap-1">
               <label className={labelCls}>매장 <span className="text-ink-faint font-normal">(미배정이면 스케줄 달력에 안 나옴)</span></label>
-              <select
-                value={storeId ?? ''}
-                onChange={e => setStoreId(e.target.value ? Number(e.target.value) : null)}
-                className={inputCls}
-              >
+              <select value={storeId ?? ''} onChange={e => setStoreId(e.target.value ? Number(e.target.value) : null)} className={inputCls}>
                 <option value="">미배정</option>
                 {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
@@ -156,7 +200,7 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
             </div>
           </div>
 
-          {/* 선호 파트 (단위별 파트 다중 선택) */}
+          {/* 선호 파트 */}
           <div className="flex flex-col gap-1">
             <label className={labelCls}>선호 파트 <span className="text-ink-faint font-normal">(선택 안 하면 모든 파트 가능)</span></label>
             {staffRole === 'cashier' && storeId === null ? (
@@ -179,8 +223,7 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
             <label className={labelCls}>선호 요일 <span className="text-ink-faint font-normal">(비워두면 요일 무관)</span></label>
             <div className="flex gap-1">
               {DAY_NAMES.map((d, i) => (
-                <button
-                  key={i} type="button" onClick={() => toggleDay(i)}
+                <button key={i} type="button" onClick={() => toggleDay(i)}
                   className={`w-9 h-9 rounded-lg border text-[12px] font-bold cursor-pointer transition ${
                     days.includes(i)
                       ? 'bg-primary-700 text-white border-primary-700'
@@ -199,9 +242,7 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
             <div className="flex gap-1 flex-wrap">
               <button type="button" className={chipCls(maxDaysPerWeek === null)} onClick={() => setMaxDaysPerWeek(null)}>무제한</button>
               {[1, 2, 3, 4, 5, 6].map(n => (
-                <button key={n} type="button" className={chipCls(maxDaysPerWeek === n)} onClick={() => setMaxDaysPerWeek(n)}>
-                  {n}일
-                </button>
+                <button key={n} type="button" className={chipCls(maxDaysPerWeek === n)} onClick={() => setMaxDaysPerWeek(n)}>{n}일</button>
               ))}
             </div>
           </div>
@@ -210,11 +251,8 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <label className={labelCls}>가용 기간 <span className="text-ink-faint font-normal">(비워두면 기간 무관)</span></label>
-              <button
-                type="button"
-                onClick={() => setRanges(p => [...p, { from: '', to: '' }])}
-                className="text-[11px] text-primary-600 font-bold bg-transparent border-none cursor-pointer hover:text-primary-800 transition"
-              >
+              <button type="button" onClick={() => setRanges(p => [...p, { from: '', to: '' }])}
+                className="text-[11px] text-primary-600 font-bold bg-transparent border-none cursor-pointer hover:text-primary-800 transition">
                 + 기간 추가
               </button>
             </div>
@@ -227,11 +265,8 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
                     <input type="date" value={r.from} onChange={e => updateRange(i, { from: e.target.value })} className={inputCls} />
                     <span className="text-ink-faint text-[12px] shrink-0">~</span>
                     <input type="date" value={r.to} onChange={e => updateRange(i, { to: e.target.value })} className={inputCls} />
-                    <button
-                      type="button"
-                      onClick={() => setRanges(p => p.filter((_, idx) => idx !== i))}
-                      className="shrink-0 w-7 h-7 rounded-lg bg-canvas-soft border-none text-ink-faint cursor-pointer hover:bg-rose-50 hover:text-rose-500 transition text-[14px]"
-                    >
+                    <button type="button" onClick={() => setRanges(p => p.filter((_, idx) => idx !== i))}
+                      className="shrink-0 w-7 h-7 rounded-lg bg-canvas-soft border-none text-ink-faint cursor-pointer hover:bg-rose-50 hover:text-rose-500 transition text-[14px]">
                       ×
                     </button>
                   </div>
@@ -240,7 +275,7 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
             )}
           </div>
 
-          {/* 보건증 / 4대보험 / 시급 */}
+          {/* 보건증 / 4대보험 */}
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1">
               <label className={labelCls}>보건증</label>
@@ -258,6 +293,30 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
             </div>
           </div>
 
+          {/* 보건증 파일 — 기존 직원만 */}
+          {staff && (
+            <div className="flex flex-col gap-1">
+              <label className={labelCls}>보건증 파일</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {certPath ? (
+                  <button type="button" onClick={handleViewCert} disabled={isViewingCert}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition disabled:opacity-50">
+                    {isViewingCert ? '로딩...' : '보건증 보기 ↗'}
+                  </button>
+                ) : (
+                  <span className="text-[12px] text-ink-faint">파일 없음</span>
+                )}
+                <label className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg border cursor-pointer transition ${
+                  isUploadingCert ? 'opacity-50 cursor-not-allowed bg-canvas-soft border-hairline text-ink-muted' : 'bg-canvas border-hairline text-ink-muted hover:bg-canvas-soft'
+                }`}>
+                  {isUploadingCert ? '업로드 중...' : certPath ? '재업로드' : '파일 업로드'}
+                  <input ref={certInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleCertUpload} disabled={isUploadingCert} />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* 시급 / 계정 연결 */}
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1">
               <label className={labelCls}>시급 (원)</label>
@@ -277,24 +336,26 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
           {/* 메모 */}
           <div className="flex flex-col gap-1">
             <label className={labelCls}>메모</label>
-            <textarea
-              value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
               placeholder="면접 내용, 맛보기 일정, 특이사항 등"
               className={`${inputCls} resize-y`}
             />
           </div>
 
+          {/* 액션 버튼 */}
           <div className="flex gap-2 pt-1">
-            <button
-              type="button" onClick={onClose} disabled={isSaving}
-              className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition disabled:opacity-60"
-            >
+            {onDelete && (
+              <button type="button" onClick={handleDelete} disabled={isSaving}
+                className="px-4 py-2.5 rounded-lg border-none bg-rose-500 text-white text-[13px] font-bold cursor-pointer hover:bg-rose-600 transition disabled:opacity-60">
+                삭제
+              </button>
+            )}
+            <button type="button" onClick={onClose} disabled={isSaving}
+              className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition disabled:opacity-60">
               취소
             </button>
-            <button
-              type="button" onClick={handleSubmit} disabled={isSaving || !name.trim()}
-              className="flex-1 py-2.5 rounded-lg border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+            <button type="button" onClick={handleSubmit} disabled={isSaving || !name.trim()}
+              className="flex-1 py-2.5 rounded-lg border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed">
               {isSaving ? '저장 중...' : staff ? '저장' : '등록'}
             </button>
           </div>
