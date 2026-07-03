@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
-import { createRosterShift, updateRosterShift, deleteRosterShift } from '@/app/actions/roster';
+import { createRosterShift, updateRosterShift, deleteRosterShift, updateRosterShiftOrder } from '@/app/actions/roster';
 import type { RosterUnit, RosterShiftInput } from '@/app/actions/roster';
 import type { RosterShift } from '@/types/database';
 
@@ -21,6 +21,8 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [form, setForm] = useState<RosterShiftInput>(EMPTY_FORM);
   const [isBusy, setIsBusy] = useState(false);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<number | null>(null);
 
   const startEdit = (shift: RosterShift) => {
     setEditingId(shift.id);
@@ -55,6 +57,25 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
     setIsBusy(false);
     if (r.success) { onShiftsChange(shifts.filter(s => s.id !== shift.id)); showMsg('삭제되었습니다'); }
     else showMsg(`오류: ${r.error}`);
+  };
+
+  const handleDrop = async (targetId: number) => {
+    if (!draggingId || draggingId === targetId) { setDraggingId(null); setDragOverId(null); return; }
+    const ids = shifts.map(s => s.id);
+    const fromIdx = ids.indexOf(draggingId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) { setDraggingId(null); setDragOverId(null); return; }
+    const newOrder = [...ids];
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, draggingId);
+    const currentOrders = ids.map(id => shifts.find(s => s.id === id)!.sort_order);
+    const updates = newOrder.map((id, i) => ({ id, sort_order: currentOrders[i] }));
+    const orderMap = new Map(updates.map(u => [u.id, u.sort_order]));
+    const reordered = newOrder.map(id => ({ ...shifts.find(s => s.id === id)!, sort_order: orderMap.get(id)! }));
+    onShiftsChange(reordered);
+    setDraggingId(null);
+    setDragOverId(null);
+    await updateRosterShiftOrder(updates);
   };
 
   const inputCls = 'px-2 py-1.5 border border-hairline rounded-lg text-[13px] bg-canvas focus:outline-none focus:border-primary-700';
@@ -121,14 +142,27 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
           <h3 className="m-0 text-[16px] font-bold text-ink">파트 관리</h3>
           <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
-        <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} 파트의 시간대와 기본 필요 인원을 관리합니다.</p>
+        <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} · ⋮⋮ 드래그로 순서 변경</p>
 
         <div className="flex flex-col gap-2">
           {shifts.map(shift => (
             editingId === shift.id ? (
               <div key={shift.id}>{editForm}</div>
             ) : (
-              <div key={shift.id} className="flex items-center gap-2 bg-canvas-soft rounded-lg px-3 py-2.5">
+              <div
+                key={shift.id}
+                draggable
+                onDragStart={e => { e.stopPropagation(); setDraggingId(shift.id); }}
+                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverId(shift.id); }}
+                onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+                onDrop={e => { e.preventDefault(); e.stopPropagation(); handleDrop(shift.id); }}
+                className={`flex items-center gap-2 rounded-lg px-3 py-2.5 transition ${
+                  dragOverId === shift.id
+                    ? 'bg-primary-50 outline outline-2 outline-primary-400 outline-offset-[-1px]'
+                    : 'bg-canvas-soft'
+                } ${draggingId === shift.id ? 'opacity-40' : ''}`}
+              >
+                <span className="text-ink-faint text-[13px] select-none cursor-grab shrink-0">⋮⋮</span>
                 <div className="flex-1 min-w-0">
                   <p className="m-0 text-[13px] font-bold text-ink truncate">{shift.name}</p>
                   <p className="m-0 text-[11px] text-ink-muted">

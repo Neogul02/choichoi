@@ -70,6 +70,8 @@ export default function StaffFormModal({
     if (!p) return;
     setName(p.name);
     if (p.phone) setPhone(p.phone);
+    if (p.bank_name) setBankName(p.bank_name);
+    if (p.bank_account) setBankAccount(p.bank_account);
   };
 
   const updateRange = (i: number, patch: Partial<AvailabilityRange>) =>

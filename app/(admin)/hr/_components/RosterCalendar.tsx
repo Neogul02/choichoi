@@ -4,10 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
-  updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster,
+  updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster, clearRosterRange,
 } from '@/app/actions/roster';
 import type { RosterUnit } from '@/app/actions/roster';
-import type { StaffProfile, Store, RosterShift, RosterAssignment } from '@/types/database';
+import type { StaffProfile, Store, StaffRole, RosterShift, RosterAssignment } from '@/types/database';
 import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability } from './constants';
 import { getWeekStart } from '@/lib/staffing';
 import ShiftManageModal from './ShiftManageModal';
@@ -15,6 +15,7 @@ import ShiftManageModal from './ShiftManageModal';
 interface Props {
   staffList: StaffProfile[];
   stores: Store[];
+  roleFilter: StaffRole;
 }
 
 // 파트 순서에 따라 순환하는 강조색
@@ -27,9 +28,21 @@ function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-export default function RosterCalendar({ staffList, stores }: Props) {
+export default function RosterCalendar({ staffList, stores, roleFilter }: Props) {
   // 단위 = 주방 전체 또는 캐셔의 특정 매장
   const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', storeId: null });
+
+  // 좌측 roleFilter 변경 시 캘린더 단위 동기화
+  useEffect(() => {
+    if (roleFilter === 'kitchen') {
+      setUnit({ staffRole: 'kitchen', storeId: null });
+    } else {
+      setUnit(prev =>
+        prev.staffRole === 'cashier' ? prev : { staffRole: 'cashier', storeId: stores[0]?.id ?? null }
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleFilter]);
   // 월 커서 — SSR/hydration 불일치를 피하려고 마운트 후 초기화
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null);
   const [todayStr, setTodayStr] = useState('');
@@ -200,6 +213,20 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     setIsAutoFilling(false);
   };
 
+  const handleClearRoster = async () => {
+    const effectiveFrom = rangeFrom || monthStart;
+    const effectiveTo = rangeTo || monthEnd;
+    const label = (rangeFrom || rangeTo) ? `${effectiveFrom} ~ ${effectiveTo}` : `${cursor.m + 1}월 전체`;
+    if (!confirm(`[${unitLabel}] ${label} 스케줄을 초기화할까요?\n배정된 근무자가 모두 삭제됩니다.`)) return;
+    const r = await clearRosterRange(unit, effectiveFrom, effectiveTo);
+    if (r.success) {
+      setAssignments(p => p.filter(a => a.work_date < effectiveFrom || a.work_date > effectiveTo));
+      showMsg('스케줄이 초기화됐습니다');
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
+  };
+
   const handleAdd = async (dateStr: string, shiftId: number, staffId: number) => {
     const r = await addRosterAssignment(unit, dateStr, shiftId, staffId);
     if (r.success && r.data) setAssignments(p => [...p, r.data!]);
@@ -237,43 +264,38 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     : (stores.find(s => s.id === unit.storeId)?.name ?? ROLE_LABELS.cashier);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-3 items-start">
       {/* ── 달력 ── */}
       <div className="flex-1 min-w-0 w-full bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
-        {/* 단위 선택: 주방 / 매장별 캐셔 */}
-        <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-hairline">
-          <button
-            onClick={() => setUnit({ staffRole: 'kitchen', storeId: null })}
-            className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition ${
-              unit.staffRole === 'kitchen'
-                ? 'bg-ink text-white border-ink'
-                : 'bg-canvas text-ink-muted border-hairline hover:border-ink'
-            }`}
-          >
-            {ROLE_LABELS.kitchen}
-          </button>
-          {stores.map(store => (
-            <button
-              key={store.id}
-              onClick={() => setUnit({ staffRole: 'cashier', storeId: store.id })}
-              className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
-                unit.staffRole === 'cashier' && unit.storeId === store.id
-                  ? 'bg-primary-700 text-white border-primary-700'
-                  : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
-              }`}
-            >
-              {store.name}
-            </button>
-          ))}
-          {stores.length === 0 && (
-            <span className="text-[11px] text-ink-faint">
-              캐셔 스케줄은 직원 관리 탭에서 매장을 먼저 등록하면 여기에 나타납니다
-            </span>
-          )}
-          <span className="ml-auto text-[11px] text-ink-faint">
-            소속 인원 {unitStaff.length}명
-          </span>
-        </div>
+        {/* 매장 선택 (캐셔일 때만) */}
+        {roleFilter === 'cashier' && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-hairline">
+            {stores.length === 0 ? (
+              <span className="text-[11px] text-ink-faint">매장을 먼저 등록하면 여기에 나타납니다</span>
+            ) : (
+              stores.map(store => (
+                <button
+                  key={store.id}
+                  onClick={() => setUnit({ staffRole: 'cashier', storeId: store.id })}
+                  className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
+                    unit.storeId === store.id
+                      ? 'bg-primary-700 text-white border-primary-700'
+                      : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
+                  }`}
+                >
+                  {store.name}
+                </button>
+              ))
+            )}
+            <span className="ml-auto text-[11px] text-ink-faint">소속 인원 {unitStaff.length}명</span>
+          </div>
+        )}
+        {roleFilter === 'kitchen' && (
+          <div className="flex items-center mb-3 pb-3 border-b border-hairline">
+            <span className="text-[12px] font-bold text-ink-muted">주방 전체</span>
+            <span className="ml-auto text-[11px] text-ink-faint">소속 인원 {unitStaff.length}명</span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -298,6 +320,13 @@ export default function RosterCalendar({ staffList, stores }: Props) {
               className="px-2.5 py-1.5 rounded-lg border-none bg-primary-700 text-white text-[11px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isAutoFilling ? '배정 중...' : '⚡ 자동 채우기'}
+            </button>
+            <button
+              onClick={handleClearRoster}
+              disabled={isLoading}
+              className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[11px] font-bold cursor-pointer hover:bg-rose-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              초기화
             </button>
             <button
               onClick={() => setShowShiftManage(true)}
@@ -391,25 +420,52 @@ export default function RosterCalendar({ staffList, stores }: Props) {
         )}
 
         {/* 이달 부족 인원 요약 */}
-        {!isLoading && shortages.length > 0 && (
-          <div className="mt-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
-            <p className="m-0 mb-1.5 text-[12px] font-bold text-rose-600">⚠ 인원 부족 ({shortages.length}건)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {shortages.map(s => {
-                const day = new Date(s.date + 'T00:00:00').getDay();
-                return (
-                  <button
-                    key={`${s.date}-${s.shift.id}`}
-                    onClick={() => setSelectedDate(s.date)}
-                    className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas border border-rose-200 text-rose-600 cursor-pointer hover:bg-rose-100 transition"
-                  >
-                    {Number(s.date.slice(5, 7))}/{Number(s.date.slice(8))}({DAY_NAMES[day]}) {s.shift.name} {s.missing}명
-                  </button>
-                );
-              })}
+        {!isLoading && shortages.length > 0 && (() => {
+          const grouped = shortages.reduce<{ date: string; items: typeof shortages }[]>((acc, s) => {
+            const last = acc[acc.length - 1];
+            if (last && last.date === s.date) last.items.push(s);
+            else acc.push({ date: s.date, items: [s] });
+            return acc;
+          }, []);
+          return (
+            <div className="mt-3 border border-rose-200 rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border-b border-rose-200">
+                <span className="text-[12px] font-bold text-rose-600">⚠ 인원 부족</span>
+                <span className="text-[11px] text-rose-400">{grouped.length}일 · {shortages.length}건</span>
+              </div>
+              <table className="w-full border-collapse text-[12px]">
+                <tbody>
+                  {grouped.map(({ date, items }, i) => {
+                    const day = new Date(date + 'T00:00:00').getDay();
+                    return (
+                      <tr
+                        key={date}
+                        onClick={() => setSelectedDate(date)}
+                        className={`cursor-pointer hover:bg-rose-50 transition ${i !== grouped.length - 1 ? 'border-b border-rose-100' : ''}`}
+                      >
+                        <td className="px-3 py-2 font-semibold whitespace-nowrap w-[72px]">
+                          {Number(date.slice(5, 7))}/{Number(date.slice(8))}
+                          <span className={`ml-1 text-[11px] ${day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>
+                            ({DAY_NAMES[day]})
+                          </span>
+                        </td>
+                        <td className="px-2 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            {items.map(s => (
+                              <span key={s.shift.id} className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600">
+                                {s.shift.name} {s.missing}명
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
-        )}
+          );
+        })()}
         {!isLoading && shortages.length === 0 && (
           <p className="mt-3 m-0 text-[12px] text-emerald-600 font-semibold">✓ 이달 모든 파트 인원이 채워졌습니다</p>
         )}
