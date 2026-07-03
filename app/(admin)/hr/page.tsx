@@ -11,14 +11,14 @@ import type { StaffProfileInput } from '@/app/actions/staff';
 import { fetchAllUserProfiles } from '@/app/actions/workers';
 import type { UserProfile } from '@/app/actions/workers';
 import { fetchStores } from '@/app/actions/stores';
-import type { StaffProfile, StaffShift, StaffStatus, StaffRole, Store } from '@/types/database';
+import { fetchAllRosterShifts } from '@/app/actions/roster';
+import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift } from '@/types/database';
 import StaffFormModal from './_components/StaffFormModal';
 import StoreManageModal from './_components/StoreManageModal';
 import RosterCalendar from './_components/RosterCalendar';
-import { STATUS_LABELS, STATUS_COLORS, SHIFT_LABELS, DAY_NAMES, ROLE_LABELS, formatRanges } from './_components/constants';
+import { STATUS_LABELS, STATUS_COLORS, DAY_NAMES, ROLE_LABELS, formatRanges } from './_components/constants';
 
 type StatusFilter = StaffStatus | 'all';
-type ShiftFilter = StaffShift | 'all';
 type StoreFilter = number | 'all' | 'none'; // none = 매장 미배정
 type MainTab = 'staff' | 'roster';
 
@@ -27,23 +27,24 @@ export default function HrPage() {
   const [roleFilter, setRoleFilter] = useState<StaffRole>('cashier');
   const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
   const [stores, setStores] = useState<Store[]>([]);
+  const [allShifts, setAllShifts] = useState<RosterShift[]>([]);
   const [showStoreManage, setShowStoreManage] = useState(false);
   const [staffList, setStaffList] = useState<StaffProfile[]>([]);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [shiftFilter, setShiftFilter] = useState<ShiftFilter>('all');
   const [search, setSearch] = useState('');
 
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffProfile | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchStaffProfiles(), fetchAllUserProfiles(), fetchStores()]).then(([staffRes, profileRes, storesRes]) => {
+    Promise.all([fetchStaffProfiles(), fetchAllUserProfiles(), fetchStores(), fetchAllRosterShifts()]).then(([staffRes, profileRes, storesRes, shiftsRes]) => {
       if (staffRes.success && staffRes.data) setStaffList(staffRes.data);
       if (profileRes.success && profileRes.data) setUserProfiles(profileRes.data);
       if (storesRes.success && storesRes.data) setStores(storesRes.data);
+      if (shiftsRes.success && shiftsRes.data) setAllShifts(shiftsRes.data);
       setIsLoading(false);
     });
   }, []);
@@ -62,10 +63,9 @@ export default function HrPage() {
       if (storeFilter === 'none' ? s.store_id !== null : s.store_id !== storeFilter) return false;
     }
     if (statusFilter !== 'all' && s.status !== statusFilter) return false;
-    if (shiftFilter !== 'all' && s.preferred_shift !== shiftFilter && s.preferred_shift !== 'ANY') return false;
     if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
     return true;
-  }), [roleStaff, roleFilter, storeFilter, statusFilter, shiftFilter, search]);
+  }), [roleStaff, roleFilter, storeFilter, statusFilter, search]);
 
   const handleSubmit = async (input: StaffProfileInput) => {
     if (editingStaff) {
@@ -212,20 +212,6 @@ export default function HrPage() {
             ))}
           </div>
 
-          <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
-            {(['all', 'AM', 'PM'] as ShiftFilter[]).map(f => (
-              <button
-                key={f}
-                onClick={() => setShiftFilter(f)}
-                className={`px-3 py-2 text-[12px] font-bold border-none cursor-pointer transition ${
-                  shiftFilter === f ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
-                }`}
-              >
-                {f === 'all' ? '파트 전체' : `${SHIFT_LABELS[f]} 가능`}
-              </button>
-            ))}
-          </div>
-
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="이름/전화번호 검색"
@@ -248,6 +234,7 @@ export default function HrPage() {
               <StaffCard
                 key={staff.id}
                 staff={staff}
+                shiftNames={staff.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name).filter(Boolean).join(', ')}
                 store={stores.find(st => st.id === staff.store_id) ?? null}
                 linkedProfile={userProfiles.find(p => p.id === staff.user_profile_id) ?? null}
                 onEdit={() => { setEditingStaff(staff); setShowForm(true); }}
@@ -284,8 +271,9 @@ export default function HrPage() {
   );
 }
 
-function StaffCard({ staff, store, linkedProfile, onEdit, onDelete, onStatusChange }: {
+function StaffCard({ staff, shiftNames, store, linkedProfile, onEdit, onDelete, onStatusChange }: {
   staff: StaffProfile;
+  shiftNames: string;
   store: Store | null;
   linkedProfile: UserProfile | null;
   onEdit: () => void;
@@ -352,8 +340,8 @@ function StaffCard({ staff, store, linkedProfile, onEdit, onDelete, onStatusChan
       <div className="flex flex-col gap-1.5 text-[12px]">
         <div className="flex items-center gap-2">
           <span className="text-ink-faint w-[52px] shrink-0">파트</span>
-          <span className={`font-bold ${staff.preferred_shift === 'AM' ? 'text-orange-600' : staff.preferred_shift === 'PM' ? 'text-indigo-600' : 'text-ink'}`}>
-            {SHIFT_LABELS[staff.preferred_shift]}
+          <span className="text-ink font-bold">
+            {staff.preferred_shift_ids.length === 0 ? '무관' : shiftNames || '무관'}
           </span>
         </div>
         <div className="flex items-center gap-2">

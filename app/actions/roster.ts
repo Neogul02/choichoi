@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
-import type { RosterSettings, RosterRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
+import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
 import { checkStaffAvailability, getWeekStart } from '@/lib/staffing'
 
 const supabaseAdmin = createClient(
@@ -11,7 +11,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 
-const ASSIGNMENT_COLUMNS = 'id, work_date, shift, staff_id, staff_role, store_id, start_time, end_time, created_at, staff_profiles (id, name, phone, preferred_shift, status)'
+const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, store_id, start_time, end_time, created_at, staff_profiles (id, name, phone, status)'
 
 // 스케줄 단위(unit) = 주방 전체(storeId null) 또는 캐셔의 특정 매장
 export interface RosterUnit {
@@ -27,73 +27,117 @@ function applyUnitFilter<T>(query: T, unit: RosterUnit): T {
   return filtered as T
 }
 
-const DEFAULT_SETTINGS = {
-  am_start: '06:00',
-  am_end: '15:00',
-  pm_start: '15:00',
-  pm_end: '22:00',
-  weekday_am_required: 2,
-  weekday_pm_required: 2,
-  weekend_am_required: 2,
-  weekend_pm_required: 2,
-}
+const DEFAULT_SHIFTS = [
+  { name: '오전', start_time: '06:00', end_time: '15:00', weekday_required: 2, weekend_required: 2, sort_order: 0 },
+  { name: '오후', start_time: '15:00', end_time: '22:00', weekday_required: 2, weekend_required: 2, sort_order: 1 },
+]
 
-/** 단위별 설정 조회 — 없으면 기본값으로 생성해서 반환 */
-export async function fetchRosterSettings(unit: RosterUnit): Promise<ApiResponse<RosterSettings>> {
+/** 단위의 파트 목록 — 없으면 오전/오후 기본 파트를 생성해서 반환 */
+export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<RosterShift[]>> {
   try {
     const { data, error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_settings').select('*'),
+      supabaseAdmin.from('roster_shifts').select('*'),
       unit,
-    ).maybeSingle()
+    )
+      .order('sort_order')
+      .order('created_at')
     if (error) return { success: false, error: error.message }
-    if (data) return { success: true, data: data as RosterSettings }
+    if (data && data.length > 0) return { success: true, data: data as RosterShift[] }
 
     const { data: created, error: createError } = await supabaseAdmin
-      .from('roster_settings')
-      .insert([{ staff_role: unit.staffRole, store_id: unit.storeId, ...DEFAULT_SETTINGS }])
+      .from('roster_shifts')
+      .insert(DEFAULT_SHIFTS.map(s => ({ ...s, staff_role: unit.staffRole, store_id: unit.storeId })))
       .select('*')
-      .single()
     if (createError) return { success: false, error: createError.message }
-    return { success: true, data: created as RosterSettings }
+    return { success: true, data: (created ?? []) as RosterShift[] }
   } catch (err) {
     return { success: false, error: String(err) }
   }
 }
 
-export interface RosterSettingsInput {
-  am_start: string
-  am_end: string
-  pm_start: string
-  pm_end: string
-  weekday_am_required: number
-  weekday_pm_required: number
-  weekend_am_required: number
-  weekend_pm_required: number
+/** 전체 파트 목록 (직원 카드의 선호 파트 이름 표시용) */
+export async function fetchAllRosterShifts(): Promise<ApiResponse<RosterShift[]>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('roster_shifts')
+      .select('*')
+      .order('sort_order')
+      .order('created_at')
+    if (error) return { success: false, error: error.message }
+    return { success: true, data: (data ?? []) as RosterShift[] }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
 }
 
-export async function saveRosterSettings(unit: RosterUnit, input: RosterSettingsInput): Promise<ApiResponse<RosterSettings>> {
+export interface RosterShiftInput {
+  name: string
+  start_time: string
+  end_time: string
+  weekday_required: number
+  weekend_required: number
+}
+
+export async function createRosterShift(unit: RosterUnit, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
   try {
-    const { data, error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_settings').update({ ...input, updated_at: new Date().toISOString() }),
+    if (!input.name.trim()) return { success: false, error: '파트 이름을 입력하세요.' }
+    const { count } = await applyUnitFilter(
+      supabaseAdmin.from('roster_shifts').select('*', { count: 'exact', head: true }),
       unit,
     )
+    const { data, error } = await supabaseAdmin
+      .from('roster_shifts')
+      .insert([{ ...input, name: input.name.trim(), staff_role: unit.staffRole, store_id: unit.storeId, sort_order: count ?? 0 }])
       .select('*')
       .single()
     if (error) return { success: false, error: error.message }
-    return { success: true, data: data as RosterSettings }
+    return { success: true, data: data as RosterShift }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function updateRosterShift(id: number, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
+  try {
+    if (!input.name.trim()) return { success: false, error: '파트 이름을 입력하세요.' }
+    const { data, error } = await supabaseAdmin
+      .from('roster_shifts')
+      .update({ ...input, name: input.name.trim() })
+      .eq('id', id)
+      .select('*')
+      .single()
+    if (error) return { success: false, error: error.message }
+    return { success: true, data: data as RosterShift }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+/** 파트 삭제 — 이 파트의 배정/날짜별 예외도 함께 삭제된다 */
+export async function deleteRosterShift(id: number): Promise<ApiResponse> {
+  try {
+    const { error } = await supabaseAdmin.from('roster_shifts').delete().eq('id', id)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
   } catch (err) {
     return { success: false, error: String(err) }
   }
 }
 
 export interface RosterMonthData {
+  shifts: RosterShift[]
   assignments: RosterAssignment[]
-  requirements: RosterRequirement[]
+  requirements: RosterShiftRequirement[]
 }
 
-/** fromDate/toDate: YYYY-MM-DD (양끝 포함) */
+/** fromDate/toDate: YYYY-MM-DD (양끝 포함). 파트 목록 + 배정 + 날짜별 예외를 한 번에 */
 export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<RosterMonthData>> {
   try {
+    const shiftsRes = await fetchRosterShifts(unit)
+    if (!shiftsRes.success || !shiftsRes.data) return { success: false, error: shiftsRes.error ?? '파트를 불러올 수 없습니다.' }
+    const shifts = shiftsRes.data
+    const shiftIds = shifts.map(s => s.id)
+
     const [assignRes, reqRes] = await Promise.all([
       applyUnitFilter(
         supabaseAdmin.from('roster_assignments').select(ASSIGNMENT_COLUMNS),
@@ -102,10 +146,10 @@ export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDat
         .gte('work_date', fromDate)
         .lte('work_date', toDate)
         .order('work_date'),
-      applyUnitFilter(
-        supabaseAdmin.from('roster_requirements').select('*'),
-        unit,
-      )
+      supabaseAdmin
+        .from('roster_shift_requirements')
+        .select('*')
+        .in('shift_id', shiftIds)
         .gte('work_date', fromDate)
         .lte('work_date', toDate),
     ])
@@ -114,8 +158,9 @@ export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDat
     return {
       success: true,
       data: {
+        shifts,
         assignments: (assignRes.data ?? []) as unknown as RosterAssignment[],
-        requirements: (reqRes.data ?? []) as RosterRequirement[],
+        requirements: (reqRes.data ?? []) as RosterShiftRequirement[],
       },
     }
   } catch (err) {
@@ -126,13 +171,13 @@ export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDat
 export async function addRosterAssignment(
   unit: RosterUnit,
   workDate: string,
-  shift: 'AM' | 'PM',
+  shiftId: number,
   staffId: number,
 ): Promise<ApiResponse<RosterAssignment>> {
   try {
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .insert([{ work_date: workDate, shift, staff_id: staffId, staff_role: unit.staffRole, store_id: unit.storeId }])
+      .insert([{ work_date: workDate, shift_id: shiftId, staff_id: staffId, staff_role: unit.staffRole, store_id: unit.storeId }])
       .select(ASSIGNMENT_COLUMNS)
       .single()
     if (error) {
@@ -174,58 +219,32 @@ export async function updateRosterAssignmentTime(
   }
 }
 
-export async function setRosterRequirement(
-  unit: RosterUnit,
+export async function setShiftRequirement(
   workDate: string,
-  amRequired: number,
-  pmRequired: number,
-): Promise<ApiResponse<RosterRequirement>> {
+  shiftId: number,
+  required: number,
+): Promise<ApiResponse<RosterShiftRequirement>> {
   try {
-    // 단위 유니크 인덱스가 표현식(coalesce) 기반이라 upsert 대신 select→update/insert
-    const { data: existing, error: findError } = await applyUnitFilter(
-      supabaseAdmin.from('roster_requirements').select('id'),
-      unit,
-    )
-      .eq('work_date', workDate)
-      .maybeSingle()
-    if (findError) return { success: false, error: findError.message }
-
-    if (existing) {
-      const { data, error } = await supabaseAdmin
-        .from('roster_requirements')
-        .update({ am_required: amRequired, pm_required: pmRequired })
-        .eq('id', existing.id)
-        .select('*')
-        .single()
-      if (error) return { success: false, error: error.message }
-      return { success: true, data: data as RosterRequirement }
-    }
-
     const { data, error } = await supabaseAdmin
-      .from('roster_requirements')
-      .insert([{
-        work_date: workDate,
-        staff_role: unit.staffRole,
-        store_id: unit.storeId,
-        am_required: amRequired,
-        pm_required: pmRequired,
-      }])
+      .from('roster_shift_requirements')
+      .upsert([{ work_date: workDate, shift_id: shiftId, required }], { onConflict: 'work_date,shift_id' })
       .select('*')
       .single()
     if (error) return { success: false, error: error.message }
-    return { success: true, data: data as RosterRequirement }
+    return { success: true, data: data as RosterShiftRequirement }
   } catch (err) {
     return { success: false, error: String(err) }
   }
 }
 
-/** 날짜별 예외를 제거하고 기본값으로 되돌린다 */
-export async function clearRosterRequirement(unit: RosterUnit, workDate: string): Promise<ApiResponse> {
+/** 날짜별 예외를 제거하고 파트 기본값으로 되돌린다 */
+export async function clearShiftRequirement(workDate: string, shiftId: number): Promise<ApiResponse> {
   try {
-    const { error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_requirements').delete(),
-      unit,
-    ).eq('work_date', workDate)
+    const { error } = await supabaseAdmin
+      .from('roster_shift_requirements')
+      .delete()
+      .eq('work_date', workDate)
+      .eq('shift_id', shiftId)
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
@@ -235,22 +254,23 @@ export async function clearRosterRequirement(unit: RosterUnit, workDate: string)
 
 export interface AutoFillResult {
   added: number
-  holes: { date: string; shift: 'AM' | 'PM'; missing: number }[]
+  holes: { date: string; shiftName: string; missing: number }[]
 }
 
 /**
  * 빈 자리 자동 배정 (fromDate~toDate, 양끝 포함). 단위(주방/매장)별로 독립 동작.
  * - 해당 단위의 확정(confirmed) 직원만 대상
  * - 파트/요일/가용기간 조건이 모두 맞는 직원만 배정
- * - 같은 날 두 파트 중복 배정 금지
+ * - 같은 날 여러 파트 중복 배정 금지
  * - 주 최대 근무일(max_days_per_week) 초과 배정 금지 (주 = 일~토, 달력 표시 기준)
  * - 기간 내 근무일이 적은 직원부터 우선 배정해 균등하게 분배
  */
 export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<AutoFillResult>> {
   try {
-    const settingsRes = await fetchRosterSettings(unit)
-    if (!settingsRes.success || !settingsRes.data) return { success: false, error: settingsRes.error ?? '설정을 불러올 수 없습니다.' }
-    const settings = settingsRes.data
+    const shiftsRes = await fetchRosterShifts(unit)
+    if (!shiftsRes.success || !shiftsRes.data) return { success: false, error: shiftsRes.error ?? '파트를 불러올 수 없습니다.' }
+    const shifts = shiftsRes.data
+    const shiftIds = shifts.map(s => s.id)
 
     // 주간 상한 계산은 기간 양끝이 걸친 주 전체의 배정을 봐야 정확하다
     const weekFrom = getWeekStart(fromDate)
@@ -260,17 +280,17 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
 
     const staffQuery = supabaseAdmin.from('staff_profiles').select('*').eq('status', 'confirmed').eq('staff_role', unit.staffRole)
     const [staffRes, assignRes, reqRes] = await Promise.all([
-      unit.storeId === null ? staffQuery : staffQuery.eq('store_id', unit.storeId),
+      unit.storeId === null ? staffQuery.is('store_id', null) : staffQuery.eq('store_id', unit.storeId),
       applyUnitFilter(
-        supabaseAdmin.from('roster_assignments').select('id, work_date, shift, staff_id'),
+        supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id'),
         unit,
       )
         .gte('work_date', weekFrom)
         .lte('work_date', weekTo),
-      applyUnitFilter(
-        supabaseAdmin.from('roster_requirements').select('*'),
-        unit,
-      )
+      supabaseAdmin
+        .from('roster_shift_requirements')
+        .select('*')
+        .in('shift_id', shiftIds)
         .gte('work_date', fromDate)
         .lte('work_date', toDate),
     ])
@@ -279,24 +299,22 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     if (reqRes.error) return { success: false, error: reqRes.error.message }
 
     const staff = (staffRes.data ?? []) as StaffProfile[]
-    const requirements = new Map((reqRes.data ?? []).map(q => [q.work_date, q as RosterRequirement]))
+    const overrides = new Map((reqRes.data ?? []).map(q => [`${q.work_date}|${q.shift_id}`, q.required as number]))
 
-    const getRequired = (dateStr: string, shift: 'AM' | 'PM'): number => {
-      const override = requirements.get(dateStr)
-      if (override) return shift === 'AM' ? override.am_required : override.pm_required
+    const getRequired = (dateStr: string, shift: RosterShift): number => {
+      const override = overrides.get(`${dateStr}|${shift.id}`)
+      if (override !== undefined) return override
       const day = new Date(dateStr + 'T00:00:00').getDay()
-      const isWeekend = day === 0 || day === 6
-      if (shift === 'AM') return isWeekend ? settings.weekend_am_required : settings.weekday_am_required
-      return isWeekend ? settings.weekend_pm_required : settings.weekday_pm_required
+      return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required
     }
 
     // 현재 배정 상태 인덱싱
-    const filledCount = new Map<string, number>()        // `${date}|${shift}` → 배정 수
+    const filledCount = new Map<string, number>()        // `${date}|${shift_id}` → 배정 수
     const assignedByDate = new Map<string, Set<number>>() // date → 그날 배정된 staff_id (파트 무관)
     const workload = new Map<number, number>()            // staff_id → 기간 내 근무일 수
     const weeklyCount = new Map<string, number>()         // `${staff_id}|${주 시작일}` → 그 주 근무일 수
     for (const a of assignRes.data ?? []) {
-      const key = `${a.work_date}|${a.shift}`
+      const key = `${a.work_date}|${a.shift_id}`
       filledCount.set(key, (filledCount.get(key) ?? 0) + 1)
       if (!assignedByDate.has(a.work_date)) assignedByDate.set(a.work_date, new Set())
       assignedByDate.get(a.work_date)!.add(a.staff_id)
@@ -314,13 +332,13 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
       cur.setDate(cur.getDate() + 1)
     }
 
-    const inserts: { work_date: string; shift: 'AM' | 'PM'; staff_id: number; staff_role: StaffRole; store_id: number | null }[] = []
+    const inserts: { work_date: string; shift_id: number; staff_id: number; staff_role: StaffRole; store_id: number | null }[] = []
     const holes: AutoFillResult['holes'] = []
 
     for (const dateStr of dates) {
-      for (const shift of ['AM', 'PM'] as const) {
+      for (const shift of shifts) {
         const required = getRequired(dateStr, shift)
-        let filled = filledCount.get(`${dateStr}|${shift}`) ?? 0
+        let filled = filledCount.get(`${dateStr}|${shift.id}`) ?? 0
         if (filled >= required) continue
 
         const dayAssigned = assignedByDate.get(dateStr) ?? new Set<number>()
@@ -334,7 +352,7 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
 
         for (const s of eligible) {
           if (filled >= required) break
-          inserts.push({ work_date: dateStr, shift, staff_id: s.id, staff_role: unit.staffRole, store_id: unit.storeId })
+          inserts.push({ work_date: dateStr, shift_id: shift.id, staff_id: s.id, staff_role: unit.staffRole, store_id: unit.storeId })
           filled++
           dayAssigned.add(s.id)
           workload.set(s.id, (workload.get(s.id) ?? 0) + 1)
@@ -342,7 +360,7 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
         }
         assignedByDate.set(dateStr, dayAssigned)
 
-        if (filled < required) holes.push({ date: dateStr, shift, missing: required - filled })
+        if (filled < required) holes.push({ date: dateStr, shiftName: shift.name, missing: required - filled })
       }
     }
 
@@ -359,7 +377,7 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
 
 export interface MyShift {
   work_date: string
-  shift: 'AM' | 'PM'
+  shift_name: string
   start_time: string
   end_time: string
   hours: number
@@ -382,7 +400,7 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from('staff_profiles')
-      .select('id, hourly_rate, staff_role, store_id')
+      .select('id, hourly_rate')
       .eq('user_profile_id', user.id)
       .maybeSingle()
     if (staffError) return { success: false, error: staffError.message }
@@ -397,13 +415,9 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
     const endNext = new Date(Date.UTC(y, m + 2, 0))
     const to = `${endNext.getUTCFullYear()}-${pad(endNext.getUTCMonth() + 1)}-${pad(endNext.getUTCDate())}`
 
-    const settingsRes = await fetchRosterSettings({ staffRole: staff.staff_role as StaffRole, storeId: staff.store_id ?? null })
-    if (!settingsRes.success || !settingsRes.data) return { success: false, error: settingsRes.error ?? '설정을 불러올 수 없습니다.' }
-    const settings = settingsRes.data
-
     const { data: assignData, error: assignError } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, shift, start_time, end_time')
+      .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time)')
       .eq('staff_id', staff.id)
       .gte('work_date', from)
       .lte('work_date', to)
@@ -413,13 +427,14 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
     const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
 
     const shifts: MyShift[] = (assignData ?? []).map(a => {
-      const start = a.start_time ?? (a.shift === 'AM' ? settings.am_start : settings.pm_start)
-      const end = a.end_time ?? (a.shift === 'AM' ? settings.am_end : settings.pm_end)
+      const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string } | null
+      const start = a.start_time ?? shift?.start_time ?? '00:00'
+      const end = a.end_time ?? shift?.end_time ?? '00:00'
       let mins = toMin(end) - toMin(start)
       if (mins < 0) mins += 24 * 60
       return {
         work_date: a.work_date,
-        shift: a.shift as 'AM' | 'PM',
+        shift_name: shift?.name ?? '근무',
         start_time: start,
         end_time: end,
         hours: Math.round((mins / 60) * 10) / 10,

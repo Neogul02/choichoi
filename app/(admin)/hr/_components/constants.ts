@@ -1,6 +1,6 @@
 import type { StaffRole, StaffStatus } from '@/types/database';
 
-export { SHIFT_LABELS, DAY_NAMES, checkStaffAvailability } from '@/lib/staffing';
+export { DAY_NAMES, checkStaffAvailability } from '@/lib/staffing';
 
 export const ROLE_LABELS: Record<StaffRole, string> = {
   kitchen: '주방',
