@@ -17,6 +17,13 @@ export type WorkDaySchedule = {
   breakEnd: string
 }
 
+export type SpecificWorkDate = {
+  date: string     // YYYY-MM-DD
+  dayName: string  // '월', '화', ...
+  startTime: string
+  endTime: string
+}
+
 export type ContractData = {
   // 당사자
   employerName: string
@@ -34,6 +41,7 @@ export type ContractData = {
   jobDescription: string
   // 4. 근로일별 근로시간
   workDays: WorkDaySchedule[]
+  specificWorkDates?: SpecificWorkDate[] // 단기간: 실제 근무일 목록
   weeklyHolidayDay: string
   // 5. 임금
   hourlyRate: number
@@ -51,6 +59,8 @@ export type ContractData = {
   insuranceIndustrial: boolean
   insurancePension: boolean
   insuranceHealth: boolean
+  // 특약사항
+  specialTerms?: string
   // 서명
   employerSignatureBase64?: string
   workerSignatureBase64?: string
@@ -181,9 +191,32 @@ export function ContractDocument(p: ContractData) {
         {/* 4. 근로일 및 근로일별 근로시간 */}
         <View style={s.section}>
           <Text style={s.sectionLabel}>4. 근로일 및 근로일별 근로시간</Text>
-          {days.length > 0 ? (
+          {p.specificWorkDates && p.specificWorkDates.length > 0 ? (
+            <>
+              <View style={s.table}>
+                <View style={[s.tableRow, s.tableHeader]}>
+                  <Text style={[s.tableCell, { flex: 1.4, textAlign: 'left' }]}>날짜</Text>
+                  <Text style={s.tableCell}>요일</Text>
+                  <Text style={s.tableCell}>시업</Text>
+                  <Text style={s.tableCellLast}>종업</Text>
+                </View>
+                {p.specificWorkDates.map((d, i) => {
+                  const isLast = i === p.specificWorkDates!.length - 1
+                  const RowStyle = isLast ? s.tableRowLast : s.tableRow
+                  return (
+                    <View key={i} style={RowStyle}>
+                      <Text style={[s.tableCell, { flex: 1.4, textAlign: 'left' }]}>{d.date}</Text>
+                      <Text style={s.tableCell}>{d.dayName}요일</Text>
+                      <Text style={s.tableCell}>{d.startTime}</Text>
+                      <Text style={s.tableCellLast}>{d.endTime}</Text>
+                    </View>
+                  )
+                })}
+              </View>
+              <Text style={[s.note, { marginTop: 2 }]}>※ 총 {p.specificWorkDates.length}일 근무</Text>
+            </>
+          ) : days.length > 0 ? (
             <View style={s.table}>
-              {/* 헤더: 요일 */}
               <View style={[s.tableRow, s.tableHeader]}>
                 <Text style={s.tableLabelCell}></Text>
                 {days.map((d, i) => (
@@ -192,7 +225,6 @@ export function ContractDocument(p: ContractData) {
                   </Text>
                 ))}
               </View>
-              {/* 근로시간 */}
               <View style={s.tableRow}>
                 <Text style={s.tableLabelCell}>근로시간</Text>
                 {days.map((d, i) => {
@@ -204,7 +236,6 @@ export function ContractDocument(p: ContractData) {
                   )
                 })}
               </View>
-              {/* 시업 */}
               <View style={s.tableRow}>
                 <Text style={s.tableLabelCell}>시업</Text>
                 {days.map((d, i) => (
@@ -213,7 +244,6 @@ export function ContractDocument(p: ContractData) {
                   </Text>
                 ))}
               </View>
-              {/* 종업 */}
               <View style={s.tableRow}>
                 <Text style={s.tableLabelCell}>종업</Text>
                 {days.map((d, i) => (
@@ -222,7 +252,6 @@ export function ContractDocument(p: ContractData) {
                   </Text>
                 ))}
               </View>
-              {/* 휴게 */}
               <View style={s.tableRowLast}>
                 <Text style={s.tableLabelCell}>휴게시간</Text>
                 {days.map((d, i) => (
@@ -235,7 +264,7 @@ export function ContractDocument(p: ContractData) {
           ) : (
             <Text style={s.clauseText}>근로일 및 시간은 별도 협의에 따름</Text>
           )}
-          {days.length > 0 && (
+          {!p.specificWorkDates && days.length > 0 && (
             <View style={s.row}>
               <Text>  ○ 주간 총 근로시간 : </Text>
               <Text style={{ fontFamily: F, fontWeight: 'bold' }}>{totalWeeklyHours}시간</Text>
@@ -336,6 +365,14 @@ export function ContractDocument(p: ContractData) {
           <Text style={s.sectionLabel}>10. 기  타</Text>
           <Text style={s.clauseText}>- 이 계약에 정함이 없는 사항은 근로기준법령에 의함</Text>
         </View>
+
+        {/* 특약사항 */}
+        {p.specialTerms ? (
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>특  약  사  항</Text>
+            <Text style={[s.clauseText, { marginTop: 3 }]}>{p.specialTerms}</Text>
+          </View>
+        ) : null}
 
         <View style={s.divider} />
 

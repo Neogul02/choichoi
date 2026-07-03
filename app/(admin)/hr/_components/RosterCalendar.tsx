@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
-  updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster,
+  updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster, clearRosterRange,
 } from '@/app/actions/roster';
 import type { RosterUnit } from '@/app/actions/roster';
-import type { StaffProfile, Store, RosterShift, RosterAssignment } from '@/types/database';
+import type { StaffProfile, Store, StaffRole, RosterShift, RosterAssignment } from '@/types/database';
 import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability } from './constants';
 import { getWeekStart } from '@/lib/staffing';
 import ShiftManageModal from './ShiftManageModal';
@@ -15,6 +15,7 @@ import ShiftManageModal from './ShiftManageModal';
 interface Props {
   staffList: StaffProfile[];
   stores: Store[];
+  roleFilter: StaffRole;
 }
 
 // 파트 순서에 따라 순환하는 강조색
@@ -27,9 +28,21 @@ function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-export default function RosterCalendar({ staffList, stores }: Props) {
+export default function RosterCalendar({ staffList, stores, roleFilter }: Props) {
   // 단위 = 주방 전체 또는 캐셔의 특정 매장
   const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', storeId: null });
+
+  // 좌측 roleFilter 변경 시 캘린더 단위 동기화
+  useEffect(() => {
+    if (roleFilter === 'kitchen') {
+      setUnit({ staffRole: 'kitchen', storeId: null });
+    } else {
+      setUnit(prev =>
+        prev.staffRole === 'cashier' ? prev : { staffRole: 'cashier', storeId: stores[0]?.id ?? null }
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleFilter]);
   // 월 커서 — SSR/hydration 불일치를 피하려고 마운트 후 초기화
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null);
   const [todayStr, setTodayStr] = useState('');
@@ -47,6 +60,11 @@ export default function RosterCalendar({ staffList, stores }: Props) {
   const [showShiftManage, setShowShiftManage] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
 
+  // 날짜 범위 필터 (빈 문자열 = 제한 없음) — localStorage로 탭 전환 후에도 유지
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
+  const isFirstCursorEffect = useRef(true);
+
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
   const monthEnd = cursor ? toDateStr(cursor.y, cursor.m, new Date(cursor.y, cursor.m + 1, 0).getDate()) : '';
 
@@ -60,10 +78,28 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     }
   };
 
+  // 마운트 시 localStorage에서 범위 복원
+  useEffect(() => {
+    setRangeFrom(localStorage.getItem('roster_rangeFrom') ?? '');
+    setRangeTo(localStorage.getItem('roster_rangeTo') ?? '');
+  }, []);
+
+  // 범위 변경 시 localStorage 저장
+  useEffect(() => {
+    localStorage.setItem('roster_rangeFrom', rangeFrom);
+    localStorage.setItem('roster_rangeTo', rangeTo);
+  }, [rangeFrom, rangeTo]);
+
   useEffect(() => {
     if (!cursor) return;
     setIsLoading(true);
     setSelectedDate(null);
+    // 첫 마운트(탭 복귀 포함)는 범위 유지, 이후 월/단위 변경 시에만 초기화
+    if (!isFirstCursorEffect.current) {
+      setRangeFrom('');
+      setRangeTo('');
+    }
+    isFirstCursorEffect.current = false;
     loadRange().then(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, unit]);
@@ -107,22 +143,44 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     return days.size;
   };
 
-  // 달력 그리드 (앞쪽 빈칸 포함)
+  // 달력 그리드 — range 모드(from+to 모두 설정)면 해당 날짜만, 아니면 월 전체
   const gridDates = useMemo(() => {
     if (!cursor) return [];
+
+    if (rangeFrom && rangeTo && rangeFrom <= rangeTo) {
+      // range 뷰: rangeFrom~rangeTo 포함 주(일~토) 그리드
+      const fromDate = new Date(rangeFrom + 'T00:00:00');
+      const toDate = new Date(rangeTo + 'T00:00:00');
+      const weekStart = new Date(fromDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekEnd = new Date(toDate);
+      weekEnd.setDate(weekEnd.getDate() + (6 - weekEnd.getDay()));
+      const cells: (string | null)[] = [];
+      const cur = new Date(weekStart);
+      while (cur <= weekEnd) {
+        const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        cells.push(ds >= rangeFrom && ds <= rangeTo ? ds : null);
+        cur.setDate(cur.getDate() + 1);
+      }
+      return cells;
+    }
+
+    // 월 전체 그리드
     const firstDay = new Date(cursor.y, cursor.m, 1).getDay();
     const lastDate = new Date(cursor.y, cursor.m + 1, 0).getDate();
     const cells: (string | null)[] = Array(firstDay).fill(null);
     for (let d = 1; d <= lastDate; d++) cells.push(toDateStr(cursor.y, cursor.m, d));
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;
-  }, [cursor]);
+  }, [cursor, rangeFrom, rangeTo]);
 
-  // 이달의 인원 부족 목록
+  // 이달의 인원 부족 목록 (범위 적용)
   const shortages = useMemo(() => {
     const list: { date: string; shift: RosterShift; missing: number }[] = [];
     for (const dateStr of gridDates) {
       if (!dateStr) continue;
+      if (rangeFrom && dateStr < rangeFrom) continue;
+      if (rangeTo && dateStr > rangeTo) continue;
       for (const shift of shifts) {
         const required = getRequired(dateStr, shift);
         const filled = getAssigned(dateStr, shift.id).length;
@@ -131,16 +189,19 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gridDates, assignMap, overrides, shifts]);
+  }, [gridDates, assignMap, overrides, shifts, rangeFrom, rangeTo]);
 
   const handleAutoFill = async () => {
     if (!cursor) return;
+    const effectiveStart = rangeFrom || monthStart;
+    const effectiveEnd = rangeTo || monthEnd;
     // 지난 날짜는 건드리지 않는다
-    const from = todayStr > monthStart ? todayStr : monthStart;
-    if (from > monthEnd) { showMsg('지난 달은 자동 배정할 수 없습니다'); return; }
-    if (!confirm(`${cursor.m + 1}월의 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
+    const from = todayStr > effectiveStart ? todayStr : effectiveStart;
+    if (from > effectiveEnd) { showMsg('지난 날짜는 자동 배정할 수 없습니다'); return; }
+    const rangeLabel = (rangeFrom || rangeTo) ? `${rangeFrom || monthStart} ~ ${rangeTo || monthEnd}` : `${cursor.m + 1}월 전체`;
+    if (!confirm(`${rangeLabel} 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
     setIsAutoFilling(true);
-    const r = await autoFillRoster(unit, from, monthEnd);
+    const r = await autoFillRoster(unit, from, effectiveEnd);
     if (r.success && r.data) {
       showMsg(r.data.added === 0
         ? '배정할 수 있는 빈 자리가 없습니다'
@@ -150,6 +211,20 @@ export default function RosterCalendar({ staffList, stores }: Props) {
       showMsg(`오류: ${r.error}`);
     }
     setIsAutoFilling(false);
+  };
+
+  const handleClearRoster = async () => {
+    const effectiveFrom = rangeFrom || monthStart;
+    const effectiveTo = rangeTo || monthEnd;
+    const label = (rangeFrom || rangeTo) ? `${effectiveFrom} ~ ${effectiveTo}` : `${cursor.m + 1}월 전체`;
+    if (!confirm(`[${unitLabel}] ${label} 스케줄을 초기화할까요?\n배정된 근무자가 모두 삭제됩니다.`)) return;
+    const r = await clearRosterRange(unit, effectiveFrom, effectiveTo);
+    if (r.success) {
+      setAssignments(p => p.filter(a => a.work_date < effectiveFrom || a.work_date > effectiveTo));
+      showMsg('스케줄이 초기화됐습니다');
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
   };
 
   const handleAdd = async (dateStr: string, shiftId: number, staffId: number) => {
@@ -189,45 +264,40 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     : (stores.find(s => s.id === unit.storeId)?.name ?? ROLE_LABELS.cashier);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-3 items-start">
       {/* ── 달력 ── */}
       <div className="flex-1 min-w-0 w-full bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
-        {/* 단위 선택: 주방 / 매장별 캐셔 */}
-        <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-hairline">
-          <button
-            onClick={() => setUnit({ staffRole: 'kitchen', storeId: null })}
-            className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition ${
-              unit.staffRole === 'kitchen'
-                ? 'bg-ink text-white border-ink'
-                : 'bg-canvas text-ink-muted border-hairline hover:border-ink'
-            }`}
-          >
-            {ROLE_LABELS.kitchen}
-          </button>
-          {stores.map(store => (
-            <button
-              key={store.id}
-              onClick={() => setUnit({ staffRole: 'cashier', storeId: store.id })}
-              className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
-                unit.staffRole === 'cashier' && unit.storeId === store.id
-                  ? 'bg-primary-700 text-white border-primary-700'
-                  : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
-              }`}
-            >
-              {store.name}
-            </button>
-          ))}
-          {stores.length === 0 && (
-            <span className="text-[11px] text-ink-faint">
-              캐셔 스케줄은 직원 관리 탭에서 매장을 먼저 등록하면 여기에 나타납니다
-            </span>
-          )}
-          <span className="ml-auto text-[11px] text-ink-faint">
-            소속 인원 {unitStaff.length}명
-          </span>
-        </div>
+        {/* 매장 선택 (캐셔일 때만) */}
+        {roleFilter === 'cashier' && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-hairline">
+            {stores.length === 0 ? (
+              <span className="text-[11px] text-ink-faint">매장을 먼저 등록하면 여기에 나타납니다</span>
+            ) : (
+              stores.map(store => (
+                <button
+                  key={store.id}
+                  onClick={() => setUnit({ staffRole: 'cashier', storeId: store.id })}
+                  className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
+                    unit.storeId === store.id
+                      ? 'bg-primary-700 text-white border-primary-700'
+                      : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
+                  }`}
+                >
+                  {store.name}
+                </button>
+              ))
+            )}
+            <span className="ml-auto text-[11px] text-ink-faint">소속 인원 {unitStaff.length}명</span>
+          </div>
+        )}
+        {roleFilter === 'kitchen' && (
+          <div className="flex items-center mb-3 pb-3 border-b border-hairline">
+            <span className="text-[12px] font-bold text-ink-muted">주방 전체</span>
+            <span className="ml-auto text-[11px] text-ink-faint">소속 인원 {unitStaff.length}명</span>
+          </div>
+        )}
 
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <button
               className="w-7 h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
@@ -252,12 +322,49 @@ export default function RosterCalendar({ staffList, stores }: Props) {
               {isAutoFilling ? '배정 중...' : '⚡ 자동 채우기'}
             </button>
             <button
+              onClick={handleClearRoster}
+              disabled={isLoading}
+              className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[11px] font-bold cursor-pointer hover:bg-rose-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              초기화
+            </button>
+            <button
               onClick={() => setShowShiftManage(true)}
               className="px-2.5 py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
             >
               ⚙ 파트 관리
             </button>
           </div>
+        </div>
+
+        {/* 날짜 범위 필터 */}
+        <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-canvas-soft border border-hairline">
+          <span className="text-[11px] font-semibold text-ink-muted shrink-0">표시 범위</span>
+          <input
+            type="date"
+            value={rangeFrom}
+            min={monthStart}
+            max={rangeTo || monthEnd}
+            onChange={e => setRangeFrom(e.target.value)}
+            className="flex-1 min-w-0 px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+          />
+          <span className="text-ink-faint text-[11px] shrink-0">~</span>
+          <input
+            type="date"
+            value={rangeTo}
+            min={rangeFrom || monthStart}
+            max={monthEnd}
+            onChange={e => setRangeTo(e.target.value)}
+            className="flex-1 min-w-0 px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+          />
+          {(rangeFrom || rangeTo) && (
+            <button
+              onClick={() => { setRangeFrom(''); setRangeTo(''); }}
+              className="shrink-0 text-[11px] font-bold text-primary-600 bg-transparent border-none cursor-pointer hover:text-primary-800 transition whitespace-nowrap"
+            >
+              전체보기
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -313,25 +420,52 @@ export default function RosterCalendar({ staffList, stores }: Props) {
         )}
 
         {/* 이달 부족 인원 요약 */}
-        {!isLoading && shortages.length > 0 && (
-          <div className="mt-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
-            <p className="m-0 mb-1.5 text-[12px] font-bold text-rose-600">⚠ 인원 부족 ({shortages.length}건)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {shortages.map(s => {
-                const day = new Date(s.date + 'T00:00:00').getDay();
-                return (
-                  <button
-                    key={`${s.date}-${s.shift.id}`}
-                    onClick={() => setSelectedDate(s.date)}
-                    className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas border border-rose-200 text-rose-600 cursor-pointer hover:bg-rose-100 transition"
-                  >
-                    {Number(s.date.slice(5, 7))}/{Number(s.date.slice(8))}({DAY_NAMES[day]}) {s.shift.name} {s.missing}명
-                  </button>
-                );
-              })}
+        {!isLoading && shortages.length > 0 && (() => {
+          const grouped = shortages.reduce<{ date: string; items: typeof shortages }[]>((acc, s) => {
+            const last = acc[acc.length - 1];
+            if (last && last.date === s.date) last.items.push(s);
+            else acc.push({ date: s.date, items: [s] });
+            return acc;
+          }, []);
+          return (
+            <div className="mt-3 border border-rose-200 rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border-b border-rose-200">
+                <span className="text-[12px] font-bold text-rose-600">⚠ 인원 부족</span>
+                <span className="text-[11px] text-rose-400">{grouped.length}일 · {shortages.length}건</span>
+              </div>
+              <table className="w-full border-collapse text-[12px]">
+                <tbody>
+                  {grouped.map(({ date, items }, i) => {
+                    const day = new Date(date + 'T00:00:00').getDay();
+                    return (
+                      <tr
+                        key={date}
+                        onClick={() => setSelectedDate(date)}
+                        className={`cursor-pointer hover:bg-rose-50 transition ${i !== grouped.length - 1 ? 'border-b border-rose-100' : ''}`}
+                      >
+                        <td className="px-3 py-2 font-semibold whitespace-nowrap w-[72px]">
+                          {Number(date.slice(5, 7))}/{Number(date.slice(8))}
+                          <span className={`ml-1 text-[11px] ${day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>
+                            ({DAY_NAMES[day]})
+                          </span>
+                        </td>
+                        <td className="px-2 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            {items.map(s => (
+                              <span key={s.shift.id} className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600">
+                                {s.shift.name} {s.missing}명
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
-        )}
+          );
+        })()}
         {!isLoading && shortages.length === 0 && (
           <p className="mt-3 m-0 text-[12px] text-emerald-600 font-semibold">✓ 이달 모든 파트 인원이 채워졌습니다</p>
         )}

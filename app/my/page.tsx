@@ -9,10 +9,12 @@ import NavBar from '@/components/NavBar'
 import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount } from '@/app/actions/workers'
 import { getMyContracts } from '@/app/actions/contracts'
 import { getMyRoster } from '@/app/actions/roster'
+import { getMyStaffProfile } from '@/app/actions/staff'
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
 import type { MyRosterData, MyShift } from '@/app/actions/roster'
+import type { StaffProfile } from '@/types/database'
 import dynamic from 'next/dynamic'
 
 const WorkerSignModal = dynamic(() => import('@/components/WorkerSignModal'), { ssr: false })
@@ -49,6 +51,7 @@ export default function MyPage() {
   const [contracts, setContracts] = useState<ContractRecord[]>([])
   const [signingContract, setSigningContract] = useState<ContractRecord | null>(null)
   const [myRoster, setMyRoster] = useState<MyRosterData | null>(null)
+  const [myStaffProfile, setMyStaffProfile] = useState<StaffProfile | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -59,14 +62,18 @@ export default function MyPage() {
         setAuthEmail(user.email ?? null)
         setIsAdmin(user.user_metadata?.role === 'admin')
       }
-      const [profileRes, statsRes, contractsRes, rosterRes] = await Promise.all([
+      const [profileRes, statsRes, contractsRes, rosterRes, staffProfileRes] = await Promise.all([
         getMyProfile(),
         getMyOrderStats(),
         getMyContracts(),
         getMyRoster(),
+        getMyStaffProfile(),
       ])
       if (rosterRes.success && rosterRes.data) {
         setMyRoster(rosterRes.data)
+      }
+      if (staffProfileRes.success && staffProfileRes.data) {
+        setMyStaffProfile(staffProfileRes.data)
       }
       if (profileRes.success && profileRes.data) {
         setProfile(profileRes.data)
@@ -228,6 +235,9 @@ export default function MyPage() {
 
         {/* 내 근무 일정 */}
         {myRoster && <MyScheduleSection roster={myRoster} />}
+
+        {/* 내 근무 정보 */}
+        {myStaffProfile && <MyStaffInfoSection staff={myStaffProfile} />}
 
         {/* 티어 */}
         {profile && (() => {
@@ -620,5 +630,65 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
       <span className='text-[12px] text-ink-muted w-16 shrink-0'>{label}</span>
       <span className='text-[13px] text-ink'>{value}</span>
     </div>
+  )
+}
+
+const STAFF_DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
+const STAFF_ROLE_LABELS: Record<string, string> = { kitchen: '주방', cashier: '캐셔' }
+const STAFF_STATUS_LABELS: Record<string, string> = {
+  candidate: '면접자', confirmed: '재직중', rejected: '거절됨', inactive: '비활성',
+}
+const STAFF_STATUS_COLORS: Record<string, string> = {
+  candidate: 'bg-amber-50 text-amber-700 border-amber-200',
+  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  rejected: 'bg-rose-50 text-rose-600 border-rose-200',
+  inactive: 'bg-canvas-soft text-ink-muted border-hairline',
+}
+
+function MyStaffInfoSection({ staff }: { staff: StaffProfile }) {
+  const preferredDaysStr = staff.preferred_days.length === 0
+    ? '무관'
+    : staff.preferred_days.map(d => STAFF_DAY_NAMES[d]).join(' · ')
+
+  const availRangesStr = staff.available_ranges.length === 0
+    ? '무관'
+    : staff.available_ranges.map(r => `${r.from} ~ ${r.to}`).join(', ')
+
+  return (
+    <section className='bg-canvas border border-hairline rounded-xl p-5 shadow-level-1'>
+      <h2 className='text-[15px] font-bold text-ink mb-4'>내 근무 정보</h2>
+      <div className='space-y-2.5'>
+        <div className='flex items-center gap-3'>
+          <span className='text-[12px] text-ink-muted w-16 shrink-0'>상태</span>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${STAFF_STATUS_COLORS[staff.status] ?? ''}`}>
+            {STAFF_STATUS_LABELS[staff.status] ?? staff.status}
+          </span>
+          <span className='text-[12px] text-ink-muted'>{STAFF_ROLE_LABELS[staff.staff_role] ?? staff.staff_role}</span>
+        </div>
+        <InfoRow
+          label='시급'
+          value={staff.hourly_rate != null
+            ? `${staff.hourly_rate.toLocaleString('ko-KR')}원`
+            : <span className='text-ink-faint text-[12px]'>미설정</span>}
+        />
+        <InfoRow label='선호 요일' value={preferredDaysStr} />
+        <InfoRow
+          label='최대 근무일'
+          value={staff.max_days_per_week != null ? `주 ${staff.max_days_per_week}일` : '무제한'}
+        />
+        <InfoRow
+          label='4대보험'
+          value={staff.wants_insurance
+            ? <span className='text-emerald-700 text-[12px] font-semibold'>희망</span>
+            : <span className='text-ink-muted text-[12px]'>미희망</span>}
+        />
+        {staff.available_ranges.length > 0 && (
+          <InfoRow label='가용 기간' value={availRangesStr} />
+        )}
+        {staff.notes && (
+          <InfoRow label='메모' value={<span className='text-ink-muted text-[12px]'>{staff.notes}</span>} />
+        )}
+      </div>
+    </section>
   )
 }

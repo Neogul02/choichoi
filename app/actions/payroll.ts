@@ -1,0 +1,176 @@
+'use server'
+
+import { createClient } from '@supabase/supabase-js'
+import type { ApiResponse } from '@/types/api'
+import type { StaffRole } from '@/types/database'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+)
+
+export interface PayrollRow {
+  staffId: number
+  name: string
+  phone: string | null
+  bankName: string | null
+  bankAccount: string | null
+  hourlyRate: number | null
+  days: number
+  totalHours: number
+  totalPay: number | null
+}
+
+export interface StaffWorkAssignment {
+  date: string
+  dayName: string
+  shiftName: string
+  startTime: string
+  endTime: string
+}
+
+export async function fetchStaffAssignmentsInRange(
+  staffId: number,
+  fromDate: string,
+  toDate: string,
+): Promise<ApiResponse<StaffWorkAssignment[]>> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('work_date, roster_shifts(name, start_time, end_time)')
+      .eq('staff_id', staffId)
+      .gte('work_date', fromDate)
+      .lte('work_date', toDate)
+      .order('work_date', { ascending: true })
+
+    if (error) return { success: false, error: error.message }
+
+    const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
+    const results: StaffWorkAssignment[] = (data ?? []).map(a => {
+      const shiftRaw = a.roster_shifts
+      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
+      const d = new Date(a.work_date + 'T00:00:00')
+      return {
+        date: a.work_date,
+        dayName: DAY_KO[d.getDay()],
+        shiftName: shift?.name ?? '파트 미정',
+        startTime: shift?.start_time ?? '00:00',
+        endTime: shift?.end_time ?? '00:00',
+      }
+    })
+
+    return { success: true, data: results }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + (m ?? 0)
+}
+
+export interface StaffDayDetail {
+  date: string
+  shiftName: string
+  startTime: string
+  endTime: string
+  hours: number
+}
+
+export async function fetchStaffMonthlyDetail(
+  staffId: number,
+  year: number,
+  month: number, // 0-indexed
+): Promise<ApiResponse<StaffDayDetail[]>> {
+  try {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const from = `${year}-${pad(month + 1)}-01`
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    const to = `${year}-${pad(month + 1)}-${pad(lastDay)}`
+
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('work_date, shift_id, start_time, end_time, roster_shifts(name, start_time, end_time)')
+      .eq('staff_id', staffId)
+      .gte('work_date', from)
+      .lte('work_date', to)
+      .order('work_date', { ascending: true })
+
+    if (error) return { success: false, error: error.message }
+
+    const details: StaffDayDetail[] = (data ?? []).map(a => {
+      const shiftRaw = a.roster_shifts
+      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
+      const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
+      const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
+      const rawMins = timeToMinutes(endTime) - timeToMinutes(startTime)
+      const hours = Math.round((rawMins >= 420 ? rawMins - 60 : rawMins) / 60 * 10) / 10
+      return { date: a.work_date, shiftName: shift?.name ?? '파트 미정', startTime, endTime, hours }
+    })
+
+    return { success: true, data: details }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+export async function fetchMonthlyPayroll(
+  staffRole: StaffRole,
+  year: number,
+  month: number, // 0-indexed
+): Promise<ApiResponse<PayrollRow[]>> {
+  try {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const from = `${year}-${pad(month + 1)}-01`
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    const to = `${year}-${pad(month + 1)}-${pad(lastDay)}`
+
+    const [assignRes, staffRes, shiftRes] = await Promise.all([
+      supabaseAdmin
+        .from('roster_assignments')
+        .select('staff_id, shift_id, start_time, end_time')
+        .eq('staff_role', staffRole)
+        .gte('work_date', from)
+        .lte('work_date', to),
+      supabaseAdmin
+        .from('staff_profiles')
+        .select('id, name, phone, bank_name, bank_account, hourly_rate')
+        .eq('staff_role', staffRole),
+      supabaseAdmin
+        .from('roster_shifts')
+        .select('id, start_time, end_time'),
+    ])
+
+    if (assignRes.error) return { success: false, error: assignRes.error.message }
+
+    const staffMap = new Map((staffRes.data ?? []).map(s => [s.id, s]))
+    const shiftMap = new Map((shiftRes.data ?? []).map(s => [s.id, s]))
+
+    const totals = new Map<number, { days: number; minutes: number }>()
+    for (const a of assignRes.data ?? []) {
+      const shift = shiftMap.get(a.shift_id)
+      if (!shift) continue
+      const startStr: string = a.start_time ?? shift.start_time
+      const endStr: string = a.end_time ?? shift.end_time
+      const rawMins = timeToMinutes(endStr) - timeToMinutes(startStr)
+      const paidMin = rawMins >= 420 ? rawMins - 60 : rawMins
+      const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
+      totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
+    }
+
+    const rows: PayrollRow[] = []
+    for (const [staffId, { days, minutes }] of totals) {
+      const staff = staffMap.get(staffId)
+      if (!staff) continue
+      const totalHours = Math.round((minutes / 60) * 10) / 10
+      const totalPay = staff.hourly_rate != null ? Math.round(totalHours * staff.hourly_rate) : null
+      rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: (staff as any).bank_name ?? null, bankAccount: (staff as any).bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
+    }
+
+    rows.sort((a, b) => b.totalHours - a.totalHours)
+    return { success: true, data: rows }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
