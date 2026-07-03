@@ -51,6 +51,8 @@ export type ContractData = {
   insuranceIndustrial: boolean
   insurancePension: boolean
   insuranceHealth: boolean
+  // 특약사항
+  specialTerms?: string
   // 서명
   employerSignatureBase64?: string
   workerSignatureBase64?: string
@@ -336,6 +338,14 @@ export function ContractDocument(p: ContractData) {
           <Text style={s.sectionLabel}>10. 기  타</Text>
           <Text style={s.clauseText}>- 이 계약에 정함이 없는 사항은 근로기준법령에 의함</Text>
         </View>
+
+        {/* 특약사항 */}
+        {p.specialTerms ? (
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>특  약  사  항</Text>
+            <Text style={[s.clauseText, { marginTop: 3 }]}>{p.specialTerms}</Text>
+          </View>
+        ) : null}
 
         <View style={s.divider} />
 

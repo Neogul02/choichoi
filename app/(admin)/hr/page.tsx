@@ -9,7 +9,7 @@ import {
   updateStaffStatus, deleteStaffProfile,
 } from '@/app/actions/staff';
 import type { StaffProfileInput } from '@/app/actions/staff';
-import { fetchAllUserProfiles, findWorkerByProfileId } from '@/app/actions/workers';
+import { fetchAllUserProfiles } from '@/app/actions/workers';
 import type { UserProfile } from '@/app/actions/workers';
 import { fetchStores } from '@/app/actions/stores';
 import { fetchAllRosterShifts } from '@/app/actions/roster';
@@ -20,13 +20,11 @@ import RosterCalendar from './_components/RosterCalendar';
 import PayrollPanel from './_components/PayrollPanel';
 import { STATUS_LABELS, STATUS_COLORS, DAY_NAMES, ROLE_LABELS, formatRanges } from './_components/constants';
 
-const ContractGenerateModal = dynamic(() => import('@/components/ContractGenerateModal'), { ssr: false });
+const HrContractModal = dynamic(() => import('./_components/HrContractModal'), { ssr: false });
 
 type StatusFilter = StaffStatus | 'all';
 type StoreFilter = number | 'all' | 'none';
 type RightTab = 'roster' | 'payroll';
-
-interface ContractTarget { user: UserProfile; workerId: number }
 
 export default function HrPage() {
   const [roleFilter, setRoleFilter] = useState<StaffRole>('cashier');
@@ -49,10 +47,8 @@ export default function HrPage() {
   const [leftWidth, setLeftWidth] = useState(420);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 근로계약서
-  const [contractTarget, setContractTarget] = useState<ContractTarget | null>(null);
-  const [workerIdCache, setWorkerIdCache] = useState<Record<string, number>>({});
-  const [loadingContractFor, setLoadingContractFor] = useState<string | null>(null);
+  // HR 독립 근로계약서
+  const [contractStaff, setContractStaff] = useState<StaffProfile | null>(null);
 
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -141,23 +137,6 @@ export default function HrPage() {
     showMsg('보건증 업로드 완료');
   };
 
-  const handleOpenContract = async (staff: StaffProfile) => {
-    if (!staff.user_profile_id) return;
-    const pid = staff.user_profile_id;
-    const cached = workerIdCache[pid];
-    const user = userProfiles.find(u => u.id === pid);
-    if (!user) { showMsg('연결된 계정 정보를 찾을 수 없습니다.'); return; }
-    if (cached) { setContractTarget({ user, workerId: cached }); return; }
-    setLoadingContractFor(pid);
-    const res = await findWorkerByProfileId(pid);
-    setLoadingContractFor(null);
-    if (res.success && res.data) {
-      setWorkerIdCache(p => ({ ...p, [pid]: res.data!.id }));
-      setContractTarget({ user, workerId: res.data.id });
-    } else {
-      showMsg('연결된 근무자가 없습니다. 일정 탭에서 팝업에 먼저 등록하세요.');
-    }
-  };
 
   return (
     <>
@@ -262,11 +241,9 @@ export default function HrPage() {
                           isLast={i === filtered.length - 1}
                           shiftNames={staff.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name).filter(Boolean).join(' · ')}
                           store={stores.find(st => st.id === staff.store_id) ?? null}
-                          linkedProfile={userProfiles.find(p => p.id === staff.user_profile_id) ?? null}
-                          isLoadingContract={loadingContractFor === staff.user_profile_id}
                           onRowClick={() => { setEditingStaff(staff); setShowForm(true); }}
                           onStatusChange={s => handleStatusChange(staff, s)}
-                          onContract={() => handleOpenContract(staff)}
+                          onContract={() => setContractStaff(staff)}
                         />
                       ))}
                     </tbody>
@@ -327,25 +304,22 @@ export default function HrPage() {
         />
       )}
 
-      {contractTarget && (
-        <ContractGenerateModal
-          user={contractTarget.user}
-          workerId={contractTarget.workerId}
-          onClose={() => setContractTarget(null)}
-          onSuccess={() => setContractTarget(null)}
+      {contractStaff && (
+        <HrContractModal
+          staff={contractStaff}
+          allShifts={allShifts}
+          onClose={() => setContractStaff(null)}
         />
       )}
     </>
   );
 }
 
-function StaffRow({ staff, shiftNames, store, isLast, linkedProfile, isLoadingContract, onRowClick, onStatusChange, onContract }: {
+function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange, onContract }: {
   staff: StaffProfile;
   shiftNames: string;
   store: Store | null;
   isLast: boolean;
-  linkedProfile: UserProfile | null;
-  isLoadingContract: boolean;
   onRowClick: () => void;
   onStatusChange: (s: StaffStatus) => void;
   onContract: () => void;
@@ -364,9 +338,6 @@ function StaffRow({ staff, shiftNames, store, isLast, linkedProfile, isLoadingCo
           <div className={`text-[10px] font-semibold mt-0.5 ${store ? 'text-violet-600' : 'text-amber-600'}`}>
             {store ? store.name : '매장 미배정'}
           </div>
-        )}
-        {linkedProfile && (
-          <div className="text-[10px] text-primary-600 font-semibold mt-0.5">계정 연결됨</div>
         )}
       </td>
       <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
@@ -394,16 +365,13 @@ function StaffRow({ staff, shiftNames, store, isLast, linkedProfile, isLoadingCo
         </span>
       </td>
       <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
-        {linkedProfile && (
-          <button
-            onClick={onContract}
-            disabled={isLoadingContract}
-            title="근로계약서 작성"
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition cursor-pointer disabled:opacity-50"
-          >
-            {isLoadingContract ? '...' : '계약서'}
-          </button>
-        )}
+        <button
+          onClick={onContract}
+          title="근로계약서 작성"
+          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+        >
+          계약서
+        </button>
       </td>
     </tr>
   );
