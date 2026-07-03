@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { StaffProfile, StaffShift, StaffStatus, StaffRole, Store, AvailabilityRange } from '@/types/database';
+import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift, AvailabilityRange } from '@/types/database';
 import type { StaffProfileInput } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
-import { STATUS_LABELS, SHIFT_LABELS, DAY_NAMES, ROLE_LABELS } from './constants';
+import { fetchRosterShifts } from '@/app/actions/roster';
+import { STATUS_LABELS, DAY_NAMES, ROLE_LABELS } from './constants';
 
 interface Props {
   staff: StaffProfile | null; // null = 신규 등록
@@ -22,7 +23,8 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
   const [phone, setPhone] = useState(staff?.phone ?? '');
   const [staffRole, setStaffRole] = useState<StaffRole>(staff?.staff_role ?? defaultRole ?? 'cashier');
   const [storeId, setStoreId] = useState<number | null>(staff?.store_id ?? defaultStoreId ?? null);
-  const [shift, setShift] = useState<StaffShift>(staff?.preferred_shift ?? 'ANY');
+  const [shiftIds, setShiftIds] = useState<number[]>(staff?.preferred_shift_ids ?? []);
+  const [unitShifts, setUnitShifts] = useState<RosterShift[] | null>(null); // null = 로딩 중
   const [days, setDays] = useState<number[]>(staff?.preferred_days ?? []);
   const [ranges, setRanges] = useState<AvailabilityRange[]>(staff?.available_ranges ?? []);
   const [hasHealthCert, setHasHealthCert] = useState(staff?.has_health_cert ?? false);
@@ -34,8 +36,19 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
   const [userProfileId, setUserProfileId] = useState(staff?.user_profile_id ?? '');
   const [isSaving, setIsSaving] = useState(false);
 
+  // 구분/매장이 정해지면 해당 단위의 파트 목록을 불러온다 (없으면 오전/오후 자동 생성)
+  useEffect(() => {
+    if (staffRole === 'cashier' && storeId === null) { setUnitShifts([]); return; }
+    setUnitShifts(null);
+    fetchRosterShifts({ staffRole, storeId: staffRole === 'kitchen' ? null : storeId })
+      .then(r => setUnitShifts(r.success && r.data ? r.data : []));
+  }, [staffRole, storeId]);
+
   const toggleDay = (d: number) =>
     setDays(p => p.includes(d) ? p.filter(v => v !== d) : [...p, d].sort());
+
+  const toggleShift = (id: number) =>
+    setShiftIds(p => p.includes(id) ? p.filter(v => v !== id) : [...p, id]);
 
   // 계정 연결 시 비어 있는 이름/전화번호를 프로필에서 자동으로 채운다
   const handleProfileLink = (id: string) => {
@@ -59,7 +72,8 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
       phone: phone || null,
       staff_role: staffRole,
       store_id: staffRole === 'cashier' ? storeId : null,
-      preferred_shift: shift,
+      // 단위를 바꿨을 때 이전 단위의 파트 선택이 남지 않도록 현재 단위 파트만 유지
+      preferred_shift_ids: shiftIds.filter(id => (unitShifts ?? []).some(s => s.id === id)),
       preferred_days: days,
       available_ranges: validRanges,
       has_health_cert: hasHealthCert,
@@ -142,16 +156,22 @@ export default function StaffFormModal({ staff, userProfiles, stores, defaultRol
             </div>
           </div>
 
-          {/* 선호 파트 */}
+          {/* 선호 파트 (단위별 파트 다중 선택) */}
           <div className="flex flex-col gap-1">
-            <label className={labelCls}>선호 파트</label>
-            <div className="flex gap-1.5">
-              {(Object.keys(SHIFT_LABELS) as StaffShift[]).map(s => (
-                <button key={s} type="button" className={chipCls(shift === s)} onClick={() => setShift(s)}>
-                  {SHIFT_LABELS[s]}
-                </button>
-              ))}
-            </div>
+            <label className={labelCls}>선호 파트 <span className="text-ink-faint font-normal">(선택 안 하면 모든 파트 가능)</span></label>
+            {staffRole === 'cashier' && storeId === null ? (
+              <p className="m-0 text-[12px] text-ink-faint">매장을 먼저 선택하면 파트를 고를 수 있습니다.</p>
+            ) : unitShifts === null ? (
+              <p className="m-0 text-[12px] text-ink-faint">파트 불러오는 중...</p>
+            ) : (
+              <div className="flex gap-1.5 flex-wrap">
+                {unitShifts.map(s => (
+                  <button key={s.id} type="button" className={chipCls(shiftIds.includes(s.id))} onClick={() => toggleShift(s.id)}>
+                    {s.name} <span className="font-normal opacity-70">{s.start_time}~{s.end_time}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 선호 요일 */}

@@ -74,7 +74,6 @@ export interface AvailabilityRange {
   to: string;   // YYYY-MM-DD
 }
 
-export type StaffShift = 'AM' | 'PM' | 'ANY';
 export type StaffStatus = 'candidate' | 'confirmed' | 'rejected' | 'inactive';
 export type StaffRole = 'kitchen' | 'cashier';
 
@@ -91,7 +90,7 @@ export interface StaffProfile {
   phone: string | null;
   staff_role: StaffRole;
   store_id: number | null; // 캐셔만 사용, 주방은 null
-  preferred_shift: StaffShift;
+  preferred_shift_ids: number[]; // roster_shifts.id 목록, 빈 배열 = 파트 무관
   preferred_days: number[]; // 0=일 ~ 6=토, 빈 배열 = 요일 무관
   available_ranges: AvailabilityRange[];
   has_health_cert: boolean;
@@ -105,41 +104,38 @@ export interface StaffProfile {
   updated_at: string;
 }
 
-export interface RosterSettings {
+// 파트 — 단위(주방/매장)별로 자유롭게 추가하는 근무 구간 (오전, 오후, 과일손질, 배송 ...)
+export interface RosterShift {
   id: number;
   staff_role: StaffRole;
   store_id: number | null;
-  am_start: string;
-  am_end: string;
-  pm_start: string;
-  pm_end: string;
-  weekday_am_required: number;
-  weekday_pm_required: number;
-  weekend_am_required: number;
-  weekend_pm_required: number;
-  updated_at: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  weekday_required: number;
+  weekend_required: number;
+  sort_order: number;
+  created_at: string;
 }
 
-export interface RosterRequirement {
+export interface RosterShiftRequirement {
   id: number;
   work_date: string;
-  staff_role: StaffRole;
-  store_id: number | null;
-  am_required: number;
-  pm_required: number;
+  shift_id: number;
+  required: number;
 }
 
 export interface RosterAssignment {
   id: number;
   work_date: string;
-  shift: 'AM' | 'PM';
+  shift_id: number;
   staff_id: number;
   staff_role: StaffRole;
   store_id: number | null;
-  start_time: string | null; // null이면 settings의 파트 기본 시간
+  start_time: string | null; // null이면 파트 기본 시간
   end_time: string | null;
   created_at: string;
-  staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'preferred_shift' | 'status'>;
+  staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'status'>;
 }
 
 export interface Memo {

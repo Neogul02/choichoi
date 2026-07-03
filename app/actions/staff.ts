@@ -2,21 +2,21 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
-import type { StaffProfile, StaffShift, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
+import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 
-const STAFF_COLUMNS = 'id, name, phone, staff_role, store_id, preferred_shift, preferred_days, available_ranges, has_health_cert, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, created_at, updated_at'
+const STAFF_COLUMNS = 'id, name, phone, staff_role, store_id, preferred_shift_ids, preferred_days, available_ranges, has_health_cert, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, created_at, updated_at'
 
 export interface StaffProfileInput {
   name: string
   phone?: string | null
   staff_role: StaffRole
   store_id?: number | null
-  preferred_shift: StaffShift
+  preferred_shift_ids: number[]
   preferred_days: number[]
   available_ranges: AvailabilityRange[]
   has_health_cert: boolean
@@ -50,7 +50,7 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
         phone: input.phone?.trim() || null,
         staff_role: input.staff_role,
         store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
-        preferred_shift: input.preferred_shift,
+        preferred_shift_ids: input.preferred_shift_ids,
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,
         has_health_cert: input.has_health_cert,
@@ -79,7 +79,7 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
         phone: input.phone?.trim() || null,
         staff_role: input.staff_role,
         store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
-        preferred_shift: input.preferred_shift,
+        preferred_shift_ids: input.preferred_shift_ids,
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,
         has_health_cert: input.has_health_cert,

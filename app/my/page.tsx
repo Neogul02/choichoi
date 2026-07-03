@@ -479,7 +479,7 @@ function MyScheduleSection({ roster }: { roster: MyRosterData }) {
                   const isToday = s.work_date === todayStr
                   return (
                     <tr
-                      key={`${s.work_date}-${s.shift}`}
+                      key={`${s.work_date}-${s.shift_name}-${s.start_time}`}
                       className={`${i > 0 ? 'border-t border-hairline' : ''} ${isToday ? 'bg-primary-50' : i % 2 === 1 ? 'bg-canvas-soft/50' : ''}`}
                     >
                       <td className='px-3 py-2.5 whitespace-nowrap'>
@@ -494,10 +494,8 @@ function MyScheduleSection({ roster }: { roster: MyRosterData }) {
                         )}
                       </td>
                       <td className='px-3 py-2.5'>
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                          s.shift === 'AM' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'
-                        }`}>
-                          {s.shift === 'AM' ? '오전' : '오후'}
+                        <span className='text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700'>
+                          {s.shift_name}
                         </span>
                       </td>
                       <td className='px-3 py-2.5 text-right whitespace-nowrap'>

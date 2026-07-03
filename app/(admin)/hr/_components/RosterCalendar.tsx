@@ -3,23 +3,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { showMsg } from '@/lib/toast';
 import {
-  fetchRosterSettings, saveRosterSettings, fetchRosterRange,
-  addRosterAssignment, removeRosterAssignment, updateRosterAssignmentTime,
-  setRosterRequirement, clearRosterRequirement, autoFillRoster,
+  fetchRosterRange, addRosterAssignment, removeRosterAssignment,
+  updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster,
 } from '@/app/actions/roster';
 import type { RosterUnit } from '@/app/actions/roster';
-import type { StaffProfile, Store, RosterSettings, RosterRequirement, RosterAssignment } from '@/types/database';
+import type { StaffProfile, Store, RosterShift, RosterAssignment } from '@/types/database';
 import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability } from './constants';
 import { getWeekStart } from '@/lib/staffing';
-import RosterSettingsModal from './RosterSettingsModal';
+import ShiftManageModal from './ShiftManageModal';
 
 interface Props {
   staffList: StaffProfile[];
   stores: Store[];
 }
 
-type Shift = 'AM' | 'PM';
-const SHIFTS: Shift[] = ['AM', 'PM'];
+// 파트 순서에 따라 순환하는 강조색
+const SHIFT_TEXT_COLORS = ['text-orange-600', 'text-indigo-600', 'text-emerald-600', 'text-rose-500', 'text-cyan-600'] as const;
+export function shiftTextColor(index: number): string {
+  return SHIFT_TEXT_COLORS[index % SHIFT_TEXT_COLORS.length];
+}
 
 function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -37,33 +39,32 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     setTodayStr(toDateStr(now.getFullYear(), now.getMonth(), now.getDate()));
   }, []);
 
-  const [settings, setSettings] = useState<RosterSettings | null>(null);
+  const [shifts, setShifts] = useState<RosterShift[]>([]);
   const [assignments, setAssignments] = useState<RosterAssignment[]>([]);
-  const [requirements, setRequirements] = useState<Record<string, RosterRequirement>>({});
+  const [overrides, setOverrides] = useState<Record<string, number>>({}); // `${date}|${shiftId}` → required
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showShiftManage, setShowShiftManage] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
-
-  useEffect(() => {
-    setSettings(null);
-    fetchRosterSettings(unit).then(r => { if (r.success && r.data) setSettings(r.data); });
-  }, [unit]);
 
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
   const monthEnd = cursor ? toDateStr(cursor.y, cursor.m, new Date(cursor.y, cursor.m + 1, 0).getDate()) : '';
+
+  const loadRange = async () => {
+    if (!cursor) return;
+    const r = await fetchRosterRange(unit, monthStart, monthEnd);
+    if (r.success && r.data) {
+      setShifts(r.data.shifts);
+      setAssignments(r.data.assignments);
+      setOverrides(Object.fromEntries(r.data.requirements.map(q => [`${q.work_date}|${q.shift_id}`, q.required])));
+    }
+  };
 
   useEffect(() => {
     if (!cursor) return;
     setIsLoading(true);
     setSelectedDate(null);
-    fetchRosterRange(unit, monthStart, monthEnd).then(r => {
-      if (r.success && r.data) {
-        setAssignments(r.data.assignments);
-        setRequirements(Object.fromEntries(r.data.requirements.map(q => [q.work_date, q])));
-      }
-      setIsLoading(false);
-    });
+    loadRange().then(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, unit]);
 
@@ -73,40 +74,24 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     [staffList, unit],
   );
 
-  const handleAutoFill = async () => {
-    if (!cursor) return;
-    // 지난 날짜는 건드리지 않는다
-    const from = todayStr > monthStart ? todayStr : monthStart;
-    if (from > monthEnd) { showMsg('지난 달은 자동 배정할 수 없습니다'); return; }
-    if (!confirm(`${cursor.m + 1}월의 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
-    setIsAutoFilling(true);
-    const r = await autoFillRoster(unit, from, monthEnd);
-    if (r.success && r.data) {
-      showMsg(r.data.added === 0
-        ? '배정할 수 있는 빈 자리가 없습니다'
-        : `${r.data.added}자리 배정 완료${r.data.holes.length > 0 ? ` · ${r.data.holes.length}개 파트는 가능 인원 부족` : ''}`);
-      const reload = await fetchRosterRange(unit, monthStart, monthEnd);
-      if (reload.success && reload.data) {
-        setAssignments(reload.data.assignments);
-        setRequirements(Object.fromEntries(reload.data.requirements.map(q => [q.work_date, q])));
-      }
-    } else {
-      showMsg(`오류: ${r.error}`);
-    }
-    setIsAutoFilling(false);
-  };
-
   const assignMap = useMemo(() => {
     const map = new Map<string, RosterAssignment[]>();
     for (const a of assignments) {
-      const key = `${a.work_date}|${a.shift}`;
+      const key = `${a.work_date}|${a.shift_id}`;
       const bucket = map.get(key);
       if (bucket) bucket.push(a); else map.set(key, [a]);
     }
     return map;
   }, [assignments]);
 
-  const getAssigned = (dateStr: string, shift: Shift) => assignMap.get(`${dateStr}|${shift}`) ?? [];
+  const getAssigned = (dateStr: string, shiftId: number) => assignMap.get(`${dateStr}|${shiftId}`) ?? [];
+
+  const getRequired = (dateStr: string, shift: RosterShift): number => {
+    const override = overrides[`${dateStr}|${shift.id}`];
+    if (override !== undefined) return override;
+    const day = new Date(dateStr + 'T00:00:00').getDay();
+    return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required;
+  };
 
   // 해당 날짜가 속한 주(일~토)에 이 직원이 근무하는 날 수 — 이달 데이터 기준 근사치, 서버 자동 배정은 정확히 검사함
   const getWeeklyDayCount = (staffId: number, dateStr: string): number => {
@@ -122,16 +107,6 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     return days.size;
   };
 
-  const getRequired = (dateStr: string, shift: Shift): number => {
-    const override = requirements[dateStr];
-    if (override) return shift === 'AM' ? override.am_required : override.pm_required;
-    if (!settings) return 0;
-    const day = new Date(dateStr + 'T00:00:00').getDay();
-    const isWeekend = day === 0 || day === 6;
-    if (shift === 'AM') return isWeekend ? settings.weekend_am_required : settings.weekday_am_required;
-    return isWeekend ? settings.weekend_pm_required : settings.weekday_pm_required;
-  };
-
   // 달력 그리드 (앞쪽 빈칸 포함)
   const gridDates = useMemo(() => {
     if (!cursor) return [];
@@ -145,21 +120,40 @@ export default function RosterCalendar({ staffList, stores }: Props) {
 
   // 이달의 인원 부족 목록
   const shortages = useMemo(() => {
-    const list: { date: string; shift: Shift; missing: number }[] = [];
+    const list: { date: string; shift: RosterShift; missing: number }[] = [];
     for (const dateStr of gridDates) {
       if (!dateStr) continue;
-      for (const shift of SHIFTS) {
+      for (const shift of shifts) {
         const required = getRequired(dateStr, shift);
-        const filled = getAssigned(dateStr, shift).length;
+        const filled = getAssigned(dateStr, shift.id).length;
         if (filled < required) list.push({ date: dateStr, shift, missing: required - filled });
       }
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gridDates, assignMap, requirements, settings]);
+  }, [gridDates, assignMap, overrides, shifts]);
 
-  const handleAdd = async (dateStr: string, shift: Shift, staffId: number) => {
-    const r = await addRosterAssignment(unit, dateStr, shift, staffId);
+  const handleAutoFill = async () => {
+    if (!cursor) return;
+    // 지난 날짜는 건드리지 않는다
+    const from = todayStr > monthStart ? todayStr : monthStart;
+    if (from > monthEnd) { showMsg('지난 달은 자동 배정할 수 없습니다'); return; }
+    if (!confirm(`${cursor.m + 1}월의 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
+    setIsAutoFilling(true);
+    const r = await autoFillRoster(unit, from, monthEnd);
+    if (r.success && r.data) {
+      showMsg(r.data.added === 0
+        ? '배정할 수 있는 빈 자리가 없습니다'
+        : `${r.data.added}자리 배정 완료${r.data.holes.length > 0 ? ` · ${r.data.holes.length}개 파트는 가능 인원 부족` : ''}`);
+      await loadRange();
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
+    setIsAutoFilling(false);
+  };
+
+  const handleAdd = async (dateStr: string, shiftId: number, staffId: number) => {
+    const r = await addRosterAssignment(unit, dateStr, shiftId, staffId);
     if (r.success && r.data) setAssignments(p => [...p, r.data!]);
     else showMsg(`오류: ${r.error}`);
   };
@@ -176,19 +170,23 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     else showMsg(`오류: ${r.error}`);
   };
 
-  const handleRequirementChange = async (dateStr: string, am: number, pm: number) => {
-    const r = await setRosterRequirement(unit, dateStr, am, pm);
-    if (r.success && r.data) setRequirements(p => ({ ...p, [dateStr]: r.data! }));
+  const handleRequirementChange = async (dateStr: string, shiftId: number, required: number) => {
+    const r = await setShiftRequirement(dateStr, shiftId, required);
+    if (r.success && r.data) setOverrides(p => ({ ...p, [`${dateStr}|${shiftId}`]: r.data!.required }));
     else showMsg(`오류: ${r.error}`);
   };
 
-  const handleRequirementReset = async (dateStr: string) => {
-    const r = await clearRosterRequirement(unit, dateStr);
-    if (r.success) setRequirements(p => { const n = { ...p }; delete n[dateStr]; return n; });
+  const handleRequirementReset = async (dateStr: string, shiftId: number) => {
+    const r = await clearShiftRequirement(dateStr, shiftId);
+    if (r.success) setOverrides(p => { const n = { ...p }; delete n[`${dateStr}|${shiftId}`]; return n; });
     else showMsg(`오류: ${r.error}`);
   };
 
   if (!cursor) return <p className="text-ink-faint text-sm">불러오는 중...</p>;
+
+  const unitLabel = unit.staffRole === 'kitchen'
+    ? ROLE_LABELS.kitchen
+    : (stores.find(s => s.id === unit.storeId)?.name ?? ROLE_LABELS.cashier);
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-start">
@@ -246,11 +244,6 @@ export default function RosterCalendar({ staffList, stores }: Props) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            {settings && (
-              <span className="hidden md:inline text-[11px] text-ink-faint">
-                오전 {settings.am_start}~{settings.am_end} · 오후 {settings.pm_start}~{settings.pm_end}
-              </span>
-            )}
             <button
               onClick={handleAutoFill}
               disabled={isAutoFilling || isLoading}
@@ -259,10 +252,10 @@ export default function RosterCalendar({ staffList, stores }: Props) {
               {isAutoFilling ? '배정 중...' : '⚡ 자동 채우기'}
             </button>
             <button
-              onClick={() => setShowSettings(true)}
+              onClick={() => setShowShiftManage(true)}
               className="px-2.5 py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
             >
-              ⚙ 설정
+              ⚙ 파트 관리
             </button>
           </div>
         </div>
@@ -297,19 +290,19 @@ export default function RosterCalendar({ staffList, stores }: Props) {
                   }`}>
                     {dayNum}
                   </span>
-                  {SHIFTS.map(shift => {
+                  {shifts.map(shift => {
                     const required = getRequired(dateStr, shift);
-                    const filled = getAssigned(dateStr, shift).length;
+                    const filled = getAssigned(dateStr, shift.id).length;
                     if (required === 0 && filled === 0) return null;
                     const full = filled >= required;
                     return (
                       <span
-                        key={shift}
-                        className={`text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none ${
+                        key={shift.id}
+                        className={`text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate ${
                           full ? 'bg-emerald-50 text-emerald-700' : filled === 0 ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-700'
                         }`}
                       >
-                        {shift === 'AM' ? '오전' : '오후'} {filled}/{required}
+                        {shift.name} {filled}/{required}
                       </span>
                     );
                   })}
@@ -328,11 +321,11 @@ export default function RosterCalendar({ staffList, stores }: Props) {
                 const day = new Date(s.date + 'T00:00:00').getDay();
                 return (
                   <button
-                    key={`${s.date}-${s.shift}`}
+                    key={`${s.date}-${s.shift.id}`}
                     onClick={() => setSelectedDate(s.date)}
                     className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas border border-rose-200 text-rose-600 cursor-pointer hover:bg-rose-100 transition"
                   >
-                    {Number(s.date.slice(5, 7))}/{Number(s.date.slice(8))}({DAY_NAMES[day]}) {s.shift === 'AM' ? '오전' : '오후'} {s.missing}명
+                    {Number(s.date.slice(5, 7))}/{Number(s.date.slice(8))}({DAY_NAMES[day]}) {s.shift.name} {s.missing}명
                   </button>
                 );
               })}
@@ -345,12 +338,12 @@ export default function RosterCalendar({ staffList, stores }: Props) {
       </div>
 
       {/* ── 날짜 상세 패널 ── */}
-      {selectedDate && settings && (
+      {selectedDate && (
         <DayPanel
           dateStr={selectedDate}
-          settings={settings}
+          shifts={shifts}
           staffList={unitStaff}
-          requirements={requirements[selectedDate] ?? null}
+          overrides={overrides}
           getAssigned={getAssigned}
           getRequired={getRequired}
           getWeeklyDayCount={getWeeklyDayCount}
@@ -363,15 +356,13 @@ export default function RosterCalendar({ staffList, stores }: Props) {
         />
       )}
 
-      {showSettings && settings && (
-        <RosterSettingsModal
-          settings={settings}
-          onClose={() => setShowSettings(false)}
-          onSave={async (input) => {
-            const r = await saveRosterSettings(unit, input);
-            if (r.success && r.data) { setSettings(r.data); setShowSettings(false); showMsg('설정이 저장되었습니다'); }
-            else showMsg(`오류: ${r.error}`);
-          }}
+      {showShiftManage && (
+        <ShiftManageModal
+          unit={unit}
+          unitLabel={unitLabel}
+          shifts={shifts}
+          onShiftsChange={setShifts}
+          onClose={() => setShowShiftManage(false)}
         />
       )}
     </div>
@@ -381,22 +372,22 @@ export default function RosterCalendar({ staffList, stores }: Props) {
 // ── 날짜 상세 패널 ────────────────────────────────────────────────────────────
 
 function DayPanel({
-  dateStr, settings, staffList, requirements,
+  dateStr, shifts, staffList, overrides,
   getAssigned, getRequired, getWeeklyDayCount, onAdd, onRemove, onTimeChange,
   onRequirementChange, onRequirementReset, onClose,
 }: {
   dateStr: string;
-  settings: RosterSettings;
+  shifts: RosterShift[];
   staffList: StaffProfile[];
-  requirements: RosterRequirement | null;
-  getAssigned: (d: string, s: Shift) => RosterAssignment[];
-  getRequired: (d: string, s: Shift) => number;
+  overrides: Record<string, number>;
+  getAssigned: (d: string, shiftId: number) => RosterAssignment[];
+  getRequired: (d: string, s: RosterShift) => number;
   getWeeklyDayCount: (staffId: number, d: string) => number;
-  onAdd: (d: string, s: Shift, staffId: number) => Promise<void>;
+  onAdd: (d: string, shiftId: number, staffId: number) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
   onTimeChange: (id: number, start: string | null, end: string | null) => Promise<void>;
-  onRequirementChange: (d: string, am: number, pm: number) => Promise<void>;
-  onRequirementReset: (d: string) => Promise<void>;
+  onRequirementChange: (d: string, shiftId: number, required: number) => Promise<void>;
+  onRequirementReset: (d: string, shiftId: number) => Promise<void>;
   onClose: () => void;
 }) {
   const day = new Date(dateStr + 'T00:00:00').getDay();
@@ -406,9 +397,6 @@ function DayPanel({
 
   // 배정 후보: 불합격/퇴사 제외
   const selectableStaff = staffList.filter(s => s.status === 'confirmed' || s.status === 'candidate');
-
-  const amRequired = getRequired(dateStr, 'AM');
-  const pmRequired = getRequired(dateStr, 'PM');
 
   return (
     <div className="w-full lg:w-[340px] shrink-0 bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
@@ -420,49 +408,10 @@ function DayPanel({
         <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
       </div>
 
-      {/* 필요 인원 조정 */}
-      <div className="bg-canvas-soft rounded-lg p-2.5 mb-3">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] font-bold text-ink-muted">이 날 필요 인원</span>
-          {requirements && (
-            <button
-              onClick={() => onRequirementReset(dateStr)}
-              className="text-[10px] text-primary-600 font-bold bg-transparent border-none cursor-pointer hover:text-primary-800 transition"
-            >
-              기본값으로
-            </button>
-          )}
-        </div>
-        <div className="flex gap-3">
-          {SHIFTS.map(shift => {
-            const value = shift === 'AM' ? amRequired : pmRequired;
-            return (
-              <div key={shift} className="flex items-center gap-1.5">
-                <span className="text-[11px] text-ink-muted">{shift === 'AM' ? '오전' : '오후'}</span>
-                <button
-                  onClick={() => onRequirementChange(dateStr, shift === 'AM' ? Math.max(0, amRequired - 1) : amRequired, shift === 'PM' ? Math.max(0, pmRequired - 1) : pmRequired)}
-                  className="w-5 h-5 rounded bg-canvas border border-hairline cursor-pointer text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
-                >
-                  −
-                </button>
-                <span className="text-[13px] font-bold w-4 text-center">{value}</span>
-                <button
-                  onClick={() => onRequirementChange(dateStr, shift === 'AM' ? amRequired + 1 : amRequired, shift === 'PM' ? pmRequired + 1 : pmRequired)}
-                  className="w-5 h-5 rounded bg-canvas border border-hairline cursor-pointer text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
-                >
-                  +
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 파트별 배정 */}
-      {SHIFTS.map(shift => {
-        const assigned = getAssigned(dateStr, shift);
+      {shifts.map((shift, shiftIdx) => {
+        const assigned = getAssigned(dateStr, shift.id);
         const required = getRequired(dateStr, shift);
-        const defaultTime = shift === 'AM' ? `${settings.am_start}~${settings.am_end}` : `${settings.pm_start}~${settings.pm_end}`;
+        const hasOverride = overrides[`${dateStr}|${shift.id}`] !== undefined;
         const assignedIds = new Set(assigned.map(a => a.staff_id));
         const candidates = selectableStaff
           .filter(s => !assignedIds.has(s.id))
@@ -476,14 +425,37 @@ function DayPanel({
           .sort((a, b) => Number(b.avail.ok) - Number(a.avail.ok));
 
         return (
-          <div key={shift} className="mb-3 last:mb-0">
+          <div key={shift.id} className="mb-3 last:mb-0">
             <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-[12px] font-extrabold ${shift === 'AM' ? 'text-orange-600' : 'text-indigo-600'}`}>
-                {shift === 'AM' ? '오전' : '오후'} <span className="text-ink-faint font-semibold">{defaultTime}</span>
+              <span className={`text-[12px] font-extrabold ${shiftTextColor(shiftIdx)}`}>
+                {shift.name} <span className="text-ink-faint font-semibold">{shift.start_time}~{shift.end_time}</span>
               </span>
-              <span className={`text-[11px] font-bold ${assigned.length >= required ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {assigned.length}/{required}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => onRequirementChange(dateStr, shift.id, Math.max(0, required - 1))}
+                  className="w-5 h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
+                >
+                  −
+                </button>
+                <span className={`text-[11px] font-bold ${assigned.length >= required ? 'text-emerald-600' : 'text-rose-500'}`}>
+                  {assigned.length}/{required}
+                </span>
+                <button
+                  onClick={() => onRequirementChange(dateStr, shift.id, required + 1)}
+                  className="w-5 h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
+                >
+                  +
+                </button>
+                {hasOverride && (
+                  <button
+                    onClick={() => onRequirementReset(dateStr, shift.id)}
+                    title="기본 인원으로 되돌리기"
+                    className="text-[10px] text-primary-600 font-bold bg-transparent border-none cursor-pointer hover:text-primary-800 transition"
+                  >
+                    기본값
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -507,8 +479,8 @@ function DayPanel({
                       <button
                         onClick={() => {
                           setEditingTimeId(a.id);
-                          setEditStart(a.start_time ?? (shift === 'AM' ? settings.am_start : settings.pm_start));
-                          setEditEnd(a.end_time ?? (shift === 'AM' ? settings.am_end : settings.pm_end));
+                          setEditStart(a.start_time ?? shift.start_time);
+                          setEditEnd(a.end_time ?? shift.end_time);
                         }}
                         title="시간 수정"
                         className={`text-[10px] bg-transparent border-none cursor-pointer transition ${a.start_time ? 'text-primary-700 font-bold' : 'text-ink-faint hover:text-primary-700'}`}
@@ -529,7 +501,7 @@ function DayPanel({
               {/* 인원 추가 */}
               <select
                 value=""
-                onChange={e => { if (e.target.value) onAdd(dateStr, shift, Number(e.target.value)); }}
+                onChange={e => { if (e.target.value) onAdd(dateStr, shift.id, Number(e.target.value)); }}
                 className="w-full px-2 py-1.5 border border-dashed border-hairline rounded-lg text-[11px] text-ink-muted bg-canvas cursor-pointer focus:outline-none focus:border-primary-700"
               >
                 <option value="">+ 인원 추가</option>
