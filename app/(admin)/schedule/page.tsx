@@ -6,24 +6,20 @@ import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent,
   fetchScheduleByEvent, addScheduleEntry, removeScheduleEntry,
   moveScheduleEntry, editScheduleEntry, copyScheduleEntry,
-  fetchWorkers, editWorker, markWorkerPayment, createNewWorker,
+  fetchWorkers, editWorker, createNewWorker,
 } from '@/app/actions/schedule';
 import { fetchAllUserProfiles, findOrCreateWorkerFromProfile } from '@/app/actions/workers';
 import type { UserProfile } from '@/app/actions/workers';
 import type { PopupEvent, ScheduleSlot, Worker } from '@/types/database';
-import { toLocalDateStr, parseWorkHours, formatHours } from '@/lib/utils';
+import { toLocalDateStr } from '@/lib/utils';
 import { showMsg } from '@/lib/toast';
 import ScheduleSidebar from './_components/ScheduleSidebar';
-import SalaryTable, { type SalaryGroup } from './_components/SalaryTable';
-
 const ROLES = ['프론트', '주방', '매니저'] as const;
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
-const LOCAL_RATES_KEY = 'choichoi_local_rates';
 const WORKER_COLORS = ['#22c55e', '#6366f1', '#ef4444', '#f97316', '#64748b'] as const;
 
 type DragCell = { date: string; role: string };
 type DragMode = 'move' | 'copy';
-type BottomTab = 'workers' | 'salary';
 
 function getEventDates(startDate: string, endDate: string): Date[] {
   const dates: Date[] = [];
@@ -51,11 +47,7 @@ export default function SchedulePage() {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [isSlotsLoading, setIsSlotsLoading] = useState(false);
 
-  // Local rates
-  const [localRates, setLocalRates] = useState<Record<string, number>>({});
-
   // UI
-  const [bottomTab, setBottomTab] = useState<BottomTab>('workers');
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragMode, setDragMode] = useState<DragMode>('move');
 
@@ -91,7 +83,6 @@ export default function SchedulePage() {
   useEffect(() => {
     loadEvents();
     fetchAllUserProfiles().then(r => { if (r.success && r.data) setUserProfiles(r.data); });
-    try { const s = localStorage.getItem(LOCAL_RATES_KEY); if (s) setLocalRates(JSON.parse(s)); } catch { /* ignore */ }
   }, []);
 
   const loadWorkers = async (eventId: number) => {
@@ -171,21 +162,6 @@ export default function SchedulePage() {
     if (!name) { showMsg('근무자 정보를 찾을 수 없습니다'); return; }
     const r = await editScheduleEntry(id, name, editWorkTime.trim(), wid, editBreak);
     if (r.success && r.data) { setSlots(p => p.map(s => s.id === id ? r.data! : s)); showMsg('수정되었습니다'); setEditingSlotId(null); }
-    else showMsg(`오류: ${r.error}`);
-  };
-
-  const handleRateChange = async (worker: Worker | null, name: string, rate: number) => {
-    if (worker) {
-      const r = await editWorker(worker.id, { event_id: worker.event_id, name: worker.name, color: worker.color, phone: worker.phone ?? '', bank_name: worker.bank_name ?? '', bank_account: worker.bank_account ?? '', hourly_rate: rate, worker_role: worker.worker_role ?? '프론트' });
-      if (r.success && r.data) setWorkers(p => p.map(w => w.id === worker.id ? r.data! : w));
-    } else {
-      setLocalRates(p => { const n = { ...p, [name]: rate }; localStorage.setItem(LOCAL_RATES_KEY, JSON.stringify(n)); return n; });
-    }
-  };
-
-  const handlePaymentToggle = async (worker: Worker) => {
-    const r = await markWorkerPayment(worker.id, !worker.payment_done);
-    if (r.success && r.data) setWorkers(p => p.map(w => w.id === worker.id ? r.data! : w));
     else showMsg(`오류: ${r.error}`);
   };
 
@@ -293,32 +269,6 @@ export default function SchedulePage() {
   const eventDates = useMemo(() => selectedEvent ? getEventDates(selectedEvent.start_date, selectedEvent.end_date) : [], [selectedEvent]);
   const totalWeeks = Math.ceil(eventDates.length / 7);
   const visibleDates = useMemo(() => eventDates.slice(weekOffset * 7, weekOffset * 7 + 7), [eventDates, weekOffset]);
-
-  const salaryGroups = useMemo((): SalaryGroup[] => {
-    if (!slots.length) return [];
-    const map = new Map<string, SalaryGroup>();
-    for (const slot of [...slots].sort((a, b) => a.schedule_date.localeCompare(b.schedule_date))) {
-      const worker = slot.worker_id ? (workers.find(w => w.id === slot.worker_id) ?? null) : null;
-      const key = slot.worker_id ? `w:${slot.worker_id}` : `n:${slot.person_name}`;
-      if (!map.has(key)) map.set(key, { key, worker, name: worker?.name ?? slot.person_name, entries: [] });
-      map.get(key)!.entries.push({ date: slot.schedule_date, role: slot.role, workTime: slot.work_time, breakTime: slot.break_time, hours: parseWorkHours(slot.work_time, slot.break_time) });
-
-    }
-    return Array.from(map.values()).sort((a, b) => {
-      const calcPay = (g: SalaryGroup) => {
-        const h = g.entries.reduce((s, e) => s + e.hours, 0);
-        const rate = g.worker ? g.worker.hourly_rate : (localRates[g.name] ?? 0);
-        return h * rate;
-      };
-      return calcPay(b) - calcPay(a);
-    });
-  }, [slots, workers, localRates]);
-
-  const grandTotal = useMemo(() => salaryGroups.reduce((acc, g) => {
-    const h = g.entries.reduce((s, e) => s + e.hours, 0);
-    const rate = g.worker ? g.worker.hourly_rate : (localRates[g.name] ?? 0);
-    return { hours: acc.hours + h, pay: acc.pay + h * rate };
-  }, { hours: 0, pay: 0 }), [salaryGroups, localRates]);
 
   const startWeekday = newEvent.startDate ? DAY_NAMES[new Date(newEvent.startDate + 'T00:00:00').getDay()] : null;
 
@@ -448,16 +398,7 @@ export default function SchedulePage() {
 
         {selectedEvent && (
           <div className="mt-4">
-            <div className="flex rounded-xl overflow-hidden border border-hairline mb-2 w-fit bg-canvas shadow-level-1">
-              {(['workers', 'salary'] as const).map(tab => (
-                <button key={tab} className={`px-4 py-2 text-[11px] font-bold border-none cursor-pointer transition ${bottomTab === tab ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`} onClick={() => setBottomTab(tab)}>
-                  {tab === 'workers' ? '직원 풀' : '급여 계산'}
-                </button>
-              ))}
-            </div>
-
-            {bottomTab === 'workers' && (
-              <div className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline" onClick={() => setColorPickerWorkerId(null)}>
+            <div className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline" onClick={() => setColorPickerWorkerId(null)}>
                 {/* 이번 이벤트 근무자 — 실제 슬롯이 있는 worker만 표시 */}
                 {workers.filter(w => slots.some(s => s.worker_id === w.id)).length > 0 && (
                   <div className="mb-5">
@@ -592,24 +533,7 @@ export default function SchedulePage() {
                   )}
                 </div>
               </div>
-            )}
-
-            {bottomTab === 'salary' && salaryGroups.length > 0 && (
-              <SalaryTable
-                eventName={selectedEvent.name}
-                salaryGroups={salaryGroups}
-                grandTotal={grandTotal}
-                localRates={localRates}
-                onRateChange={handleRateChange}
-                onPaymentToggle={handlePaymentToggle}
-              />
-            )}
-            {bottomTab === 'salary' && salaryGroups.length === 0 && (
-              <div className="bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
-                <p className="text-ink-faint text-sm m-0">근무 데이터가 없습니다.</p>
-              </div>
-            )}
-          </div>
+            </div>
         )}
       </main>
     </>
