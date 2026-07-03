@@ -113,23 +113,36 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     return days.size;
   };
 
-  // 달력 그리드 (앞쪽 빈칸 포함)
+  // 달력 그리드 — range 모드(from+to 모두 설정)면 해당 날짜만, 아니면 월 전체
   const gridDates = useMemo(() => {
     if (!cursor) return [];
+
+    if (rangeFrom && rangeTo && rangeFrom <= rangeTo) {
+      // range 뷰: rangeFrom~rangeTo 포함 주(일~토) 그리드
+      const fromDate = new Date(rangeFrom + 'T00:00:00');
+      const toDate = new Date(rangeTo + 'T00:00:00');
+      const weekStart = new Date(fromDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekEnd = new Date(toDate);
+      weekEnd.setDate(weekEnd.getDate() + (6 - weekEnd.getDay()));
+      const cells: (string | null)[] = [];
+      const cur = new Date(weekStart);
+      while (cur <= weekEnd) {
+        const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        cells.push(ds >= rangeFrom && ds <= rangeTo ? ds : null);
+        cur.setDate(cur.getDate() + 1);
+      }
+      return cells;
+    }
+
+    // 월 전체 그리드
     const firstDay = new Date(cursor.y, cursor.m, 1).getDay();
     const lastDate = new Date(cursor.y, cursor.m + 1, 0).getDate();
     const cells: (string | null)[] = Array(firstDay).fill(null);
     for (let d = 1; d <= lastDate; d++) cells.push(toDateStr(cursor.y, cursor.m, d));
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;
-  }, [cursor]);
-
-  // 범위 내 날짜 여부
-  const isInRange = (dateStr: string) => {
-    if (rangeFrom && dateStr < rangeFrom) return false;
-    if (rangeTo && dateStr > rangeTo) return false;
-    return true;
-  };
+  }, [cursor, rangeFrom, rangeTo]);
 
   // 이달의 인원 부족 목록 (범위 적용)
   const shortages = useMemo(() => {
@@ -324,15 +337,13 @@ export default function RosterCalendar({ staffList, stores }: Props) {
               const isToday = dateStr === todayStr;
               const isSelected = dateStr === selectedDate;
               const isPast = dateStr < todayStr;
-              const outOfRange = !isInRange(dateStr);
               return (
                 <button
                   key={dateStr}
-                  onClick={() => !outOfRange && setSelectedDate(isSelected ? null : dateStr)}
-                  className={`flex flex-col gap-0.5 items-stretch rounded-lg border p-1 md:p-1.5 min-h-[64px] transition text-left bg-canvas ${
-                    outOfRange ? 'opacity-20 cursor-default border-hairline' :
-                    isSelected ? 'border-primary-700 ring-2 ring-primary-700/20 cursor-pointer' : 'border-hairline hover:border-primary-400 cursor-pointer'
-                  } ${isPast && !outOfRange ? 'opacity-50' : ''}`}
+                  onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+                  className={`flex flex-col gap-0.5 items-stretch rounded-lg border p-1 md:p-1.5 min-h-[64px] cursor-pointer transition text-left bg-canvas ${
+                    isSelected ? 'border-primary-700 ring-2 ring-primary-700/20' : 'border-hairline hover:border-primary-400'
+                  } ${isPast ? 'opacity-50' : ''}`}
                 >
                   <span className={`text-[11px] font-bold leading-none mb-0.5 ${
                     isToday ? 'text-white bg-primary-700 rounded-full w-[18px] h-[18px] flex items-center justify-center'
