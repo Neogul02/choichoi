@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
@@ -47,9 +47,10 @@ export default function RosterCalendar({ staffList, stores }: Props) {
   const [showShiftManage, setShowShiftManage] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
 
-  // 날짜 범위 필터 (빈 문자열 = 제한 없음)
+  // 날짜 범위 필터 (빈 문자열 = 제한 없음) — localStorage로 탭 전환 후에도 유지
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
+  const isFirstCursorEffect = useRef(true);
 
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
   const monthEnd = cursor ? toDateStr(cursor.y, cursor.m, new Date(cursor.y, cursor.m + 1, 0).getDate()) : '';
@@ -64,12 +65,28 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     }
   };
 
+  // 마운트 시 localStorage에서 범위 복원
+  useEffect(() => {
+    setRangeFrom(localStorage.getItem('roster_rangeFrom') ?? '');
+    setRangeTo(localStorage.getItem('roster_rangeTo') ?? '');
+  }, []);
+
+  // 범위 변경 시 localStorage 저장
+  useEffect(() => {
+    localStorage.setItem('roster_rangeFrom', rangeFrom);
+    localStorage.setItem('roster_rangeTo', rangeTo);
+  }, [rangeFrom, rangeTo]);
+
   useEffect(() => {
     if (!cursor) return;
     setIsLoading(true);
     setSelectedDate(null);
-    setRangeFrom('');
-    setRangeTo('');
+    // 첫 마운트(탭 복귀 포함)는 범위 유지, 이후 월/단위 변경 시에만 초기화
+    if (!isFirstCursorEffect.current) {
+      setRangeFrom('');
+      setRangeTo('');
+    }
+    isFirstCursorEffect.current = false;
     loadRange().then(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, unit]);
