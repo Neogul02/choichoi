@@ -67,6 +67,77 @@ export interface ScheduleSlot {
   updated_at: string;
 }
 
+// ── HR (인사관리) ─────────────────────────────────────────────────────────────
+
+export interface AvailabilityRange {
+  from: string; // YYYY-MM-DD
+  to: string;   // YYYY-MM-DD
+}
+
+export type StaffStatus = 'candidate' | 'confirmed' | 'rejected' | 'inactive';
+export type StaffRole = 'kitchen' | 'cashier';
+
+export interface Store {
+  id: number;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface StaffProfile {
+  id: number;
+  name: string;
+  phone: string | null;
+  staff_role: StaffRole;
+  store_id: number | null; // 캐셔만 사용, 주방은 null
+  preferred_shift_ids: number[]; // roster_shifts.id 목록, 빈 배열 = 파트 무관
+  preferred_days: number[]; // 0=일 ~ 6=토, 빈 배열 = 요일 무관
+  available_ranges: AvailabilityRange[];
+  has_health_cert: boolean;
+  wants_insurance: boolean;
+  hourly_rate: number | null;
+  max_days_per_week: number | null; // null = 무제한
+  status: StaffStatus;
+  notes: string | null;
+  user_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// 파트 — 단위(주방/매장)별로 자유롭게 추가하는 근무 구간 (오전, 오후, 과일손질, 배송 ...)
+export interface RosterShift {
+  id: number;
+  staff_role: StaffRole;
+  store_id: number | null;
+  name: string;
+  start_time: string;
+  end_time: string;
+  weekday_required: number;
+  weekend_required: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface RosterShiftRequirement {
+  id: number;
+  work_date: string;
+  shift_id: number;
+  required: number;
+}
+
+export interface RosterAssignment {
+  id: number;
+  work_date: string;
+  shift_id: number;
+  staff_id: number;
+  staff_role: StaffRole;
+  store_id: number | null;
+  start_time: string | null; // null이면 파트 기본 시간
+  end_time: string | null;
+  created_at: string;
+  staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'status'>;
+}
+
 export interface Memo {
   id: number;
   title: string | null;
