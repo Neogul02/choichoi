@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { fetchMonthlyPayroll, type PayrollRow } from '@/app/actions/payroll'
 import type { StaffRole } from '@/types/database'
 import { ROLE_LABELS } from './constants'
+import PayrollDetailModal from './PayrollDetailModal'
 
 interface Props {
   defaultRole: StaffRole
@@ -14,6 +15,7 @@ export default function PayrollPanel({ defaultRole }: Props) {
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null)
   const [rows, setRows] = useState<PayrollRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [detailTarget, setDetailTarget] = useState<PayrollRow | null>(null)
 
   useEffect(() => {
     const now = new Date()
@@ -92,7 +94,11 @@ export default function PayrollPanel({ defaultRole }: Props) {
               </thead>
               <tbody>
                 {rows.map((row, i) => (
-                  <tr key={row.staffId} className={`hover:bg-canvas-soft transition ${i !== rows.length - 1 ? 'border-b border-hairline' : ''}`}>
+                  <tr
+                    key={row.staffId}
+                    onClick={() => setDetailTarget(row)}
+                    className={`hover:bg-canvas-soft transition cursor-pointer ${i !== rows.length - 1 ? 'border-b border-hairline' : ''}`}
+                  >
                     <td className="px-4 py-2.5">
                       <div className="font-bold text-ink">{row.name}</div>
                       {row.phone && <div className="text-[10px] text-ink-muted mt-0.5">{row.phone}</div>}
@@ -127,6 +133,20 @@ export default function PayrollPanel({ defaultRole }: Props) {
             </span>
           </div>
         </>
+      )}
+
+      {detailTarget && cursor && (
+        <PayrollDetailModal
+          staffId={detailTarget.staffId}
+          name={detailTarget.name}
+          phone={detailTarget.phone}
+          hourlyRate={detailTarget.hourlyRate}
+          basePay={detailTarget.totalPay}
+          totalHours={detailTarget.totalHours}
+          year={cursor.y}
+          month={cursor.m}
+          onClose={() => setDetailTarget(null)}
+        />
       )}
     </div>
   )
