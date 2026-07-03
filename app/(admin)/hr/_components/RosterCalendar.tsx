@@ -47,6 +47,10 @@ export default function RosterCalendar({ staffList, stores }: Props) {
   const [showShiftManage, setShowShiftManage] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
 
+  // 날짜 범위 필터 (빈 문자열 = 제한 없음)
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
+
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
   const monthEnd = cursor ? toDateStr(cursor.y, cursor.m, new Date(cursor.y, cursor.m + 1, 0).getDate()) : '';
 
@@ -64,6 +68,8 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     if (!cursor) return;
     setIsLoading(true);
     setSelectedDate(null);
+    setRangeFrom('');
+    setRangeTo('');
     loadRange().then(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, unit]);
@@ -118,11 +124,20 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     return cells;
   }, [cursor]);
 
-  // 이달의 인원 부족 목록
+  // 범위 내 날짜 여부
+  const isInRange = (dateStr: string) => {
+    if (rangeFrom && dateStr < rangeFrom) return false;
+    if (rangeTo && dateStr > rangeTo) return false;
+    return true;
+  };
+
+  // 이달의 인원 부족 목록 (범위 적용)
   const shortages = useMemo(() => {
     const list: { date: string; shift: RosterShift; missing: number }[] = [];
     for (const dateStr of gridDates) {
       if (!dateStr) continue;
+      if (rangeFrom && dateStr < rangeFrom) continue;
+      if (rangeTo && dateStr > rangeTo) continue;
       for (const shift of shifts) {
         const required = getRequired(dateStr, shift);
         const filled = getAssigned(dateStr, shift.id).length;
@@ -131,16 +146,19 @@ export default function RosterCalendar({ staffList, stores }: Props) {
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gridDates, assignMap, overrides, shifts]);
+  }, [gridDates, assignMap, overrides, shifts, rangeFrom, rangeTo]);
 
   const handleAutoFill = async () => {
     if (!cursor) return;
+    const effectiveStart = rangeFrom || monthStart;
+    const effectiveEnd = rangeTo || monthEnd;
     // 지난 날짜는 건드리지 않는다
-    const from = todayStr > monthStart ? todayStr : monthStart;
-    if (from > monthEnd) { showMsg('지난 달은 자동 배정할 수 없습니다'); return; }
-    if (!confirm(`${cursor.m + 1}월의 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
+    const from = todayStr > effectiveStart ? todayStr : effectiveStart;
+    if (from > effectiveEnd) { showMsg('지난 날짜는 자동 배정할 수 없습니다'); return; }
+    const rangeLabel = (rangeFrom || rangeTo) ? `${rangeFrom || monthStart} ~ ${rangeTo || monthEnd}` : `${cursor.m + 1}월 전체`;
+    if (!confirm(`${rangeLabel} 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
     setIsAutoFilling(true);
-    const r = await autoFillRoster(unit, from, monthEnd);
+    const r = await autoFillRoster(unit, from, effectiveEnd);
     if (r.success && r.data) {
       showMsg(r.data.added === 0
         ? '배정할 수 있는 빈 자리가 없습니다'
@@ -227,7 +245,7 @@ export default function RosterCalendar({ staffList, stores }: Props) {
           </span>
         </div>
 
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <button
               className="w-7 h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
@@ -260,6 +278,36 @@ export default function RosterCalendar({ staffList, stores }: Props) {
           </div>
         </div>
 
+        {/* 날짜 범위 필터 */}
+        <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-canvas-soft border border-hairline">
+          <span className="text-[11px] font-semibold text-ink-muted shrink-0">표시 범위</span>
+          <input
+            type="date"
+            value={rangeFrom}
+            min={monthStart}
+            max={rangeTo || monthEnd}
+            onChange={e => setRangeFrom(e.target.value)}
+            className="flex-1 min-w-0 px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+          />
+          <span className="text-ink-faint text-[11px] shrink-0">~</span>
+          <input
+            type="date"
+            value={rangeTo}
+            min={rangeFrom || monthStart}
+            max={monthEnd}
+            onChange={e => setRangeTo(e.target.value)}
+            className="flex-1 min-w-0 px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+          />
+          {(rangeFrom || rangeTo) && (
+            <button
+              onClick={() => { setRangeFrom(''); setRangeTo(''); }}
+              className="shrink-0 text-[11px] font-bold text-primary-600 bg-transparent border-none cursor-pointer hover:text-primary-800 transition whitespace-nowrap"
+            >
+              전체보기
+            </button>
+          )}
+        </div>
+
         {isLoading ? (
           <p className="text-ink-faint text-sm">불러오는 중...</p>
         ) : (
@@ -276,13 +324,15 @@ export default function RosterCalendar({ staffList, stores }: Props) {
               const isToday = dateStr === todayStr;
               const isSelected = dateStr === selectedDate;
               const isPast = dateStr < todayStr;
+              const outOfRange = !isInRange(dateStr);
               return (
                 <button
                   key={dateStr}
-                  onClick={() => setSelectedDate(isSelected ? null : dateStr)}
-                  className={`flex flex-col gap-0.5 items-stretch rounded-lg border p-1 md:p-1.5 min-h-[64px] cursor-pointer transition text-left bg-canvas ${
-                    isSelected ? 'border-primary-700 ring-2 ring-primary-700/20' : 'border-hairline hover:border-primary-400'
-                  } ${isPast ? 'opacity-50' : ''}`}
+                  onClick={() => !outOfRange && setSelectedDate(isSelected ? null : dateStr)}
+                  className={`flex flex-col gap-0.5 items-stretch rounded-lg border p-1 md:p-1.5 min-h-[64px] transition text-left bg-canvas ${
+                    outOfRange ? 'opacity-20 cursor-default border-hairline' :
+                    isSelected ? 'border-primary-700 ring-2 ring-primary-700/20 cursor-pointer' : 'border-hairline hover:border-primary-400 cursor-pointer'
+                  } ${isPast && !outOfRange ? 'opacity-50' : ''}`}
                 >
                   <span className={`text-[11px] font-bold leading-none mb-0.5 ${
                     isToday ? 'text-white bg-primary-700 rounded-full w-[18px] h-[18px] flex items-center justify-center'
