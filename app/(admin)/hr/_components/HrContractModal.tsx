@@ -3,9 +3,10 @@
 import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { StaffProfile, RosterShift } from '@/types/database'
-import type { ContractData, WorkDaySchedule, SpecificWorkDate } from '@/components/ContractDocument'
+import type { StaffProfile } from '@/types/database'
+import type { ContractData, SpecificWorkDate } from '@/components/ContractDocument'
 import { fetchStaffAssignmentsInRange } from '@/app/actions/payroll'
+import SignaturePad from '@/components/SignaturePad'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
@@ -16,23 +17,13 @@ const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
 
 interface Props {
   staff: StaffProfile
-  allShifts: RosterShift[]
   onClose: () => void
+  onComplete?: () => void
 }
-
-// staff preferred_days: 0=일,1=월,...,6=토 → contract day label
-const STAFF_DAY_TO_CONTRACT: Record<number, string> = {
-  0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토',
-}
-const CONTRACT_DAYS = ['월', '화', '수', '목', '금', '토', '일'] as const
 
 function today() { return new Date().toISOString().slice(0, 10) }
 
-const DEFAULT_DAY_SCHEDULE = (): WorkDaySchedule => ({
-  day: '', startTime: '10:30', endTime: '18:00', breakStart: '13:00', breakEnd: '14:00',
-})
-
-export default function HrContractModal({ staff, allShifts, onClose }: Props) {
+export default function HrContractModal({ staff, onClose, onComplete }: Props) {
   // 사업주 정보
   const [employerName, setEmployerName] = useState('초이초이 - (히요리산도)')
   const [employerAddress, setEmployerAddress] = useState('경기 동두천시 동두천로119 1층 102호')
@@ -43,31 +34,25 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
   const [workerPhone, setWorkerPhone] = useState(staff.phone ?? '')
   const [workerAddress, setWorkerAddress] = useState('')
 
-  // 계약 기간
-  const [startDate, setStartDate] = useState(staff.available_ranges[0]?.from ?? '')
-  const [endDate, setEndDate] = useState(staff.available_ranges[0]?.to ?? '')
+  // 계약 기간 — 기본값: 오늘부터 3개월 (스케줄 배정 기간 기준)
+  const [startDate, setStartDate] = useState(() => today())
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + 3)
+    return d.toISOString().slice(0, 10)
+  })
 
   // 근무지 / 업무내용
   const [workplace, setWorkplace] = useState('경기 동두천시 동두천로119 1층 102호')
-  const [jobDescription, setJobDescription] = useState('팝업스토어 운영 (주문 접수, 결제, 재고 관리)')
-
-  // 근로 요일
-  const preferredShifts = useMemo(
-    () => staff.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)).filter(Boolean) as RosterShift[],
-    [staff, allShifts],
-  )
-  const defaultStart = preferredShifts[0]?.start_time ?? '10:30'
-  const defaultEnd = preferredShifts[0]?.end_time ?? '18:00'
-
-  const initDays = useMemo(() =>
-    staff.preferred_days.map(d => STAFF_DAY_TO_CONTRACT[d]).filter(Boolean),
-    [staff],
+  const [jobDescription, setJobDescription] = useState(
+    staff.staff_role === 'kitchen'
+      ? '과일 산도 제작, 주방 식재료 준비 및 정리, 주방 청결 유지 및 위생 관리'
+      : '팝업스토어 운영 (주문 접수, 결제, 재고 관리)'
   )
 
-  const [selectedDays, setSelectedDays] = useState<string[]>(initDays)
-  const [daySchedules, setDaySchedules] = useState<Record<string, WorkDaySchedule>>(() =>
-    Object.fromEntries(CONTRACT_DAYS.map(d => [d, { ...DEFAULT_DAY_SCHEDULE(), day: d, startTime: defaultStart, endTime: defaultEnd }]))
-  )
+  // 휴게시간 (전체 날짜에 공통 적용)
+  const [breakStart, setBreakStart] = useState('13:00')
+  const [breakEnd, setBreakEnd] = useState('14:00')
   const [weeklyHolidayDay, setWeeklyHolidayDay] = useState('')
 
   // 임금
@@ -84,20 +69,24 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
   // 특약사항
   const [specialTerms, setSpecialTerms] = useState('')
 
+  // 사업주 서명
+  const [signatureBase64, setSignatureBase64] = useState<string | undefined>()
+
   // 실제 근무 날짜 (roster_assignments)
   const [specificWorkDates, setSpecificWorkDates] = useState<SpecificWorkDate[]>([])
   useEffect(() => {
-    if (!startDate || !endDate) { setSpecificWorkDates([]); return }
-    fetchStaffAssignmentsInRange(staff.id, startDate, endDate).then(res => {
+    if (!startDate) { setSpecificWorkDates([]); return }
+    // endDate 미입력 시 시작일로부터 3개월 후까지 조회
+    let toDate = endDate
+    if (!toDate) {
+      const d = new Date(startDate + 'T00:00:00')
+      d.setMonth(d.getMonth() + 3)
+      toDate = d.toISOString().slice(0, 10)
+    }
+    fetchStaffAssignmentsInRange(staff.id, startDate, toDate).then(res => {
       setSpecificWorkDates(res.success && res.data ? res.data : [])
     })
   }, [staff.id, startDate, endDate])
-
-  const toggleDay = (d: string) =>
-    setSelectedDays(p => p.includes(d) ? p.filter(x => x !== d) : [...p, d].sort((a, b) => CONTRACT_DAYS.indexOf(a as typeof CONTRACT_DAYS[number]) - CONTRACT_DAYS.indexOf(b as typeof CONTRACT_DAYS[number])))
-
-  const updateDayField = (day: string, field: keyof WorkDaySchedule, value: string) =>
-    setDaySchedules(p => ({ ...p, [day]: { ...p[day], [field]: value } }))
 
   const contractData: ContractData = useMemo(() => ({
     employerName, employerAddress, employerRepresentative, employerPhone,
@@ -106,8 +95,10 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
     workerAddress: workerAddress || undefined,
     startDate, endDate: endDate || undefined,
     workplace, jobDescription,
-    workDays: selectedDays.map(d => ({ ...daySchedules[d], day: d })),
-    specificWorkDates: specificWorkDates.length > 0 ? specificWorkDates : undefined,
+    workDays: [],
+    specificWorkDates: specificWorkDates.length > 0
+      ? specificWorkDates.map(d => ({ ...d, breakStart, breakEnd }))
+      : undefined,
     weeklyHolidayDay,
     hourlyRate: parseInt(hourlyRate) || 0,
     hasBonus: false,
@@ -119,14 +110,15 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
     insuranceEmployment, insuranceIndustrial, insurancePension, insuranceHealth,
     specialTerms: specialTerms || undefined,
     issueDate: today(),
+    employerSignatureBase64: signatureBase64,
   }), [
     employerName, employerAddress, employerRepresentative, employerPhone,
     staff.name, workerPhone, workerAddress,
     startDate, endDate, workplace, jobDescription,
-    selectedDays, daySchedules, weeklyHolidayDay,
+    breakStart, breakEnd, weeklyHolidayDay,
     hourlyRate, paymentDay, paymentTransfer,
     insuranceEmployment, insuranceIndustrial, insurancePension, insuranceHealth,
-    specialTerms, specificWorkDates,
+    specialTerms, specificWorkDates, signatureBase64,
   ])
 
   const [previewData, setPreviewData] = useState<ContractData>(contractData)
@@ -192,8 +184,8 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
               {startDate && endDate && (
                 <p className="m-0 mt-1 text-[10px] text-ink-muted">
                   {specificWorkDates.length > 0
-                    ? `스케줄 ${specificWorkDates.length}일 근무 날짜 반영됨`
-                    : '등록된 스케줄 없음 — 요일 패턴으로 계약서 작성'}
+                    ? `스케줄 ${specificWorkDates.length}일 반영됨`
+                    : '등록된 스케줄 없음'}
                 </p>
               )}
             </div>
@@ -204,30 +196,14 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
               <div><label className={labelCls}>업무내용</label><input value={jobDescription} onChange={e => setJobDescription(e.target.value)} className={inputCls} /></div>
             </div>
 
-            {/* 근무 요일 */}
+            {/* 휴게시간 / 주휴일 */}
             <div>
-              <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">근무 요일</p>
-              <div className="flex gap-1 flex-wrap mb-2">
-                {CONTRACT_DAYS.map(d => (
-                  <button key={d} type="button" onClick={() => toggleDay(d)} className={chipCls(selectedDays.includes(d))}>{d}</button>
-                ))}
+              <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">휴게시간</p>
+              <div className="flex items-center gap-1.5">
+                <input type="time" value={breakStart} onChange={e => setBreakStart(e.target.value)} className={inputCls} />
+                <span className="text-ink-faint text-[11px] shrink-0">~</span>
+                <input type="time" value={breakEnd} onChange={e => setBreakEnd(e.target.value)} className={inputCls} />
               </div>
-              {selectedDays.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  {selectedDays.map(d => (
-                    <div key={d} className="flex items-center gap-1 text-[11px]">
-                      <span className="w-5 font-bold text-ink-muted shrink-0">{d}</span>
-                      <input type="time" value={daySchedules[d]?.startTime ?? '10:30'} onChange={e => updateDayField(d, 'startTime', e.target.value)} className="flex-1 px-1.5 py-1 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
-                      <span className="text-ink-faint shrink-0">~</span>
-                      <input type="time" value={daySchedules[d]?.endTime ?? '18:00'} onChange={e => updateDayField(d, 'endTime', e.target.value)} className="flex-1 px-1.5 py-1 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
-                      <span className="text-ink-faint text-[10px] shrink-0">휴게</span>
-                      <input type="time" value={daySchedules[d]?.breakStart ?? '13:00'} onChange={e => updateDayField(d, 'breakStart', e.target.value)} className="flex-1 px-1.5 py-1 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
-                      <span className="text-ink-faint shrink-0">~</span>
-                      <input type="time" value={daySchedules[d]?.breakEnd ?? '14:00'} onChange={e => updateDayField(d, 'breakEnd', e.target.value)} className="flex-1 px-1.5 py-1 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
-                    </div>
-                  ))}
-                </div>
-              )}
               <div className="mt-1.5"><label className={labelCls}>주휴일</label><input value={weeklyHolidayDay} onChange={e => setWeeklyHolidayDay(e.target.value)} placeholder="예: 일요일" className={inputCls} /></div>
             </div>
 
@@ -266,6 +242,16 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
                 className={`${inputCls} resize-y`}
               />
             </div>
+
+            {/* 사업주 서명 */}
+            <div>
+              <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">사업주 서명</p>
+              <SignaturePad
+                onSave={b64 => setSignatureBase64(b64)}
+                onClear={() => setSignatureBase64(undefined)}
+              />
+              {signatureBase64 && <p className="m-0 mt-1 text-[10px] text-emerald-600">✓ 서명 완료 — 미리보기에 반영됩니다</p>}
+            </div>
           </div>
 
           {/* 우측: PDF 미리보기 */}
@@ -280,7 +266,17 @@ export default function HrContractModal({ staff, allShifts, onClose }: Props) {
         {/* 푸터 */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-hairline bg-canvas-soft shrink-0">
           <p className="m-0 text-[11px] text-ink-faint">계약서는 미리보기 우측 상단 다운로드 버튼으로 저장하세요</p>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>
+          <div className="flex gap-2">
+            {onComplete && (
+              <button
+                onClick={() => { onComplete(); onClose(); }}
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-[12px] font-bold border-none cursor-pointer hover:bg-emerald-700 transition"
+              >
+                ✓ 작성완료
+              </button>
+            )}
+            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>
+          </div>
         </div>
       </div>
     </div>,

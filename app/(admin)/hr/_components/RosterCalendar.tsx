@@ -1,21 +1,26 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
   updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster, clearRosterRange,
 } from '@/app/actions/roster';
-import type { RosterUnit } from '@/app/actions/roster';
+import type { RosterUnit, AutoFillLogEntry } from '@/app/actions/roster';
 import type { StaffProfile, Store, StaffRole, RosterShift, RosterAssignment } from '@/types/database';
 import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability } from './constants';
 import { getWeekStart } from '@/lib/staffing';
+import { parseDate, addDays, prevDate, dayOfWeek } from '@/lib/date';
 import ShiftManageModal from './ShiftManageModal';
+import AutoFillLogPanel from './AutoFillLogPanel';
+import ShortagesPanel from './ShortagesPanel';
 
 interface Props {
   staffList: StaffProfile[];
   stores: Store[];
   roleFilter: StaffRole;
+  refreshSignal?: number;
 }
 
 // 파트 순서에 따라 순환하는 강조색
@@ -28,21 +33,25 @@ function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-export default function RosterCalendar({ staffList, stores, roleFilter }: Props) {
+export default function RosterCalendar({ staffList, stores, roleFilter, refreshSignal }: Props) {
   // 단위 = 주방 전체 또는 캐셔의 특정 매장
   const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', storeId: null });
 
   // 좌측 roleFilter 변경 시 캘린더 단위 동기화
+  // stores를 deps에 포함 — 스토어가 로드되기 전에 storeId=null로 초기화되면 잘못된 시프트 set이 생성됨
   useEffect(() => {
     if (roleFilter === 'kitchen') {
       setUnit({ staffRole: 'kitchen', storeId: null });
-    } else {
-      setUnit(prev =>
-        prev.staffRole === 'cashier' ? prev : { staffRole: 'cashier', storeId: stores[0]?.id ?? null }
-      );
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleFilter]);
+    // 캐셔는 stores가 로드된 후에만 초기화
+    if (stores.length === 0) return;
+    setUnit(prev => {
+      // 이미 올바른 매장이 선택된 경우 유지
+      if (prev.staffRole === 'cashier' && prev.storeId !== null) return prev;
+      return { staffRole: 'cashier', storeId: stores[0].id };
+    });
+  }, [roleFilter, stores]);
   // 월 커서 — SSR/hydration 불일치를 피하려고 마운트 후 초기화
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null);
   const [todayStr, setTodayStr] = useState('');
@@ -59,10 +68,14 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showShiftManage, setShowShiftManage] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [fillLog, setFillLog] = useState<AutoFillLogEntry[] | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
 
   // 날짜 범위 필터 (빈 문자열 = 제한 없음) — localStorage로 탭 전환 후에도 유지
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
+  // 첫 마운트/탭 복귀 시엔 localStorage 범위를 유지하고, 이후 cursor·unit 변경 시에만 초기화하기 위한 플래그
   const isFirstCursorEffect = useRef(true);
 
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
@@ -70,6 +83,8 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
 
   const loadRange = async () => {
     if (!cursor) return;
+    // 캐셔는 storeId가 null이면 stores 미로드 상태 — 로드 건너뜀
+    if (unit.staffRole === 'cashier' && unit.storeId === null) return;
     const r = await fetchRosterRange(unit, monthStart, monthEnd);
     if (r.success && r.data) {
       setShifts(r.data.shifts);
@@ -84,11 +99,24 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
     setRangeTo(localStorage.getItem('roster_rangeTo') ?? '');
   }, []);
 
+  // 현재 보고 있는 달 저장 (근무표 인쇄 모달 자동 날짜에 사용)
+  useEffect(() => {
+    if (cursor) localStorage.setItem('roster_cursor', JSON.stringify(cursor));
+  }, [cursor]);
+
   // 범위 변경 시 localStorage 저장
   useEffect(() => {
     localStorage.setItem('roster_rangeFrom', rangeFrom);
     localStorage.setItem('roster_rangeTo', rangeTo);
   }, [rangeFrom, rangeTo]);
+
+  // 외부 배정(StaffAssignModal) 후 캘린더 데이터 재로드
+  useEffect(() => {
+    if (!refreshSignal) return;
+    loadRange();
+    // loadRange를 deps에 넣으면 함수 참조 변경마다 재실행 — refreshSignal 변화에만 반응하는 것이 목적
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
 
   useEffect(() => {
     if (!cursor) return;
@@ -101,6 +129,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
     }
     isFirstCursorEffect.current = false;
     loadRange().then(() => setIsLoading(false));
+    // loadRange는 cursor·unit을 클로저로 캡처하므로 deps에 추가하면 무한루프 — cursor·unit이 이미 있어 동기화됨
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, unit]);
 
@@ -123,18 +152,18 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
   const getAssigned = (dateStr: string, shiftId: number) => assignMap.get(`${dateStr}|${shiftId}`) ?? [];
 
   const getRequired = (dateStr: string, shift: RosterShift): number => {
+    if (shift.active_from && dateStr < shift.active_from) return 0;
+    if (shift.active_to && dateStr > shift.active_to) return 0;
     const override = overrides[`${dateStr}|${shift.id}`];
     if (override !== undefined) return override;
-    const day = new Date(dateStr + 'T00:00:00').getDay();
+    const day = dayOfWeek(dateStr);
     return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required;
   };
 
   // 해당 날짜가 속한 주(일~토)에 이 직원이 근무하는 날 수 — 이달 데이터 기준 근사치, 서버 자동 배정은 정확히 검사함
   const getWeeklyDayCount = (staffId: number, dateStr: string): number => {
     const weekStart = getWeekStart(dateStr);
-    const endD = new Date(weekStart + 'T00:00:00');
-    endD.setDate(endD.getDate() + 6);
-    const weekEnd = toDateStr(endD.getFullYear(), endD.getMonth(), endD.getDate());
+    const weekEnd = addDays(weekStart, 6);
     const days = new Set(
       assignments
         .filter(a => a.staff_id === staffId && a.work_date >= weekStart && a.work_date <= weekEnd)
@@ -149,8 +178,8 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
 
     if (rangeFrom && rangeTo && rangeFrom <= rangeTo) {
       // range 뷰: rangeFrom~rangeTo 포함 주(일~토) 그리드
-      const fromDate = new Date(rangeFrom + 'T00:00:00');
-      const toDate = new Date(rangeTo + 'T00:00:00');
+      const fromDate = parseDate(rangeFrom);
+      const toDate = parseDate(rangeTo);
       const weekStart = new Date(fromDate);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
       const weekEnd = new Date(toDate);
@@ -158,7 +187,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
       const cells: (string | null)[] = [];
       const cur = new Date(weekStart);
       while (cur <= weekEnd) {
-        const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        const ds = toDateStr(cur.getFullYear(), cur.getMonth(), cur.getDate());
         cells.push(ds >= rangeFrom && ds <= rangeTo ? ds : null);
         cur.setDate(cur.getDate() + 1);
       }
@@ -188,6 +217,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
       }
     }
     return list;
+    // getRequired는 shifts·overrides를 클로저로 캡처 — 이미 deps에 포함되어 있으므로 별도 등록 불필요
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridDates, assignMap, overrides, shifts, rangeFrom, rangeTo]);
 
@@ -203,9 +233,12 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
     setIsAutoFilling(true);
     const r = await autoFillRoster(unit, from, effectiveEnd);
     if (r.success && r.data) {
-      showMsg(r.data.added === 0
+      const { added, holes, log } = r.data;
+      const msg = added === 0
         ? '배정할 수 있는 빈 자리가 없습니다'
-        : `${r.data.added}자리 배정 완료${r.data.holes.length > 0 ? ` · ${r.data.holes.length}개 파트는 가능 인원 부족` : ''}`);
+        : `${added}자리 배정 완료${holes.length > 0 ? ` · ${holes.length}개 파트 인원 부족` : ''}`;
+      showMsg(msg);
+      setFillLog(log.length > 0 ? log : null);
       await loadRange();
     } else {
       showMsg(`오류: ${r.error}`);
@@ -264,6 +297,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
     : (stores.find(s => s.id === unit.storeId)?.name ?? ROLE_LABELS.cashier);
 
   return (
+    <>
     <div className="flex flex-col lg:flex-row gap-3 items-start">
       {/* ── 달력 ── */}
       <div className="flex-1 min-w-0 w-full bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
@@ -319,7 +353,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
               disabled={isAutoFilling || isLoading}
               className="px-2.5 py-1.5 rounded-lg border-none bg-primary-700 text-white text-[11px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isAutoFilling ? '배정 중...' : '⚡ 자동 채우기'}
+              {isAutoFilling ? '배정 중...' : '자동 채우기'}
             </button>
             <button
               onClick={handleClearRoster}
@@ -387,8 +421,31 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
                 <button
                   key={dateStr}
                   onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+                  onDragOver={e => {
+                    if (!isPast && e.dataTransfer.types.includes('application/staff-id')) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'copy';
+                      setDragOverDate(dateStr);
+                    }
+                  }}
+                  onDragLeave={e => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDate(null);
+                  }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverDate(null);
+                    if (isPast) return;
+                    const staffId = parseInt(e.dataTransfer.getData('application/staff-id'));
+                    if (isNaN(staffId)) return;
+                    const active = shifts.filter(s => (!s.active_from || dateStr >= s.active_from) && (!s.active_to || dateStr <= s.active_to));
+                    if (active.length === 0) { showMsg('이 날짜에 활성화된 파트가 없습니다'); return; }
+                    if (active.length === 1) { handleAdd(dateStr, active[0].id, staffId); return; }
+                    setDropTarget({ dateStr, staffId, x: e.clientX, y: e.clientY });
+                  }}
                   className={`flex flex-col gap-0.5 items-stretch rounded-lg border p-1 md:p-1.5 min-h-[64px] cursor-pointer transition text-left bg-canvas ${
-                    isSelected ? 'border-primary-700 ring-2 ring-primary-700/20' : 'border-hairline hover:border-primary-400'
+                    dragOverDate === dateStr && !isPast
+                      ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/40'
+                      : isSelected ? 'border-primary-700 ring-2 ring-primary-700/20' : 'border-hairline hover:border-primary-400'
                   } ${isPast ? 'opacity-50' : ''}`}
                 >
                   <span className={`text-[11px] font-bold leading-none mb-0.5 ${
@@ -419,56 +476,8 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
           </div>
         )}
 
-        {/* 이달 부족 인원 요약 */}
-        {!isLoading && shortages.length > 0 && (() => {
-          const grouped = shortages.reduce<{ date: string; items: typeof shortages }[]>((acc, s) => {
-            const last = acc[acc.length - 1];
-            if (last && last.date === s.date) last.items.push(s);
-            else acc.push({ date: s.date, items: [s] });
-            return acc;
-          }, []);
-          return (
-            <div className="mt-3 border border-rose-200 rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border-b border-rose-200">
-                <span className="text-[12px] font-bold text-rose-600">⚠ 인원 부족</span>
-                <span className="text-[11px] text-rose-400">{grouped.length}일 · {shortages.length}건</span>
-              </div>
-              <table className="w-full border-collapse text-[12px]">
-                <tbody>
-                  {grouped.map(({ date, items }, i) => {
-                    const day = new Date(date + 'T00:00:00').getDay();
-                    return (
-                      <tr
-                        key={date}
-                        onClick={() => setSelectedDate(date)}
-                        className={`cursor-pointer hover:bg-rose-50 transition ${i !== grouped.length - 1 ? 'border-b border-rose-100' : ''}`}
-                      >
-                        <td className="px-3 py-2 font-semibold whitespace-nowrap w-[72px]">
-                          {Number(date.slice(5, 7))}/{Number(date.slice(8))}
-                          <span className={`ml-1 text-[11px] ${day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>
-                            ({DAY_NAMES[day]})
-                          </span>
-                        </td>
-                        <td className="px-2 py-2">
-                          <div className="flex flex-wrap gap-1">
-                            {items.map(s => (
-                              <span key={s.shift.id} className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600">
-                                {s.shift.name} {s.missing}명
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          );
-        })()}
-        {!isLoading && shortages.length === 0 && (
-          <p className="mt-3 m-0 text-[12px] text-emerald-600 font-semibold">✓ 이달 모든 파트 인원이 채워졌습니다</p>
-        )}
+        {fillLog && <AutoFillLogPanel fillLog={fillLog} onClose={() => setFillLog(null)} onDateClick={setSelectedDate} />}
+        <ShortagesPanel shortages={shortages} isLoading={isLoading} onDateClick={setSelectedDate} />
       </div>
 
       {/* ── 날짜 상세 패널 ── */}
@@ -500,6 +509,32 @@ export default function RosterCalendar({ staffList, stores, roleFilter }: Props)
         />
       )}
     </div>
+    {dropTarget && createPortal(
+      <>
+        <div className="fixed inset-0 z-[49]" onClick={() => setDropTarget(null)} />
+        <div
+          className="fixed z-50 bg-canvas border border-hairline rounded-xl shadow-level-2 p-2 min-w-[160px]"
+          style={{ left: dropTarget.x + 8, top: dropTarget.y + 8 }}
+        >
+          <p className="m-0 mb-1.5 text-[10px] font-bold text-ink-muted px-1">파트 선택</p>
+          {shifts
+            .filter(s => (!s.active_from || dropTarget.dateStr >= s.active_from) && (!s.active_to || dropTarget.dateStr <= s.active_to))
+            .map(s => (
+              <button
+                key={s.id}
+                onClick={() => { handleAdd(dropTarget.dateStr, s.id, dropTarget.staffId); setDropTarget(null); }}
+                className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] hover:bg-canvas-soft cursor-pointer bg-transparent border-none transition"
+              >
+                {s.name} <span className="text-ink-faint text-[10px]">{s.start_time}~{s.end_time}</span>
+              </button>
+            ))
+          }
+          <button onClick={() => setDropTarget(null)} className="w-full text-center text-[10px] text-ink-faint mt-1 bg-transparent border-none cursor-pointer hover:text-ink transition">취소</button>
+        </div>
+      </>,
+      document.body,
+    )}
+    </>
   );
 }
 
@@ -524,13 +559,67 @@ function DayPanel({
   onRequirementReset: (d: string, shiftId: number) => Promise<void>;
   onClose: () => void;
 }) {
-  const day = new Date(dateStr + 'T00:00:00').getDay();
+  const day = dayOfWeek(dateStr);
   const [editingTimeId, setEditingTimeId] = useState<number | null>(null);
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
+  const [copying, setCopying] = useState(false);
 
   // 배정 후보: 불합격/퇴사 제외
   const selectableStaff = staffList.filter(s => s.status === 'confirmed' || s.status === 'candidate');
+
+  const fmtPhone = (p: string | null | undefined) => {
+    if (!p) return '';
+    const d = p.replace(/\D/g, '');
+    if (d.length === 11) return ` ${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
+    if (d.length === 10) return ` ${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+    return ` ${p}`;
+  };
+
+  const handleCopy = async () => {
+    setCopying(true);
+    try {
+      const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+      const m = Number(dateStr.slice(5, 7));
+      const dd = Number(dateStr.slice(8));
+      const dateLabel = `${m}월 ${dd}일(${DAYS[day]})`;
+
+      const lines: string[] = [`📋 ${dateLabel} 근무 안내`, ''];
+      let hasAny = false;
+
+      for (const shift of shifts) {
+        const assigned = getAssigned(dateStr, shift.id);
+        if (assigned.length === 0) continue;
+        hasAny = true;
+        lines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
+        for (const a of assigned) {
+          const phone = fmtPhone(a.staff_profiles?.phone);
+          lines.push(`· ${a.staff_profiles?.name ?? ''}${phone}`);
+        }
+        lines.push('');
+      }
+
+      if (!hasAny) {
+        await navigator.clipboard.writeText(`📋 ${dateLabel} 근무 안내\n\n배정된 근무자가 없습니다.`);
+      } else {
+        await navigator.clipboard.writeText(lines.join('\n').trimEnd());
+      }
+      showMsg('클립보드에 복사됐습니다!');
+    } catch {
+      showMsg('복사 실패 — 브라우저 권한을 확인해주세요.');
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  const prevDay = prevDate(dateStr);
+  const toMins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const prevDayEnds = new Map<number, string>(); // staff_id → 전날 퇴근 시간
+  for (const sh of shifts) {
+    for (const a of getAssigned(prevDay, sh.id)) {
+      prevDayEnds.set(a.staff_id, a.end_time ?? sh.end_time);
+    }
+  }
 
   return (
     <div className="w-full lg:w-[340px] shrink-0 bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
@@ -539,7 +628,16 @@ function DayPanel({
           {Number(dateStr.slice(5, 7))}월 {Number(dateStr.slice(8))}일
           <span className={`ml-1 ${day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>({DAY_NAMES[day]})</span>
         </h3>
-        <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopy}
+            disabled={copying}
+            className="px-2.5 py-1 rounded-lg bg-canvas-soft border border-hairline text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition disabled:opacity-50"
+          >
+            {copying ? '복사 중...' : '복사'}
+          </button>
+          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+        </div>
       </div>
 
       {shifts.map((shift, shiftIdx) => {
@@ -548,11 +646,14 @@ function DayPanel({
         const hasOverride = overrides[`${dateStr}|${shift.id}`] !== undefined;
         const assignedIds = new Set(assigned.map(a => a.staff_id));
         const candidates = selectableStaff
-          .filter(s => !assignedIds.has(s.id))
           .map(s => {
             const { reasons } = checkStaffAvailability(s, dateStr, shift);
             if (s.max_days_per_week != null && getWeeklyDayCount(s.id, dateStr) >= s.max_days_per_week) {
               reasons.push(`주 ${s.max_days_per_week}일 도달`);
+            }
+            const prevEnd = prevDayEnds.get(s.id);
+            if (prevEnd && toMins(shift.start_time) + 24 * 60 - toMins(prevEnd) < 9 * 60) {
+              reasons.push('전날 야간 근무 (9h 미만 휴식)');
             }
             return { staff: s, avail: { ok: reasons.length === 0, reasons } };
           })

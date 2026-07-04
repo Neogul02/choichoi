@@ -221,6 +221,28 @@ export default function StaffFormModal({
           {/* 선호 요일 */}
           <div className="flex flex-col gap-1">
             <label className={labelCls}>선호 요일 <span className="text-ink-faint font-normal">(비워두면 요일 무관)</span></label>
+            {/* 빠른 선택 프리셋 */}
+            <div className="flex gap-1 mb-1">
+              {([['일월화수', [0,1,2,3]], ['목금토', [4,5,6]]] as [string, number[]][]).map(([label, preset]) => {
+                const active = preset.length === days.length && preset.every(d => days.includes(d));
+                return (
+                  <button key={label} type="button" onClick={() => setDays(active ? [] : preset)}
+                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold cursor-pointer transition ${
+                      active ? 'bg-primary-700 text-white border-primary-700' : 'bg-canvas border-hairline text-ink-muted hover:border-primary-400'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              {days.length > 0 && (
+                <button type="button" onClick={() => setDays([])}
+                  className="px-2.5 py-1 rounded-lg border border-hairline bg-canvas text-[11px] text-ink-faint cursor-pointer hover:text-ink transition"
+                >
+                  초기화
+                </button>
+              )}
+            </div>
             <div className="flex gap-1">
               {DAY_NAMES.map((d, i) => (
                 <button key={i} type="button" onClick={() => toggleDay(i)}

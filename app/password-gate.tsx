@@ -12,6 +12,7 @@ import type { PopupEvent } from '@/types/database'
 export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
 export const POPUP_ID_KEY = 'choichoi_popup_id'
 export const POPUP_NAME_KEY = 'choichoi_popup_name'
+export const WORKER_ROLE_KEY = 'choichoi_worker_role'
 
 type View = 'login' | 'signup'
 
@@ -20,6 +21,7 @@ function clearStorage() {
     localStorage.removeItem(CASHIER_NAME_KEY)
     localStorage.removeItem(POPUP_ID_KEY)
     localStorage.removeItem(POPUP_NAME_KEY)
+    localStorage.removeItem(WORKER_ROLE_KEY)
   } catch { /* ignore */ }
 }
 
@@ -30,7 +32,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [isAuthed, setIsAuthed] = useState(false)
   const [view, setView] = useState<View>('login')
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([])
-  const [selectedPopupId, setSelectedPopupId] = useState<number | ''>('')
+  const [selectedPopupId, setSelectedPopupId] = useState<number | 'kitchen' | ''>('')
 
   // 로그인 필드
   const [loginEmail, setLoginEmail] = useState('')
@@ -131,11 +133,13 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       )
 
       const name = profile?.name ?? data.user.user_metadata?.name ?? ''
-      const popup = popupEvents.find((p) => p.id === selectedPopupId)
+      const isKitchen = selectedPopupId === 'kitchen'
+      const popup = isKitchen ? null : popupEvents.find((p) => p.id === selectedPopupId)
       try {
         if (name) localStorage.setItem(CASHIER_NAME_KEY, name)
-        localStorage.setItem(POPUP_ID_KEY, String(selectedPopupId))
-        localStorage.setItem(POPUP_NAME_KEY, popup?.name ?? '')
+        localStorage.setItem(POPUP_ID_KEY, isKitchen ? '0' : String(selectedPopupId))
+        localStorage.setItem(POPUP_NAME_KEY, isKitchen ? '주방' : (popup?.name ?? ''))
+        localStorage.setItem(WORKER_ROLE_KEY, isKitchen ? 'kitchen' : '')
       } catch { /* ignore */ }
 
       notifyLoginEvent(name, resolved.data.email).catch(() => {})
@@ -215,12 +219,15 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
               {info && <div className='text-emerald-600 text-[13px] mb-3 bg-emerald-50 rounded-lg px-3 py-2'>{info}</div>}
               <div className='relative mb-3'>
                 <select
-                  className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'} ${popupEvents.length === 1 ? 'opacity-70 cursor-default' : ''}`}
+                  className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'}`}
                   value={selectedPopupId}
-                  onChange={(e) => setSelectedPopupId(e.target.value ? Number(e.target.value) : '')}
-                  disabled={popupEvents.length === 1}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setSelectedPopupId(v === 'kitchen' ? 'kitchen' : v ? Number(v) : '')
+                  }}
                 >
-                  <option value=''>팝업 선택</option>
+                  <option value=''>근무지 선택</option>
+                  <option value='kitchen'>주방</option>
                   {popupEvents.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
