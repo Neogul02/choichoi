@@ -150,18 +150,21 @@ export async function getMyContracts(): Promise<ApiResponse<ContractRecord[]>> {
 
     const admin = getAdminClient()
 
-    const { data: workerRows } = await admin
-      .from('workers')
-      .select('id')
-      .eq('user_profile_id', session.user.id)
+    const [workerRowsRes, staffRowsRes] = await Promise.all([
+      admin.from('workers').select('id').eq('user_profile_id', session.user.id),
+      admin.from('staff_profiles').select('id').eq('user_profile_id', session.user.id),
+    ])
 
-    if (!workerRows?.length) return []
+    const allIds = [
+      ...((workerRowsRes.data ?? []) as { id: number }[]).map(w => w.id),
+      ...((staffRowsRes.data ?? []) as { id: number }[]).map(s => s.id),
+    ]
+    if (!allIds.length) return []
 
-    const workerIds = workerRows.map((w: { id: number }) => w.id)
     const { data, error } = await admin
       .from('contracts')
       .select('*')
-      .in('worker_id', workerIds)
+      .in('worker_id', allIds)
       .order('issued_at', { ascending: false })
 
     if (error) throw error

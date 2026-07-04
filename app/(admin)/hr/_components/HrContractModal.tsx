@@ -6,6 +6,8 @@ import { createPortal } from 'react-dom'
 import type { StaffProfile } from '@/types/database'
 import type { ContractData, SpecificWorkDate } from '@/components/ContractDocument'
 import { fetchStaffAssignmentsInRange } from '@/app/actions/payroll'
+import { generateContract } from '@/app/actions/contracts'
+import { showMsg } from '@/lib/toast'
 import SignaturePad from '@/components/SignaturePad'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
@@ -128,6 +130,20 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
     debounceRef.current = setTimeout(() => setPreviewData(contractData), 800)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [contractData])
+
+  const [saving, setSaving] = useState(false)
+
+  const handleComplete = async () => {
+    setSaving(true)
+    const r = await generateContract({ workerId: staff.id, workerName: staff.name, startDate, hourlyRate: Number(hourlyRate), contractData })
+    setSaving(false)
+    if (r.success) {
+      onComplete?.()
+      onClose()
+    } else {
+      showMsg(`저장 실패: ${r.error}`)
+    }
+  }
 
   const inputCls = 'w-full px-2.5 py-1.5 border border-hairline rounded-lg text-[12px] bg-canvas focus:outline-none focus:border-primary-700'
   const labelCls = 'text-[10px] font-semibold text-ink-muted mb-0.5 block'
@@ -269,10 +285,11 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
           <div className="flex gap-2">
             {onComplete && (
               <button
-                onClick={() => { onComplete(); onClose(); }}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-[12px] font-bold border-none cursor-pointer hover:bg-emerald-700 transition"
+                onClick={handleComplete}
+                disabled={saving}
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-[12px] font-bold border-none cursor-pointer hover:bg-emerald-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                ✓ 작성완료
+                {saving ? '저장 중...' : '✓ 작성완료'}
               </button>
             )}
             <button onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>
