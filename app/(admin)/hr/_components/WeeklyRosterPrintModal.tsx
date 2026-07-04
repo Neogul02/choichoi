@@ -107,6 +107,7 @@ export default function RosterPrintModal({ onClose }: Props) {
 
   const handleLoad = async () => {
     if (!isValidRange) { showMsg('시작일이 종료일보다 늦습니다.'); return }
+    setDisplayUrl(null)
     setLoading(true)
     const res = await fetchWeeklyRosterForPrint(from, to)
     setLoading(false)
@@ -219,6 +220,11 @@ export default function RosterPrintModal({ onClose }: Props) {
               {!fetched ? (
                 <div className="flex items-center justify-center h-full text-ink-faint text-sm">
                   기간을 설정 후 불러오기를 눌러주세요
+                </div>
+              ) : pdfInstance.error ? (
+                <div className="flex flex-col items-center justify-center h-full gap-2 px-6">
+                  <span className="text-red-500 text-sm font-semibold">PDF 렌더링 오류</span>
+                  <span className="text-red-400 text-xs text-center break-all">{String(pdfInstance.error)}</span>
                 </div>
               ) : !displayUrl ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2">
