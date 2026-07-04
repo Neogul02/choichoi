@@ -289,6 +289,8 @@ export async function signContract(
       admin.from('workers').select('id, name').eq('id', row.worker_id).eq('user_profile_id', session.user.id).maybeSingle(),
       admin.from('staff_profiles').select('id, name').eq('id', row.worker_id).eq('user_profile_id', session.user.id).maybeSingle(),
     ])
+    if (workerCheck.error) throw workerCheck.error
+    if (staffCheck.error) throw staffCheck.error
     const ownerRecord = workerCheck.data ?? staffCheck.data
     if (!ownerRecord) throw new Error('권한이 없습니다')
 
