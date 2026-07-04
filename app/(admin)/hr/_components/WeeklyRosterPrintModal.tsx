@@ -65,22 +65,25 @@ export default function RosterPrintModal({ onClose }: Props) {
   const init = getInitialRange()
   const [from, setFrom] = useState(init.from)
   const [to, setTo] = useState(init.to)
+  const [staffRole, setStaffRole] = useState<'kitchen' | 'cashier'>('kitchen')
   const [entries, setEntries] = useState<WeeklyRosterEntry[]>([])
   const [fetched, setFetched] = useState(false)
   const [loading, setLoading] = useState(false)
   const [displayUrl, setDisplayUrl] = useState<string | null>(null)
 
   const rangeLabel = formatRangeLabel(from, to)
+  const roleLabel = staffRole === 'kitchen' ? '주방' : '캐셔'
+  const weekLabel = `[${roleLabel}] ${rangeLabel}`
   const isValidRange = from <= to
 
   const [pdfInstance, updatePdf] = usePDF({
-    document: <WeeklyRosterDocument weekLabel={rangeLabel} entries={entries} />,
+    document: <WeeklyRosterDocument weekLabel={weekLabel} entries={entries} />,
   })
 
   useEffect(() => {
-    updatePdf(<WeeklyRosterDocument weekLabel={rangeLabel} entries={entries} />)
+    updatePdf(<WeeklyRosterDocument weekLabel={weekLabel} entries={entries} />)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, rangeLabel])
+  }, [entries, weekLabel])
 
   useEffect(() => {
     if (!pdfInstance.loading && pdfInstance.url) setDisplayUrl(pdfInstance.url)
@@ -94,6 +97,7 @@ export default function RosterPrintModal({ onClose }: Props) {
 
   const handleFromChange = (v: string) => { setFrom(v); resetPreview() }
   const handleToChange = (v: string) => { setTo(v); resetPreview() }
+  const handleRoleChange = (role: 'kitchen' | 'cashier') => { setStaffRole(role); resetPreview() }
 
   const applyWeekPreset = (offsetWeeks: number) => {
     const base = new Date(monday + 'T00:00:00')
@@ -109,7 +113,7 @@ export default function RosterPrintModal({ onClose }: Props) {
     if (!isValidRange) { showMsg('시작일이 종료일보다 늦습니다.'); return }
     setDisplayUrl(null)
     setLoading(true)
-    const res = await fetchWeeklyRosterForPrint(from, to)
+    const res = await fetchWeeklyRosterForPrint(from, to, staffRole)
     setLoading(false)
     if (res.success && res.data) {
       setEntries(res.data)
@@ -141,6 +145,22 @@ export default function RosterPrintModal({ onClose }: Props) {
 
           {/* 좌측: 설정 */}
           <div className="w-[270px] shrink-0 overflow-y-auto p-4 flex flex-col gap-4 border-r border-hairline">
+
+            {/* 역할 선택 */}
+            <div>
+              <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">파트 선택</p>
+              <div className="flex rounded-lg border border-hairline overflow-hidden">
+                {(['kitchen', 'cashier'] as const).map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => handleRoleChange(role)}
+                    className={`flex-1 py-1.5 text-[12px] font-semibold border-none cursor-pointer transition ${staffRole === role ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}
+                  >
+                    {role === 'kitchen' ? '주방' : '캐셔'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* 날짜 범위 */}
             <div>
@@ -253,7 +273,7 @@ export default function RosterPrintModal({ onClose }: Props) {
             {displayUrl && (
               <a
                 href={displayUrl}
-                download={`근무표_${from}_${to}.pdf`}
+                download={`${roleLabel}_근무표_${from}_${to}.pdf`}
                 className="px-4 py-2 rounded-lg bg-primary-700 text-white text-[12px] font-bold no-underline inline-block cursor-pointer hover:bg-primary-800 transition"
               >
                 PDF 다운로드
