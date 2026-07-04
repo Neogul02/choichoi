@@ -1,8 +1,17 @@
+'use client'
+
 import { Document, Page, Text, View, Font, StyleSheet } from '@react-pdf/renderer'
+import path from 'path'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { parseDate, formatPhone } from '@/lib/date'
 
-Font.register({ family: 'NotoSansKR', src: '/fonts/NotoSansKR-Regular.ttf' })
+Font.register({
+  family: 'NotoSansKR',
+  src:
+    typeof window === 'undefined'
+      ? path.join(process.cwd(), 'public', 'fonts', 'NotoSansKR-Regular.ttf')
+      : '/fonts/NotoSansKR-Regular.ttf',
+})
 
 const F = 'NotoSansKR'
 
