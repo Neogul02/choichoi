@@ -63,7 +63,7 @@ export function WeeklyRosterDocument({ weekLabel, entries }: { weekLabel: string
         )}
 
         {days.map(([date, list]) => (
-          <View key={date} style={s.daySection}>
+          <View key={date} style={s.daySection} wrap={false}>
             <View style={s.dayHeader}>
               <Text style={s.dayHeaderText}>{dayLabel(date)}</Text>
             </View>
@@ -79,7 +79,7 @@ export function WeeklyRosterDocument({ weekLabel, entries }: { weekLabel: string
                 <Text style={[s.cSign, s.hText]}>확인 (서명)</Text>
               </View>
               {list.map((e, i) => (
-                <View key={i} style={i === list.length - 1 ? s.trowLast : s.trow}>
+                <View key={i} style={i === list.length - 1 ? s.trowLast : s.trow} wrap={false}>
                   <Text style={s.cPart}>{e.shift_name}</Text>
                   <Text style={s.cName}>{e.name}</Text>
                   <Text style={s.cTime}>{e.start_time}</Text>
