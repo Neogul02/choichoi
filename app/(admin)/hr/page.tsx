@@ -20,8 +20,11 @@ import RosterCalendar from './_components/RosterCalendar';
 import PayrollPanel from './_components/PayrollPanel';
 import StaffAssignModal from './_components/StaffAssignModal';
 import { STATUS_LABELS, STATUS_COLORS, DAY_NAMES, ROLE_LABELS, formatRanges } from './_components/constants';
+import { useModal } from '@/lib/useModal';
 
 const HrContractModal = dynamic(() => import('./_components/HrContractModal'), { ssr: false });
+const StaffCalendarModal = dynamic(() => import('./_components/StaffCalendarModal'), { ssr: false });
+const WeeklyRosterPrintModal = dynamic(() => import('./_components/WeeklyRosterPrintModal'), { ssr: false });
 
 type StatusFilter = StaffStatus | 'all';
 type StoreFilter = number | 'all' | 'none';
@@ -32,27 +35,69 @@ export default function HrPage() {
   const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
   const [stores, setStores] = useState<Store[]>([]);
   const [allShifts, setAllShifts] = useState<RosterShift[]>([]);
-  const [showStoreManage, setShowStoreManage] = useState(false);
+  const storeManage = useModal();
   const [staffList, setStaffList] = useState<StaffProfile[]>([]);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
+  const form = useModal();
   const [editingStaff, setEditingStaff] = useState<StaffProfile | null>(null);
 
   // 우측 패널 탭
   const [rightTab, setRightTab] = useState<RightTab>('roster');
 
   // 드래그 리사이저
-  const [leftWidth, setLeftWidth] = useState(550);
+  const [leftWidth, setLeftWidth] = useState(600);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // HR 독립 근로계약서
-  const [contractStaff, setContractStaff] = useState<StaffProfile | null>(null);
+  const contract = useModal<StaffProfile>();
+  const assigning = useModal<StaffProfile>();
+  const calendar = useModal<StaffProfile>();
+  const rosterPrint = useModal();
 
-  // 일정 일괄 배정
-  const [assigningStaff, setAssigningStaff] = useState<StaffProfile | null>(null);
+  // 계약서 작성완료 (localStorage 유지)
+  const [completedContracts, setCompletedContracts] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('hr_completed_contracts') ?? '[]');
+      if (Array.isArray(saved)) setCompletedContracts(new Set(saved));
+    } catch { /* ignore */ }
+  }, []);
+  const markContractComplete = (staffId: number) => {
+    setCompletedContracts(prev => {
+      const next = new Set(prev);
+      next.add(staffId);
+      localStorage.setItem('hr_completed_contracts', JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+
+  // 불합격 통지 템플릿
+  const DEFAULT_REJECTION_MSG = `안녕하세요, [이름]님.
+
+히요리산도 아르바이트에 관심 가져주셔서 감사합니다.
+
+신중한 검토 끝에, 아쉽게도 이번에는 함께하기 어렵게 되었습니다.
+
+소중한 시간 내어 면접에 참여해 주신 점 진심으로 감사드리며, 앞으로의 활동에 좋은 결과가 있으시길 바랍니다.
+
+감사합니다.
+초이초이 드림`;
+  const [rejectionMsg, setRejectionMsg] = useState(DEFAULT_REJECTION_MSG);
+
+  // 배정 후 캘린더 리프레시 트리거
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+
+  // 컬럼 정렬
+  type SortKey = 'name' | 'status' | 'shifts' | 'available';
+  type SortDir = 'asc' | 'desc';
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   // 근무자 순서 드래그
   const [draggingStaffId, setDraggingStaffId] = useState<number | null>(null);
@@ -98,14 +143,38 @@ export default function HrPage() {
     return counts;
   }, [roleStaff]);
 
-  const filtered = useMemo(() => roleStaff.filter(s => {
-    if (roleFilter === 'cashier' && storeFilter !== 'all') {
-      if (storeFilter === 'none' ? s.store_id !== null : s.store_id !== storeFilter) return false;
+  const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 1, rejected: 2, inactive: 3 };
+  const filtered = useMemo(() => {
+    let list = roleStaff.filter(s => {
+      if (roleFilter === 'cashier' && storeFilter !== 'all') {
+        if (storeFilter === 'none' ? s.store_id !== null : s.store_id !== storeFilter) return false;
+      }
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
+      return true;
+    });
+    if (sortKey) {
+      list = [...list].sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === 'name') {
+          cmp = a.name.localeCompare(b.name, 'ko');
+        } else if (sortKey === 'status') {
+          cmp = (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9);
+        } else if (sortKey === 'shifts') {
+          const aS = a.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name ?? '').join(',');
+          const bS = b.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name ?? '').join(',');
+          cmp = aS.localeCompare(bS, 'ko');
+        } else if (sortKey === 'available') {
+          const aD = a.available_ranges[0]?.from ?? '9999';
+          const bD = b.available_ranges[0]?.from ?? '9999';
+          cmp = aD.localeCompare(bD);
+        }
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
     }
-    if (statusFilter !== 'all' && s.status !== statusFilter) return false;
-    if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
-    return true;
-  }), [roleStaff, roleFilter, storeFilter, statusFilter, search]);
+    return list;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleStaff, roleFilter, storeFilter, statusFilter, search, sortKey, sortDir, allShifts]);
 
   const handleStaffDrop = async (targetId: number) => {
     if (!draggingStaffId || draggingStaffId === targetId) { setDraggingStaffId(null); setDragOverStaffId(null); return; }
@@ -134,14 +203,14 @@ export default function HrPage() {
       if (r.success && r.data) {
         setStaffList(p => p.map(s => s.id === editingStaff.id ? r.data! : s));
         showMsg('수정되었습니다');
-        setShowForm(false); setEditingStaff(null);
+        form.close(); setEditingStaff(null);
       } else showMsg(`오류: ${r.error}`);
     } else {
       const r = await createStaffProfile(input);
       if (r.success && r.data) {
         setStaffList(p => [r.data!, ...p]);
         showMsg(`${input.name} 등록됨`);
-        setShowForm(false);
+        form.close();
       } else showMsg(`오류: ${r.error}`);
     }
   };
@@ -156,7 +225,7 @@ export default function HrPage() {
     const r = await deleteStaffProfile(staff.id);
     if (r.success) {
       setStaffList(p => p.filter(s => s.id !== staff.id));
-      setShowForm(false); setEditingStaff(null);
+      form.close(); setEditingStaff(null);
       showMsg('삭제되었습니다');
     } else showMsg(`오류: ${r.error}`);
   };
@@ -195,7 +264,7 @@ export default function HrPage() {
                 ))}
               </div>
               <button
-                onClick={() => { setEditingStaff(null); setShowForm(true); }}
+                onClick={() => { setEditingStaff(null); form.open(); }}
                 className="ml-auto px-3 py-2 rounded-lg border-none bg-primary-700 text-white text-[12px] font-bold cursor-pointer hover:bg-primary-800 transition"
               >
                 + 등록
@@ -214,7 +283,7 @@ export default function HrPage() {
                     <button onClick={() => setStoreFilter('none')} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${storeFilter === 'none' ? 'bg-amber-500 text-white' : 'bg-canvas text-amber-600 hover:bg-amber-50'}`}>미배정 {roleStaff.filter(s => s.store_id === null).length}</button>
                   )}
                 </div>
-                <button onClick={() => setShowStoreManage(true)} className="px-2.5 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">⚙</button>
+                <button onClick={() => storeManage.open()} className="px-2.5 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">⚙</button>
               </div>
             )}
 
@@ -241,6 +310,33 @@ export default function HrPage() {
               />
             </div>
 
+            {/* 불합격 통지 폼 */}
+            {statusFilter === 'rejected' && (
+              <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="m-0 text-[11px] font-bold text-rose-700">불합격 통지 메시지</p>
+                  <button
+                    onClick={async () => { await navigator.clipboard.writeText(rejectionMsg); showMsg('클립보드에 복사됐습니다!'); }}
+                    className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-bold border-none cursor-pointer hover:bg-rose-700 transition"
+                  >
+                    복사
+                  </button>
+                </div>
+                <textarea
+                  value={rejectionMsg}
+                  onChange={e => setRejectionMsg(e.target.value)}
+                  rows={8}
+                  className="w-full px-2.5 py-2 border border-rose-200 rounded-lg text-[11px] bg-white focus:outline-none focus:border-rose-400 resize-y leading-relaxed"
+                />
+                <button
+                  onClick={() => setRejectionMsg(DEFAULT_REJECTION_MSG)}
+                  className="mt-1 text-[10px] text-rose-500 bg-transparent border-none cursor-pointer hover:text-rose-700 transition"
+                >
+                  기본 양식으로 초기화
+                </button>
+              </div>
+            )}
+
             {/* 직원 테이블 */}
             <div className="bg-canvas rounded-xl border border-hairline shadow-level-1 overflow-hidden">
               <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
@@ -255,10 +351,18 @@ export default function HrPage() {
                     <thead>
                       <tr className="border-b border-hairline bg-canvas-soft sticky top-0">
                         <th className="w-5 px-1 py-2"></th>
-                        <th className="text-left px-3 py-2 font-semibold text-ink-muted">이름</th>
-                        <th className="text-left px-2 py-2 font-semibold text-ink-muted">상태</th>
-                        <th className="text-left px-2 py-2 font-semibold text-ink-muted">파트</th>
-                        <th className="text-left px-2 py-2 font-semibold text-ink-muted">가용기간</th>
+                        {([['name','이름'],['status','상태'],['shifts','파트'],['available','가용기간']] as ['name'|'status'|'shifts'|'available', string][]).map(([key, label]) => (
+                          <th
+                            key={key}
+                            onClick={() => handleSort(key)}
+                            className="text-left px-2 py-2 font-semibold text-ink-muted cursor-pointer select-none hover:text-ink transition whitespace-nowrap"
+                          >
+                            {label}
+                            <span className={`ml-1 text-[10px] ${sortKey === key ? 'text-primary-700' : 'text-ink-faint'}`}>
+                              {sortKey === key ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}
+                            </span>
+                          </th>
+                        ))}
                         <th className="px-2 py-2"></th>
                       </tr>
                     </thead>
@@ -270,10 +374,12 @@ export default function HrPage() {
                           isLast={i === filtered.length - 1}
                           shiftNames={staff.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name).filter(Boolean).join(' · ')}
                           store={stores.find(st => st.id === staff.store_id) ?? null}
-                          onRowClick={() => { setEditingStaff(staff); setShowForm(true); }}
+                          onRowClick={() => { setEditingStaff(staff); form.open(); }}
                           onStatusChange={s => handleStatusChange(staff, s)}
-                          onContract={() => setContractStaff(staff)}
-                          onAssign={() => setAssigningStaff(staff)}
+                          contractDone={completedContracts.has(staff.id)}
+                          onContract={() => contract.open(staff)}
+                          onAssign={() => assigning.open(staff)}
+                          onCalendar={() => calendar.open(staff)}
                           isDragging={draggingStaffId === staff.id}
                           isDragOver={dragOverStaffId === staff.id}
                           onDragStart={() => setDraggingStaffId(staff.id)}
@@ -299,80 +405,103 @@ export default function HrPage() {
 
           {/* 우측: 탭 + 패널 */}
           <div className="flex-1 min-w-[300px] flex flex-col gap-3">
-            {/* 우측 탭 */}
-            <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 w-fit">
-              {([['roster', '스케줄 달력'], ['payroll', '급여 정산']] as [RightTab, string][]).map(([tab, label]) => (
-                <button
-                  key={tab}
-                  onClick={() => setRightTab(tab)}
-                  className={`px-4 py-2 text-[12px] font-bold border-none cursor-pointer transition ${
-                    rightTab === tab ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            {/* 우측 탭 + 근무표 인쇄 */}
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 w-fit">
+                {([['roster', '스케줄 달력'], ['payroll', '급여 정산']] as [RightTab, string][]).map(([tab, label]) => (
+                  <button
+                    key={tab}
+                    onClick={() => setRightTab(tab)}
+                    className={`px-4 py-2 text-[12px] font-bold border-none cursor-pointer transition ${
+                      rightTab === tab ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => rosterPrint.open()}
+                className="px-3 py-2 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-soft transition shadow-level-1"
+              >
+                근무표 인쇄
+              </button>
             </div>
 
             {rightTab === 'roster'
-              ? <RosterCalendar staffList={staffList} stores={stores} roleFilter={roleFilter} />
+              ? <RosterCalendar staffList={staffList} stores={stores} roleFilter={roleFilter} refreshSignal={calendarRefreshKey} />
               : <PayrollPanel defaultRole={roleFilter} />
             }
           </div>
         </div>
       </main>
 
-      {showStoreManage && (
-        <StoreManageModal stores={stores} onStoresChange={setStores} onClose={() => setShowStoreManage(false)} />
+      {storeManage.isOpen && (
+        <StoreManageModal stores={stores} onStoresChange={setStores} onClose={storeManage.close} />
       )}
 
-      {showForm && (
+      {form.isOpen && (
         <StaffFormModal
           staff={editingStaff}
           userProfiles={userProfiles}
           stores={stores}
           defaultRole={roleFilter}
           defaultStoreId={typeof storeFilter === 'number' ? storeFilter : null}
-          onClose={() => { setShowForm(false); setEditingStaff(null); }}
+          onClose={() => { form.close(); setEditingStaff(null); }}
           onSubmit={handleSubmit}
           onDelete={editingStaff ? () => handleDelete(editingStaff) : undefined}
           onHealthCertUploaded={handleHealthCertUploaded}
         />
       )}
 
-      {contractStaff && (
+      {contract.value && (
         <HrContractModal
-          staff={contractStaff}
-          allShifts={allShifts}
-          onClose={() => setContractStaff(null)}
+          staff={contract.value}
+          onClose={contract.close}
+          onComplete={() => markContractComplete(contract.value!.id)}
         />
       )}
 
-      {assigningStaff && (
+      {assigning.value && (
         <StaffAssignModal
-          staff={assigningStaff}
+          staff={assigning.value}
           stores={stores}
-          onClose={() => setAssigningStaff(null)}
+          onClose={assigning.close}
           onAssigned={(count) => {
             showMsg(count > 0 ? `${count}일 배정 완료` : '새로 배정된 날짜가 없습니다 (이미 배정됨)');
-            setAssigningStaff(null);
+            assigning.close();
+            if (count > 0) setCalendarRefreshKey(k => k + 1);
           }}
         />
+      )}
+
+      {calendar.value && (
+        <StaffCalendarModal
+          staffId={calendar.value.id}
+          name={calendar.value.name}
+          onClose={calendar.close}
+        />
+      )}
+
+      {rosterPrint.isOpen && (
+        <WeeklyRosterPrintModal onClose={rosterPrint.close} />
       )}
     </>
   );
 }
 
-function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange, onContract, onAssign,
+function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, onStatusChange, onContract, onAssign, onCalendar,
   isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: {
   staff: StaffProfile;
   shiftNames: string;
   store: Store | null;
   isLast: boolean;
+  contractDone: boolean;
   onRowClick: () => void;
   onStatusChange: (s: StaffStatus) => void;
   onContract: () => void;
   onAssign: () => void;
+  onCalendar: () => void;
   isDragging?: boolean;
   isDragOver?: boolean;
   onDragStart?: () => void;
@@ -385,7 +514,7 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
   return (
     <tr
       draggable
-      onDragStart={e => { e.stopPropagation(); onDragStart?.(); }}
+      onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('application/staff-id', String(staff.id)); e.dataTransfer.effectAllowed = 'copy'; onDragStart?.(); }}
       onDragOver={e => { e.preventDefault(); e.stopPropagation(); onDragOver?.(); }}
       onDragEnd={onDragEnd}
       onDrop={e => { e.preventDefault(); e.stopPropagation(); onDrop?.(); }}
@@ -408,9 +537,9 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
         <select
           value={staff.status}
           onChange={e => onStatusChange(e.target.value as StaffStatus)}
-          className={`text-[10px] font-bold px-1 py-0.5 rounded border cursor-pointer appearance-none ${sc.bg} ${sc.text} ${sc.border}`}
+          className={`text-[10px] font-bold px-1 py-0.5 rounded border cursor-pointer appearance-none text-center ${sc.bg} ${sc.text} ${sc.border}`}
         >
-          {(Object.keys(STATUS_LABELS) as StaffStatus[]).filter(s => s !== 'rejected').map(s => (
+          {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
             <option key={s} value={s}>{STATUS_LABELS[s]}</option>
           ))}
         </select>
@@ -424,6 +553,13 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
       <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-1">
           <button
+            onClick={onCalendar}
+            title="근무 캘린더"
+            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
+          >
+            달력
+          </button>
+          <button
             onClick={onAssign}
             title="일정 배정"
             className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition cursor-pointer"
@@ -434,9 +570,13 @@ function StaffRow({ staff, shiftNames, store, isLast, onRowClick, onStatusChange
             <button
               onClick={onContract}
               title="근로계약서 작성"
-              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border transition cursor-pointer ${
+                contractDone
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+              }`}
             >
-              계약서
+              {contractDone ? '계약서 ✓' : '계약서'}
             </button>
           )}
         </div>
