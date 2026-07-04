@@ -650,9 +650,13 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string): Promi
       }
     })
 
+    const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
+
     withOrder.sort((a, b) =>
       a.work_date !== b.work_date
         ? a.work_date.localeCompare(b.work_date)
+        : shiftNamePriority(a.shift_name) !== shiftNamePriority(b.shift_name)
+        ? shiftNamePriority(a.shift_name) - shiftNamePriority(b.shift_name)
         : a.shift_sort_order !== b.shift_sort_order
         ? a.shift_sort_order - b.shift_sort_order
         : a.sort_order - b.sort_order
