@@ -8,13 +8,9 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import NavBar from '@/components/NavBar'
 import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount } from '@/app/actions/workers'
 import { getMyContracts } from '@/app/actions/contracts'
-import { getMyRoster } from '@/app/actions/roster'
-import { getMyStaffProfile } from '@/app/actions/staff'
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
-import type { MyRosterData, MyShift } from '@/app/actions/roster'
-import type { StaffProfile } from '@/types/database'
 import dynamic from 'next/dynamic'
 
 const WorkerSignModal = dynamic(() => import('@/components/WorkerSignModal'), { ssr: false })
@@ -50,8 +46,6 @@ export default function MyPage() {
 
   const [contracts, setContracts] = useState<ContractRecord[]>([])
   const [signingContract, setSigningContract] = useState<ContractRecord | null>(null)
-  const [myRoster, setMyRoster] = useState<MyRosterData | null>(null)
-  const [myStaffProfile, setMyStaffProfile] = useState<StaffProfile | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -62,19 +56,11 @@ export default function MyPage() {
         setAuthEmail(user.email ?? null)
         setIsAdmin(user.user_metadata?.role === 'admin')
       }
-      const [profileRes, statsRes, contractsRes, rosterRes, staffProfileRes] = await Promise.all([
+      const [profileRes, statsRes, contractsRes] = await Promise.all([
         getMyProfile(),
         getMyOrderStats(),
         getMyContracts(),
-        getMyRoster(),
-        getMyStaffProfile(),
       ])
-      if (rosterRes.success && rosterRes.data) {
-        setMyRoster(rosterRes.data)
-      }
-      if (staffProfileRes.success && staffProfileRes.data) {
-        setMyStaffProfile(staffProfileRes.data)
-      }
       if (profileRes.success && profileRes.data) {
         setProfile(profileRes.data)
         setIsAdmin(profileRes.data.worker_role === 'admin')
@@ -233,12 +219,6 @@ export default function MyPage() {
           )}
         </section>
 
-        {/* 내 근무 일정 */}
-        {myRoster && <MyScheduleSection roster={myRoster} />}
-
-        {/* 내 근무 정보 */}
-        {myStaffProfile && <MyStaffInfoSection staff={myStaffProfile} />}
-
         {/* 티어 */}
         {profile && (() => {
           const rev = stats?.totalRevenue ?? profile.total_revenue ?? 0
@@ -393,7 +373,6 @@ export default function MyPage() {
               <div className='flex gap-2 pt-1'>
                 <button type='button' disabled={isPwPending}
                   onClick={() => startPwTransition(async () => {
-                    
                     if (newPw !== newPwConfirm) { toast.error('새 비밀번호가 일치하지 않습니다.'); return }
                     const res = await changeMyPassword(currentPw, newPw)
                     if (res.success) { toast.success('비밀번호가 변경됐습니다.'); setIsPwOpen(false); setCurrentPw(''); setNewPw(''); setNewPwConfirm('') }
@@ -445,91 +424,6 @@ export default function MyPage() {
 
       </div>
     </>
-  )
-}
-
-const SCHEDULE_DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
-
-function MyScheduleSection({ roster }: { roster: MyRosterData }) {
-  const [showAll, setShowAll] = useState(false)
-
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  const thisMonthPrefix = todayStr.slice(0, 7)
-
-  const upcoming = roster.shifts.filter((s) => s.work_date >= todayStr)
-  const thisMonth = roster.shifts.filter((s) => s.work_date.startsWith(thisMonthPrefix))
-  const monthDays = new Set(thisMonth.map((s) => s.work_date)).size
-  const monthHours = Math.round(thisMonth.reduce((sum, s) => sum + s.hours, 0) * 10) / 10
-  const monthPay = roster.hourlyRate ? Math.round(monthHours * roster.hourlyRate) : null
-
-  const visible = showAll ? upcoming : upcoming.slice(0, 7)
-
-  return (
-    <section className='bg-canvas border border-hairline rounded-xl p-5 shadow-level-1'>
-      <div className='flex items-center justify-between mb-4'>
-        <h2 className='text-[15px] font-bold text-ink'>내 근무 일정</h2>
-        <span className='text-[12px] text-ink-muted'>
-          이번 달 {monthDays}일 · {monthHours}시간
-          {monthPay != null && ` · 예상 ${formatPrice(monthPay)}`}
-        </span>
-      </div>
-
-      {upcoming.length === 0 ? (
-        <p className='text-[13px] text-ink-muted'>예정된 근무가 없습니다.</p>
-      ) : (
-        <>
-          <div className='overflow-hidden rounded-lg border border-hairline'>
-            <table className='w-full text-[13px]'>
-              <tbody>
-                {visible.map((s: MyShift, i) => {
-                  const d = new Date(s.work_date + 'T00:00:00')
-                  const day = d.getDay()
-                  const isToday = s.work_date === todayStr
-                  return (
-                    <tr
-                      key={`${s.work_date}-${s.shift_name}-${s.start_time}`}
-                      className={`${i > 0 ? 'border-t border-hairline' : ''} ${isToday ? 'bg-primary-50' : i % 2 === 1 ? 'bg-canvas-soft/50' : ''}`}
-                    >
-                      <td className='px-3 py-2.5 whitespace-nowrap'>
-                        <span className='font-semibold text-ink'>
-                          {d.getMonth() + 1}월 {d.getDate()}일
-                        </span>
-                        <span className={`ml-1 text-[12px] ${day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>
-                          ({SCHEDULE_DAY_NAMES[day]})
-                        </span>
-                        {isToday && (
-                          <span className='ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-700 text-white'>오늘</span>
-                        )}
-                      </td>
-                      <td className='px-3 py-2.5'>
-                        <span className='text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700'>
-                          {s.shift_name}
-                        </span>
-                      </td>
-                      <td className='px-3 py-2.5 text-right whitespace-nowrap'>
-                        <span className='font-medium text-ink'>{s.start_time} ~ {s.end_time}</span>
-                        <span className='ml-1.5 text-[11px] text-ink-faint'>{s.hours}시간</span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          {upcoming.length > 7 && (
-            <button
-              type='button'
-              onClick={() => setShowAll((v) => !v)}
-              className='w-full mt-2 py-2 rounded-lg border border-hairline bg-transparent text-[12px] text-ink-muted font-semibold cursor-pointer hover:bg-canvas-soft transition-colors'
-            >
-              {showAll ? '접기' : `${upcoming.length - 7}개 더 보기`}
-            </button>
-          )}
-        </>
-      )}
-    </section>
   )
 }
 
@@ -630,65 +524,5 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
       <span className='text-[12px] text-ink-muted w-16 shrink-0'>{label}</span>
       <span className='text-[13px] text-ink'>{value}</span>
     </div>
-  )
-}
-
-const STAFF_DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
-const STAFF_ROLE_LABELS: Record<string, string> = { kitchen: '주방', cashier: '캐셔' }
-const STAFF_STATUS_LABELS: Record<string, string> = {
-  candidate: '면접자', confirmed: '재직중', rejected: '거절됨', inactive: '비활성',
-}
-const STAFF_STATUS_COLORS: Record<string, string> = {
-  candidate: 'bg-amber-50 text-amber-700 border-amber-200',
-  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rejected: 'bg-rose-50 text-rose-600 border-rose-200',
-  inactive: 'bg-canvas-soft text-ink-muted border-hairline',
-}
-
-function MyStaffInfoSection({ staff }: { staff: StaffProfile }) {
-  const preferredDaysStr = staff.preferred_days.length === 0
-    ? '무관'
-    : staff.preferred_days.map(d => STAFF_DAY_NAMES[d]).join(' · ')
-
-  const availRangesStr = staff.available_ranges.length === 0
-    ? '무관'
-    : staff.available_ranges.map(r => `${r.from} ~ ${r.to}`).join(', ')
-
-  return (
-    <section className='bg-canvas border border-hairline rounded-xl p-5 shadow-level-1'>
-      <h2 className='text-[15px] font-bold text-ink mb-4'>내 근무 정보</h2>
-      <div className='space-y-2.5'>
-        <div className='flex items-center gap-3'>
-          <span className='text-[12px] text-ink-muted w-16 shrink-0'>상태</span>
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${STAFF_STATUS_COLORS[staff.status] ?? ''}`}>
-            {STAFF_STATUS_LABELS[staff.status] ?? staff.status}
-          </span>
-          <span className='text-[12px] text-ink-muted'>{STAFF_ROLE_LABELS[staff.staff_role] ?? staff.staff_role}</span>
-        </div>
-        <InfoRow
-          label='시급'
-          value={staff.hourly_rate != null
-            ? `${staff.hourly_rate.toLocaleString('ko-KR')}원`
-            : <span className='text-ink-faint text-[12px]'>미설정</span>}
-        />
-        <InfoRow label='선호 요일' value={preferredDaysStr} />
-        <InfoRow
-          label='최대 근무일'
-          value={staff.max_days_per_week != null ? `주 ${staff.max_days_per_week}일` : '무제한'}
-        />
-        <InfoRow
-          label='4대보험'
-          value={staff.wants_insurance
-            ? <span className='text-emerald-700 text-[12px] font-semibold'>희망</span>
-            : <span className='text-ink-muted text-[12px]'>미희망</span>}
-        />
-        {staff.available_ranges.length > 0 && (
-          <InfoRow label='가용 기간' value={availRangesStr} />
-        )}
-        {staff.notes && (
-          <InfoRow label='메모' value={<span className='text-ink-muted text-[12px]'>{staff.notes}</span>} />
-        )}
-      </div>
-    </section>
   )
 }

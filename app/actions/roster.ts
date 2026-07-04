@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
 import { checkStaffAvailability, getWeekStart } from '@/lib/staffing'
+import { parseDate, toDateStr, addDays, prevDate, dayOfWeek, dayGroup } from '@/lib/date'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -76,6 +77,8 @@ export interface RosterShiftInput {
   end_time: string
   weekday_required: number
   weekend_required: number
+  active_from?: string | null
+  active_to?: string | null
 }
 
 export async function createRosterShift(unit: RosterUnit, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
@@ -263,9 +266,168 @@ export async function clearShiftRequirement(workDate: string, shiftId: number): 
   }
 }
 
+export interface AutoFillLogEntry {
+  date: string
+  shiftName: string
+  names: string[]
+}
+
 export interface AutoFillResult {
   added: number
   holes: { date: string; shiftName: string; missing: number }[]
+  log: AutoFillLogEntry[]
+}
+
+const toMinutes = (t: string): number => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+const MIN_REST_MINUTES = 9 * 60 // 오후→오전 최소 휴식 9시간
+
+type InsertRow = { work_date: string; shift_id: number; staff_id: number; staff_role: StaffRole; store_id: number | null }
+
+interface GreedyCtx {
+  dates: string[]
+  shifts: RosterShift[]
+  shiftById: Map<number, RosterShift>
+  getRequired: (dateStr: string, shift: RosterShift) => number
+  filledCount: Map<string, number>
+  assignedByDate: Map<string, Set<number>>
+  workload: Map<number, number>
+  weeklyCount: Map<string, number>
+  groupLoad: Map<string, number>
+  staffEndByDate: Map<string, string>
+  unit: RosterUnit
+}
+
+// 연속성 점수: 고립된 근무일(앞뒤 모두 비근무) 개수 — 낮을수록 좋음
+function scoreInserts(
+  newInserts: { work_date: string; staff_id: number }[],
+  existing: { work_date: string; staff_id: number }[],
+  fromDate: string,
+  toDate: string,
+): number {
+  const byStaff = new Map<number, Set<string>>()
+  for (const a of existing.filter(a => a.work_date >= fromDate && a.work_date <= toDate)) {
+    if (!byStaff.has(a.staff_id)) byStaff.set(a.staff_id, new Set())
+    byStaff.get(a.staff_id)!.add(a.work_date)
+  }
+  for (const ins of newInserts) {
+    if (!byStaff.has(ins.staff_id)) byStaff.set(ins.staff_id, new Set())
+    byStaff.get(ins.staff_id)!.add(ins.work_date)
+  }
+  let score = 0
+  for (const [, dateSet] of byStaff) {
+    const sorted = [...dateSet].sort()
+    for (let i = 0; i < sorted.length; i++) {
+      const prev = i > 0 ? sorted[i - 1] : null
+      const next = i < sorted.length - 1 ? sorted[i + 1] : null
+      const prevGap = prev ? Math.round((parseDate(sorted[i]).getTime() - parseDate(prev).getTime()) / 86400000) : 99
+      const nextGap = next ? Math.round((parseDate(next).getTime() - parseDate(sorted[i]).getTime()) / 86400000) : 99
+      if (prevGap > 1 && nextGap > 1) score++
+    }
+  }
+  return score
+}
+
+// 결정적 셔플 (LCG 시드)
+function shuffleStaff(arr: StaffProfile[], seed: number): StaffProfile[] {
+  const result = [...arr]
+  let s = (seed + 1) * 1664525 + 1013904223
+  for (let i = result.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0x7fffffff
+    const j = Math.abs(s) % (i + 1)
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
+function runGreedy(staffList: StaffProfile[], ctx: GreedyCtx): { inserts: InsertRow[]; holes: AutoFillResult['holes']; log: AutoFillLogEntry[] } {
+  const { dates, shifts, shiftById, getRequired, unit } = ctx
+  // 후보별 독립 실행을 위해 가변 상태 복사
+  const fc = new Map(ctx.filledCount)
+  const abd = new Map([...ctx.assignedByDate].map(([k, v]) => [k, new Set(v)]))
+  const wl = new Map(ctx.workload)
+  const wc = new Map(ctx.weeklyCount)
+  const gl = new Map(ctx.groupLoad)
+  const sed = new Map(ctx.staffEndByDate)
+
+  const inserts: InsertRow[] = []
+  const holes: AutoFillResult['holes'] = []
+  const log: AutoFillLogEntry[] = []
+
+  for (const dateStr of dates) {
+    const dayAssigned = abd.get(dateStr) ?? new Set<number>()
+    const weekStart = getWeekStart(dateStr)
+    const prevAssigned = abd.get(prevDate(dateStr))
+    const day = dayOfWeek(dateStr)
+    const grp = dayGroup(dateStr)
+
+    const isAvailable = (s: StaffProfile, shiftId: number) => {
+      if (dayAssigned.has(s.id)) return false
+      if (s.max_days_per_week != null && (wc.get(`${s.id}|${weekStart}`) ?? 0) >= s.max_days_per_week) return false
+      if (s.available_ranges.length > 0 && !s.available_ranges.some(r => r.from <= dateStr && dateStr <= r.to)) return false
+      if (s.preferred_shift_ids.length > 0 && !s.preferred_shift_ids.includes(shiftId)) return false
+      const prevEnd = sed.get(`${prevDate(dateStr)}|${s.id}`)
+      const todayShift = shiftById.get(shiftId)
+      if (prevEnd && todayShift && toMinutes(todayShift.start_time) + 24 * 60 - toMinutes(prevEnd) < MIN_REST_MINUTES) return false
+      return true
+    }
+
+    // 가능 인원이 적은 파트 우선
+    const pendingShifts = shifts
+      .map(shift => {
+        if (shift.active_from && dateStr < shift.active_from) return null
+        if (shift.active_to && dateStr > shift.active_to) return null
+        const required = getRequired(dateStr, shift)
+        const filled = fc.get(`${dateStr}|${shift.id}`) ?? 0
+        if (filled >= required) return null
+        const eligibleCount = staffList.filter(s => isAvailable(s, shift.id)).length
+        return { shift, required, eligibleCount }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => a.eligibleCount - b.eligibleCount)
+
+    for (const { shift, required } of pendingShifts) {
+      let filled = fc.get(`${dateStr}|${shift.id}`) ?? 0
+
+      const eligible = staffList
+        .filter(s => isAvailable(s, shift.id))
+        .sort((a, b) => {
+          // 그룹 부하 ±1 버킷 안에서 스트릭 우선 → 연속 블록 형성
+          const aGrpBucket = Math.floor((gl.get(`${a.id}|${grp}`) ?? 0) / 2)
+          const bGrpBucket = Math.floor((gl.get(`${b.id}|${grp}`) ?? 0) / 2)
+          const aStreak = prevAssigned?.has(a.id) ? 0 : 1
+          const bStreak = prevAssigned?.has(b.id) ? 0 : 1
+          const aDayPref = a.preferred_days.length === 0 || a.preferred_days.includes(day) ? 0 : 1
+          const bDayPref = b.preferred_days.length === 0 || b.preferred_days.includes(day) ? 0 : 1
+          const aGroupLoad = gl.get(`${a.id}|${grp}`) ?? 0
+          const bGroupLoad = gl.get(`${b.id}|${grp}`) ?? 0
+          const aLoad = wl.get(a.id) ?? 0
+          const bLoad = wl.get(b.id) ?? 0
+          const aShiftPref = a.preferred_shift_ids.length === 0 || a.preferred_shift_ids.includes(shift.id) ? 0 : 1
+          const bShiftPref = b.preferred_shift_ids.length === 0 || b.preferred_shift_ids.includes(shift.id) ? 0 : 1
+          return aGrpBucket - bGrpBucket || aStreak - bStreak || aDayPref - bDayPref || aGroupLoad - bGroupLoad || aLoad - bLoad || aShiftPref - bShiftPref || a.id - b.id
+        })
+
+      const names: string[] = []
+      for (const s of eligible) {
+        if (filled >= required) break
+        inserts.push({ work_date: dateStr, shift_id: shift.id, staff_id: s.id, staff_role: unit.staffRole, store_id: unit.storeId })
+        names.push(s.name)
+        filled++
+        dayAssigned.add(s.id)
+        wl.set(s.id, (wl.get(s.id) ?? 0) + 1)
+        wc.set(`${s.id}|${weekStart}`, (wc.get(`${s.id}|${weekStart}`) ?? 0) + 1)
+        const gk = `${s.id}|${grp}`
+        gl.set(gk, (gl.get(gk) ?? 0) + 1)
+        sed.set(`${dateStr}|${s.id}`, shift.end_time)
+      }
+      if (names.length > 0) log.push({ date: dateStr, shiftName: shift.name, names })
+      if (filled < required) holes.push({ date: dateStr, shiftName: shift.name, missing: required - filled })
+    }
+
+    abd.set(dateStr, dayAssigned)
+  }
+
+  return { inserts, holes, log }
 }
 
 /**
@@ -283,12 +445,8 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     const shifts = shiftsRes.data
     const shiftIds = shifts.map(s => s.id)
 
-    // 주간 상한 계산은 기간 양끝이 걸친 주 전체의 배정을 봐야 정확하다
     const weekFrom = getWeekStart(fromDate)
-    const weekToDate = new Date(getWeekStart(toDate) + 'T00:00:00')
-    weekToDate.setDate(weekToDate.getDate() + 6)
-    const weekTo = `${weekToDate.getFullYear()}-${String(weekToDate.getMonth() + 1).padStart(2, '0')}-${String(weekToDate.getDate()).padStart(2, '0')}`
-
+    const weekTo = addDays(getWeekStart(toDate), 6)
     const staffQuery = supabaseAdmin.from('staff_profiles').select('*').eq('status', 'confirmed').eq('staff_role', unit.staffRole)
     const [staffRes, assignRes, reqRes] = await Promise.all([
       unit.storeId === null ? staffQuery.is('store_id', null) : staffQuery.eq('store_id', unit.storeId),
@@ -315,91 +473,66 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     const getRequired = (dateStr: string, shift: RosterShift): number => {
       const override = overrides.get(`${dateStr}|${shift.id}`)
       if (override !== undefined) return override
-      const day = new Date(dateStr + 'T00:00:00').getDay()
+      const day = dayOfWeek(dateStr)
       return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required
     }
 
-    // 현재 배정 상태 인덱싱
-    const filledCount = new Map<string, number>()        // `${date}|${shift_id}` → 배정 수
-    const assignedByDate = new Map<string, Set<number>>() // date → 그날 배정된 staff_id (파트 무관)
-    const workload = new Map<number, number>()            // staff_id → 기간 내 근무일 수
-    const weeklyCount = new Map<string, number>()         // `${staff_id}|${주 시작일}` → 그 주 근무일 수
+    const shiftById = new Map(shifts.map(s => [s.id, s]))
+    const filledCount = new Map<string, number>()         // `${date}|${shift_id}` → 배정 수
+    const assignedByDate = new Map<string, Set<number>>() // date → 그날 배정된 staff_id
+    const workload = new Map<number, number>()             // staff_id → 기간 내 근무일 수
+    const weeklyCount = new Map<string, number>()          // `${staff_id}|${주 시작일}` → 주 근무일 수
+    const groupLoad = new Map<string, number>()            // `${staff_id}|${그룹}` → 목금토/일월화수 그룹 내 근무일 수
+    const staffEndByDate = new Map<string, string>()       // `${date}|${staff_id}` → 퇴근 시간(HH:MM)
     for (const a of assignRes.data ?? []) {
-      const key = `${a.work_date}|${a.shift_id}`
-      filledCount.set(key, (filledCount.get(key) ?? 0) + 1)
+      filledCount.set(`${a.work_date}|${a.shift_id}`, (filledCount.get(`${a.work_date}|${a.shift_id}`) ?? 0) + 1)
       if (!assignedByDate.has(a.work_date)) assignedByDate.set(a.work_date, new Set())
       assignedByDate.get(a.work_date)!.add(a.staff_id)
       workload.set(a.staff_id, (workload.get(a.staff_id) ?? 0) + 1)
-      const weekKey = `${a.staff_id}|${getWeekStart(a.work_date)}`
-      weeklyCount.set(weekKey, (weeklyCount.get(weekKey) ?? 0) + 1)
+      weeklyCount.set(`${a.staff_id}|${getWeekStart(a.work_date)}`, (weeklyCount.get(`${a.staff_id}|${getWeekStart(a.work_date)}`) ?? 0) + 1)
+      const grpKey = `${a.staff_id}|${dayGroup(a.work_date)}`
+      groupLoad.set(grpKey, (groupLoad.get(grpKey) ?? 0) + 1)
+      const sh = shiftById.get(a.shift_id)
+      if (sh) staffEndByDate.set(`${a.work_date}|${a.staff_id}`, sh.end_time)
     }
 
-    // 날짜 목록 생성
     const dates: string[] = []
-    const cur = new Date(fromDate + 'T00:00:00')
-    const end = new Date(toDate + 'T00:00:00')
-    while (cur <= end) {
-      dates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`)
-      cur.setDate(cur.getDate() + 1)
+    for (const cur = parseDate(fromDate), end = parseDate(toDate); cur <= end; cur.setDate(cur.getDate() + 1))
+      dates.push(toDateStr(cur))
+
+    const existingAssignments = (assignRes.data ?? []) as { work_date: string; staff_id: number }[]
+    const ctx: GreedyCtx = {
+      dates, shifts, shiftById, getRequired,
+      filledCount, assignedByDate, workload, weeklyCount, groupLoad, staffEndByDate,
+      unit,
     }
 
-    const inserts: { work_date: string; shift_id: number; staff_id: number; staff_role: StaffRole; store_id: number | null }[] = []
-    const holes: AutoFillResult['holes'] = []
+    // 12개 후보 생성 → 연속성 점수 최저 채택
+    const CANDIDATES = 12
+    let bestInserts: InsertRow[] = []
+    let bestHoles: AutoFillResult['holes'] = []
+    let bestLog: AutoFillLogEntry[] = []
+    let bestScore = Infinity
 
-    for (const dateStr of dates) {
-      const dayAssigned = assignedByDate.get(dateStr) ?? new Set<number>()
-      const weekStart = getWeekStart(dateStr)
-
-      // 가능 인원이 적은 파트(제약이 강한 파트)를 먼저 채워야
-      // 오전/오후 둘 다 가능한 유연한 직원이 부족한 파트로 자동 배치된다
-      const pendingShifts = shifts
-        .map(shift => {
-          const required = getRequired(dateStr, shift)
-          const filled = filledCount.get(`${dateStr}|${shift.id}`) ?? 0
-          if (filled >= required) return null
-          const eligibleCount = staff.filter(s =>
-            !dayAssigned.has(s.id) &&
-            (s.max_days_per_week == null || (weeklyCount.get(`${s.id}|${weekStart}`) ?? 0) < s.max_days_per_week) &&
-            checkStaffAvailability(s, dateStr, shift).ok,
-          ).length
-          return { shift, required, eligibleCount }
-        })
-        .filter((x): x is NonNullable<typeof x> => x !== null)
-        .sort((a, b) => a.eligibleCount - b.eligibleCount) // 가능 인원 오름차순 = 부족한 파트 우선
-
-      for (const { shift, required } of pendingShifts) {
-        let filled = filledCount.get(`${dateStr}|${shift.id}`) ?? 0
-
-        // 앞 파트 배정 이후 dayAssigned가 갱신됐으므로 eligible 재계산
-        const eligible = staff
-          .filter(s =>
-            !dayAssigned.has(s.id) &&
-            (s.max_days_per_week == null || (weeklyCount.get(`${s.id}|${weekStart}`) ?? 0) < s.max_days_per_week) &&
-            checkStaffAvailability(s, dateStr, shift).ok,
-          )
-          .sort((a, b) => (workload.get(a.id) ?? 0) - (workload.get(b.id) ?? 0) || a.id - b.id)
-
-        for (const s of eligible) {
-          if (filled >= required) break
-          inserts.push({ work_date: dateStr, shift_id: shift.id, staff_id: s.id, staff_role: unit.staffRole, store_id: unit.storeId })
-          filled++
-          dayAssigned.add(s.id)
-          workload.set(s.id, (workload.get(s.id) ?? 0) + 1)
-          weeklyCount.set(`${s.id}|${weekStart}`, (weeklyCount.get(`${s.id}|${weekStart}`) ?? 0) + 1)
-        }
-
-        if (filled < required) holes.push({ date: dateStr, shiftName: shift.name, missing: required - filled })
+    for (let trial = 0; trial < CANDIDATES; trial++) {
+      const staffList = trial === 0 ? [...staff] : shuffleStaff(staff, trial)
+      const candidate = runGreedy(staffList, ctx)
+      const score = scoreInserts(candidate.inserts, existingAssignments, fromDate, toDate)
+      if (score < bestScore) {
+        bestScore = score
+        bestInserts = candidate.inserts
+        bestHoles = candidate.holes
+        bestLog = candidate.log
+        if (bestScore === 0) break // 고립 근무일 없음 — 이보다 좋은 결과 없으므로 조기종료
       }
-
-      assignedByDate.set(dateStr, dayAssigned)
     }
 
-    if (inserts.length > 0) {
-      const { error: insertError } = await supabaseAdmin.from('roster_assignments').insert(inserts)
+    if (bestInserts.length > 0) {
+      const { error: insertError } = await supabaseAdmin.from('roster_assignments').insert(bestInserts)
       if (insertError) return { success: false, error: insertError.message }
     }
 
-    return { success: true, data: { added: inserts.length, holes } }
+    return { success: true, data: { added: bestInserts.length, holes: bestHoles, log: bestLog } }
   } catch (err) {
     return { success: false, error: String(err) }
   }
@@ -471,6 +604,69 @@ export async function clearRosterRange(
   }
 }
 
+export interface WeeklyRosterEntry {
+  work_date: string
+  shift_name: string
+  name: string
+  phone: string | null
+  start_time: string
+  end_time: string
+}
+
+export async function fetchWeeklyRosterForPrint(from: string, to: string): Promise<ApiResponse<WeeklyRosterEntry[]>> {
+  try {
+    const { data: staffData, error: staffError } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('id, name, phone, sort_order')
+      .eq('status', 'confirmed')
+    if (staffError) return { success: false, error: staffError.message }
+
+    const staffArr = (staffData ?? []) as { id: number; name: string; phone: string | null; sort_order: number }[]
+    if (staffArr.length === 0) return { success: true, data: [] }
+
+    const staffMap = new Map(staffArr.map(s => [s.id, s]))
+
+    const { data: assignData, error: assignError } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('work_date, start_time, end_time, staff_id, roster_shifts (name, start_time, end_time, sort_order)')
+      .gte('work_date', from)
+      .lte('work_date', to)
+      .in('staff_id', staffArr.map(s => s.id))
+      .order('work_date')
+    if (assignError) return { success: false, error: assignError.message }
+
+    const withOrder = ((assignData ?? []) as any[]).map(a => {
+      const shift = a.roster_shifts as { name: string; start_time: string; end_time: string; sort_order: number } | null
+      const staff = staffMap.get(a.staff_id)!
+      return {
+        work_date: a.work_date as string,
+        shift_name: (shift?.name ?? '') as string,
+        name: staff.name,
+        phone: staff.phone,
+        start_time: (a.start_time ?? shift?.start_time ?? '00:00') as string,
+        end_time: (a.end_time ?? shift?.end_time ?? '00:00') as string,
+        shift_sort_order: shift?.sort_order ?? 99,
+        sort_order: staff.sort_order,
+      }
+    })
+
+    withOrder.sort((a, b) =>
+      a.work_date !== b.work_date
+        ? a.work_date.localeCompare(b.work_date)
+        : a.shift_sort_order !== b.shift_sort_order
+        ? a.shift_sort_order - b.shift_sort_order
+        : a.sort_order - b.sort_order
+    )
+
+    return {
+      success: true,
+      data: withOrder.map(({ sort_order: _s, shift_sort_order: _ss, ...entry }) => entry),
+    }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   try {
     const supabase = await createSupabaseServerClient()
@@ -503,13 +699,11 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
       .order('work_date')
     if (assignError) return { success: false, error: assignError.message }
 
-    const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
-
     const shifts: MyShift[] = (assignData ?? []).map(a => {
       const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string } | null
       const start = a.start_time ?? shift?.start_time ?? '00:00'
       const end = a.end_time ?? shift?.end_time ?? '00:00'
-      let mins = toMin(end) - toMin(start)
+      let mins = toMinutes(end) - toMinutes(start)
       if (mins < 0) mins += 24 * 60
       return {
         work_date: a.work_date,

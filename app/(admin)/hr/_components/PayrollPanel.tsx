@@ -18,9 +18,21 @@ export default function PayrollPanel({ defaultRole }: Props) {
   const [detailTarget, setDetailTarget] = useState<PayrollRow | null>(null)
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem('payroll_ym')
+      if (saved) {
+        const { y, m } = JSON.parse(saved) as { y: number; m: number }
+        setCursor({ y, m })
+        return
+      }
+    } catch { /* ignore */ }
     const now = new Date()
     setCursor({ y: now.getFullYear(), m: now.getMonth() })
   }, [])
+
+  useEffect(() => {
+    if (cursor) localStorage.setItem('payroll_ym', JSON.stringify(cursor))
+  }, [cursor])
 
   useEffect(() => {
     setRole(defaultRole)
