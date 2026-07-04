@@ -63,7 +63,7 @@ export function WeeklyRosterDocument({ weekLabel, entries }: { weekLabel: string
         )}
 
         {days.map(([date, list]) => (
-          <View key={date} style={s.daySection} wrap={false}>
+          <View key={date} style={s.daySection}>
             <View style={s.dayHeader}>
               <Text style={s.dayHeaderText}>{dayLabel(date)}</Text>
             </View>

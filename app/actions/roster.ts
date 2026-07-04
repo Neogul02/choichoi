@@ -613,12 +613,15 @@ export interface WeeklyRosterEntry {
   end_time: string
 }
 
-export async function fetchWeeklyRosterForPrint(from: string, to: string): Promise<ApiResponse<WeeklyRosterEntry[]>> {
+export async function fetchWeeklyRosterForPrint(from: string, to: string, staffRole?: StaffRole): Promise<ApiResponse<WeeklyRosterEntry[]>> {
   try {
-    const { data: staffData, error: staffError } = await supabaseAdmin
+    const staffQuery = supabaseAdmin
       .from('staff_profiles')
       .select('id, name, phone, sort_order')
       .eq('status', 'confirmed')
+    const { data: staffData, error: staffError } = staffRole
+      ? await staffQuery.eq('staff_role', staffRole)
+      : await staffQuery
     if (staffError) return { success: false, error: staffError.message }
 
     const staffArr = (staffData ?? []) as { id: number; name: string; phone: string | null; sort_order: number }[]
