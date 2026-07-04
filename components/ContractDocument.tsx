@@ -22,6 +22,8 @@ export type SpecificWorkDate = {
   dayName: string  // '월', '화', ...
   startTime: string
   endTime: string
+  breakStart?: string
+  breakEnd?: string
 }
 
 export type ContractData = {
@@ -126,22 +128,33 @@ function todayStr(d?: string) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
 }
 
-function calcNetHours(d: WorkDaySchedule): number {
-  const [sh, sm] = d.startTime.split(':').map(Number)
-  const [eh, em] = d.endTime.split(':').map(Number)
+function calcNetMins(startTime: string, endTime: string, breakStart?: string, breakEnd?: string): number {
+  const [sh, sm] = startTime.split(':').map(Number)
+  const [eh, em] = endTime.split(':').map(Number)
   const rawMins = (eh * 60 + em) - (sh * 60 + sm)
   let brkMins = 0
-  if (d.breakStart && d.breakEnd) {
-    const [bsh, bsm] = d.breakStart.split(':').map(Number)
-    const [beh, bem] = d.breakEnd.split(':').map(Number)
+  if (breakStart && breakEnd) {
+    const [bsh, bsm] = breakStart.split(':').map(Number)
+    const [beh, bem] = breakEnd.split(':').map(Number)
     brkMins = (beh * 60 + bem) - (bsh * 60 + bsm)
   }
-  return Math.max(0, (rawMins - brkMins) / 60)
+  return Math.max(0, rawMins - brkMins)
 }
+
+function calcNetHours(d: WorkDaySchedule): number {
+  return calcNetMins(d.startTime, d.endTime, d.breakStart, d.breakEnd) / 60
+}
+
+function calcNetHoursForDate(d: SpecificWorkDate): number {
+  return calcNetMins(d.startTime, d.endTime, d.breakStart, d.breakEnd) / 60
+}
+
 
 export function ContractDocument(p: ContractData) {
   const days = p.workDays ?? []
   const totalWeeklyHours = days.reduce((sum, d) => sum + calcNetHours(d), 0)
+  const specificDates = p.specificWorkDates ?? []
+  const totalSpecificHours = specificDates.reduce((sum, d) => sum + calcNetHoursForDate(d), 0)
 
   return (
     <Document title='단시간근로자 표준근로계약서' author={p.employerName}>
@@ -198,22 +211,25 @@ export function ContractDocument(p: ContractData) {
                   <Text style={[s.tableCell, { flex: 1.4, textAlign: 'left' }]}>날짜</Text>
                   <Text style={s.tableCell}>요일</Text>
                   <Text style={s.tableCell}>시업</Text>
-                  <Text style={s.tableCellLast}>종업</Text>
+                  <Text style={s.tableCell}>종업</Text>
+                  <Text style={s.tableCellLast}>휴게</Text>
                 </View>
                 {p.specificWorkDates.map((d, i) => {
                   const isLast = i === p.specificWorkDates!.length - 1
                   const RowStyle = isLast ? s.tableRowLast : s.tableRow
+                  const breakStr = d.breakStart && d.breakEnd ? `${d.breakStart}~${d.breakEnd}` : '-'
                   return (
                     <View key={i} style={RowStyle}>
                       <Text style={[s.tableCell, { flex: 1.4, textAlign: 'left' }]}>{d.date}</Text>
                       <Text style={s.tableCell}>{d.dayName}요일</Text>
                       <Text style={s.tableCell}>{d.startTime}</Text>
-                      <Text style={s.tableCellLast}>{d.endTime}</Text>
+                      <Text style={s.tableCell}>{d.endTime}</Text>
+                      <Text style={s.tableCellLast}>{breakStr}</Text>
                     </View>
                   )
                 })}
               </View>
-              <Text style={[s.note, { marginTop: 2 }]}>※ 총 {p.specificWorkDates.length}일 근무</Text>
+              <Text style={[s.note, { marginTop: 2 }]}>※ 총 {p.specificWorkDates!.length}일 근무 / 총 {totalSpecificHours}시간</Text>
             </>
           ) : days.length > 0 ? (
             <View style={s.table}>
@@ -317,7 +333,13 @@ export function ContractDocument(p: ContractData) {
           <View style={[s.bullet, s.row]}>
             <Text>- 지급방법 : 근로자에게 직접지급( {p.paymentDirect ? '○' : ' '} ),  근로자 명의 예금통장에 입금( {p.paymentTransfer ? '○' : ' '} )</Text>
           </View>
-          {days.length > 0 && (
+          {specificDates.length > 0 && totalSpecificHours > 0 && (
+            <View style={[s.bullet, s.row]}>
+              <Text>- 계약기간 총 예상 급여 : {totalSpecificHours}시간 × {p.hourlyRate.toLocaleString('ko-KR')}원 = </Text>
+              <Text style={{ fontFamily: F, fontWeight: 'bold' }}>{Math.round(totalSpecificHours * p.hourlyRate).toLocaleString('ko-KR')}원</Text>
+            </View>
+          )}
+          {specificDates.length === 0 && days.length > 0 && (
             <View style={[s.bullet, s.row]}>
               <Text>- 최종 예상 지급임금(주 단위) : {totalWeeklyHours}시간 × {p.hourlyRate.toLocaleString('ko-KR')}원 = </Text>
               <Text style={{ fontFamily: F, fontWeight: 'bold' }}>{Math.round(totalWeeklyHours * p.hourlyRate).toLocaleString('ko-KR')}원</Text>

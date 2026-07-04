@@ -13,15 +13,16 @@ const NAV_COLLAPSED_KEY = 'choichoi_nav_collapsed';
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
 const POPUP_ID_KEY = 'choichoi_popup_id';
 const POPUP_NAME_KEY = 'choichoi_popup_name';
+const WORKER_ROLE_KEY = 'choichoi_worker_role';
 
 const ALL_NAV_LINKS = [
   { href: '/pos', label: 'POS', adminOnly: false },
-  { href: '/orders', label: '주문', adminOnly: false },
   { href: '/stats', label: '통계', adminOnly: true },
   { href: '/schedule', label: '일정', adminOnly: true },
   { href: '/hr', label: '인사', adminOnly: true },
-  { href: '/inventory', label: '재고', adminOnly: true },
+  { href: '/inventory', label: '재고', adminOnly: true, hidden: true },
   { href: '/memo', label: '메모', adminOnly: false },
+  { href: '/my/schedule', label: '스케줄', adminOnly: false },
   { href: '/my', label: 'MY', adminOnly: false },
   { href: '/settings', label: '설정', adminOnly: true },
 ] as const;
@@ -109,7 +110,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   }, []);
 
   const visibleLinks = useMemo(
-    () => ALL_NAV_LINKS.filter((l) => !l.adminOnly || isAdmin),
+    () => ALL_NAV_LINKS.filter((l) => !('hidden' in l && l.hidden) && (!l.adminOnly || isAdmin)),
     [isAdmin]
   );
 
@@ -126,6 +127,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       localStorage.removeItem(CASHIER_NAME_KEY);
       localStorage.removeItem(POPUP_ID_KEY);
       localStorage.removeItem(POPUP_NAME_KEY);
+      localStorage.removeItem(WORKER_ROLE_KEY);
     } catch { /* ignore */ }
     // signOut 응답을 기다리지 않고 즉시 이동한다 — 호출이 멈추거나 느려도
     // /pos에 머무는 일 없이 항상 역할 선택 화면(/)으로 보낸다.

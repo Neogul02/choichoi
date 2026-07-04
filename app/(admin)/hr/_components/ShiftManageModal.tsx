@@ -15,7 +15,7 @@ interface Props {
   onClose: () => void;
 }
 
-const EMPTY_FORM: RosterShiftInput = { name: '', start_time: '09:00', end_time: '18:00', weekday_required: 1, weekend_required: 1 };
+const EMPTY_FORM: RosterShiftInput = { name: '', start_time: '09:00', end_time: '18:00', weekday_required: 1, weekend_required: 1, active_from: null, active_to: null };
 
 export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChange, onClose }: Props) {
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
@@ -32,6 +32,8 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
       end_time: shift.end_time,
       weekday_required: shift.weekday_required,
       weekend_required: shift.weekend_required,
+      active_from: shift.active_from ?? null,
+      active_to: shift.active_to ?? null,
     });
   };
 
@@ -114,6 +116,22 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
           />
         </div>
       </div>
+      <div className="flex flex-col gap-1">
+        <label className={labelCls}>활성 기간 <span className="font-normal text-ink-faint">(비워두면 제한 없음)</span></label>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date" value={form.active_from ?? ''}
+            onChange={e => setForm(f => ({ ...f, active_from: e.target.value || null }))}
+            className={`${inputCls} flex-1`}
+          />
+          <span className="text-ink-faint text-[12px] shrink-0">~</span>
+          <input
+            type="date" value={form.active_to ?? ''}
+            onChange={e => setForm(f => ({ ...f, active_to: e.target.value || null }))}
+            className={`${inputCls} flex-1`}
+          />
+        </div>
+      </div>
       <div className="flex gap-1.5 mt-0.5">
         <button
           type="button" onClick={() => setEditingId(null)} disabled={isBusy}
@@ -168,6 +186,11 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
                   <p className="m-0 text-[11px] text-ink-muted">
                     {shift.start_time}~{shift.end_time} · 평일 {shift.weekday_required}명 · 주말 {shift.weekend_required}명
                   </p>
+                  {(shift.active_from || shift.active_to) && (
+                    <p className="m-0 text-[10px] text-primary-600 mt-0.5">
+                      {shift.active_from ? shift.active_from.slice(5).replace('-', '/') : '∞'} ~ {shift.active_to ? shift.active_to.slice(5).replace('-', '/') : '∞'}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => startEdit(shift)}
