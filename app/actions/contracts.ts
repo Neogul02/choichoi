@@ -278,13 +278,20 @@ export async function signContract(
 
     const { data: row, error: fetchError } = await admin
       .from('contracts')
-      .select('*, workers!inner(user_profile_id, name)')
+      .select('*')
       .eq('id', contractId)
       .single()
 
     if (fetchError || !row) throw new Error('계약서를 찾을 수 없습니다')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((row as any).workers.user_profile_id !== session.user.id) throw new Error('권한이 없습니다')
+
+    // worker_id는 workers.id 또는 staff_profiles.id일 수 있음 — 양쪽 모두 확인
+    const [workerCheck, staffCheck] = await Promise.all([
+      admin.from('workers').select('id, name').eq('id', row.worker_id).eq('user_profile_id', session.user.id).maybeSingle(),
+      admin.from('staff_profiles').select('id, name').eq('id', row.worker_id).eq('user_profile_id', session.user.id).maybeSingle(),
+    ])
+    const ownerRecord = workerCheck.data ?? staffCheck.data
+    if (!ownerRecord) throw new Error('권한이 없습니다')
+
     if (row.worker_signed_at) throw new Error('이미 서명된 계약서입니다')
 
     let finalSignedUrl: string | null = null
@@ -319,8 +326,7 @@ export async function signContract(
     }).eq('id', contractId)
 
     const { notifyDiscord } = await import('@/lib/discord')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const workerName = (row as any).workers.name ?? '알 수 없음'
+    const workerName = ownerRecord.name ?? '알 수 없음'
     await notifyDiscord(
       'add',
       '✍️ 근로계약서 서명 완료',
