@@ -66,6 +66,9 @@ export async function generateContract(
   return wrap(async () => {
     const admin = getAdminClient()
 
+    const { data: staffRow } = await admin.from('staff_profiles').select('id').eq('id', input.workerId).maybeSingle()
+    if (!staffRow) throw new Error('근무자 정보를 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도하세요.')
+
     const { data: contractRow, error: insertError } = await admin
       .from('contracts')
       .insert({
@@ -150,21 +153,14 @@ export async function getMyContracts(): Promise<ApiResponse<ContractRecord[]>> {
 
     const admin = getAdminClient()
 
-    const [workerRowsRes, staffRowsRes] = await Promise.all([
-      admin.from('workers').select('id').eq('user_profile_id', session.user.id),
-      admin.from('staff_profiles').select('id').eq('user_profile_id', session.user.id),
-    ])
-
-    const allIds = [
-      ...((workerRowsRes.data ?? []) as { id: number }[]).map(w => w.id),
-      ...((staffRowsRes.data ?? []) as { id: number }[]).map(s => s.id),
-    ]
-    if (!allIds.length) return []
+    const { data: staffRows } = await admin.from('staff_profiles').select('id').eq('user_profile_id', session.user.id)
+    const staffIds = (staffRows ?? []).map(s => s.id)
+    if (!staffIds.length) return []
 
     const { data, error } = await admin
       .from('contracts')
       .select('*')
-      .in('worker_id', allIds)
+      .in('worker_id', staffIds)
       .order('issued_at', { ascending: false })
 
     if (error) throw error
@@ -196,6 +192,15 @@ export async function deleteContract(
   })
 }
 
+export async function fetchContractedStaffIds(): Promise<ApiResponse<number[]>> {
+  return wrap(async () => {
+    const admin = getAdminClient()
+    const { data, error } = await admin.from('contracts').select('worker_id')
+    if (error) throw error
+    return Array.from(new Set((data ?? []).map(c => c.worker_id)))
+  })
+}
+
 export async function getWorkerContracts(
   workerId: number,
 ): Promise<ApiResponse<ContractRecord[]>> {
@@ -208,58 +213,6 @@ export async function getWorkerContracts(
       .order('issued_at', { ascending: false })
     if (error) throw error
     return attachSignedUrls(admin, (data ?? []) as ContractRecord[])
-  })
-}
-
-export async function fetchWorkerScheduleForContract(
-  workerId: number,
-  eventId: number,
-): Promise<ApiResponse<import('@/components/ContractDocument').WorkDaySchedule[]>> {
-  return wrap(async () => {
-    const admin = getAdminClient()
-    const { data, error } = await admin
-      .from('schedule_slots')
-      .select('schedule_date, work_time, break_time')
-      .eq('worker_id', workerId)
-      .eq('event_id', eventId)
-      .not('work_time', 'is', null)
-
-    if (error) throw error
-    if (!data?.length) return []
-
-    // 요일별로 그룹화 → 가장 빈번한 work_time 패턴 선택
-    const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
-    const byDay: Record<string, Record<string, { count: number; breakTime: number }>> = {}
-
-    for (const slot of data) {
-      const day = DAY_NAMES[new Date(slot.schedule_date).getDay()]
-      const wt = slot.work_time!
-      if (!byDay[day]) byDay[day] = {}
-      if (!byDay[day][wt]) byDay[day][wt] = { count: 0, breakTime: slot.break_time ?? 0 }
-      byDay[day][wt].count++
-    }
-
-    const DAY_ORDER = ['월', '화', '수', '목', '금', '토', '일'] as const
-    const fmt = (mins: number) =>
-      `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
-
-    return DAY_ORDER.filter(d => byDay[d]).map(day => {
-      const [workTime, { breakTime }] = Object.entries(byDay[day]).sort((a, b) => b[1].count - a[1].count)[0]
-      const [startTime, endTime] = workTime.split(/[-~]/)
-
-      let breakStart = ''
-      let breakEnd = ''
-      if (breakTime > 0 && startTime && endTime) {
-        const [sh, sm] = startTime.split(':').map(Number)
-        const [eh, em] = endTime.split(':').map(Number)
-        const totalMins = (eh * 60 + em) - (sh * 60 + sm)
-        const midMins = sh * 60 + sm + Math.floor(totalMins / 2)
-        breakStart = fmt(midMins - Math.floor(breakTime / 2))
-        breakEnd = fmt(midMins - Math.floor(breakTime / 2) + breakTime)
-      }
-
-      return { day, startTime: startTime ?? '', endTime: endTime ?? '', breakStart, breakEnd }
-    })
   })
 }
 
@@ -284,14 +237,13 @@ export async function signContract(
 
     if (fetchError || !row) throw new Error('계약서를 찾을 수 없습니다')
 
-    // worker_id는 workers.id 또는 staff_profiles.id일 수 있음 — 양쪽 모두 확인
-    const [workerCheck, staffCheck] = await Promise.all([
-      admin.from('workers').select('id, name').eq('id', row.worker_id).eq('user_profile_id', session.user.id).maybeSingle(),
-      admin.from('staff_profiles').select('id, name').eq('id', row.worker_id).eq('user_profile_id', session.user.id).maybeSingle(),
-    ])
-    if (workerCheck.error) throw workerCheck.error
-    if (staffCheck.error) throw staffCheck.error
-    const ownerRecord = workerCheck.data ?? staffCheck.data
+    const { data: ownerRecord, error: ownerError } = await admin
+      .from('staff_profiles')
+      .select('id, name')
+      .eq('id', row.worker_id)
+      .eq('user_profile_id', session.user.id)
+      .maybeSingle()
+    if (ownerError) throw ownerError
     if (!ownerRecord) throw new Error('권한이 없습니다')
 
     if (row.worker_signed_at) throw new Error('이미 서명된 계약서입니다')

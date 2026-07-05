@@ -1,37 +1,38 @@
 'use client';
 
 import { useState } from 'react';
-import type { PopupEvent } from '@/types/database';
+import type { PopupEvent, Store } from '@/types/database';
 
 interface Props {
   events: PopupEvent[];
+  stores: Store[];
   selectedEvent: PopupEvent | null;
   isEventsLoading: boolean;
   showAddEvent: boolean;
-  newEvent: { name: string; startDate: string; endDate: string };
+  newEvent: { name: string; startDate: string; endDate: string; storeId: number | null };
   startWeekday: string | null;
   onToggleAddEvent: () => void;
-  onUpdateNewEvent: (updates: Partial<{ name: string; startDate: string; endDate: string }>) => void;
+  onUpdateNewEvent: (updates: Partial<{ name: string; startDate: string; endDate: string; storeId: number | null }>) => void;
   onCreateEvent: () => void;
   onSelectEvent: (event: PopupEvent) => void;
   onDeleteEvent: (e: React.MouseEvent, event: PopupEvent) => void;
-  onEditEvent: (event: PopupEvent, name: string, startDate: string, endDate: string) => Promise<void>;
+  onEditEvent: (event: PopupEvent, name: string, startDate: string, endDate: string, storeId: number | null) => Promise<void>;
 }
 
 export default function ScheduleSidebar({
-  events, selectedEvent, isEventsLoading,
+  events, stores, selectedEvent, isEventsLoading,
   showAddEvent, newEvent, startWeekday,
   onToggleAddEvent, onUpdateNewEvent, onCreateEvent,
   onSelectEvent, onDeleteEvent, onEditEvent,
 }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', startDate: '', endDate: '' });
+  const [editForm, setEditForm] = useState({ name: '', startDate: '', endDate: '', storeId: null as number | null });
   const [isSaving, setIsSaving] = useState(false);
 
   const openEdit = (e: React.MouseEvent, event: PopupEvent) => {
     e.stopPropagation();
     setEditingId(event.id);
-    setEditForm({ name: event.name, startDate: event.start_date, endDate: event.end_date });
+    setEditForm({ name: event.name, startDate: event.start_date, endDate: event.end_date, storeId: event.store_id });
   };
 
   const cancelEdit = (e: React.MouseEvent) => {
@@ -42,7 +43,7 @@ export default function ScheduleSidebar({
   const saveEdit = async (e: React.MouseEvent, event: PopupEvent) => {
     e.stopPropagation();
     setIsSaving(true);
-    await onEditEvent(event, editForm.name, editForm.startDate, editForm.endDate);
+    await onEditEvent(event, editForm.name, editForm.startDate, editForm.endDate, editForm.storeId);
     setIsSaving(false);
     setEditingId(null);
   };
@@ -75,6 +76,17 @@ export default function ScheduleSidebar({
               onKeyDown={e => e.key === 'Enter' && onCreateEvent()}
               className={inputCls}
             />
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] font-semibold text-ink-muted">매장</label>
+              <select
+                value={newEvent.storeId ?? ''}
+                onChange={e => onUpdateNewEvent({ storeId: e.target.value ? Number(e.target.value) : null })}
+                className={inputCls}
+              >
+                <option value="">선택 안 함</option>
+                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
             <div className="flex flex-col gap-0.5">
               <label className="text-[10px] font-semibold text-ink-muted">
                 시작일 {startWeekday && <span className="text-primary-700">{startWeekday}요일</span>}
@@ -116,6 +128,17 @@ export default function ScheduleSidebar({
                       autoFocus
                     />
                     <div className="flex flex-col gap-0.5">
+                      <label className="text-[10px] font-semibold text-ink-muted">매장</label>
+                      <select
+                        value={editForm.storeId ?? ''}
+                        onChange={e => setEditForm(f => ({ ...f, storeId: e.target.value ? Number(e.target.value) : null }))}
+                        className={inputCls}
+                      >
+                        <option value="">선택 안 함</option>
+                        {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
                       <label className="text-[10px] font-semibold text-ink-muted">시작일</label>
                       <input type="date" value={editForm.startDate} onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))} className={inputCls} />
                     </div>
@@ -145,6 +168,11 @@ export default function ScheduleSidebar({
                     <div className="flex-1 min-w-0">
                       <strong className="block text-[12px] font-bold text-ink truncate">{event.name}</strong>
                       <span className="text-[10px] text-ink-muted">{event.start_date} ~ {event.end_date}</span>
+                      {event.store_id != null && (
+                        <span className="block text-[10px] text-primary-700 font-semibold">
+                          {stores.find(s => s.id === event.store_id)?.name ?? '알 수 없는 매장'}
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={e => openEdit(e, event)}

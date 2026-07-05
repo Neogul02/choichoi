@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
+import { formatBreakMinutes } from '@/lib/utils';
 import { createRosterShift, updateRosterShift, deleteRosterShift, updateRosterShiftOrder } from '@/app/actions/roster';
 import type { RosterUnit, RosterShiftInput } from '@/app/actions/roster';
 import type { RosterShift } from '@/types/database';
@@ -15,7 +16,7 @@ interface Props {
   onClose: () => void;
 }
 
-const EMPTY_FORM: RosterShiftInput = { name: '', start_time: '09:00', end_time: '18:00', weekday_required: 1, weekend_required: 1, active_from: null, active_to: null };
+const EMPTY_FORM: RosterShiftInput = { name: '', start_time: '09:00', end_time: '18:00', weekday_required: 1, weekend_required: 1, active_from: null, active_to: null, break_minutes: 0 };
 
 export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChange, onClose }: Props) {
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
@@ -34,6 +35,7 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
       weekend_required: shift.weekend_required,
       active_from: shift.active_from ?? null,
       active_to: shift.active_to ?? null,
+      break_minutes: shift.break_minutes,
     });
   };
 
@@ -97,6 +99,14 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
         <input type="time" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} className={`${inputCls} flex-1 min-w-0`} />
         <span className="text-ink-faint text-[12px]">~</span>
         <input type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} className={`${inputCls} flex-1 min-w-0`} />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <label className={labelCls}>휴게시간(분)</label>
+        <input
+          type="number" min={0} step={5} value={form.break_minutes}
+          onChange={e => setForm(f => ({ ...f, break_minutes: Math.max(0, Number(e.target.value)) }))}
+          className={`${inputCls} w-16 text-center`}
+        />
       </div>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
@@ -184,7 +194,9 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
                 <div className="flex-1 min-w-0">
                   <p className="m-0 text-[13px] font-bold text-ink truncate">{shift.name}</p>
                   <p className="m-0 text-[11px] text-ink-muted">
-                    {shift.start_time}~{shift.end_time} · 평일 {shift.weekday_required}명 · 주말 {shift.weekend_required}명
+                    {shift.start_time}~{shift.end_time}
+                    {shift.break_minutes > 0 && ` · 휴게 ${formatBreakMinutes(shift.break_minutes)}`}
+                    {' '}· 평일 {shift.weekday_required}명 · 주말 {shift.weekend_required}명
                   </p>
                   {(shift.active_from || shift.active_to) && (
                     <p className="m-0 text-[10px] text-primary-600 mt-0.5">

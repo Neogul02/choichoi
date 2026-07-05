@@ -79,6 +79,7 @@ export interface RosterShiftInput {
   weekend_required: number
   active_from?: string | null
   active_to?: string | null
+  break_minutes: number
 }
 
 export async function createRosterShift(unit: RosterUnit, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
@@ -544,6 +545,8 @@ export interface MyShift {
   start_time: string
   end_time: string
   hours: number
+  breakMinutes: number
+  netHours: number
 }
 
 export interface MyRosterData {
@@ -696,7 +699,7 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
 
     const { data: assignData, error: assignError } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time)')
+      .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time, break_minutes)')
       .eq('staff_id', staff.id)
       .gte('work_date', from)
       .lte('work_date', to)
@@ -704,17 +707,21 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
     if (assignError) return { success: false, error: assignError.message }
 
     const shifts: MyShift[] = (assignData ?? []).map(a => {
-      const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string } | null
+      const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string; break_minutes: number } | null
       const start = a.start_time ?? shift?.start_time ?? '00:00'
       const end = a.end_time ?? shift?.end_time ?? '00:00'
       let mins = toMinutes(end) - toMinutes(start)
       if (mins < 0) mins += 24 * 60
+      const hours = Math.round((mins / 60) * 10) / 10
+      const breakMinutes = shift?.break_minutes ?? 0
       return {
         work_date: a.work_date,
         shift_name: shift?.name ?? '근무',
         start_time: start,
         end_time: end,
-        hours: Math.round((mins / 60) * 10) / 10,
+        hours,
+        breakMinutes,
+        netHours: Math.round((hours - breakMinutes / 60) * 10) / 10,
       }
     })
 

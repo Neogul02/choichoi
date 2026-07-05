@@ -3,9 +3,7 @@ import type {
   MenuItem,
   Order,
   PopupEvent,
-  ScheduleSlot,
   Memo,
-  Worker,
   Ingredient,
   Recipe,
   RestockEvent,
@@ -19,7 +17,7 @@ import type {
   OrderRecordWithItems,
   DailySalesItem,
 } from '@/types/api'
-import type { OrderItemInput, WorkerInput } from '@/lib/supabase'
+import type { OrderItemInput } from '@/lib/supabase'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -424,10 +422,11 @@ export async function createPopupEvent(
   name: string,
   startDate: string,
   endDate: string,
+  storeId: number | null,
 ): Promise<PopupEvent> {
   const { data, error } = await supabaseAdmin
     .from('popup_events')
-    .insert([{ name, start_date: startDate, end_date: endDate }])
+    .insert([{ name, start_date: startDate, end_date: endDate, store_id: storeId }])
     .select()
     .single()
   if (error) throw error
@@ -435,7 +434,6 @@ export async function createPopupEvent(
 }
 
 export async function deletePopupEvent(id: number): Promise<void> {
-  await supabaseAdmin.from('schedule_slots').delete().eq('event_id', id)
   const { error } = await supabaseAdmin
     .from('popup_events')
     .delete()
@@ -448,137 +446,16 @@ export async function updatePopupEvent(
   name: string,
   startDate: string,
   endDate: string,
+  storeId: number | null,
 ): Promise<PopupEvent> {
   const { data, error } = await supabaseAdmin
     .from('popup_events')
-    .update({ name, start_date: startDate, end_date: endDate })
+    .update({ name, start_date: startDate, end_date: endDate, store_id: storeId })
     .eq('id', id)
     .select()
     .single()
   if (error) throw error
   return data as PopupEvent
-}
-
-// ── Schedule Slots ────────────────────────────────────────────────────────────
-
-export async function getScheduleByEvent(
-  eventId: number,
-): Promise<ScheduleSlot[]> {
-  const { data, error } = await supabaseAdmin
-    .from('schedule_slots')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return data ?? []
-}
-
-export async function addScheduleSlot(
-  eventId: number,
-  scheduleDate: string,
-  role: string,
-  personName: string,
-  workTime: string,
-  workerId?: number,
-  breakTime?: number,
-): Promise<ScheduleSlot> {
-  const { data, error } = await supabaseAdmin
-    .from('schedule_slots')
-    .insert([
-      {
-        event_id: eventId,
-        schedule_date: scheduleDate,
-        role,
-        person_name: personName,
-        work_time: workTime || null,
-        break_time: breakTime ?? 0,
-        worker_id: workerId ?? null,
-      },
-    ])
-    .select()
-    .single()
-  if (error) throw error
-  return data as ScheduleSlot
-}
-
-export async function removeScheduleSlot(id: number): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('schedule_slots')
-    .delete()
-    .eq('id', id)
-  if (error) throw error
-}
-
-export async function updateScheduleSlot(
-  id: number,
-  personName: string,
-  workTime: string,
-  workerId?: number | null,
-  breakTime?: number,
-): Promise<ScheduleSlot> {
-  const { data, error } = await supabaseAdmin
-    .from('schedule_slots')
-    .update({
-      person_name: personName,
-      work_time: workTime || null,
-      break_time: breakTime ?? 0,
-      worker_id: workerId ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as ScheduleSlot
-}
-
-export async function copyScheduleSlot(
-  sourceId: number,
-  newDate: string,
-  newRole: string,
-): Promise<ScheduleSlot> {
-  const { data: source, error: fetchError } = await supabaseAdmin
-    .from('schedule_slots')
-    .select('*')
-    .eq('id', sourceId)
-    .single()
-  if (fetchError) throw fetchError
-  const { data, error } = await supabaseAdmin
-    .from('schedule_slots')
-    .insert([
-      {
-        event_id: source.event_id,
-        schedule_date: newDate,
-        role: newRole,
-        person_name: source.person_name,
-        work_time: source.work_time,
-        break_time: source.break_time ?? 0,
-        worker_id: source.worker_id,
-      },
-    ])
-    .select()
-    .single()
-  if (error) throw error
-  return data as ScheduleSlot
-}
-
-export async function moveScheduleSlot(
-  id: number,
-  newDate: string,
-  newRole: string,
-): Promise<ScheduleSlot> {
-  const { data, error } = await supabaseAdmin
-    .from('schedule_slots')
-    .update({
-      schedule_date: newDate,
-      role: newRole,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as ScheduleSlot
 }
 
 // ── Memos ─────────────────────────────────────────────────────────────────────
@@ -597,10 +474,11 @@ export async function createMemo(
   title: string,
   content: string,
   color: string,
+  type: 'note' | 'checklist' = 'note',
 ): Promise<Memo> {
   const { data, error } = await supabaseAdmin
     .from('memos')
-    .insert([{ title: title || null, content, color: color || '#fff9c4' }])
+    .insert([{ title: title || null, content, color: color || '#fff9c4', type }])
     .select()
     .single()
   if (error) throw error
@@ -612,6 +490,7 @@ export async function updateMemo(
   title: string,
   content: string,
   color: string,
+  type: 'note' | 'checklist',
 ): Promise<Memo> {
   const { data, error } = await supabaseAdmin
     .from('memos')
@@ -619,6 +498,7 @@ export async function updateMemo(
       title: title || null,
       content,
       color: color || '#fff9c4',
+      type,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -762,84 +642,6 @@ export async function getMenuSalesByPeriod(
       totalRevenue: Number(row.total_revenue),
     }),
   )
-}
-
-// ── Workers ───────────────────────────────────────────────────────────────────
-
-export const WORKER_COLUMNS = 'id, event_id, name, color, phone, bank_name, bank_account, hourly_rate, payment_done, worker_role, user_profile_id, created_at, updated_at'
-
-export async function getWorkers(eventId: number): Promise<Worker[]> {
-  const { data, error } = await supabaseAdmin
-    .from('workers')
-    .select(WORKER_COLUMNS)
-    .eq('event_id', eventId)
-    .order('name', { ascending: true })
-  if (error) throw error
-  return data ?? []
-}
-
-export async function createWorker(input: WorkerInput): Promise<Worker> {
-  const { data, error } = await supabaseAdmin
-    .from('workers')
-    .insert([
-      {
-        event_id: input.event_id,
-        name: input.name,
-        color: input.color || '#6366f1',
-        phone: input.phone || null,
-        bank_name: input.bank_name || null,
-        bank_account: input.bank_account || null,
-        hourly_rate: input.hourly_rate ?? 0,
-        worker_role: input.worker_role || '프론트',
-        user_profile_id: input.user_profile_id || null,
-      },
-    ])
-    .select()
-    .single()
-  if (error) throw error
-  return data as Worker
-}
-
-export async function updateWorker(
-  id: number,
-  input: WorkerInput,
-): Promise<Worker> {
-  const { data, error } = await supabaseAdmin
-    .from('workers')
-    .update({
-      name: input.name,
-      color: input.color || '#6366f1',
-      phone: input.phone || null,
-      bank_name: input.bank_name || null,
-      bank_account: input.bank_account || null,
-      hourly_rate: input.hourly_rate ?? 0,
-      worker_role: input.worker_role || '프론트',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as Worker
-}
-
-export async function deleteWorker(id: number): Promise<void> {
-  const { error } = await supabaseAdmin.from('workers').delete().eq('id', id)
-  if (error) throw error
-}
-
-export async function setWorkerPaymentDone(
-  id: number,
-  done: boolean,
-): Promise<Worker> {
-  const { data, error } = await supabaseAdmin
-    .from('workers')
-    .update({ payment_done: done, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as Worker
 }
 
 // ── Inventory ─────────────────────────────────────────────────────────────────

@@ -3,8 +3,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
-import type { Worker } from '@/types/database'
-import { WORKER_COLUMNS } from '@/lib/supabase-admin'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -449,8 +447,6 @@ export async function deleteMyAccount(): Promise<ApiResponse> {
   }
 }
 
-const WORKER_COLORS = ['#22c55e', '#6366f1', '#ef4444', '#f97316', '#64748b']
-
 export async function fetchAllUserProfiles(): Promise<ApiResponse<UserProfile[]>> {
   try {
     const { data, error } = await supabaseAdmin
@@ -459,76 +455,6 @@ export async function fetchAllUserProfiles(): Promise<ApiResponse<UserProfile[]>
       .order('name')
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as UserProfile[] }
-  } catch (err) {
-    return { success: false, error: String(err) }
-  }
-}
-
-export async function findOrCreateWorkerFromProfile(
-  eventId: number,
-  profileId: string,
-): Promise<ApiResponse<Worker>> {
-  try {
-    // 이미 이 이벤트에 해당 user_profile_id로 등록된 worker 있으면 반환
-    const { data: existing } = await supabaseAdmin
-      .from('workers')
-      .select(WORKER_COLUMNS)
-      .eq('event_id', eventId)
-      .eq('user_profile_id', profileId)
-      .maybeSingle()
-    if (existing) return { success: true, data: existing as Worker }
-
-    // user_profiles에서 정보 가져오기
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .select(USER_PROFILE_COLUMNS)
-      .eq('id', profileId)
-      .single()
-    if (profileError || !profile) return { success: false, error: '프로필을 찾을 수 없습니다.' }
-
-    // 이 이벤트의 기존 worker 수로 색상 순환
-    const { count } = await supabaseAdmin
-      .from('workers')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId)
-    const color = WORKER_COLORS[(count ?? 0) % WORKER_COLORS.length]
-
-    const { data: newWorker, error: createError } = await supabaseAdmin
-      .from('workers')
-      .insert([{
-        event_id: eventId,
-        name: profile.name,
-        color,
-        phone: profile.phone ?? null,
-        bank_name: profile.bank_name ?? null,
-        bank_account: profile.bank_account ?? null,
-        hourly_rate: 0,
-        worker_role: profile.worker_role ?? '프론트',
-        user_profile_id: profileId,
-      }])
-      .select()
-      .single()
-    if (createError || !newWorker) return { success: false, error: createError?.message ?? '생성 실패' }
-    return { success: true, data: newWorker as Worker }
-  } catch (err) {
-    return { success: false, error: String(err) }
-  }
-}
-
-export async function findWorkerByProfileId(
-  profileId: string,
-): Promise<ApiResponse<Worker>> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('workers')
-      .select('*')
-      .eq('user_profile_id', profileId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (error) return { success: false, error: error.message }
-    if (!data) return { success: false, error: '연결된 Worker 레코드가 없습니다.' }
-    return { success: true, data: data as Worker }
   } catch (err) {
     return { success: false, error: String(err) }
   }
