@@ -300,7 +300,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     <>
     <div className="flex flex-col lg:flex-row gap-3 items-start">
       {/* ── 달력 ── */}
-      <div className="flex-1 min-w-0 w-full bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
+      <div className="flex-1 min-w-0 w-full bg-canvas rounded-2xl p-3 md:p-4 shadow-level-1 border border-hairline">
         {/* 매장 선택 (캐셔일 때만) */}
         {roleFilter === 'cashier' && (
           <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-hairline">
@@ -331,7 +331,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           </div>
         )}
 
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2">
             <button
               className="w-7 h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
@@ -613,7 +613,7 @@ function DayPanel({
   }
 
   return (
-    <div className="w-full lg:w-[340px] shrink-0 bg-canvas rounded-xl p-4 shadow-level-1 border border-hairline">
+    <div className="w-full lg:w-[340px] shrink-0 bg-canvas rounded-2xl p-4 shadow-level-1 border border-hairline">
       <div className="flex items-center justify-between mb-3">
         <h3 className="m-0 text-[15px] font-extrabold">
           {Number(dateStr.slice(5, 7))}월 {Number(dateStr.slice(8))}일

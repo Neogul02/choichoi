@@ -55,7 +55,7 @@ export default function PayrollPanel({ defaultRole }: Props) {
   const hasPayRate = rows.some(r => r.totalPay != null)
 
   return (
-    <div className="bg-canvas rounded-xl border border-hairline shadow-level-1 overflow-hidden">
+    <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-hairline bg-canvas-soft">
         <div className="flex items-center gap-1.5">

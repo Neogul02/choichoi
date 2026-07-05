@@ -234,12 +234,12 @@ export default function HrPage() {
   return (
     <>
       <NavBar />
-      <main className="min-h-screen p-3 md:p-4">
-        <h1 className="m-0 text-lg font-extrabold mb-4">인사관리</h1>
+      <main className="min-h-screen p-3 md:p-5">
+        <h1 className="m-0 text-[19px] font-extrabold mb-4">인사관리</h1>
 
-        <div ref={containerRef} className="flex flex-row items-start select-none">
-          {/* 좌측: 직원 목록 */}
-          <div className="flex flex-col shrink-0 min-w-0" style={{ width: leftWidth }}>
+        <div ref={containerRef} className="flex flex-col lg:flex-row items-stretch lg:items-start select-none gap-4 lg:gap-0">
+          {/* 좌측: 직원 목록 — lg 미만에서는 전체 폭 세로 스택 */}
+          <div className="flex flex-col shrink-0 min-w-0 w-full lg:w-[var(--left-w)]" style={{ '--left-w': `${leftWidth}px` } as React.CSSProperties}>
             {/* 주방/캐셔 + 등록 버튼 */}
             <div className="flex items-center gap-2 mb-3">
               <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
@@ -260,7 +260,7 @@ export default function HrPage() {
               </div>
               <button
                 onClick={() => { setEditingStaff(null); form.open(); }}
-                className="ml-auto px-3 py-2 rounded-lg border-none bg-primary-700 text-white text-[12px] font-bold cursor-pointer hover:bg-primary-800 transition"
+                className="ml-auto px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition"
               >
                 + 등록
               </button>
@@ -289,7 +289,7 @@ export default function HrPage() {
                   <button
                     key={f}
                     onClick={() => setStatusFilter(f)}
-                    className={`px-2.5 py-1.5 text-[11px] font-bold border-none cursor-pointer transition whitespace-nowrap ${
+                    className={`px-2.5 py-1.5 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${
                       statusFilter === f ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                     }`}
                   >
@@ -301,15 +301,15 @@ export default function HrPage() {
               <input
                 type="text" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="이름/전화 검색"
-                className="px-3 py-1.5 border border-hairline rounded-xl text-[12px] bg-canvas shadow-level-1 focus:outline-none focus:border-primary-700 w-[120px]"
+                className="px-3 py-1.5 border border-hairline rounded-xl text-[13px] bg-canvas shadow-level-1 focus:outline-none focus:border-primary-700 flex-1 min-w-[130px] max-w-[220px]"
               />
             </div>
 
             {/* 불합격 통지 폼 */}
             {statusFilter === 'rejected' && (
-              <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200">
+              <div className="mb-3 p-3 rounded-2xl bg-rose-50 border border-rose-200">
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="m-0 text-[11px] font-bold text-rose-700">불합격 통지 메시지</p>
+                  <p className="m-0 text-[12px] font-bold text-rose-700">불합격 통지 메시지</p>
                   <button
                     onClick={async () => { await navigator.clipboard.writeText(rejectionMsg); showMsg('클립보드에 복사됐습니다!'); }}
                     className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-bold border-none cursor-pointer hover:bg-rose-700 transition"
@@ -321,7 +321,7 @@ export default function HrPage() {
                   value={rejectionMsg}
                   onChange={e => setRejectionMsg(e.target.value)}
                   rows={8}
-                  className="w-full px-2.5 py-2 border border-rose-200 rounded-lg text-[11px] bg-white focus:outline-none focus:border-rose-400 resize-y leading-relaxed"
+                  className="w-full px-2.5 py-2 border border-rose-200 rounded-lg text-[12px] bg-white focus:outline-none focus:border-rose-400 resize-y leading-relaxed"
                 />
                 <button
                   onClick={() => setRejectionMsg(DEFAULT_REJECTION_MSG)}
@@ -333,8 +333,8 @@ export default function HrPage() {
             )}
 
             {/* 직원 테이블 */}
-            <div className="bg-canvas rounded-xl border border-hairline shadow-level-1 overflow-hidden">
-              <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
+            <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
+              <div className="max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto">
                 {isLoading ? (
                   <p className="text-ink-faint text-sm p-4 m-0">불러오는 중...</p>
                 ) : filtered.length === 0 ? (
@@ -342,7 +342,7 @@ export default function HrPage() {
                     {staffList.length === 0 ? '등록된 직원이 없습니다. 면접자 정보를 등록해보세요.' : '조건에 맞는 직원이 없습니다.'}
                   </p>
                 ) : (
-                  <table className="w-full border-collapse text-[12px]">
+                  <table className="w-full min-w-[540px] border-collapse text-[13px]">
                     <thead>
                       <tr className="border-b border-hairline bg-canvas-soft sticky top-0">
                         <th className="w-5 px-1 py-2"></th>
@@ -394,13 +394,13 @@ export default function HrPage() {
           {/* 드래그 바 */}
           <div
             onMouseDown={handleDividerMouseDown}
-            className="w-3 shrink-0 self-stretch cursor-col-resize flex items-center justify-center group"
+            className="hidden lg:flex w-3 shrink-0 self-stretch cursor-col-resize items-center justify-center group"
           >
             <div className="w-0.5 h-12 rounded-full bg-hairline group-hover:bg-primary-400 transition-colors" />
           </div>
 
           {/* 우측: 탭 + 패널 */}
-          <div className="flex-1 min-w-[300px] flex flex-col gap-3">
+          <div className="flex-1 min-w-0 w-full lg:min-w-[300px] flex flex-col gap-3">
             {/* 우측 탭 + 근무표 인쇄 */}
             <div className="flex items-center gap-2">
               <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 w-fit">
@@ -408,7 +408,7 @@ export default function HrPage() {
                   <button
                     key={tab}
                     onClick={() => setRightTab(tab)}
-                    className={`px-4 py-2 text-[12px] font-bold border-none cursor-pointer transition ${
+                    className={`px-4 py-2 text-[13px] font-bold border-none cursor-pointer transition ${
                       rightTab === tab ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                     }`}
                   >
@@ -418,7 +418,7 @@ export default function HrPage() {
               </div>
               <button
                 onClick={() => rosterPrint.open()}
-                className="px-3 py-2 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-soft transition shadow-level-1"
+                className="px-3 py-2 rounded-xl bg-canvas border border-hairline text-[13px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-soft transition shadow-level-1"
               >
                 근무표 인쇄
               </button>
@@ -532,9 +532,9 @@ function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, 
       </td>
       <td className="px-3 py-2.5">
         <div className="font-bold text-ink leading-tight">{staff.name}</div>
-        {staff.phone && <div className="text-[11px] text-ink-muted mt-0.5">{staff.phone}</div>}
+        {staff.phone && <div className="text-[12px] text-ink-muted mt-0.5">{staff.phone}</div>}
         {staff.staff_role === 'cashier' && (
-          <div className={`text-[10px] font-semibold mt-0.5 ${store ? 'text-violet-600' : 'text-amber-600'}`}>
+          <div className={`text-[11px] font-semibold mt-0.5 ${store ? 'text-violet-600' : 'text-amber-600'}`}>
             {store ? store.name : '매장 미배정'}
           </div>
         )}
@@ -543,7 +543,7 @@ function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, 
         <select
           value={staff.status}
           onChange={e => onStatusChange(e.target.value as StaffStatus)}
-          className={`text-[10px] font-bold px-1 py-0.5 rounded border cursor-pointer appearance-none text-center ${sc.bg} ${sc.text} ${sc.border}`}
+          className={`text-[11px] font-bold px-1.5 py-1 rounded-md border cursor-pointer appearance-none text-center ${sc.bg} ${sc.text} ${sc.border}`}
         >
           {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
             <option key={s} value={s}>{STATUS_LABELS[s]}</option>
@@ -556,19 +556,19 @@ function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, 
       <td className="px-2 py-2.5 text-ink-muted whitespace-nowrap">
         {staff.available_ranges.length === 0 ? '무관' : formatRanges(staff.available_ranges)}
       </td>
-      <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-1">
+      <td className="px-2 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1 flex-nowrap">
           <button
             onClick={onCalendar}
             title="근무 캘린더"
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
+            className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
           >
             달력
           </button>
           <button
             onClick={onAssign}
             title="일정 배정"
-            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition cursor-pointer"
+            className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition cursor-pointer"
           >
             배정
           </button>
@@ -576,7 +576,7 @@ function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, 
             <button
               onClick={onContract}
               title="근로계약서 작성"
-              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border transition cursor-pointer ${
+              className={`whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg border transition cursor-pointer ${
                 contractDone
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                   : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
@@ -589,7 +589,7 @@ function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, 
             <button
               onClick={onContractsList}
               title="근로계약서 목록"
-              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
+              className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
             >
               목록
             </button>
