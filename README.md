@@ -198,7 +198,6 @@ components/
 ├── NavBar.tsx                   # 네비게이션 (isAdmin 상태로 어드민 링크 노출)
 ├── SalesBanner.tsx               # 오늘 매출 배너 (티어별 그라데이션)
 ├── CheerPanel.tsx / FloatingEmojis.tsx   # 응원 기능 UI
-├── ContractGenerateModal.tsx     # 근로계약서 작성 모달 (실시간 미리보기)
 ├── WorkerSignModal.tsx           # 근로자 전자서명 모달
 ├── PDFPreviewPanel.tsx           # usePDF 기반 라이브 PDF 미리보기
 ├── ContractDocument.tsx          # 표준근로계약서 PDF 템플릿

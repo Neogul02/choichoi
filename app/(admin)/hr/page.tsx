@@ -13,6 +13,7 @@ import { fetchAllUserProfiles } from '@/app/actions/workers';
 import type { UserProfile } from '@/app/actions/workers';
 import { fetchStores } from '@/app/actions/stores';
 import { fetchAllRosterShifts } from '@/app/actions/roster';
+import { fetchContractedStaffIds } from '@/app/actions/contracts';
 import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift } from '@/types/database';
 import StaffFormModal from './_components/StaffFormModal';
 import StoreManageModal from './_components/StoreManageModal';
@@ -23,6 +24,7 @@ import { STATUS_LABELS, STATUS_COLORS, DAY_NAMES, ROLE_LABELS, formatRanges } fr
 import { useModal } from '@/lib/useModal';
 
 const HrContractModal = dynamic(() => import('./_components/HrContractModal'), { ssr: false });
+const StaffContractsListModal = dynamic(() => import('./_components/StaffContractsListModal'), { ssr: false });
 const StaffCalendarModal = dynamic(() => import('./_components/StaffCalendarModal'), { ssr: false });
 const WeeklyRosterPrintModal = dynamic(() => import('./_components/WeeklyRosterPrintModal'), { ssr: false });
 
@@ -52,26 +54,19 @@ export default function HrPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const contract = useModal<StaffProfile>();
+  const contractsList = useModal<StaffProfile>();
   const assigning = useModal<StaffProfile>();
   const calendar = useModal<StaffProfile>();
   const rosterPrint = useModal();
 
-  // 계약서 작성완료 (localStorage 유지)
+  // 계약서 작성완료 — 실제 contracts 테이블 존재 여부 기준
   const [completedContracts, setCompletedContracts] = useState<Set<number>>(() => new Set());
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('hr_completed_contracts') ?? '[]');
-      if (Array.isArray(saved)) setCompletedContracts(new Set(saved));
-    } catch { /* ignore */ }
-  }, []);
-  const markContractComplete = (staffId: number) => {
-    setCompletedContracts(prev => {
-      const next = new Set(prev);
-      next.add(staffId);
-      localStorage.setItem('hr_completed_contracts', JSON.stringify(Array.from(next)));
-      return next;
+  const refreshContractedStaffIds = () => {
+    fetchContractedStaffIds().then(res => {
+      if (res.success && res.data) setCompletedContracts(new Set(res.data));
     });
   };
+  useEffect(() => { refreshContractedStaffIds(); }, []);
 
   // 불합격 통지 템플릿
   const DEFAULT_REJECTION_MSG = `안녕하세요, [이름]님.
@@ -378,6 +373,7 @@ export default function HrPage() {
                           onStatusChange={s => handleStatusChange(staff, s)}
                           contractDone={completedContracts.has(staff.id)}
                           onContract={() => contract.open(staff)}
+                          onContractsList={() => contractsList.open(staff)}
                           onAssign={() => assigning.open(staff)}
                           onCalendar={() => calendar.open(staff)}
                           isDragging={draggingStaffId === staff.id}
@@ -458,7 +454,16 @@ export default function HrPage() {
         <HrContractModal
           staff={contract.value}
           onClose={contract.close}
-          onComplete={() => markContractComplete(contract.value!.id)}
+          onComplete={refreshContractedStaffIds}
+        />
+      )}
+
+      {contractsList.value && (
+        <StaffContractsListModal
+          staffId={contractsList.value.id}
+          name={contractsList.value.name}
+          onClose={contractsList.close}
+          onChange={refreshContractedStaffIds}
         />
       )}
 
@@ -490,7 +495,7 @@ export default function HrPage() {
   );
 }
 
-function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, onStatusChange, onContract, onAssign, onCalendar,
+function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
   isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: {
   staff: StaffProfile;
   shiftNames: string;
@@ -500,6 +505,7 @@ function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, 
   onRowClick: () => void;
   onStatusChange: (s: StaffStatus) => void;
   onContract: () => void;
+  onContractsList: () => void;
   onAssign: () => void;
   onCalendar: () => void;
   isDragging?: boolean;
@@ -577,6 +583,15 @@ function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, 
               }`}
             >
               {contractDone ? '계약서 ✓' : '계약서'}
+            </button>
+          )}
+          {contractDone && (
+            <button
+              onClick={onContractsList}
+              title="근로계약서 목록"
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
+            >
+              목록
             </button>
           )}
         </div>

@@ -6,6 +6,7 @@ import { getMyStaffProfile } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getMyRoster, type MyShift } from '@/app/actions/roster'
 import { CalendarGrid } from '@/app/(admin)/hr/_components/StaffCalendarModal'
+import { formatBreakMinutes } from '@/lib/utils'
 import type { StaffProfile } from '@/types/database'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
@@ -176,7 +177,16 @@ export default function MySchedulePage() {
                             </td>
                             <td className="px-3 py-2.5 text-center font-medium text-ink">{s.start_time}</td>
                             <td className="px-3 py-2.5 text-center font-medium text-ink">{s.end_time}</td>
-                            <td className="px-3 py-2.5 text-right text-ink-muted">{s.hours}시간</td>
+                            <td className="px-3 py-2.5 text-right text-ink-muted">
+                              {s.breakMinutes > 0 ? (
+                                <>
+                                  <div className="text-ink font-medium">{s.hours}시간</div>
+                                  <div className="text-[11px] text-ink-faint">휴게 {formatBreakMinutes(s.breakMinutes)} · 실 {s.netHours}시간</div>
+                                </>
+                              ) : (
+                                <span>{s.hours}시간</span>
+                              )}
+                            </td>
                           </tr>
                         )
                       })}

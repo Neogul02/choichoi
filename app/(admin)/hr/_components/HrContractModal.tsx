@@ -30,7 +30,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
   const [employerName, setEmployerName] = useState('초이초이 - (히요리산도)')
   const [employerAddress, setEmployerAddress] = useState('경기 동두천시 동두천로119 1층 102호')
   const [employerRepresentative, setEmployerRepresentative] = useState('최진우')
-  const [employerPhone, setEmployerPhone] = useState('010-8366-2414')
+  const [employerPhone, setEmployerPhone] = useState('010-7633-2414')
 
   // 근로자 정보
   const [workerPhone, setWorkerPhone] = useState(staff.phone ?? '')

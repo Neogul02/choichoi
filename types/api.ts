@@ -1,4 +1,4 @@
-import type { MenuItem, Memo, ScheduleSlot, PopupEvent, Worker } from './database';
+import type { MenuItem, Memo, PopupEvent } from './database';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -108,6 +108,4 @@ export type FetchCalendarResponse = ApiResponse<CalendarSalesData>;
 export type FetchOrdersResponse = ApiResponse<OrderRecord[]>;
 export type FetchOrdersWithItemsResponse = ApiResponse<OrderRecordWithItems[]>;
 export type FetchMemosResponse = ApiResponse<Memo[]>;
-export type FetchSlotsResponse = ApiResponse<ScheduleSlot[]>;
 export type FetchEventsResponse = ApiResponse<PopupEvent[]>;
-export type FetchWorkersResponse = ApiResponse<Worker[]>;
