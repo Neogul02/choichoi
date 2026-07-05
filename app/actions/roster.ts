@@ -607,6 +607,52 @@ export async function clearRosterRange(
   }
 }
 
+export interface DailyDigestShift {
+  shiftName: string
+  startTime: string
+  endTime: string
+  names: string[]
+}
+
+// 내일(KST) 배정 현황 — 디스코드 일일 근무 안내용
+export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; shifts: DailyDigestShift[] }> {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const todayKST = toDateStr(new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate())))
+  const tomorrow = addDays(todayKST, 1)
+  const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
+  const d = parseDate(tomorrow)
+  const dateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일(${DAY_NAMES[d.getDay()]})`
+
+  const { data: assignData } = await supabaseAdmin
+    .from('roster_assignments')
+    .select('start_time, end_time, roster_shifts (name, start_time, end_time, sort_order), staff_profiles (name)')
+    .eq('work_date', tomorrow)
+  if (!assignData?.length) return { dateLabel, shifts: [] }
+
+  const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
+  const grouped = new Map<string, { startTime: string; endTime: string; sortOrder: number; priority: number; names: string[] }>()
+  for (const a of assignData as any[]) {
+    const shift = a.roster_shifts as { name: string; start_time: string; end_time: string; sort_order: number } | null
+    const name = shift?.name ?? '근무'
+    if (!grouped.has(name)) {
+      grouped.set(name, {
+        startTime: a.start_time ?? shift?.start_time ?? '00:00',
+        endTime: a.end_time ?? shift?.end_time ?? '00:00',
+        sortOrder: shift?.sort_order ?? 99,
+        priority: shiftNamePriority(name),
+        names: [],
+      })
+    }
+    grouped.get(name)!.names.push((a.staff_profiles as { name: string } | null)?.name ?? '')
+  }
+
+  const shifts = Array.from(grouped.entries())
+    .sort(([, a], [, b]) => a.priority !== b.priority ? a.priority - b.priority : a.sortOrder - b.sortOrder)
+    .map(([shiftName, g]) => ({ shiftName, startTime: g.startTime, endTime: g.endTime, names: g.names }))
+
+  return { dateLabel, shifts }
+}
+
 export interface WeeklyRosterEntry {
   work_date: string
   shift_name: string
