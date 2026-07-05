@@ -79,6 +79,7 @@ export interface RosterShiftInput {
   weekend_required: number
   active_from?: string | null
   active_to?: string | null
+  break_minutes: number
 }
 
 export async function createRosterShift(unit: RosterUnit, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
@@ -544,6 +545,8 @@ export interface MyShift {
   start_time: string
   end_time: string
   hours: number
+  breakMinutes: number
+  netHours: number
 }
 
 export interface MyRosterData {
@@ -602,6 +605,52 @@ export async function clearRosterRange(
   } catch (err) {
     return { success: false, error: String(err) }
   }
+}
+
+export interface DailyDigestShift {
+  shiftName: string
+  startTime: string
+  endTime: string
+  names: string[]
+}
+
+// 내일(KST) 배정 현황 — 디스코드 일일 근무 안내용
+export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; shifts: DailyDigestShift[] }> {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const todayKST = toDateStr(new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate())))
+  const tomorrow = addDays(todayKST, 1)
+  const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
+  const d = parseDate(tomorrow)
+  const dateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일(${DAY_NAMES[d.getDay()]})`
+
+  const { data: assignData } = await supabaseAdmin
+    .from('roster_assignments')
+    .select('start_time, end_time, roster_shifts (name, start_time, end_time, sort_order), staff_profiles (name)')
+    .eq('work_date', tomorrow)
+  if (!assignData?.length) return { dateLabel, shifts: [] }
+
+  const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
+  const grouped = new Map<string, { startTime: string; endTime: string; sortOrder: number; priority: number; names: string[] }>()
+  for (const a of assignData as any[]) {
+    const shift = a.roster_shifts as { name: string; start_time: string; end_time: string; sort_order: number } | null
+    const name = shift?.name ?? '근무'
+    if (!grouped.has(name)) {
+      grouped.set(name, {
+        startTime: a.start_time ?? shift?.start_time ?? '00:00',
+        endTime: a.end_time ?? shift?.end_time ?? '00:00',
+        sortOrder: shift?.sort_order ?? 99,
+        priority: shiftNamePriority(name),
+        names: [],
+      })
+    }
+    grouped.get(name)!.names.push((a.staff_profiles as { name: string } | null)?.name ?? '')
+  }
+
+  const shifts = Array.from(grouped.entries())
+    .sort(([, a], [, b]) => a.priority !== b.priority ? a.priority - b.priority : a.sortOrder - b.sortOrder)
+    .map(([shiftName, g]) => ({ shiftName, startTime: g.startTime, endTime: g.endTime, names: g.names }))
+
+  return { dateLabel, shifts }
 }
 
 export interface WeeklyRosterEntry {
@@ -699,7 +748,7 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
 
     const { data: assignData, error: assignError } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time)')
+      .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time, break_minutes)')
       .eq('staff_id', staff.id)
       .gte('work_date', from)
       .lte('work_date', to)
@@ -707,17 +756,21 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
     if (assignError) return { success: false, error: assignError.message }
 
     const shifts: MyShift[] = (assignData ?? []).map(a => {
-      const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string } | null
+      const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string; break_minutes: number } | null
       const start = a.start_time ?? shift?.start_time ?? '00:00'
       const end = a.end_time ?? shift?.end_time ?? '00:00'
       let mins = toMinutes(end) - toMinutes(start)
       if (mins < 0) mins += 24 * 60
+      const hours = Math.round((mins / 60) * 10) / 10
+      const breakMinutes = shift?.break_minutes ?? 0
       return {
         work_date: a.work_date,
         shift_name: shift?.name ?? '근무',
         start_time: start,
         end_time: end,
-        hours: Math.round((mins / 60) * 10) / 10,
+        hours,
+        breakMinutes,
+        netHours: Math.round((hours - breakMinutes / 60) * 10) / 10,
       }
     })
 

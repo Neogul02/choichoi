@@ -15,7 +15,7 @@ function buildContractData(staff: StaffProfile): ContractData {
     employerName: '초이초이 - (히요리산도)',
     employerAddress: '경기 동두천시 동두천로119 1층 102호',
     employerRepresentative: '최진우',
-    employerPhone: '010-8366-2414',
+    employerPhone: '010-7633-2414',
     workerName: staff.name,
     workerPhone: staff.phone ?? undefined,
     startDate: staff.available_ranges[0]?.from ?? '',

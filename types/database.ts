@@ -35,6 +35,7 @@ export interface PopupEvent {
   name: string;
   start_date: string;
   end_date: string;
+  store_id: number | null;
   created_at: string;
 }
 
@@ -120,6 +121,7 @@ export interface RosterShift {
   weekend_required: number;
   active_from: string | null; // YYYY-MM-DD, null = 제한 없음
   active_to: string | null;   // YYYY-MM-DD, null = 종료일 없음
+  break_minutes: number;      // 이 파트의 고정 휴게시간(분) — 관리자가 파트관리에서 설정
   sort_order: number;
   created_at: string;
 }
@@ -150,6 +152,7 @@ export interface Memo {
   content: string;
   color: string;
   is_pinned: boolean;
+  type: 'note' | 'checklist';
   created_at: string;
   updated_at: string;
 }

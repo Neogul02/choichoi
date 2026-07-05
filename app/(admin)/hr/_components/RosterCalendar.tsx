@@ -568,14 +568,6 @@ function DayPanel({
   // 배정 후보: 불합격/퇴사 제외
   const selectableStaff = staffList.filter(s => s.status === 'confirmed' || s.status === 'candidate');
 
-  const fmtPhone = (p: string | null | undefined) => {
-    if (!p) return '';
-    const d = p.replace(/\D/g, '');
-    if (d.length === 11) return ` ${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
-    if (d.length === 10) return ` ${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
-    return ` ${p}`;
-  };
-
   const handleCopy = async () => {
     setCopying(true);
     try {
@@ -593,8 +585,7 @@ function DayPanel({
         hasAny = true;
         lines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
         for (const a of assigned) {
-          const phone = fmtPhone(a.staff_profiles?.phone);
-          lines.push(`· ${a.staff_profiles?.name ?? ''}${phone}`);
+          lines.push(`· ${a.staff_profiles?.name ?? ''}`);
         }
         lines.push('');
       }
