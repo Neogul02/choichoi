@@ -395,35 +395,33 @@ export default function PosPage() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="bg-canvas mt-[-10px] rounded-xl p-3 md:p-4 mb-2 md:mb-3 shadow-level-1 border border-hairline"
+          className="rounded-2xl p-3.5 md:p-4 mb-3 bg-[#fff5f5] border border-rose-200 shadow-level-1"
         >
-          <div className="rounded-xl p-3 bg-[#fff5f5] border-2 border-rose-500 mb-2">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full bg-rose-500 text-white">
-                  결제 대기
-                </span>
-                <span className="text-[11px] font-semibold text-ink-faint">
-                  {totalCount}개
-                </span>
-              </div>
-              <button
-                className="text-[11px] font-bold text-rose-400 border border-rose-200 rounded-lg px-2 py-0.5 bg-canvas cursor-pointer transition-all duration-200 hover:bg-rose-50 active:scale-95"
-                onClick={resetOrder}
-              >
-                초기화
-              </button>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full bg-rose-500 text-white">
+                결제 대기
+              </span>
+              <span className="text-[12px] font-semibold text-ink-faint">
+                {totalCount}개
+              </span>
             </div>
-            <motion.div
-              key={totalPrice}
-              initial={{ scale: 1.04 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-              className="text-[clamp(22px,6vw,36px)] font-black text-rose-500 leading-[1.1]"
+            <button
+              className="text-[12px] font-bold text-rose-400 border border-rose-200 rounded-lg px-2.5 py-1 bg-canvas cursor-pointer transition-all duration-200 hover:bg-rose-50 active:scale-95"
+              onClick={resetOrder}
             >
-              {formatPrice(totalPrice)}원
-            </motion.div>
+              초기화
+            </button>
           </div>
+          <motion.div
+            key={totalPrice}
+            initial={{ opacity: 0.4, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="text-[clamp(22px,6vw,36px)] font-black text-rose-500 leading-[1.1]"
+          >
+            {formatPrice(totalPrice)}원
+          </motion.div>
         </motion.header>
 
         <div>
@@ -447,7 +445,7 @@ export default function PosPage() {
                   key={item.id}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => increase(item.id)}
-                  className={`relative rounded-xl p-3 md:p-3.5 transition-shadow duration-200 cursor-pointer ${
+                  className={`relative rounded-2xl p-3 md:p-3.5 transition-shadow duration-200 cursor-pointer ${
                     count > 0
                       ? 'shadow-none'
                       : 'bg-canvas shadow-level-1 hover:shadow-level-2'
@@ -526,10 +524,10 @@ export default function PosPage() {
 
           {/* 주문 상세 */}
           <section
-            className="bg-canvas rounded-xl p-3 shadow-level-1 mb-3"
+            className="bg-canvas rounded-2xl p-3.5 md:p-4 shadow-level-1 border border-hairline mb-3"
             aria-label="주문 상세"
           >
-            <h2 className="m-0 mb-2 text-sm md:text-base font-bold">
+            <h2 className="m-0 mb-2 text-[16px] font-bold text-ink">
               주문 상세
             </h2>
             {orderedItems.length === 0 ? (
@@ -566,7 +564,7 @@ export default function PosPage() {
             )}
 
             <button
-              className="hidden md:block w-full p-3 mt-3 text-base font-bold bg-primary-700 text-white border-none rounded-lg cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
+              className="hidden md:block w-full p-3 mt-3 text-base font-bold bg-primary-700 text-white border-none rounded-xl cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
               onClick={handleCheckout}
               disabled={checkoutMutation.isPending || orderedItems.length === 0}
             >
@@ -576,10 +574,10 @@ export default function PosPage() {
 
           {/* 최근 주문 */}
           <section
-            className="bg-canvas rounded-xl mb-4 p-3.5 md:p-4 shadow-level-1 border border-hairline"
+            className="bg-canvas rounded-2xl mb-4 p-3.5 md:p-4 shadow-level-1 border border-hairline"
             aria-label="최근 주문"
           >
-            <h2 className="m-0 mb-3 text-base md:text-lg font-bold text-ink-secondary">
+            <h2 className="m-0 mb-3 text-[16px] font-bold text-ink">
               최근 주문
             </h2>
             {recentOrdersQuery.isLoading ? (
@@ -601,7 +599,7 @@ export default function PosPage() {
                           {formatKSTTime(order.created_at)}
                         </span>
                         {order.cashier_name && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas-soft text-ink-muted">
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-canvas-soft text-ink-muted">
                             {order.cashier_name}
                           </span>
                         )}
@@ -631,7 +629,7 @@ export default function PosPage() {
                 type="button"
                 onClick={handleCheckout}
                 disabled={checkoutMutation.isPending || orderedItems.length === 0}
-                className="w-full px-5 py-4 rounded-xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-[#ccc] disabled:cursor-not-allowed"
+                className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-[#ccc] disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-2.5">
                   <span className="min-w-7 h-7 px-2 rounded-full bg-canvas/20 text-xs font-black flex items-center justify-center tabular-nums">
