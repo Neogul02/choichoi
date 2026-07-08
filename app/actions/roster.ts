@@ -148,12 +148,9 @@ export interface RosterMonthData {
 /** fromDate/toDate: YYYY-MM-DD (양끝 포함). 파트 목록 + 배정 + 날짜별 예외를 한 번에 */
 export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<RosterMonthData>> {
   try {
-    const shiftsRes = await fetchRosterShifts(unit)
-    if (!shiftsRes.success || !shiftsRes.data) return { success: false, error: shiftsRes.error ?? '파트를 불러올 수 없습니다.' }
-    const shifts = shiftsRes.data
-    const shiftIds = shifts.map(s => s.id)
-
-    const [assignRes, reqRes] = await Promise.all([
+    // 배정 조회는 파트 목록과 독립이므로 병렬 실행 — 날짜별 요구 인원 예외만 파트 id에 의존
+    const [shiftsRes, assignRes] = await Promise.all([
+      fetchRosterShifts(unit),
       applyUnitFilter(
         supabaseAdmin.from('roster_assignments').select(ASSIGNMENT_COLUMNS),
         unit,
@@ -161,14 +158,20 @@ export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDat
         .gte('work_date', fromDate)
         .lte('work_date', toDate)
         .order('work_date'),
-      supabaseAdmin
-        .from('roster_shift_requirements')
-        .select('*')
-        .in('shift_id', shiftIds)
-        .gte('work_date', fromDate)
-        .lte('work_date', toDate),
     ])
+    if (!shiftsRes.success || !shiftsRes.data) return { success: false, error: shiftsRes.error ?? '파트를 불러올 수 없습니다.' }
     if (assignRes.error) return { success: false, error: assignRes.error.message }
+    const shifts = shiftsRes.data
+    const shiftIds = shifts.map(s => s.id)
+
+    const reqRes = shiftIds.length === 0
+      ? { data: [], error: null }
+      : await supabaseAdmin
+          .from('roster_shift_requirements')
+          .select('*')
+          .in('shift_id', shiftIds)
+          .gte('work_date', fromDate)
+          .lte('work_date', toDate)
     if (reqRes.error) return { success: false, error: reqRes.error.message }
     return {
       success: true,
