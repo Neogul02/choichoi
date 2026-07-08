@@ -7,7 +7,7 @@ import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
   updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster, clearRosterRange,
 } from '@/app/actions/roster';
-import type { RosterUnit, AutoFillLogEntry } from '@/app/actions/roster';
+import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
 import type { StaffProfile, Store, StaffRole, RosterShift, RosterAssignment } from '@/types/database';
 import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability } from './constants';
 import { getWeekStart } from '@/lib/staffing';
@@ -21,6 +21,8 @@ interface Props {
   stores: Store[];
   roleFilter: StaffRole;
   refreshSignal?: number;
+  /** 서버(page.tsx)가 프리페치한 당월 데이터 — 첫 로드 시 단위·월이 일치하면 왕복 없이 사용 */
+  initialData?: { unit: RosterUnit; y: number; m: number; data: RosterMonthData };
 }
 
 // 파트 순서에 따라 순환하는 강조색
@@ -33,7 +35,7 @@ function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-export default function RosterCalendar({ staffList, stores, roleFilter, refreshSignal }: Props) {
+export default function RosterCalendar({ staffList, stores, roleFilter, refreshSignal, initialData }: Props) {
   // 단위 = 주방 전체 또는 캐셔의 특정 매장
   const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', storeId: null });
 
@@ -77,6 +79,8 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   const [rangeTo, setRangeTo] = useState('');
   // 첫 마운트/탭 복귀 시엔 localStorage 범위를 유지하고, 이후 cursor·unit 변경 시에만 초기화하기 위한 플래그
   const isFirstCursorEffect = useRef(true);
+  // 서버 프리페치 데이터는 최초 1회만 판정·소비 — 월 이동 후 복귀 시 낡은 데이터 재사용 방지
+  const initialDataConsumed = useRef(!initialData);
 
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
   const monthEnd = cursor ? toDateStr(cursor.y, cursor.m, new Date(cursor.y, cursor.m + 1, 0).getDate()) : '';
@@ -128,6 +132,20 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
       setRangeTo('');
     }
     isFirstCursorEffect.current = false;
+    if (!initialDataConsumed.current) {
+      initialDataConsumed.current = true;
+      if (
+        initialData &&
+        cursor.y === initialData.y && cursor.m === initialData.m &&
+        unit.staffRole === initialData.unit.staffRole && unit.storeId === initialData.unit.storeId
+      ) {
+        setShifts(initialData.data.shifts);
+        setAssignments(initialData.data.assignments);
+        setOverrides(Object.fromEntries(initialData.data.requirements.map(q => [`${q.work_date}|${q.shift_id}`, q.required])));
+        setIsLoading(false);
+        return;
+      }
+    }
     loadRange().then(() => setIsLoading(false));
     // loadRange는 cursor·unit을 클로저로 캡처하므로 deps에 추가하면 무한루프 — cursor·unit이 이미 있어 동기화됨
     // eslint-disable-next-line react-hooks/exhaustive-deps
