@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import type { Ingredient } from '@/types/database';
 import { totalQty, getStatus, type IngredientStatus } from '../_hooks/useInventory';
 import BoxStack from './BoxStack';
@@ -5,8 +6,10 @@ import BoxStack from './BoxStack';
 interface Props {
   ingredient: Ingredient;
   onManage: () => void;
-  onIncrease: () => void;
-  onDecrease: () => void;
+  onIncreaseBox: () => void;
+  onDecreaseBox: () => void;
+  onIncreaseUnit: () => void;
+  onDecreaseUnit: () => void;
 }
 
 function formatRemaining(ing: Ingredient): string {
@@ -46,7 +49,7 @@ const CATEGORY_COLOR: Record<string, string> = {
   '패키지': 'bg-blue-100 text-blue-600',
 };
 
-export default function IngredientCard({ ingredient, onManage, onIncrease, onDecrease }: Props) {
+export default function IngredientCard({ ingredient, onManage, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit }: Props) {
   const status = getStatus(ingredient);
   const styles = STATUS_STYLES[status];
 
@@ -70,10 +73,16 @@ export default function IngredientCard({ ingredient, onManage, onIncrease, onDec
       <BoxStack ingredient={ingredient} />
 
       {/* 잔량 */}
-      <div className="flex items-baseline gap-1.5 mt-0.5 mb-1.5">
-        <span className="text-xl font-black tabular-nums text-ink">
+      <div className="flex items-baseline gap-1.5 mt-0.5 mb-1.5 overflow-hidden">
+        <motion.span
+          key={formatRemaining(ingredient)}
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className="text-xl font-black tabular-nums text-ink"
+        >
           {formatRemaining(ingredient)}
-        </span>
+        </motion.span>
         <span className="text-[11px] text-ink-faint">{formatDetail(ingredient)}</span>
       </div>
 
@@ -82,26 +91,66 @@ export default function IngredientCard({ ingredient, onManage, onIncrease, onDec
         1{ingredient.container_unit} = {ingredient.container_size}{ingredient.base_unit}
       </div>
 
-      {/* POS식 +/- 재고 조작 */}
-      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={onDecrease}
-          disabled={ingredient.sealed_count <= 0}
-          className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label={`${ingredient.name} 1${ingredient.container_unit} 감소`}
-        >
-          −
-        </button>
-        <span className="flex-1 text-center text-sm font-bold text-ink-secondary tabular-nums">
-          {ingredient.sealed_count}{ingredient.container_unit}
-        </span>
-        <button
-          onClick={onIncrease}
-          className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
-          aria-label={`${ingredient.name} 1${ingredient.container_unit} 증가`}
-        >
-          +
-        </button>
+      {/* POS식 +/- 재고 조작: 박스 단위 + 낱개 단위 */}
+      <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2">
+          <span className="w-9 text-[10px] font-bold text-ink-faint shrink-0">박스</span>
+          <button
+            onClick={onDecreaseBox}
+            disabled={ingredient.sealed_count <= 0}
+            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label={`${ingredient.name} 1${ingredient.container_unit} 감소`}
+          >
+            −
+          </button>
+          <span className="flex-1 text-center overflow-hidden">
+            <motion.span
+              key={ingredient.sealed_count}
+              initial={{ y: 8, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="inline-block text-sm font-bold text-ink-secondary tabular-nums"
+            >
+              {ingredient.sealed_count}{ingredient.container_unit}
+            </motion.span>
+          </span>
+          <button
+            onClick={onIncreaseBox}
+            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
+            aria-label={`${ingredient.name} 1${ingredient.container_unit} 증가`}
+          >
+            +
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-9 text-[10px] font-bold text-ink-faint shrink-0">낱개</span>
+          <button
+            onClick={onDecreaseUnit}
+            disabled={ingredient.opened_remaining <= 0}
+            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label={`${ingredient.name} 낱개 1${ingredient.base_unit} 감소`}
+          >
+            −
+          </button>
+          <span className="flex-1 text-center overflow-hidden">
+            <motion.span
+              key={ingredient.opened_remaining}
+              initial={{ y: 8, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="inline-block text-sm font-bold text-ink-secondary tabular-nums"
+            >
+              {ingredient.opened_remaining}{ingredient.base_unit}
+            </motion.span>
+          </span>
+          <button
+            onClick={onIncreaseUnit}
+            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
+            aria-label={`${ingredient.name} 낱개 1${ingredient.base_unit} 증가`}
+          >
+            +
+          </button>
+        </div>
       </div>
     </div>
   );

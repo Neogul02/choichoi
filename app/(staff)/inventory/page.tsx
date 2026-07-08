@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import NavBar from '@/components/NavBar';
 import type { Ingredient } from '@/types/database';
@@ -11,13 +11,30 @@ import IngredientCard from './_components/IngredientCard';
 import IngredientManageModal from './_components/IngredientManageModal';
 import AddIngredientModal from './_components/AddIngredientModal';
 
+const SYNC_DEBOUNCE_MS = 700;
+
 export default function InventoryPage() {
-  const { ingredients, isLoading, reload } = useInventory();
+  const { ingredients, isLoading, reload, applyLocalDelta } = useInventory();
 
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState<SortKey>('default');
   const [manageTarget, setManageTarget] = useState<Ingredient | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+
+  const pendingRef = useRef<Record<string, { sealed: number; opened: number }>>({});
+  const timerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    const timers = timerRef.current;
+    const pending = pendingRef.current;
+    return () => {
+      // 페이지를 벗어나도 디바운스 대기 중이던 변경분은 유실되지 않도록 즉시 전송
+      Object.keys(timers).forEach((id) => clearTimeout(timers[id]));
+      Object.entries(pending).forEach(([id, delta]) => {
+        if (delta.sealed !== 0 || delta.opened !== 0) restockIngredient(id, delta.sealed, delta.opened);
+      });
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     let list = category === '전체' ? ingredients : ingredients.filter((i) => i.category === category);
@@ -30,11 +47,34 @@ export default function InventoryPage() {
     return list;
   }, [ingredients, category, sort]);
 
-  const adjustSealed = useCallback(async (ing: Ingredient, delta: 1 | -1) => {
-    const res = await restockIngredient(ing.id, delta, 0);
-    if (res.success) reload();
-    else toast.error(`재고 변경 실패: ${res.error}`);
+  const scheduleSync = useCallback((id: string) => {
+    if (timerRef.current[id]) clearTimeout(timerRef.current[id]);
+    timerRef.current[id] = setTimeout(async () => {
+      delete timerRef.current[id];
+      const delta = pendingRef.current[id];
+      delete pendingRef.current[id];
+      if (!delta || (delta.sealed === 0 && delta.opened === 0)) return;
+      const res = await restockIngredient(id, delta.sealed, delta.opened);
+      if (!res.success) {
+        toast.error(`재고 변경 실패: ${res.error}`);
+        reload();
+      }
+    }, SYNC_DEBOUNCE_MS);
   }, [reload]);
+
+  const adjustSealed = useCallback((ing: Ingredient, delta: 1 | -1) => {
+    applyLocalDelta(ing.id, delta, 0);
+    const p = pendingRef.current[ing.id] ?? { sealed: 0, opened: 0 };
+    pendingRef.current[ing.id] = { sealed: p.sealed + delta, opened: p.opened };
+    scheduleSync(ing.id);
+  }, [applyLocalDelta, scheduleSync]);
+
+  const adjustOpened = useCallback((ing: Ingredient, delta: 1 | -1) => {
+    applyLocalDelta(ing.id, 0, delta);
+    const p = pendingRef.current[ing.id] ?? { sealed: 0, opened: 0 };
+    pendingRef.current[ing.id] = { sealed: p.sealed, opened: p.opened + delta };
+    scheduleSync(ing.id);
+  }, [applyLocalDelta, scheduleSync]);
 
   return (
     <>
@@ -71,8 +111,10 @@ export default function InventoryPage() {
                   key={ing.id}
                   ingredient={ing}
                   onManage={() => setManageTarget(ing)}
-                  onIncrease={() => adjustSealed(ing, 1)}
-                  onDecrease={() => adjustSealed(ing, -1)}
+                  onIncreaseBox={() => adjustSealed(ing, 1)}
+                  onDecreaseBox={() => adjustSealed(ing, -1)}
+                  onIncreaseUnit={() => adjustOpened(ing, 1)}
+                  onDecreaseUnit={() => adjustOpened(ing, -1)}
                 />
               ))}
             </div>

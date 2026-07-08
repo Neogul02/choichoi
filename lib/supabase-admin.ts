@@ -525,6 +525,29 @@ export async function toggleMemoPin(
   return data as Memo
 }
 
+// ── POS 공유 메모 (싱글턴) ───────────────────────────────────────────────────────
+
+export async function getPosNote(): Promise<{ content: string; updated_by: string | null; updated_at: string }> {
+  const { data, error } = await supabaseAdmin
+    .from('pos_note')
+    .select('content, updated_by, updated_at')
+    .eq('id', 1)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function savePosNote(content: string, updatedBy?: string): Promise<{ content: string; updated_by: string | null; updated_at: string }> {
+  const { data, error } = await supabaseAdmin
+    .from('pos_note')
+    .update({ content, updated_by: updatedBy ?? null, updated_at: new Date().toISOString() })
+    .eq('id', 1)
+    .select('content, updated_by, updated_at')
+    .single()
+  if (error) throw error
+  return data
+}
+
 // ── Menu Sales ────────────────────────────────────────────────────────────────
 
 export async function getDailySalesByPeriod(
@@ -715,7 +738,6 @@ export async function addIngredient(data: {
   base_unit: string
   container_unit: string
   container_size: number
-  reorder_at_containers: number
   vendor?: string
   sort_order?: number
 }): Promise<Ingredient> {
@@ -740,7 +762,6 @@ export async function updateIngredientMeta(
   id: string,
   updates: {
     container_size?: number
-    reorder_at_containers?: number
     vendor?: string | null
   },
 ): Promise<Ingredient> {
