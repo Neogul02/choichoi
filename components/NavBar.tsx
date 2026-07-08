@@ -22,8 +22,8 @@ const WORKER_ROLE_KEY = 'choichoi_worker_role';
 
 const ALL_NAV_LINKS = [
   { href: '/pos', label: 'POS', minRole: 'user' },
-  { href: '/stats', label: '통계', minRole: 'manager' },
-  { href: '/schedule', label: '일정', minRole: 'manager' },
+  { href: '/stats', label: '통계', minRole: 'admin' },
+  { href: '/schedule', label: '일정', minRole: 'admin' },
   { href: '/hr', label: '인사', minRole: 'admin' },
   { href: '/inventory', label: '재고', minRole: 'manager' },
   { href: '/memo', label: '메모', minRole: 'user' },

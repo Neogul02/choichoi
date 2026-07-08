@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { fireConfetti, fireTierConfetti } from '@/lib/confetti'
 import FloatingEmojis from '@/components/FloatingEmojis'
+import PosNoteWidget from '@/components/PosNoteWidget'
 import { fetchMenuItems } from '@/app/actions/menu';
 import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from '@/app/actions/orders'
 import type { MenuItem } from '@/types/database'
@@ -426,7 +427,7 @@ export default function PosPage() {
         <div>
           {/* 메뉴 그리드 */}
           <section
-            className="grid grid-cols-2 gap-2 md:gap-2.5 mb-4"
+            className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-2.5 mb-4"
             aria-label="메뉴 목록"
           >
             {menuQuery.isLoading && menuItems.length === 0 && (
@@ -619,6 +620,8 @@ export default function PosPage() {
               </ul>
             )}
           </section>
+
+          <PosNoteWidget cashierName={cashierName} />
 
           {/* 모바일 전용 sticky 결제 바 */}
           <div className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3">

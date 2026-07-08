@@ -25,7 +25,6 @@ const CreateIngredientSchema = z.object({
   base_unit: z.string().min(1, '기본 단위를 입력해주세요'),
   container_unit: z.string().min(1, '용기 단위를 입력해주세요'),
   container_size: z.number().positive('용기 크기는 0보다 커야 합니다'),
-  reorder_at_containers: z.number().int().min(0, '재주문 기준은 0 이상이어야 합니다'),
   vendor: z.string().max(100, '거래처는 100자 이하여야 합니다').optional(),
 });
 
@@ -33,7 +32,7 @@ const UUID = z.string().min(1, 'ID를 입력해주세요').max(50).regex(/^[a-z0
 
 const RestockSchema = z.object({
   sealed: z.number().int('밀봉 수량은 정수여야 합니다'),
-  opened: z.number().min(0, '개봉 수량은 0 이상이어야 합니다'),
+  opened: z.number().int('개봉 수량은 정수여야 합니다'),
 });
 
 export async function fetchIngredients(): Promise<FetchIngredientsResponse> { return wrap(getIngredients); }
@@ -52,7 +51,7 @@ export async function setPhysicalInventory(id: string, sealed: number, opened: n
 
 export async function updateIngredientSettings(
   id: string,
-  updates: { container_size?: number; reorder_at_containers?: number; vendor?: string | null }
+  updates: { container_size?: number; vendor?: string | null }
 ): Promise<ApiResponse<Ingredient>> {
   return wrap(() => updateIngredientMeta(id, updates));
 }
@@ -60,7 +59,7 @@ export async function updateIngredientSettings(
 export async function createIngredient(data: {
   id: string; name: string; category: string; color: string;
   unit_type: 'count' | 'weight'; base_unit: string; container_unit: string;
-  container_size: number; reorder_at_containers: number; vendor?: string;
+  container_size: number; vendor?: string;
 }): Promise<ApiResponse<Ingredient>> {
   const parsed = CreateIngredientSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };

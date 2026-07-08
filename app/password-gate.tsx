@@ -210,9 +210,9 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       <div className='min-h-screen bg-[#f5f6f7] flex items-center justify-center p-4'>
         <div className='w-full max-w-[360px]'>
           <div className='text-center mb-5'>
-            <h1 className='text-2xl font-black text-ink m-0 mb-1'>ChoiChoi POS</h1>
+            {/* <h1 className='text-2xl font-black text-ink m-0 mb-1'>ChoiChoi POS</h1> */}
             <p className='m-0 text-ink-muted text-sm'>
-              {view === 'login' ? '로그인하여 시작하세요.' : '새 계정을 만들어 팀에 합류하세요.'}
+              {view === 'login' ? '' : '새 계정을 만들어 팀에 합류하세요.'}
             </p>
           </div>
 
@@ -251,7 +251,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
               </button>
               <button type='button' onClick={() => { setError(''); setInfo(''); setView('signup') }}
                 className='w-full text-center text-[13px] text-ink-muted hover:text-primary-700 transition-colors bg-transparent border-none cursor-pointer'>
-                처음이신가요? 회원가입
+                원가입
               </button>
             </form>
           )}

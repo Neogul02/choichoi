@@ -43,14 +43,13 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
   const [baseUnit, setBaseUnit] = useState('g');
   const [containerUnit, setContainerUnit] = useState('박스');
   const [containerSize, setContainerSize] = useState('1000');
-  const [reorderAt, setReorderAt] = useState('2');
   const [vendor, setVendor] = useState('');
   const [saving, setSaving] = useState(false);
 
   function reset() {
     setName(''); setId(''); setCategory('과일'); setColor('#FFB3BA');
     setUnitType('weight'); setBaseUnit('g'); setContainerUnit('박스');
-    setContainerSize('1000'); setReorderAt('2'); setVendor('');
+    setContainerSize('1000'); setVendor('');
   }
 
   function handleUnitPreset(preset: { base: string; container: string }) {
@@ -61,9 +60,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
   async function handleSave() {
     if (!name.trim() || !id.trim()) { toast.error('이름과 ID를 입력하세요'); return; }
     const cs = parseFloat(containerSize);
-    const ro = parseInt(reorderAt, 10);
     if (isNaN(cs) || cs <= 0) { toast.error('올바른 용량을 입력하세요'); return; }
-    if (isNaN(ro) || ro < 0) { toast.error('올바른 발주 기준을 입력하세요'); return; }
 
     setSaving(true);
     const res = await createIngredient({
@@ -75,7 +72,6 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
       base_unit: baseUnit,
       container_unit: containerUnit,
       container_size: cs,
-      reorder_at_containers: ro,
       vendor: vendor.trim() || undefined,
     });
     setSaving(false);
@@ -184,28 +180,16 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                 </div>
               </div>
 
-              {/* 용량 + 발주 */}
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold text-ink-muted block mb-1">
-                    1{containerUnit}당 {baseUnit} 수
-                  </label>
-                  <input
-                    type="number" value={containerSize} onChange={(e) => setContainerSize(e.target.value)} min={1}
-                    className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
-                    style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold text-ink-muted block mb-1">
-                    발주 기준 ({containerUnit})
-                  </label>
-                  <input
-                    type="number" value={reorderAt} onChange={(e) => setReorderAt(e.target.value)} min={0}
-                    className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
-                    style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                  />
-                </div>
+              {/* 용량 */}
+              <div>
+                <label className="text-[10px] font-bold text-ink-muted block mb-1">
+                  1{containerUnit}당 {baseUnit} 수
+                </label>
+                <input
+                  type="number" value={containerSize} onChange={(e) => setContainerSize(e.target.value)} min={1}
+                  className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                  style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                />
               </div>
 
               {/* 거래처 */}

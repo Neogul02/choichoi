@@ -18,7 +18,6 @@ type Tab = 'adjust' | 'settings';
 export default function IngredientManageModal({ ingredient, onClose, onSuccess }: Props) {
   const [tab, setTab] = useState<Tab>('adjust');
   const [containerSize, setContainerSize] = useState('');
-  const [reorderAt, setReorderAt] = useState('');
   const [vendor, setVendor] = useState('');
   const [adjSealed, setAdjSealed] = useState('');
   const [adjOpened, setAdjOpened] = useState('');
@@ -29,7 +28,6 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
     if (ingredient) {
       setTab('adjust');
       setContainerSize(String(ingredient.container_size));
-      setReorderAt(String(ingredient.reorder_at_containers));
       setVendor(ingredient.vendor ?? '');
       setAdjSealed(String(ingredient.sealed_count));
       setAdjOpened(String(ingredient.opened_remaining));
@@ -82,15 +80,13 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
   async function handleSettings() {
     const cs = parseFloat(containerSize);
-    const ro = parseInt(reorderAt, 10);
-    if (isNaN(cs) || cs <= 0 || isNaN(ro) || ro < 0) {
+    if (isNaN(cs) || cs <= 0) {
       toast.error('올바른 값을 입력해주세요');
       return;
     }
     setSaving(true);
     const res = await updateIngredientSettings(ingredient.id, {
       container_size: cs,
-      reorder_at_containers: ro,
       vendor: vendor.trim() || null,
     });
     setSaving(false);
@@ -111,7 +107,6 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-0 md:p-4"
-        onClick={onClose}
       >
         <motion.div
           key="modal"
@@ -211,38 +206,22 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
             {tab === 'settings' && (
               <div className="flex flex-col gap-4">
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
-                      1{ingredient.container_unit}당 {ingredient.base_unit} 수
-                    </label>
-                    <input
-                      type="number"
-                      value={containerSize}
-                      onChange={(e) => setContainerSize(e.target.value)}
-                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
-                      style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                      min={1}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
-                      발주 기준 ({ingredient.container_unit})
-                    </label>
-                    <input
-                      type="number"
-                      value={reorderAt}
-                      onChange={(e) => setReorderAt(e.target.value)}
-                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
-                      style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                      min={0}
-                    />
-                  </div>
+                <div>
+                  <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
+                    1{ingredient.container_unit}당 {ingredient.base_unit} 수
+                  </label>
+                  <input
+                    type="number"
+                    value={containerSize}
+                    onChange={(e) => setContainerSize(e.target.value)}
+                    className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                    style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                    min={1}
+                  />
                 </div>
 
                 <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
-                  1{ingredient.container_unit} = {containerSize || '?'}{ingredient.base_unit} ·{' '}
-                  {reorderAt || '?'}{ingredient.container_unit} 이하면 발주 알림
+                  1{ingredient.container_unit} = {containerSize || '?'}{ingredient.base_unit}
                 </div>
 
                 <div>

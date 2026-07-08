@@ -6,9 +6,9 @@ import {
   LineChart, Line, Legend,
 } from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
-import { buildDayHourMatrix, DAY_COLORS, DAYS } from '@/app/(staff)/stats/_lib/dayofweek';
-import { HOURS } from '@/app/(staff)/stats/_lib/hourly';
-import type { DayLabel } from '@/app/(staff)/stats/_lib/dayofweek';
+import { buildDayHourMatrix, DAY_COLORS, DAYS } from '@/app/(admin)/stats/_lib/dayofweek';
+import { HOURS } from '@/app/(admin)/stats/_lib/hourly';
+import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 import { analyzePopupSales } from '@/app/actions/gemini';
