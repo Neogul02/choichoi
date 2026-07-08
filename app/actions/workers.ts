@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
+import type { UserAppRole } from '@/types/database'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -252,13 +253,13 @@ export async function registerProfile(input: RegisterProfileInput): Promise<ApiR
       bank_name: input.bankName || null,
       bank_account: input.bankAccount || null,
       health_cert_url: input.healthCertUrl || null,
-      worker_role: 'worker',
+      worker_role: 'user',
     }])
     if (error) return { success: false, error: error.message }
 
     // user_metadata.role 동기화
     await supabaseAdmin.auth.admin.updateUserById(input.userId, {
-      user_metadata: { role: 'worker', name: input.name },
+      user_metadata: { role: 'user', name: input.name },
     })
 
     return { success: true }
@@ -344,7 +345,7 @@ export async function createWorkerAccount(
       email: input.email.trim(),
       password: input.password.trim(),
       email_confirm: true,
-      user_metadata: { role: 'worker', name: input.name.trim() },
+      user_metadata: { role: 'user', name: input.name.trim() },
     })
 
     if (authError || !authData.user) {
@@ -364,7 +365,7 @@ export async function createWorkerAccount(
       phone: input.phone.trim() || null,
       bank_name: input.bankName?.trim() || null,
       bank_account: input.bankAccount?.trim() || null,
-      worker_role: 'worker',
+      worker_role: 'user',
     }])
 
     if (profileError) {
@@ -403,7 +404,7 @@ export async function createWorkerAccount(
   }
 }
 
-export async function setUserRole(userId: string, role: 'admin' | 'worker'): Promise<ApiResponse> {
+export async function setUserRole(userId: string, role: UserAppRole): Promise<ApiResponse> {
   try {
     const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
 
@@ -415,7 +416,7 @@ export async function setUserRole(userId: string, role: 'admin' | 'worker'): Pro
 
     await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { role } })
 
-    const label = role === 'admin' ? '관리자' : '직원'
+    const label = role === 'admin' ? '관리자' : role === 'manager' ? '매니저' : '직원'
     const { notifyDiscord } = await import('@/lib/discord')
     await notifyDiscord('edit', `🔐 권한 변경`, `**${profile?.name ?? userId}** → ${label}`)
 

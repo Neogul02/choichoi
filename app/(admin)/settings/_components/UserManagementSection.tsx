@@ -1,18 +1,36 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { fetchAllUserProfiles } from '@/app/actions/workers'
+import { toast } from 'sonner'
+import { fetchAllUserProfiles, setUserRole } from '@/app/actions/workers'
 import type { UserProfile } from '@/app/actions/workers'
+import type { UserAppRole } from '@/types/database'
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+
+const ROLE_OPTIONS: { value: UserAppRole; label: string }[] = [
+  { value: 'admin', label: '관리자' },
+  { value: 'manager', label: '매니저' },
+  { value: 'user', label: '직원' },
+]
+
+function toAppRole(value: string): UserAppRole {
+  return value === 'admin' ? 'admin' : value === 'manager' ? 'manager' : 'user'
+}
 
 export default function UserManagementSection() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [query, setQuery] = useState('')
+  const [myUserId, setMyUserId] = useState<string | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAllUserProfiles().then(res => {
       if (res.success && res.data) setUsers(res.data)
       setIsLoading(false)
+    })
+    createSupabaseBrowserClient().auth.getUser().then(({ data }) => {
+      setMyUserId(data.user?.id ?? null)
     })
   }, [])
 
@@ -26,6 +44,18 @@ export default function UserManagementSection() {
       (u.bank_name ?? '').toLowerCase().includes(q)
     )
   }, [users, query])
+
+  async function handleRoleChange(userId: string, role: UserAppRole) {
+    setSavingId(userId)
+    const res = await setUserRole(userId, role)
+    setSavingId(null)
+    if (res.success) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, worker_role: role } : u))
+      toast.success('권한이 변경됐습니다')
+    } else {
+      toast.error(`권한 변경 실패: ${res.error}`)
+    }
+  }
 
   if (isLoading) return <p className="text-ink-muted text-sm">불러오는 중...</p>
   if (users.length === 0) return <p className="text-ink-muted text-sm">등록된 직원이 없습니다.</p>
@@ -59,21 +89,17 @@ export default function UserManagementSection() {
         {filtered.length === 0 ? (
           <p className="text-[12px] text-ink-muted text-center py-6">검색 결과가 없습니다.</p>
         ) : filtered.map((u, idx) => {
-          const isAdmin = u.worker_role === 'admin'
+          const role = toAppRole(u.worker_role)
+          const isMe = u.id === myUserId
+          const isSaving = savingId === u.id
 
           return (
             <div key={u.id} className={`flex items-center gap-3 px-4 py-2.5 hover:bg-canvas-soft transition-colors ${idx !== filtered.length - 1 ? 'border-b border-hairline' : ''}`}>
 
-              {/* 이름 + 역할 */}
+              {/* 이름 */}
               <div className="w-[120px] shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[13px] font-bold text-ink truncate">{u.name}</span>
-                  <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${
-                    isAdmin ? 'bg-primary-50 text-primary-700 border-primary-200' : 'bg-canvas text-ink-faint border-hairline'
-                  }`}>
-                    {isAdmin ? '관리자' : '직원'}
-                  </span>
-                </div>
+                <span className="text-[13px] font-bold text-ink truncate">{u.name}</span>
+                {isMe && <span className="ml-1.5 text-[10px] text-ink-faint">(나)</span>}
               </div>
 
               {/* 전화 + 계좌 */}
@@ -86,6 +112,24 @@ export default function UserManagementSection() {
                     ? `${u.bank_name} ${u.bank_account}`
                     : <span className="text-ink-faint">계좌 미등록</span>}
                 </span>
+              </div>
+
+              {/* 권한 선택 */}
+              <div className="flex gap-1 shrink-0" title={isMe ? '본인 권한은 여기서 바꿀 수 없습니다' : undefined}>
+                {ROLE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleRoleChange(u.id, opt.value)}
+                    disabled={isMe || isSaving || role === opt.value}
+                    className={`text-[10px] font-semibold px-2 py-1 rounded-md border cursor-pointer transition-colors disabled:cursor-not-allowed ${
+                      role === opt.value
+                        ? 'bg-primary-700 text-white border-primary-700'
+                        : 'bg-canvas text-ink-faint border-hairline hover:bg-canvas-soft'
+                    } ${isMe && role !== opt.value ? 'opacity-40' : ''}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
 
               {/* 보건증 */}

@@ -123,10 +123,12 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
         '프로필 조회',
       )
 
-      const isAdmin = profile?.worker_role === 'admin'
+      const syncedRole =
+        profile?.worker_role === 'admin' ? 'admin' :
+        profile?.worker_role === 'manager' ? 'manager' : 'user'
       await withTimeout(
         supabase.auth.updateUser({
-          data: { role: isAdmin ? 'admin' : 'worker', name: profile?.name ?? data.user.user_metadata?.name },
+          data: { role: syncedRole, name: profile?.name ?? data.user.user_metadata?.name },
         }),
         8000,
         '권한 동기화',

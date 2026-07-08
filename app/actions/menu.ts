@@ -16,7 +16,7 @@ import type { MenuItem } from '@/types/database';
 
 const MenuItemSchema = z.object({
   name: z.string().min(1, '메뉴 이름을 입력해주세요').max(20, '메뉴 이름은 20자 이하여야 합니다'),
-  price: z.number().int().positive('가격은 0보다 큰 정수여야 합니다'),
+  price: z.number().int().refine((v) => v !== 0, '가격은 0이 될 수 없습니다'),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, '올바른 색상 코드를 입력해주세요'),
 });
 

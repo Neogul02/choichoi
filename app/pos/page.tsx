@@ -286,7 +286,6 @@ export default function PosPage() {
           ? `오늘 ${result.dailyOrderNumber}번째 주문`
           : `주문번호: ${result.orderId}`
         toast.success(`결제 완료! ${label}`, { id: 'checkout-success' })
-        if (result.inventoryError) toast.error(`재고 차감 실패: ${result.inventoryError}`)
 
         if (result.sales) {
           const { tier: newTier } = getTier(result.sales.totalRevenue)
@@ -323,8 +322,8 @@ export default function PosPage() {
 
   const handleCheckout = () => {
     if (checkoutMutation.isPending) return
-    if (totalPrice === 0) {
-      toast.warning('주문하신 항목이 없습니다')
+    if (totalPrice <= 0) {
+      toast.warning(totalPrice < 0 ? '할인 금액이 주문 금액보다 큽니다' : '주문하신 항목이 없습니다')
       return
     }
     const items = menuItems
