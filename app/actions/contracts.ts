@@ -201,6 +201,19 @@ export async function fetchContractedStaffIds(): Promise<ApiResponse<number[]>> 
   })
 }
 
+export async function fetchAllContracts(): Promise<ApiResponse<ContractRecord[]>> {
+  return wrap(async () => {
+    const admin = getAdminClient()
+    const { data, error } = await admin
+      .from('contracts')
+      .select('*')
+      .order('issued_at', { ascending: false })
+    if (error) throw error
+    // 계약서당 signed URL 1회 발급 — 수십 건 규모 전제. 수백 건 이상이면 on-demand 발급으로 전환할 것
+    return attachSignedUrls(admin, (data ?? []) as ContractRecord[])
+  })
+}
+
 export async function getWorkerContracts(
   workerId: number,
 ): Promise<ApiResponse<ContractRecord[]>> {
