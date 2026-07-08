@@ -44,12 +44,13 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
   const [containerUnit, setContainerUnit] = useState('박스');
   const [containerSize, setContainerSize] = useState('1000');
   const [reorderAt, setReorderAt] = useState('2');
+  const [vendor, setVendor] = useState('');
   const [saving, setSaving] = useState(false);
 
   function reset() {
     setName(''); setId(''); setCategory('과일'); setColor('#FFB3BA');
     setUnitType('weight'); setBaseUnit('g'); setContainerUnit('박스');
-    setContainerSize('1000'); setReorderAt('2');
+    setContainerSize('1000'); setReorderAt('2'); setVendor('');
   }
 
   function handleUnitPreset(preset: { base: string; container: string }) {
@@ -75,6 +76,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
       container_unit: containerUnit,
       container_size: cs,
       reorder_at_containers: ro,
+      vendor: vendor.trim() || undefined,
     });
     setSaving(false);
 
@@ -97,7 +99,6 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-0 md:p-4"
-          onClick={onClose}
         >
           <motion.div
             key="modal"
@@ -205,6 +206,17 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                     style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                   />
                 </div>
+              </div>
+
+              {/* 거래처 */}
+              <div>
+                <label className="text-[10px] font-bold text-ink-muted block mb-1">거래처 (선택)</label>
+                <input
+                  type="text" value={vendor} onChange={(e) => setVendor(e.target.value)}
+                  placeholder="예: 마켓컬리"
+                  className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                  style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                />
               </div>
 
               {/* 색상 */}

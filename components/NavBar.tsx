@@ -8,6 +8,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePresence, type PresenceUser } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { withTimeout } from '@/lib/utils';
+import type { UserAppRole } from '@/types/database';
+
+function toAppRole(value: unknown): UserAppRole {
+  return value === 'admin' ? 'admin' : value === 'manager' ? 'manager' : 'user';
+}
 
 const NAV_COLLAPSED_KEY = 'choichoi_nav_collapsed';
 const CASHIER_NAME_KEY = 'choichoi_cashier_name';
@@ -16,16 +21,18 @@ const POPUP_NAME_KEY = 'choichoi_popup_name';
 const WORKER_ROLE_KEY = 'choichoi_worker_role';
 
 const ALL_NAV_LINKS = [
-  { href: '/pos', label: 'POS', adminOnly: false },
-  { href: '/stats', label: '통계', adminOnly: true },
-  { href: '/schedule', label: '일정', adminOnly: true },
-  { href: '/hr', label: '인사', adminOnly: true },
-  { href: '/inventory', label: '재고', adminOnly: true, hidden: true },
-  { href: '/memo', label: '메모', adminOnly: false },
-  { href: '/my/schedule', label: '스케줄', adminOnly: false },
-  { href: '/my', label: 'MY', adminOnly: false },
-  { href: '/settings', label: '설정', adminOnly: true },
+  { href: '/pos', label: 'POS', minRole: 'user' },
+  { href: '/stats', label: '통계', minRole: 'manager' },
+  { href: '/schedule', label: '일정', minRole: 'manager' },
+  { href: '/hr', label: '인사', minRole: 'admin' },
+  { href: '/inventory', label: '재고', minRole: 'manager' },
+  { href: '/memo', label: '메모', minRole: 'user' },
+  { href: '/my/schedule', label: '스케줄', minRole: 'user' },
+  { href: '/my', label: 'MY', minRole: 'user' },
+  { href: '/settings', label: '설정', minRole: 'admin' },
 ] as const;
+
+const ROLE_RANK: Record<UserAppRole, number> = { user: 0, manager: 1, admin: 2 };
 
 function useTodayLabel(): string {
   const [label, setLabel] = useState('');
@@ -42,7 +49,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   const router = useRouter();
   const todayLabel = useTodayLabel();
   const [collapsed, setCollapsed] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<UserAppRole>('user');
   const [cashierName, setCashierName] = useState<string | null>(null);
   const [popupName, setPopupName] = useState<string | null>(null);
   const [popupId, setPopupId] = useState('0');
@@ -80,8 +87,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       const result = await getUserResilient()
       if (!result) return
       const { data: { user } } = result
-      const role = user?.user_metadata?.role
-      setIsAdmin(role === 'admin')
+      setRole(toAppRole(user?.user_metadata?.role))
       if (user) {
         const { data: profile } = await supabase
           .from('user_profiles')
@@ -104,14 +110,14 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       const result = await getUserResilient()
       if (!result) return
       const { data: { user } } = result
-      setIsAdmin(user?.user_metadata?.role === 'admin')
+      setRole(toAppRole(user?.user_metadata?.role))
     });
     return () => subscription.unsubscribe();
   }, []);
 
   const visibleLinks = useMemo(
-    () => ALL_NAV_LINKS.filter((l) => !('hidden' in l && l.hidden) && (!l.adminOnly || isAdmin)),
-    [isAdmin]
+    () => ALL_NAV_LINKS.filter((l) => ROLE_RANK[role] >= ROLE_RANK[l.minRole]),
+    [role]
   );
 
   const toggle = () => {

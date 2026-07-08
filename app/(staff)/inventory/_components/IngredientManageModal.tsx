@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Ingredient } from '@/types/database';
-import { restockIngredient, updateIngredientSettings, setPhysicalInventory, deleteIngredientById } from '@/app/actions/inventory';
+import { updateIngredientSettings, setPhysicalInventory, deleteIngredientById } from '@/app/actions/inventory';
 import { totalQty } from '../_hooks/useInventory';
 
 interface Props {
@@ -13,15 +13,13 @@ interface Props {
   onSuccess: () => void;
 }
 
-type Tab = 'restock' | 'adjust' | 'settings';
-const QUICK_CHIPS = [1, 3, 5, 10];
+type Tab = 'adjust' | 'settings';
 
 export default function IngredientManageModal({ ingredient, onClose, onSuccess }: Props) {
-  const [tab, setTab] = useState<Tab>('restock');
-  const [sealedDelta, setSealedDelta] = useState(1);
-  const [note, setNote] = useState('');
+  const [tab, setTab] = useState<Tab>('adjust');
   const [containerSize, setContainerSize] = useState('');
   const [reorderAt, setReorderAt] = useState('');
+  const [vendor, setVendor] = useState('');
   const [adjSealed, setAdjSealed] = useState('');
   const [adjOpened, setAdjOpened] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -29,11 +27,10 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
   useEffect(() => {
     if (ingredient) {
-      setTab('restock');
-      setSealedDelta(1);
-      setNote('');
+      setTab('adjust');
       setContainerSize(String(ingredient.container_size));
       setReorderAt(String(ingredient.reorder_at_containers));
+      setVendor(ingredient.vendor ?? '');
       setAdjSealed(String(ingredient.sealed_count));
       setAdjOpened(String(ingredient.opened_remaining));
       setConfirmDelete(false);
@@ -43,26 +40,12 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
   if (!ingredient) return null;
 
   const currentTotal = totalQty(ingredient);
-  const afterTotal = currentTotal + sealedDelta * ingredient.container_size;
 
   function fmt(qty: number): string {
-    if (ingredient.unit_type === 'weight') {
+    if (ingredient!.unit_type === 'weight') {
       return qty >= 1000 ? `${(qty / 1000).toFixed(1)}kg` : `${qty}g`;
     }
-    return `${qty}${ingredient.base_unit}`;
-  }
-
-  async function handleRestock() {
-    setSaving(true);
-    const res = await restockIngredient(ingredient.id, sealedDelta, 0, note || undefined);
-    setSaving(false);
-    if (res.success) {
-      toast.success(`${ingredient.name} ${sealedDelta}${ingredient.container_unit} 입고 완료`);
-      onSuccess();
-      onClose();
-    } else {
-      toast.error(`입고 실패: ${res.error}`);
-    }
+    return `${qty}${ingredient!.base_unit}`;
   }
 
   async function handleAdjust() {
@@ -108,6 +91,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
     const res = await updateIngredientSettings(ingredient.id, {
       container_size: cs,
       reorder_at_containers: ro,
+      vendor: vendor.trim() || null,
     });
     setSaving(false);
     if (res.success) {
@@ -156,7 +140,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
           {/* 탭 */}
           <div className="flex mx-5 mb-4 bg-[#f5f6f7] rounded-xl p-1 gap-1">
-            {(['restock', 'adjust', 'settings'] as Tab[]).map((t) => (
+            {(['adjust', 'settings'] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -166,82 +150,15 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                     : 'bg-transparent text-ink-faint hover:text-ink-muted'
                 }`}
               >
-                {t === 'restock' ? '입고' : t === 'adjust' ? '재고 조정' : '설정'}
+                {t === 'adjust' ? '재고 조정' : '설정'}
               </button>
             ))}
           </div>
 
           <div className="px-5 pb-5">
-            {tab === 'restock' && (
-              <div className="flex flex-col gap-4">
-                {/* 수량 선택 */}
-                <div>
-                  <label className="text-[10px] font-bold text-ink-muted uppercase tracking-wide block mb-2">
-                    입고 수량 ({ingredient.container_unit})
-                  </label>
-                  <div className="flex items-center justify-center gap-4 mb-3">
-                    <button
-                      onClick={() => setSealedDelta((v) => Math.max(1, v - 1))}
-                      className="w-9 h-9 rounded-full border border-hairline text-lg font-bold text-ink-secondary hover:bg-[#f5f6f7] cursor-pointer transition"
-                    >−</button>
-                    <span className="text-3xl font-black tabular-nums w-10 text-center">{sealedDelta}</span>
-                    <button
-                      onClick={() => setSealedDelta((v) => v + 1)}
-                      className="w-9 h-9 rounded-full border border-hairline text-lg font-bold text-ink-secondary hover:bg-[#f5f6f7] cursor-pointer transition"
-                    >+</button>
-                  </div>
-                  <div className="flex gap-1.5 justify-center">
-                    {QUICK_CHIPS.map((n) => (
-                      <button
-                        key={n}
-                        onClick={() => setSealedDelta(n)}
-                        className={`text-[11px] font-bold px-3 py-1 rounded-lg border-none cursor-pointer transition ${
-                          sealedDelta === n
-                            ? 'bg-primary-700 text-white'
-                            : 'bg-[#f5f6f7] text-ink-muted hover:bg-primary-50 hover:text-primary-700'
-                        }`}
-                      >{n}</button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 메모 */}
-                <div>
-                  <label className="text-[10px] font-bold text-ink-muted uppercase tracking-wide block mb-1.5">
-                    메모 (선택)
-                  </label>
-                  <input
-                    type="text"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="예: 마켓컬리, 유통기한 6/30"
-                    className="w-full border border-hairline rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary-700 transition"
-                    style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                  />
-                </div>
-
-                {/* 프리뷰 */}
-                <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[12px] text-ink-muted">
-                  입고 후 재고:{' '}
-                  <span className="font-bold text-ink">{fmt(afterTotal)}</span>
-                  <span className="text-ink-faint ml-1">
-                    (+{sealedDelta}{ingredient.container_unit})
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleRestock}
-                  disabled={saving}
-                  className="w-full bg-primary-700 hover:bg-primary-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-[13px] border-none"
-                >
-                  {saving ? '저장 중…' : `${sealedDelta}${ingredient.container_unit} 입고 확정`}
-                </button>
-              </div>
-            )}
-
             {tab === 'adjust' && (
               <div className="flex flex-col gap-4">
-                <p className="text-[11px] text-ink-faint">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다.</p>
+                <p className="text-[11px] text-ink-faint">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다. 카드의 +/- 버튼으로도 빠르게 조정할 수 있습니다.</p>
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
@@ -326,6 +243,18 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                 <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
                   1{ingredient.container_unit} = {containerSize || '?'}{ingredient.base_unit} ·{' '}
                   {reorderAt || '?'}{ingredient.container_unit} 이하면 발주 알림
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-ink-muted block mb-1.5">거래처 (선택)</label>
+                  <input
+                    type="text"
+                    value={vendor}
+                    onChange={(e) => setVendor(e.target.value)}
+                    placeholder="예: 마켓컬리"
+                    className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                    style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                  />
                 </div>
 
                 <button

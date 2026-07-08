@@ -1,31 +1,22 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { toast } from 'sonner';
 import NavBar from '@/components/NavBar';
 import type { Ingredient } from '@/types/database';
 import { useInventory, totalQty, getStatus } from './_hooks/useInventory';
-import { useLiveLog } from './_hooks/useLiveLog';
+import { restockIngredient } from '@/app/actions/inventory';
 import FilterBar, { type SortKey } from './_components/FilterBar';
 import IngredientCard from './_components/IngredientCard';
 import IngredientManageModal from './_components/IngredientManageModal';
-import LiveLog from './_components/LiveLog';
-import RecipePanel from './_components/RecipePanel';
-import RecipeModal from './_components/RecipeModal';
 import AddIngredientModal from './_components/AddIngredientModal';
 
-interface MenuTarget {
-  menu_id: number;
-  menu_name: string;
-}
-
 export default function InventoryPage() {
-  const { ingredients, recipes, isLoading, reload } = useInventory();
-  const { logs, isLoading: logLoading } = useLiveLog();
+  const { ingredients, isLoading, reload } = useInventory();
 
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState<SortKey>('default');
   const [manageTarget, setManageTarget] = useState<Ingredient | null>(null);
-  const [recipeTarget, setRecipeTarget] = useState<MenuTarget | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   const filtered = useMemo(() => {
@@ -38,6 +29,12 @@ export default function InventoryPage() {
     }
     return list;
   }, [ingredients, category, sort]);
+
+  const adjustSealed = useCallback(async (ing: Ingredient, delta: 1 | -1) => {
+    const res = await restockIngredient(ing.id, delta, 0);
+    if (res.success) reload();
+    else toast.error(`재고 변경 실패: ${res.error}`);
+  }, [reload]);
 
   return (
     <>
@@ -73,24 +70,13 @@ export default function InventoryPage() {
                 <IngredientCard
                   key={ing.id}
                   ingredient={ing}
-                  recipes={recipes}
-                  onClick={() => setManageTarget(ing)}
+                  onManage={() => setManageTarget(ing)}
+                  onIncrease={() => adjustSealed(ing, 1)}
+                  onDecrease={() => adjustSealed(ing, -1)}
                 />
               ))}
             </div>
           )}
-
-          <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline">
-            <LiveLog logs={logs} isLoading={logLoading} />
-          </div>
-
-          <div className="bg-canvas rounded-xl p-3.5 shadow-level-1 border border-hairline">
-            <RecipePanel
-              recipes={recipes}
-              ingredients={ingredients}
-              onSelectMenu={setRecipeTarget}
-            />
-          </div>
 
         </div>
       </main>
@@ -99,14 +85,6 @@ export default function InventoryPage() {
         ingredient={manageTarget}
         onClose={() => setManageTarget(null)}
         onSuccess={reload}
-      />
-
-      <RecipeModal
-        target={recipeTarget}
-        recipes={recipes}
-        ingredients={ingredients}
-        onClose={() => setRecipeTarget(null)}
-        onRefresh={reload}
       />
 
       <AddIngredientModal

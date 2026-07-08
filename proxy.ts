@@ -32,10 +32,18 @@ export async function proxy(request: NextRequest) {
   }
 
   const role = user.user_metadata?.role
-  const adminPrefixes = ['/stats', '/schedule', '/settings', '/inventory', '/devtools', '/hr']
-  const isAdminPath = adminPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
+  const adminOnlyPrefixes = ['/settings', '/devtools', '/hr']
+  const managerPrefixes = ['/inventory', '/stats', '/schedule']
+  const isAdminOnlyPath = adminOnlyPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
+  const isManagerPath = managerPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
 
-  if (isAdminPath && role !== 'admin') {
+  if (isAdminOnlyPath && role !== 'admin') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/pos'
+    return NextResponse.redirect(url)
+  }
+
+  if (isManagerPath && role !== 'admin' && role !== 'manager') {
     const url = request.nextUrl.clone()
     url.pathname = '/pos'
     return NextResponse.redirect(url)

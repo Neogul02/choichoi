@@ -12,7 +12,6 @@ import {
   deleteOrder,
   getOrdersByPeriod,
   clearTodaysOrders,
-  deductForOrder,
   getPopupEventName,
   getKSTDateBounds,
   getMenuSalesByPeriod,
@@ -31,10 +30,10 @@ const SaveOrderSchema = z.object({
   items: z.array(z.object({
     id: z.number().int().positive(),
     name: z.string().min(1),
-    price: z.number().int().positive(),
+    price: z.number().int().refine((v) => v !== 0, '가격은 0이 될 수 없습니다'),
     count: z.number().int().positive(),
   })).min(1, '주문 항목이 없습니다'),
-  totalPrice: z.number().int().positive('총 금액이 올바르지 않습니다'),
+  totalPrice: z.number().int().min(0, '총 금액이 올바르지 않습니다'),
 });
 
 export async function saveOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string, popupId?: string | null): Promise<SaveOrderResponse> {
@@ -45,16 +44,6 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
     console.log(`[saveOrder] Starting order creation. Items: ${items.length}, Total: ${totalPrice}`);
     const order = await createOrder(items, totalPrice, cashierName, popupId);
     const sales = await getTodaysSales(popupId);
-
-    let inventoryError: string | undefined;
-    try {
-      console.log(`[saveOrder] Triggering inventory deduction for order ${order.id}`);
-      await deductForOrder(order.id);
-      console.log(`[saveOrder] Inventory deduction successful for order ${order.id}`);
-    } catch (err) {
-      inventoryError = extractErrorMessage(err);
-      console.error(`[saveOrder] deductForOrder failed for order ${order.id}:`, err);
-    }
 
     // 주문 완료 알림 (fire-and-forget)
     (async () => {
@@ -83,7 +72,7 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
       }
     }
 
-    return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales, inventoryError };
+    return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales };
   } catch (error) {
     const msg = extractErrorMessage(error);
     console.error('[saveOrder] Critical failure:', msg);

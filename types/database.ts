@@ -78,6 +78,10 @@ export interface AvailabilityRange {
 export type StaffStatus = 'candidate' | 'confirmed' | 'rejected' | 'inactive';
 export type StaffRole = 'kitchen' | 'cashier';
 
+// 앱 권한 역할 — user_profiles.worker_role / auth user_metadata.role에 저장됨
+// (근무 역할인 StaffRole과는 별개 개념)
+export type UserAppRole = 'admin' | 'manager' | 'user';
+
 export interface Store {
   id: number;
   name: string;
@@ -179,14 +183,6 @@ export interface Ingredient {
   updated_at: string;
 }
 
-export interface Recipe {
-  menu_id: number;
-  ingredient_id: string;
-  qty_per_unit: number;
-  ingredients?: Ingredient;
-  menu_items?: Pick<MenuItem, 'id' | 'name'>;
-}
-
 export interface RestockEvent {
   id: number;
   ingredient_id: string;
@@ -197,11 +193,3 @@ export interface RestockEvent {
   created_at: string;
 }
 
-export interface DeductionEvent {
-  id: number;
-  order_id: number | null;
-  ingredient_id: string;
-  qty_deducted: number;
-  created_at: string;
-  ingredients?: Pick<Ingredient, 'id' | 'name' | 'base_unit'>;
-}

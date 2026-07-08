@@ -1,11 +1,12 @@
-import type { Ingredient, Recipe } from '@/types/database';
+import type { Ingredient } from '@/types/database';
 import { totalQty, getStatus, type IngredientStatus } from '../_hooks/useInventory';
 import BoxStack from './BoxStack';
 
 interface Props {
   ingredient: Ingredient;
-  recipes: Recipe[];
-  onClick: () => void;
+  onManage: () => void;
+  onIncrease: () => void;
+  onDecrease: () => void;
 }
 
 function formatRemaining(ing: Ingredient): string {
@@ -45,18 +46,13 @@ const CATEGORY_COLOR: Record<string, string> = {
   '패키지': 'bg-blue-100 text-blue-600',
 };
 
-export default function IngredientCard({ ingredient, recipes, onClick }: Props) {
+export default function IngredientCard({ ingredient, onManage, onIncrease, onDecrease }: Props) {
   const status = getStatus(ingredient);
   const styles = STATUS_STYLES[status];
 
-  const usedInMenus = recipes
-    .filter((r) => r.ingredient_id === ingredient.id)
-    .map((r) => r.menu_items?.name ?? `메뉴 ${r.menu_id}`)
-    .filter(Boolean);
-
   return (
-    <button
-      onClick={onClick}
+    <div
+      onClick={onManage}
       className={`${styles.bg} w-full text-left rounded-xl p-3.5 shadow-level-1 border-[1.5px] ${styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
     >
       {/* 헤더 */}
@@ -82,20 +78,31 @@ export default function IngredientCard({ ingredient, recipes, onClick }: Props) 
       </div>
 
       {/* 컨테이너 정보 */}
-      <div className="text-[11px] text-ink-faint mb-2">
+      <div className="text-[11px] text-ink-faint mb-2.5">
         1{ingredient.container_unit} = {ingredient.container_size}{ingredient.base_unit}
       </div>
 
-      {/* 사용 메뉴 */}
-      {usedInMenus.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {usedInMenus.map((name) => (
-            <span key={name} className="text-[10px] bg-[#f5f6f7] text-ink-muted font-medium px-2 py-0.5 rounded-full border border-[#e8e8e8]">
-              {name}
-            </span>
-          ))}
-        </div>
-      )}
-    </button>
+      {/* POS식 +/- 재고 조작 */}
+      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onDecrease}
+          disabled={ingredient.sealed_count <= 0}
+          className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label={`${ingredient.name} 1${ingredient.container_unit} 감소`}
+        >
+          −
+        </button>
+        <span className="flex-1 text-center text-sm font-bold text-ink-secondary tabular-nums">
+          {ingredient.sealed_count}{ingredient.container_unit}
+        </span>
+        <button
+          onClick={onIncrease}
+          className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
+          aria-label={`${ingredient.name} 1${ingredient.container_unit} 증가`}
+        >
+          +
+        </button>
+      </div>
+    </div>
   );
 }

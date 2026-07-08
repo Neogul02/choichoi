@@ -5,9 +5,7 @@ import type {
   PopupEvent,
   Memo,
   Ingredient,
-  Recipe,
   RestockEvent,
-  DeductionEvent,
 } from '@/types/database'
 import type {
   TodaysSales,
@@ -683,7 +681,7 @@ export async function addRestock(
   const { error: upErr } = await supabaseAdmin
     .from('ingredients')
     .update({
-      sealed_count: (ing.sealed_count as number) + sealed_delta,
+      sealed_count: Math.max(0, (ing.sealed_count as number) + sealed_delta),
       opened_remaining: Math.max(
         0,
         (ing.opened_remaining as number) + opened_delta,
@@ -708,117 +706,6 @@ export async function physicalInventory(
   return data as Ingredient
 }
 
-export async function getRecipesWithIngredients(): Promise<Recipe[]> {
-  const { data, error } = await supabaseAdmin
-    .from('recipes')
-    .select('*, ingredients(*), menu_items(id, name)')
-  if (error) throw error
-  return (data ?? []) as unknown as Recipe[]
-}
-
-export async function upsertRecipe(
-  menu_id: number,
-  ingredient_id: string,
-  qty_per_unit: number,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('recipes')
-    .upsert([{ menu_id, ingredient_id, qty_per_unit }], {
-      onConflict: 'menu_id,ingredient_id',
-    })
-  if (error) throw error
-}
-
-export async function deleteRecipe(
-  menu_id: number,
-  ingredient_id: string,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('recipes')
-    .delete()
-    .eq('menu_id', menu_id)
-    .eq('ingredient_id', ingredient_id)
-  if (error) throw error
-}
-
-export async function getRecentDeductions(
-  limit = 30,
-): Promise<DeductionEvent[]> {
-  const { data, error } = await supabaseAdmin
-    .from('deduction_events')
-    .select('*, ingredients(id, name, base_unit)')
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  if (error) throw error
-  return (data ?? []) as unknown as DeductionEvent[]
-}
-
-export async function getRecentOrderLogs(
-  limit = 20,
-): Promise<import('@/types/api').OrderLogEntry[]> {
-  const { data: deductions, error: dErr } = await supabaseAdmin
-    .from('deduction_events')
-    .select(
-      'order_id, qty_deducted, created_at, ingredient_id, ingredients(name, base_unit)',
-    )
-    .order('created_at', { ascending: false })
-    .limit(limit * 8) // Increased multiplier to ensure we get enough orders
-  if (dErr) throw dErr
-
-  const rows = (deductions ?? []) as unknown as Array<{
-    order_id: number | null
-    qty_deducted: number
-    created_at: string
-    ingredient_id: string
-    ingredients: { name: string; base_unit: string } | null
-  }>
-
-  // Filter out rows with null order_id to prevent query errors and group by order_id
-  const orderIds = [
-    ...new Set(
-      rows.map((r) => r.order_id).filter((id): id is number => id !== null),
-    ),
-  ].slice(0, limit)
-  if (orderIds.length === 0) return []
-
-  const { data: items, error: iErr } = await supabaseAdmin
-    .from('order_items')
-    .select('order_id, quantity, menu_items(name)')
-    .in('order_id', orderIds)
-  if (iErr) throw iErr
-
-  const itemRows = (items ?? []) as unknown as Array<{
-    order_id: number
-    quantity: number
-    menu_items: { name: string } | null
-  }>
-
-  return orderIds.map((orderId) => {
-    const deductionRows = rows.filter((r) => r.order_id === orderId)
-    const menuRows = itemRows.filter((i) => i.order_id === orderId)
-    return {
-      orderId,
-      createdAt: deductionRows[0]?.created_at ?? '',
-      menuItems: menuRows.map((i) => ({
-        name: i.menu_items?.name ?? '메뉴',
-        quantity: i.quantity,
-      })),
-      deductions: deductionRows.map((d) => ({
-        name: d.ingredients?.name ?? d.ingredient_id,
-        qty: Number(d.qty_deducted),
-        unit: d.ingredients?.base_unit ?? '',
-      })),
-    }
-  })
-}
-
-export async function deductForOrder(orderId: number): Promise<void> {
-  const { error } = await supabaseAdmin.rpc('deduct_for_order', {
-    p_order_id: orderId,
-  })
-  if (error) throw error
-}
-
 export async function addIngredient(data: {
   id: string
   name: string
@@ -829,6 +716,7 @@ export async function addIngredient(data: {
   container_unit: string
   container_size: number
   reorder_at_containers: number
+  vendor?: string
   sort_order?: number
 }): Promise<Ingredient> {
   const { data: row, error } = await supabaseAdmin
@@ -853,7 +741,7 @@ export async function updateIngredientMeta(
   updates: {
     container_size?: number
     reorder_at_containers?: number
-    vendor?: string
+    vendor?: string | null
   },
 ): Promise<Ingredient> {
   const { data, error } = await supabaseAdmin
