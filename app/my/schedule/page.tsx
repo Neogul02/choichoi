@@ -207,7 +207,7 @@ export default function MySchedulePage() {
           </section>
 
           {/* 내 근무 설정 */}
-          {staffProfile && (
+          {/* {staffProfile && (
             <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
               <h2 className="m-0 mb-3 text-[16px] font-bold text-ink">내 근무 설정</h2>
               <div className="space-y-2.5">
@@ -235,7 +235,7 @@ export default function MySchedulePage() {
                 )}
               </div>
             </section>
-          )}
+          )} */}
 
         </div>
       </main>

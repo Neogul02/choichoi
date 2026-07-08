@@ -22,6 +22,11 @@
 
   /* ── Hairline (구분선 / 테두리) ── */
   --color-hairline: #e6e6e6;
+
+  /* ── Rank gold — 통계탭 전적 모티프 강조색 ── */
+  --color-gold:      #b8842f;
+  --color-gold-soft: #f6ecd7;
+  --color-gold-line: #e3cd9c;
 }
 
 :root {

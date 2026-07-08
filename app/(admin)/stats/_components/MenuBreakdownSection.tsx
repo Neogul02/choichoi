@@ -6,6 +6,9 @@ import { formatPrice } from '@/lib/utils';
 import { PERIOD_LABELS } from '../_lib/period';
 import type { Period } from '../_lib/period';
 import type { MenuSalesItem } from '@/types/api';
+import SectionHeader from './SectionHeader';
+
+const RANK_COLORS = ['#b8842f', '#8a8f98', '#a5673a'];
 
 const PERIOD_KEYS: Period[] = ['today', 'week', 'month'];
 
@@ -46,11 +49,14 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
     [breakdown]
   );
 
+  const top3 = useMemo(
+    () => [...breakdown].sort((a, b) => b.totalQuantity - a.totalQuantity).slice(0, 3),
+    [breakdown]
+  );
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="m-0 text-lg font-bold">메뉴별 판매 현황 ({periodLabel})</h3>
-      </div>
+      <SectionHeader title={`메뉴별 판매 현황 (${periodLabel})`} />
       <div className="flex flex-wrap gap-1.5 mb-4">
         {PERIOD_KEYS.map((key) => (
           <button
@@ -68,6 +74,22 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
       ) : breakdown.length === 0 ? (
         <p className="m-0 text-ink-faint text-sm">해당 기간 판매 내역이 없습니다.</p>
       ) : (
+        <>
+        <div className="flex flex-col gap-1.5 mb-4">
+          {top3.map((item, idx) => (
+            <div key={item.id} className="flex items-center gap-2.5 bg-canvas-soft rounded-lg px-3 py-2 border border-hairline">
+              <span
+                className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                style={{ backgroundColor: RANK_COLORS[idx] }}
+              >
+                {idx + 1}
+              </span>
+              <span className="flex-1 min-w-0 text-[13px] font-semibold text-ink-secondary truncate">{item.name}</span>
+              <span className="text-[12px] font-bold text-ink-muted tabular-nums">{item.totalQuantity}개</span>
+              <span className="text-[12px] font-bold text-primary-700 tabular-nums">₩{formatPrice(item.totalRevenue)}</span>
+            </div>
+          ))}
+        </div>
         <ResponsiveContainer width="100%" height={Math.max(200, breakdown.length * 44)}>
             <BarChart data={chartData} margin={{ top: 20, right: 8, left: -4, bottom: 4 }} barCategoryGap="30%">
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -98,6 +120,7 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </>
       )}
     </div>
   );

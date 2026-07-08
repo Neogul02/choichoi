@@ -10,6 +10,7 @@ import {
   updateMenuItem,
   deleteMenuItem,
   updateMenuOrder,
+  updateMenuItemStock,
 } from '@/lib/supabase-admin';
 import type { ApiResponse, FetchMenuItemsResponse } from '@/types/api';
 import type { MenuItem } from '@/types/database';
@@ -43,6 +44,15 @@ export async function removeMenuItem(id: number): Promise<ApiResponse> {
   const result = await wrap(() => deleteMenuItem(id));
   if (result.success) await notifyDiscord('delete', '🗑️ 메뉴 삭제', `ID: ${id}`);
   return result;
+}
+
+export async function updateMenuStock(id: number, stock: number | null): Promise<ApiResponse<MenuItem>> {
+  const parsed = z.object({
+    id: z.number().int().positive(),
+    stock: z.number().int().nullable(),
+  }).safeParse({ id, stock });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  return wrap(() => updateMenuItemStock(parsed.data.id, parsed.data.stock));
 }
 
 export async function reorderMenuItems(orderedIds: number[]): Promise<ApiResponse> {

@@ -22,7 +22,6 @@ export default function StatsPage() {
 
   const todayStr = getKSTDateStr();
   const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0), [todayOrders]);
-  const maxDayRevenue = useMemo(() => Math.max(...Object.values(calendarSales.byDate ?? {}).map(Number), 1), [calendarSales.byDate]);
 
   return (
     <>
@@ -59,29 +58,22 @@ export default function StatsPage() {
             <HourlySalesSection todayOrders={todayOrders} isLoadingToday={isLoading} popupEvents={popupEvents} />
           </div>
 
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <TodayOrdersSection
-              orders={todayOrders}
-              todayRevenue={todayRevenue}
-              isLoading={isLoading}
-              onDeleteOrder={handleDeleteOrder}
-            />
-          </div>
+          <TodayOrdersSection
+            orders={todayOrders}
+            todayRevenue={todayRevenue}
+            isLoading={isLoading}
+            onDeleteOrder={handleDeleteOrder}
+          />
 
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <CalendarSection
-              calendarSales={calendarSales}
-              calendarMonth={calendarMonth}
-              isLoading={isCalendarLoading}
-              todayStr={todayStr}
-              maxDayRevenue={maxDayRevenue}
-              onMonthChange={changeMonth}
-              saveDay={saveDay}
-              removeDay={removeDay}
-            />
-          </div>
-
-          
+          <CalendarSection
+            calendarSales={calendarSales}
+            calendarMonth={calendarMonth}
+            isLoading={isCalendarLoading}
+            todayStr={todayStr}
+            onMonthChange={changeMonth}
+            saveDay={saveDay}
+            removeDay={removeDay}
+          />
         </div>
       </main>
 

@@ -340,6 +340,22 @@ export async function deleteMenuItem(id: number): Promise<void> {
   if (error) throw error
 }
 
+export async function updateMenuItemStock(id: number, stock: number | null): Promise<MenuItem> {
+  const { data, error } = await supabaseAdmin
+    .from('menu_items')
+    .update({ stock, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as MenuItem
+}
+
+export async function decrementMenuStock(items: { id: number; count: number }[]): Promise<void> {
+  const { error } = await supabaseAdmin.rpc('decrement_menu_stock', { p_items: items })
+  if (error) throw error
+}
+
 export async function getAllMenuItems(): Promise<MenuItem[]> {
   const { data, error } = await supabaseAdmin
     .from('menu_items')
@@ -810,6 +826,20 @@ export async function getDailySalesForMonth(
     .select('id, sale_date, total_revenue, total_orders, note')
     .gte('sale_date', start)
     .lt('sale_date', end)
+    .order('sale_date', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as import('@/types/api').ManualSalesEntry[]
+}
+
+export async function getDailySalesForRange(
+  startDate: string,
+  endDate: string,
+): Promise<import('@/types/api').ManualSalesEntry[]> {
+  const { data, error } = await supabaseAdmin
+    .from('daily_sales')
+    .select('id, sale_date, total_revenue, total_orders, note')
+    .gte('sale_date', startDate)
+    .lte('sale_date', endDate)
     .order('sale_date', { ascending: false })
   if (error) throw error
   return (data ?? []) as import('@/types/api').ManualSalesEntry[]

@@ -3,10 +3,29 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { fetchPopupEvents } from '@/app/actions/schedule';
-import { fetchMenuSalesBreakdown, fetchDailySalesByPeriod } from '@/app/actions/stats';
+import { fetchMenuSalesBreakdown, fetchDailySalesByPeriod, fetchManualSalesForRange } from '@/app/actions/stats';
 import { fetchOrdersByPeriod } from '@/app/actions/orders';
-import type { MenuSalesItem, DailySalesItem } from '@/types/api';
+import type { MenuSalesItem, DailySalesItem, ManualSalesEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
+
+function applyManualOverrides(daily: DailySalesItem[], manualEntries: ManualSalesEntry[]): DailySalesItem[] {
+  if (manualEntries.length === 0) return daily;
+  const manualByDate: Record<string, ManualSalesEntry> = {};
+  for (const entry of manualEntries) manualByDate[entry.sale_date] = entry;
+
+  const merged = daily.map((d) =>
+    manualByDate[d.date]
+      ? { date: d.date, revenue: manualByDate[d.date].total_revenue, orderCount: manualByDate[d.date].total_orders }
+      : d
+  );
+  const existingDates = new Set(daily.map((d) => d.date));
+  for (const entry of manualEntries) {
+    if (!existingDates.has(entry.sale_date)) {
+      merged.push({ date: entry.sale_date, revenue: entry.total_revenue, orderCount: entry.total_orders });
+    }
+  }
+  return merged.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 export function usePopupStats() {
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([]);
@@ -35,16 +54,19 @@ export function usePopupStats() {
       // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
       const startISO = new Date(`${popup.start_date}T00:00:00+09:00`).toISOString();
       const endISO = new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString();
-      const [menuRes, dailyRes, rawRes] = await Promise.all([
+      const [menuRes, dailyRes, rawRes, manualRes] = await Promise.all([
         fetchMenuSalesBreakdown(startISO, endISO, String(selectedPopupId)),
         fetchDailySalesByPeriod(startISO, endISO, String(selectedPopupId)),
         fetchOrdersByPeriod(startISO, endISO, String(selectedPopupId)),
+        fetchManualSalesForRange(popup.start_date, popup.end_date),
       ]);
       if (!isCurrent) return;
       if (menuRes.success && menuRes.data) setPopupMenuBreakdown(menuRes.data);
       else { setPopupMenuBreakdown([]); if (!menuRes.success) toast.error(`팝업 메뉴 조회 실패: ${menuRes.error}`); }
-      if (dailyRes.success && dailyRes.data) setPopupDailySales(dailyRes.data);
-      else { setPopupDailySales([]); if (!dailyRes.success) toast.error(`팝업 일별 조회 실패: ${dailyRes.error}`); }
+      if (dailyRes.success && dailyRes.data) {
+        const manualEntries = manualRes.success && manualRes.data ? manualRes.data : [];
+        setPopupDailySales(applyManualOverrides(dailyRes.data, manualEntries));
+      } else { setPopupDailySales([]); if (!dailyRes.success) toast.error(`팝업 일별 조회 실패: ${dailyRes.error}`); }
       setPopupRawOrders(rawRes.success && rawRes.data ? rawRes.data : []);
       setIsLoading(false);
     };

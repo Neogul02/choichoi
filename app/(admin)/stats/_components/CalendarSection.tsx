@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { formatPrice } from '@/lib/utils';
+import { getDayTierSwatch } from '../_lib/tierSwatch';
 import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
 import DayDetailModal from './DayDetailModal';
+import SectionHeader from './SectionHeader';
 
 const MATERIAL_COST_KEY = 'choichoi_material_cost';
 const OTHER_COST_KEY = 'choichoi_other_cost';
@@ -17,15 +19,6 @@ function formatDayRevenue(n: number): string {
   return `${Math.round(man)}만`;
 }
 
-function getCellBgStyle(revenue: number, maxRevenue: number) {
-  if (revenue <= 0 || maxRevenue <= 0) return { backgroundColor: '#f8faf9' };
-  const ratio = Math.min(revenue / maxRevenue, 1);
-  const r = Math.round(230 + (61 - 230) * ratio);
-  const g = Math.round(244 + (153 - 244) * ratio);
-  const b = Math.round(238 + (102 - 238) * ratio);
-  return { backgroundColor: `rgb(${r},${g},${b})` };
-}
-
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 interface Props {
@@ -33,13 +26,12 @@ interface Props {
   calendarMonth: Date;
   isLoading: boolean;
   todayStr: string;
-  maxDayRevenue: number;
   onMonthChange: (offset: number) => void;
   saveDay: (date: string, revenue: number, orders: number, note: string | null) => Promise<boolean>;
   removeDay: (id: number) => Promise<void>;
 }
 
-export default function CalendarSection({ calendarSales, calendarMonth, isLoading, todayStr, maxDayRevenue, onMonthChange, saveDay, removeDay }: Props) {
+export default function CalendarSection({ calendarSales, calendarMonth, isLoading, todayStr, onMonthChange, saveDay, removeDay }: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const manualByDate: Record<string, ManualSalesEntry> = calendarSales.manualByDate ?? {};
   const [materialCost, setMaterialCost] = useState(() => {
@@ -81,14 +73,16 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
   return (
     <>
     <div className="bg-canvas-soft rounded-xl p-4 mb-4 md:mb-5 border border-hairline">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="m-0 text-lg font-bold">날짜별 매출 프리뷰</h3>
-        <div className="flex items-center gap-1.5">
-          <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(-1)}>‹</button>
-          <strong className="min-w-[108px] text-center text-[13px] font-bold text-ink-secondary">{monthYearLabel}</strong>
-          <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(1)}>›</button>
-        </div>
-      </div>
+      <SectionHeader
+        title="날짜별 매출 프리뷰"
+        right={
+          <div className="flex items-center gap-1.5">
+            <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(-1)}>‹</button>
+            <strong className="min-w-[104px] text-center text-[13px] font-bold text-ink-secondary">{monthYearLabel}</strong>
+            <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(1)}>›</button>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-2 mb-3">
         <div className="bg-canvas border border-[#e4e4e4] rounded-xl px-3 py-2.5 text-center">
@@ -118,6 +112,9 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
             const dayOfWeek = (firstDay + idx) % 7;
             const dateKey = buildDateKey(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
             const dayRevenue = Number(calendarSales.byDate?.[dateKey] || 0);
+            const isManual = Boolean(manualByDate[dateKey]);
+            const effectiveRevenue = isManual ? manualByDate[dateKey].total_revenue : dayRevenue;
+            const swatch = getDayTierSwatch(effectiveRevenue);
             const isToday = dateKey === todayStr;
             return (
               <div
@@ -125,18 +122,25 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
                 onClick={() => setSelectedDate(dateKey)}
                 className="min-h-[64px] rounded-lg p-1.5 cursor-pointer active:scale-[0.97] transition-transform"
                 style={{
-                  ...getCellBgStyle(dayRevenue, maxDayRevenue),
-                  border: isToday ? '2px solid #084431' : manualByDate[dateKey] ? '1.5px solid #fbbf24' : '1px solid #dce8e0',
+                  backgroundColor: swatch ? swatch.bg : '#f8faf9',
+                  border: isToday
+                    ? '2px solid #084431'
+                    : swatch
+                      ? `1.5px solid ${swatch.ring}`
+                      : '1px solid #e4e9e6',
                 }}
               >
                 <div className="flex items-start justify-between">
                   <span className={`text-[11px] font-extrabold leading-none ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-ink-secondary'}`}>
                     {day}{isToday && <span className="ml-0.5 text-primary-700">•</span>}
                   </span>
-                  {manualByDate[dateKey] && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 mt-0.5" />}
+                  {isManual && <span className="w-1.5 h-1.5 rounded-full bg-[#b8842f] shrink-0 mt-0.5" title="수동 정정" />}
                 </div>
-                <div className={`mt-1.5 text-[10px] font-semibold leading-tight ${dayRevenue > 0 || manualByDate[dateKey] ? 'text-[#1a3d2b]' : 'text-ink-faint'}`}>
-                  {manualByDate[dateKey] ? formatDayRevenue(manualByDate[dateKey].total_revenue) : formatDayRevenue(dayRevenue)}
+                <div
+                  className="mt-1.5 text-[10px] font-semibold leading-tight tabular-nums"
+                  style={{ color: swatch ? swatch.text : '#a39e98' }}
+                >
+                  {formatDayRevenue(effectiveRevenue)}
                 </div>
               </div>
             );

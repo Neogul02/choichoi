@@ -10,6 +10,7 @@ import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { fireConfetti, fireTierConfetti } from '@/lib/confetti'
 import FloatingEmojis from '@/components/FloatingEmojis'
 import PosNoteWidget from '@/components/PosNoteWidget'
+import MenuStockModal from '@/components/MenuStockModal'
 import { fetchMenuItems } from '@/app/actions/menu';
 import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from '@/app/actions/orders'
 import type { MenuItem } from '@/types/database'
@@ -52,6 +53,7 @@ export default function PosPage() {
   } | null>(null)
   const [cashierName, setCashierName] = useState<string | null>(null)
   const [popupId, setPopupId] = useState('0')
+  const [stockModalOpen, setStockModalOpen] = useState(false)
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevTierLvRef = useRef(0)
   const activeCashiers = usePresence(cashierName)
@@ -89,6 +91,20 @@ export default function PosPage() {
       supabase.removeChannel(channel)
     }
   }, [queryClient, popupId])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`menu-items-stock-${Math.random().toString(36).slice(2)}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'menu_items' },
+        () => queryClient.invalidateQueries({ queryKey: ['menu-items'] }),
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [queryClient])
 
   const checkoutFnRef = useRef<(() => void) | null>(null)
   const checkoutDebouncingRef = useRef(false)
@@ -287,6 +303,7 @@ export default function PosPage() {
           ? `오늘 ${result.dailyOrderNumber}번째 주문`
           : `주문번호: ${result.orderId}`
         toast.success(`결제 완료! ${label}`, { id: 'checkout-success' })
+        queryClient.invalidateQueries({ queryKey: ['menu-items'] })
 
         if (result.sales) {
           const { tier: newTier } = getTier(result.sales.totalRevenue)
@@ -481,6 +498,9 @@ export default function PosPage() {
                     <p className="m-0 text-xl md:text-2xl font-extrabold text-ink-secondary">
                       {formatPrice(item.price)}원
                     </p>
+                    <p className="m-0 h-4 text-[11px] font-normal text-ink-faint">
+                      {item.stock !== null ? `${item.stock}개` : ' '}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -621,6 +641,15 @@ export default function PosPage() {
             )}
           </section>
 
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={() => setStockModalOpen(true)}
+              className="text-[11px] font-semibold text-ink-faint hover:text-ink-muted bg-transparent border-none cursor-pointer transition-colors px-1 py-0.5"
+            >
+              재고 설정
+            </button>
+          </div>
+
           <PosNoteWidget cashierName={cashierName} />
 
           {/* 모바일 전용 sticky 결제 바 */}
@@ -659,6 +688,12 @@ export default function PosPage() {
 
       </main>
       <FloatingEmojis burstKey={0} />
+      <MenuStockModal
+        open={stockModalOpen}
+        menuItems={menuItems}
+        onClose={() => setStockModalOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['menu-items'] })}
+      />
     </>
   )
 }

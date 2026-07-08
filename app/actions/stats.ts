@@ -8,6 +8,7 @@ import {
   getDailySalesByPeriod,
   upsertDailySales,
   getDailySalesForMonth,
+  getDailySalesForRange,
   deleteDailySales,
   getOrdersByDate,
 } from '@/lib/supabase-admin';
@@ -44,6 +45,7 @@ export async function fetchManualSalesByDate(date: string): Promise<ApiResponse<
   const entry = result.data?.find((e) => e.sale_date === date);
   return { success: true, data: entry };
 }
+export async function fetchManualSalesForRange(startDate: string, endDate: string): Promise<FetchManualSalesResponse> { return wrap(() => getDailySalesForRange(startDate, endDate)); }
 export async function removeManualSales(id: number): Promise<ApiResponse> { return wrap(() => deleteDailySales(id)); }
 export async function fetchOrdersByDate(date: string, popupId?: string | null): Promise<ApiResponse<import('@/types/api').OrderRecordWithItems[]>> { return wrap(() => getOrdersByDate(date, popupId)); }
 

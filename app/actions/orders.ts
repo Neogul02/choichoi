@@ -15,6 +15,7 @@ import {
   getPopupEventName,
   getKSTDateBounds,
   getMenuSalesByPeriod,
+  decrementMenuStock,
 } from '@/lib/supabase-admin';
 import type { OrderItemInput } from '@/lib/supabase';
 import type {
@@ -44,6 +45,12 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
     console.log(`[saveOrder] Starting order creation. Items: ${items.length}, Total: ${totalPrice}`);
     const order = await createOrder(items, totalPrice, cashierName, popupId);
     const sales = await getTodaysSales(popupId);
+
+    try {
+      await decrementMenuStock(items.map((i) => ({ id: i.id, count: i.count })))
+    } catch (err) {
+      console.error('[saveOrder] 메뉴 재고 차감 실패:', err)
+    }
 
     // 주문 완료 알림 (fire-and-forget)
     (async () => {
