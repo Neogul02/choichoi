@@ -29,6 +29,7 @@ import {
 import { getTier } from '@/lib/tiers'
 
 const CASHIER_NAME_KEY = 'choichoi_cashier_name'
+const POS_NOTE_VISIBLE_KEY = 'choichoi_pos_note_visible'
 
 const cartItemVariants: Variants = {
   hidden: { opacity: 0, height: 0, marginBottom: 0 },
@@ -54,6 +55,7 @@ export default function PosPage() {
   const [cashierName, setCashierName] = useState<string | null>(null)
   const [popupId, setPopupId] = useState('0')
   const [stockModalOpen, setStockModalOpen] = useState(false)
+  const [showNote, setShowNote] = useState(true)
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevTierLvRef = useRef(0)
   const activeCashiers = usePresence(cashierName)
@@ -61,7 +63,17 @@ export default function PosPage() {
   useEffect(() => {
     setCashierName(localStorage.getItem(CASHIER_NAME_KEY))
     setPopupId(localStorage.getItem('choichoi_popup_id') ?? '0')
+    const savedVisible = localStorage.getItem(POS_NOTE_VISIBLE_KEY)
+    if (savedVisible !== null) setShowNote(savedVisible === '1')
   }, [])
+
+  const toggleNote = () => {
+    setShowNote((prev) => {
+      const next = !prev
+      try { localStorage.setItem(POS_NOTE_VISIBLE_KEY, next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
+  }
 
   const queryClient = useQueryClient()
 
@@ -412,8 +424,26 @@ export default function PosPage() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="rounded-2xl p-3.5 md:p-4 mb-3 bg-[#fff5f5] border border-rose-200 shadow-level-1"
+          className="relative rounded-2xl p-3.5 md:p-4 mb-3 bg-[#fff5f5] border border-rose-200 shadow-level-1"
         >
+          <button
+            onClick={toggleNote}
+            title={showNote ? '공유 메모장 숨기기' : '공유 메모장 표시'}
+            aria-label="공유 메모장 토글"
+            aria-pressed={showNote}
+            className={`hidden xl:flex items-center justify-center w-9 h-9 rounded-full border cursor-pointer transition-all duration-200 absolute top-1/2 -right-14 -translate-y-1/2 text-[15px] ${
+              showNote
+                ? 'bg-primary-700 border-primary-700 text-white shadow-level-1'
+                : 'bg-canvas border-hairline text-ink-faint hover:text-ink-muted'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+              <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+              <line x1="9" y1="13" x2="15" y2="13" />
+              <line x1="9" y1="17" x2="13" y2="17" />
+            </svg>
+          </button>
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold tracking-[0.04em] px-2 py-0.5 rounded-full bg-rose-500 text-white">
@@ -650,7 +680,7 @@ export default function PosPage() {
             </button>
           </div>
 
-          <PosNoteWidget cashierName={cashierName} />
+          {showNote && <PosNoteWidget cashierName={cashierName} />}
 
           {/* 모바일 전용 sticky 결제 바 */}
           <div className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3">
