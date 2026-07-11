@@ -7,14 +7,14 @@ Supabase client singleton + all DB functions. Functions throw on error; `actions
 
 Key function groups:
 - **Menu**: `getMenuItems` (active only), `getAllMenuItems`, `addMenuItem`, `updateMenuItem`, `deleteMenuItem` (soft), `updateMenuOrder` (Promise.all, not atomic)
-- **Orders**: `createOrder`, `getTodaysSales`, `getTodaysOrderList`, `getTodaysOrderListWithItems`, `getPendingOrders`, `prepareOrder`, `deleteOrder`, `clearTodaysOrders`
+- **Orders**: `createOrder`, `getTodaysSales`, `getTodaysOrderList`, `getTodaysOrderListWithItems`, `getPendingOrders`, `prepareOrder`, `deleteOrder`
 - **Stats**: `getMonthlySalesByDate` (RPC), `getMenuSalesByPeriod` (RPC), `getDailySalesByPeriod` (paginated)
 - **Popup Events**: `getPopupEvents`, `createPopupEvent`, `deletePopupEvent`
 - **Schedule**: `getScheduleByEvent`, `addScheduleSlot`, `removeScheduleSlot`, `updateScheduleSlot`, `moveScheduleSlot`, `copyScheduleSlot`
 - **Workers**: `getWorkers`, `createWorker`, `updateWorker`, `deleteWorker`, `setWorkerPaymentDone`
 - **Memos**: `getAllMemos`, `createMemo`, `updateMemo`, `deleteMemo`
 
-KST helpers: `getKSTDateStr()`, `getKSTDateBounds(dateStr?)` — use these for today's date filtering.
+KST helpers: `kstToday()` (lib/date.ts), `getKSTDateBounds(dateStr?)` — use these for today's date filtering.
 
 ## utils.ts
 `formatPrice(n)`, `formatKSTTime(isoStr)`, `toLocalDateStr(date)`, luminance check for text color on colored backgrounds.

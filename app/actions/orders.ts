@@ -11,7 +11,6 @@ import {
   prepareOrder,
   deleteOrder,
   getOrdersByPeriod,
-  clearTodaysOrders,
   getPopupEventName,
   getKSTDateBounds,
   getMenuSalesByPeriod,
@@ -21,7 +20,6 @@ import type { OrderItemInput } from '@/lib/supabase';
 import type {
   ApiResponse,
   SaveOrderResponse,
-  ResetSalesResponse,
   FetchTodaysSalesResponse,
   FetchOrdersResponse,
   FetchOrdersWithItemsResponse,
@@ -42,12 +40,13 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
   try {
-    console.log(`[saveOrder] Starting order creation. Items: ${items.length}, Total: ${totalPrice}`);
     const order = await createOrder(items, totalPrice, cashierName, popupId);
     const sales = await getTodaysSales(popupId);
 
     try {
-      await decrementMenuStock(items.map((i) => ({ id: i.id, count: i.count })))
+      // 할인 블록(음수 가격 메뉴)은 실물 재고가 없으므로 차감 대상에서 제외
+      const stockItems = items.filter((i) => i.price > 0).map((i) => ({ id: i.id, count: i.count }))
+      if (stockItems.length > 0) await decrementMenuStock(stockItems)
     } catch (err) {
       console.error('[saveOrder] 메뉴 재고 차감 실패:', err)
     }
@@ -84,15 +83,6 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
     const msg = extractErrorMessage(error);
     console.error('[saveOrder] Critical failure:', msg);
     return { success: false, error: msg };
-  }
-}
-
-export async function resetTodaysSales(): Promise<ResetSalesResponse> {
-  try {
-    const result = await clearTodaysOrders();
-    return { success: true, deletedCount: result.deletedCount };
-  } catch (error) {
-    return { success: false, error: extractErrorMessage(error) };
   }
 }
 

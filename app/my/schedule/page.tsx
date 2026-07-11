@@ -6,7 +6,6 @@ import { getMyStaffProfile } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getMyRoster, type MyShift } from '@/app/actions/roster'
 import { formatBreakMinutes } from '@/lib/utils'
-import type { StaffProfile } from '@/types/database'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
 
@@ -29,7 +28,6 @@ function dDayLabel(dateStr: string, today: string): string {
 export default function MySchedulePage() {
   const [staffId, setStaffId] = useState<number | null>(null)
   const [staffName, setStaffName] = useState('')
-  const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null)
   const [details, setDetails] = useState<StaffDayDetail[]>([])
@@ -54,7 +52,6 @@ export default function MySchedulePage() {
       if (profileRes.success && profileRes.data) {
         setStaffId(profileRes.data.id)
         setStaffName(profileRes.data.name)
-        setStaffProfile(profileRes.data)
       }
       if (rosterRes.success && rosterRes.data) {
         setAllShifts(rosterRes.data.shifts)
@@ -205,37 +202,6 @@ export default function MySchedulePage() {
               </>
             )}
           </section>
-
-          {/* 내 근무 설정 */}
-          {/* {staffProfile && (
-            <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
-              <h2 className="m-0 mb-3 text-[16px] font-bold text-ink">내 근무 설정</h2>
-              <div className="space-y-2.5">
-                <PrefRow
-                  label="선호 요일"
-                  value={staffProfile.preferred_days.length === 0
-                    ? '무관'
-                    : staffProfile.preferred_days.map(d => DAY_NAMES[d]).join(' · ')}
-                />
-                <PrefRow
-                  label="최대 근무"
-                  value={staffProfile.max_days_per_week != null ? `주 ${staffProfile.max_days_per_week}일` : '무제한'}
-                />
-                <PrefRow
-                  label="4대보험"
-                  value={staffProfile.wants_insurance
-                    ? <span className="text-emerald-700 font-semibold">희망</span>
-                    : <span className="text-ink-muted">미희망</span>}
-                />
-                {staffProfile.available_ranges.length > 0 && (
-                  <PrefRow
-                    label="가용 기간"
-                    value={staffProfile.available_ranges.map((r: { from: string; to: string }) => `${r.from} ~ ${r.to}`).join(', ')}
-                  />
-                )}
-              </div>
-            </section>
-          )} */}
 
         </div>
       </main>
@@ -423,15 +389,6 @@ function DayDetail({ dateStr, entries, allShifts }: {
           })}
         </div>
       )}
-    </div>
-  )
-}
-
-function PrefRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-[13px] text-ink-muted w-20 shrink-0">{label}</span>
-      <span className="text-[14px] text-ink">{value}</span>
     </div>
   )
 }

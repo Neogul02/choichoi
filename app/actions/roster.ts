@@ -4,8 +4,11 @@ import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
-import { checkStaffAvailability, getWeekStart } from '@/lib/staffing'
-import { parseDate, toDateStr, addDays, prevDate, dayOfWeek, dayGroup } from '@/lib/date'
+import { checkStaffAvailability, getWeekStart, toMinutes, MIN_REST_MINUTES } from '@/lib/staffing'
+import { parseDate, toDateStr, addDays, prevDate, dayOfWeek, dayGroup, kstToday } from '@/lib/date'
+
+// 시프트 이름 고정 우선순위: 오전 → 오후 → 기타
+const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -237,6 +240,189 @@ export async function updateRosterAssignmentTime(
   }
 }
 
+// 되돌리기용 스냅샷 — 삭제 행 재삽입과 수정 행 원복에 필요한 최소 필드
+export interface RosterAssignmentSnapshot {
+  work_date: string
+  shift_id: number
+  staff_id: number
+  staff_role: StaffRole
+  store_id: number | null
+  start_time: string | null
+  end_time: string | null
+}
+
+export interface RosterUndoPayload {
+  deleted: RosterAssignmentSnapshot[]
+  updated: { id: number; shift_id?: number; staff_id?: number; start_time?: string | null; end_time?: string | null }[]
+}
+
+const SNAPSHOT_COLUMNS = 'work_date, shift_id, staff_id, staff_role, store_id, start_time, end_time'
+
+/** 파괴적 작업(초기화·일괄 해제·이동·교환) 되돌리기 — 삭제 행 재삽입 + 수정 행 원복 */
+export async function undoRosterChange(payload: RosterUndoPayload): Promise<ApiResponse<{ restored: number }>> {
+  try {
+    let restored = 0
+    if (payload.deleted.length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('roster_assignments')
+        .upsert(payload.deleted, { onConflict: 'work_date,shift_id,staff_id', ignoreDuplicates: true })
+        .select('id')
+      if (error) return { success: false, error: error.message }
+      restored += (data ?? []).length
+    }
+    if (payload.updated.length > 0) {
+      const results = await Promise.all(
+        payload.updated.map(({ id, ...fields }) =>
+          supabaseAdmin.from('roster_assignments').update(fields).eq('id', id),
+        ),
+      )
+      const failed = results.find(r => r.error)
+      if (failed?.error) return { success: false, error: failed.error.message }
+      restored += payload.updated.length
+    }
+    return { success: true, data: { restored } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+/** 특정 근무자의 기간 내 배정을 다른 파트로 일괄 이동 — 대상 파트에 이미 배정된 날은 원본만 제거(merge) */
+export async function moveStaffAssignments(
+  unit: RosterUnit,
+  staffId: number,
+  fromShiftId: number,
+  toShiftId: number,
+  fromDate: string,
+  toDate: string,
+): Promise<ApiResponse<{ moved: number; merged: number; undo: RosterUndoPayload }>> {
+  try {
+    if (fromShiftId === toShiftId) return { success: false, error: '같은 파트로는 이동할 수 없습니다.' }
+    // 원본 배정과 대상 파트의 기존 배정을 함께 조회 — 같은 날 대상 파트에 이미 있으면 unique 충돌
+    const { data, error } = await applyUnitFilter(
+      supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, start_time, end_time'),
+      unit,
+    )
+      .eq('staff_id', staffId)
+      .in('shift_id', [fromShiftId, toShiftId])
+      .gte('work_date', fromDate)
+      .lte('work_date', toDate)
+    if (error) return { success: false, error: error.message }
+    const rows = (data ?? []) as { id: number; work_date: string; shift_id: number; start_time: string | null; end_time: string | null }[]
+    const targetDates = new Set(rows.filter(r => r.shift_id === toShiftId).map(r => r.work_date))
+    const source = rows.filter(r => r.shift_id === fromShiftId)
+    const toMove = source.filter(r => !targetDates.has(r.work_date))
+    const toMerge = source.filter(r => targetDates.has(r.work_date))
+
+    if (toMove.length > 0) {
+      // 개별 시간 오버라이드는 이전 파트 기준 시간이므로 파트 기본 시간으로 리셋
+      const { error: moveError } = await supabaseAdmin
+        .from('roster_assignments')
+        .update({ shift_id: toShiftId, start_time: null, end_time: null })
+        .in('id', toMove.map(r => r.id))
+      if (moveError) return { success: false, error: moveError.message }
+    }
+    if (toMerge.length > 0) {
+      const { error: mergeError } = await supabaseAdmin
+        .from('roster_assignments')
+        .delete()
+        .in('id', toMerge.map(r => r.id))
+      if (mergeError) return { success: false, error: mergeError.message }
+    }
+    const undo: RosterUndoPayload = {
+      deleted: toMerge.map(r => ({
+        work_date: r.work_date, shift_id: fromShiftId, staff_id: staffId,
+        staff_role: unit.staffRole, store_id: unit.storeId,
+        start_time: r.start_time, end_time: r.end_time,
+      })),
+      updated: toMove.map(r => ({ id: r.id, shift_id: fromShiftId, start_time: r.start_time, end_time: r.end_time })),
+    }
+    return { success: true, data: { moved: toMove.length, merged: toMerge.length, undo } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+/** 특정 근무자의 기간 내 배정 일괄 해제 — shiftId를 주면 해당 파트만 */
+export async function clearStaffAssignments(
+  unit: RosterUnit,
+  staffId: number,
+  fromDate: string,
+  toDate: string,
+  shiftId: number | null,
+): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
+  try {
+    let q = supabaseAdmin
+      .from('roster_assignments')
+      .delete()
+      .eq('staff_role', unit.staffRole)
+      .eq('staff_id', staffId)
+      .gte('work_date', fromDate)
+      .lte('work_date', toDate)
+    if (shiftId !== null) q = q.eq('shift_id', shiftId)
+    const { data, error } = unit.storeId === null
+      ? await q.is('store_id', null).select(SNAPSHOT_COLUMNS)
+      : await q.eq('store_id', unit.storeId).select(SNAPSHOT_COLUMNS)
+    if (error) return { success: false, error: error.message }
+    const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
+    return { success: true, data: { removed: rows.length, undo: { deleted: rows, updated: [] } } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
+/** 두 근무자의 기간 내 배정을 서로 교환 — 같은 날 같은 파트에 둘 다 배정된 슬롯은 교환해도 동일하므로 제외 */
+export async function swapStaffAssignments(
+  unit: RosterUnit,
+  staffAId: number,
+  staffBId: number,
+  fromDate: string,
+  toDate: string,
+): Promise<ApiResponse<{ swapped: number; undo: RosterUndoPayload }>> {
+  try {
+    if (staffAId === staffBId) return { success: false, error: '서로 다른 근무자를 선택하세요.' }
+    const { data, error } = await applyUnitFilter(
+      supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id'),
+      unit,
+    )
+      .in('staff_id', [staffAId, staffBId])
+      .gte('work_date', fromDate)
+      .lte('work_date', toDate)
+    if (error) return { success: false, error: error.message }
+    const rows = (data ?? []) as { id: number; work_date: string; shift_id: number; staff_id: number }[]
+    const slotKey = (r: { work_date: string; shift_id: number }) => `${r.work_date}|${r.shift_id}`
+    const aKeys = new Set(rows.filter(r => r.staff_id === staffAId).map(slotKey))
+    const bKeys = new Set(rows.filter(r => r.staff_id === staffBId).map(slotKey))
+    const aRows = rows.filter(r => r.staff_id === staffAId && !bKeys.has(slotKey(r)))
+    const bRows = rows.filter(r => r.staff_id === staffBId && !aKeys.has(slotKey(r)))
+    if (aRows.length + bRows.length === 0) return { success: true, data: { swapped: 0, undo: { deleted: [], updated: [] } } }
+
+    if (aRows.length > 0) {
+      const { error: aError } = await supabaseAdmin
+        .from('roster_assignments')
+        .update({ staff_id: staffBId })
+        .in('id', aRows.map(r => r.id))
+      if (aError) return { success: false, error: aError.message }
+    }
+    if (bRows.length > 0) {
+      const { error: bError } = await supabaseAdmin
+        .from('roster_assignments')
+        .update({ staff_id: staffAId })
+        .in('id', bRows.map(r => r.id))
+      if (bError) return { success: false, error: bError.message }
+    }
+    const undo: RosterUndoPayload = {
+      deleted: [],
+      updated: [
+        ...aRows.map(r => ({ id: r.id, staff_id: staffAId })),
+        ...bRows.map(r => ({ id: r.id, staff_id: staffBId })),
+      ],
+    }
+    return { success: true, data: { swapped: aRows.length + bRows.length, undo } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function setShiftRequirement(
   workDate: string,
   shiftId: number,
@@ -281,9 +467,6 @@ export interface AutoFillResult {
   holes: { date: string; shiftName: string; missing: number }[]
   log: AutoFillLogEntry[]
 }
-
-const toMinutes = (t: string): number => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
-const MIN_REST_MINUTES = 9 * 60 // 오후→오전 최소 휴식 9시간
 
 type InsertRow = { work_date: string; shift_id: number; staff_id: number; staff_role: StaffRole; store_id: number | null }
 
@@ -588,23 +771,64 @@ export async function bulkAddRosterAssignments(
   }
 }
 
+/** 직전 주(일~토) 배정을 대상 주의 같은 요일로 복사 — 이미 있는 배정·지난 날짜는 건너뜀 */
+export async function copyPreviousWeek(
+  unit: RosterUnit,
+  weekStart: string, // 대상 주의 일요일 (YYYY-MM-DD)
+): Promise<ApiResponse<{ added: number; skipped: number }>> {
+  try {
+    const { data, error } = await applyUnitFilter(
+      supabaseAdmin.from('roster_assignments').select('work_date, shift_id, staff_id, start_time, end_time'),
+      unit,
+    )
+      .gte('work_date', addDays(weekStart, -7))
+      .lte('work_date', addDays(weekStart, -1))
+    if (error) return { success: false, error: error.message }
+
+    const today = kstToday()
+    const candidates = (data ?? [])
+      .map(a => ({
+        work_date: addDays(a.work_date, 7),
+        shift_id: a.shift_id,
+        staff_id: a.staff_id,
+        staff_role: unit.staffRole,
+        store_id: unit.storeId,
+        start_time: a.start_time,
+        end_time: a.end_time,
+      }))
+      .filter(r => r.work_date >= today)
+    if (candidates.length === 0) return { success: true, data: { added: 0, skipped: 0 } }
+
+    const { data: inserted, error: insertError } = await supabaseAdmin
+      .from('roster_assignments')
+      .upsert(candidates, { onConflict: 'work_date,shift_id,staff_id', ignoreDuplicates: true })
+      .select('id')
+    if (insertError) return { success: false, error: insertError.message }
+    const added = (inserted ?? []).length
+    return { success: true, data: { added, skipped: candidates.length - added } }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function clearRosterRange(
   unit: RosterUnit,
   fromDate: string,
   toDate: string,
-): Promise<ApiResponse<void>> {
+): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
   try {
-    let q = supabaseAdmin
+    const q = supabaseAdmin
       .from('roster_assignments')
       .delete()
       .eq('staff_role', unit.staffRole)
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
-    const { error } = unit.storeId === null
-      ? await q.is('store_id', null)
-      : await q.eq('store_id', unit.storeId)
+    const { data, error } = unit.storeId === null
+      ? await q.is('store_id', null).select(SNAPSHOT_COLUMNS)
+      : await q.eq('store_id', unit.storeId).select(SNAPSHOT_COLUMNS)
     if (error) return { success: false, error: error.message }
-    return { success: true }
+    const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
+    return { success: true, data: { removed: rows.length, undo: { deleted: rows, updated: [] } } }
   } catch (err) {
     return { success: false, error: String(err) }
   }
@@ -619,9 +843,7 @@ export interface DailyDigestShift {
 
 // 내일(KST) 배정 현황 — 디스코드 일일 근무 안내용
 export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; shifts: DailyDigestShift[] }> {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
-  const todayKST = toDateStr(new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate())))
-  const tomorrow = addDays(todayKST, 1)
+  const tomorrow = addDays(kstToday(), 1)
   const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
   const d = parseDate(tomorrow)
   const dateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일(${DAY_NAMES[d.getDay()]})`
@@ -632,10 +854,15 @@ export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; 
     .eq('work_date', tomorrow)
   if (!assignData?.length) return { dateLabel, shifts: [] }
 
-  const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
   const grouped = new Map<string, { startTime: string; endTime: string; sortOrder: number; priority: number; names: string[] }>()
-  for (const a of assignData as any[]) {
-    const shift = a.roster_shifts as { name: string; start_time: string; end_time: string; sort_order: number } | null
+  type TomorrowAssignRow = {
+    start_time: string | null
+    end_time: string | null
+    roster_shifts: { name: string; start_time: string; end_time: string; sort_order: number } | null
+    staff_profiles: { name: string } | null
+  }
+  for (const a of assignData as unknown as TomorrowAssignRow[]) {
+    const shift = a.roster_shifts
     const name = shift?.name ?? '근무'
     if (!grouped.has(name)) {
       grouped.set(name, {
@@ -646,7 +873,7 @@ export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; 
         names: [],
       })
     }
-    grouped.get(name)!.names.push((a.staff_profiles as { name: string } | null)?.name ?? '')
+    grouped.get(name)!.names.push(a.staff_profiles?.name ?? '')
   }
 
   const shifts = Array.from(grouped.entries())
@@ -690,22 +917,27 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
       .order('work_date')
     if (assignError) return { success: false, error: assignError.message }
 
-    const withOrder = ((assignData ?? []) as any[]).map(a => {
-      const shift = a.roster_shifts as { name: string; start_time: string; end_time: string; sort_order: number } | null
+    type WeeklyAssignRow = {
+      work_date: string
+      start_time: string | null
+      end_time: string | null
+      staff_id: number
+      roster_shifts: { name: string; start_time: string; end_time: string; sort_order: number } | null
+    }
+    const withOrder = ((assignData ?? []) as unknown as WeeklyAssignRow[]).map(a => {
+      const shift = a.roster_shifts
       const staff = staffMap.get(a.staff_id)!
       return {
-        work_date: a.work_date as string,
-        shift_name: (shift?.name ?? '') as string,
+        work_date: a.work_date,
+        shift_name: shift?.name ?? '',
         name: staff.name,
         phone: staff.phone,
-        start_time: (a.start_time ?? shift?.start_time ?? '00:00') as string,
-        end_time: (a.end_time ?? shift?.end_time ?? '00:00') as string,
+        start_time: a.start_time ?? shift?.start_time ?? '00:00',
+        end_time: a.end_time ?? shift?.end_time ?? '00:00',
         shift_sort_order: shift?.sort_order ?? 99,
         sort_order: staff.sort_order,
       }
     })
-
-    const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
 
     withOrder.sort((a, b) =>
       a.work_date !== b.work_date
