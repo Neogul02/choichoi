@@ -115,7 +115,6 @@ export async function generateContract(
       issueDate: new Date().toISOString().slice(0, 10),
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const element = React.createElement(ContractDocument, docProps) as React.ReactElement<React.ComponentProps<typeof Document>>
 
     const pdfBuffer = await renderToBuffer(element)
@@ -274,7 +273,6 @@ export async function signContract(
       const { renderToBuffer, Document } = await import('@react-pdf/renderer')
       const { ContractDocument } = await import('@/components/ContractDocument')
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const element = React.createElement(ContractDocument, contractData) as React.ReactElement<React.ComponentProps<typeof Document>>
       const pdfBuffer = await renderToBuffer(element)
       const hash = createHash('sha256').update(Buffer.from(pdfBuffer)).digest('hex')

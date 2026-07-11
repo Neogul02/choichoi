@@ -1,4 +1,5 @@
 import type { StaffProfile } from '@/types/database';
+import { prevDate } from '@/lib/date';
 
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -36,4 +37,83 @@ export function checkStaffAvailability(
   }
 
   return { ok: reasons.length === 0, reasons };
+}
+
+/** 'HH:MM' → 자정 기준 분 */
+export const toMinutes = (t: string): number => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+export const MIN_REST_MINUTES = 9 * 60; // 전일 퇴근 → 당일 출근 최소 휴식
+
+export interface AssignmentForCheck {
+  id: number;
+  work_date: string; // YYYY-MM-DD
+  shift_id: number;
+  staff_id: number;
+  start_time: string | null; // null이면 파트 기본 시간
+  end_time: string | null;
+}
+
+/**
+ * 저장된 배정 목록에서 근무 규칙 위반을 찾는다 (배정 id → 사유 목록).
+ * - 전일 퇴근 후 9시간 미만 휴식
+ * - 주(일~토) 최대 근무일 초과 — 해당 주의 그 직원 배정 전체에 표시
+ * 전달된 배정 범위 내에서만 판정하므로 범위 밖 인접 주·전일 데이터는 반영되지 않는다.
+ */
+export function findRosterViolations(
+  assignments: AssignmentForCheck[],
+  shifts: { id: number; start_time: string; end_time: string }[],
+  staffList: Pick<StaffProfile, 'id' | 'max_days_per_week'>[],
+): Map<number, string[]> {
+  const shiftById = new Map(shifts.map(s => [s.id, s]));
+  const maxByStaff = new Map(staffList.map(s => [s.id, s.max_days_per_week]));
+  const byStaff = new Map<number, AssignmentForCheck[]>();
+  for (const a of assignments) {
+    const bucket = byStaff.get(a.staff_id);
+    if (bucket) bucket.push(a); else byStaff.set(a.staff_id, [a]);
+  }
+
+  const violations = new Map<number, string[]>();
+  const add = (id: number, reason: string) => {
+    const list = violations.get(id);
+    if (list) list.push(reason); else violations.set(id, [reason]);
+  };
+
+  for (const [staffId, list] of byStaff) {
+    // 날짜별 가장 늦은 퇴근 시각(분)
+    const endByDate = new Map<string, number>();
+    for (const a of list) {
+      const shift = shiftById.get(a.shift_id);
+      if (!shift) continue;
+      const end = toMinutes(a.end_time ?? shift.end_time);
+      const cur = endByDate.get(a.work_date);
+      if (cur === undefined || end > cur) endByDate.set(a.work_date, end);
+    }
+
+    for (const a of list) {
+      const shift = shiftById.get(a.shift_id);
+      if (!shift) continue;
+      const prevEnd = endByDate.get(prevDate(a.work_date));
+      if (prevEnd !== undefined) {
+        const start = toMinutes(a.start_time ?? shift.start_time);
+        if (start + 24 * 60 - prevEnd < MIN_REST_MINUTES) add(a.id, '전일 퇴근 후 9시간 미만 휴식');
+      }
+    }
+
+    const max = maxByStaff.get(staffId);
+    if (max != null) {
+      const daysByWeek = new Map<string, Set<string>>();
+      for (const a of list) {
+        const ws = getWeekStart(a.work_date);
+        const days = daysByWeek.get(ws);
+        if (days) days.add(a.work_date); else daysByWeek.set(ws, new Set([a.work_date]));
+      }
+      for (const [ws, days] of daysByWeek) {
+        if (days.size <= max) continue;
+        for (const a of list) {
+          if (getWeekStart(a.work_date) === ws) add(a.id, `주 최대 ${max}일 초과 (${days.size}일)`);
+        }
+      }
+    }
+  }
+  return violations;
 }

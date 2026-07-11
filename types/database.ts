@@ -20,16 +20,6 @@ export interface Order {
   created_at: string;
 }
 
-export interface OrderItem {
-  id: number;
-  order_id: number;
-  menu_item_id: number;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  menu_items?: Pick<MenuItem, 'id' | 'name' | 'price' | 'color'>;
-}
-
 export interface PopupEvent {
   id: number;
   name: string;
@@ -37,35 +27,6 @@ export interface PopupEvent {
   end_date: string;
   store_id: number | null;
   created_at: string;
-}
-
-export interface Worker {
-  id: number;
-  event_id: number;
-  name: string;
-  color: string;
-  phone: string | null;
-  bank_name: string | null;
-  bank_account: string | null;
-  hourly_rate: number;
-  payment_done: boolean;
-  worker_role: string | null;
-  user_profile_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ScheduleSlot {
-  id: number;
-  event_id: number;
-  schedule_date: string;
-  role: string;
-  person_name: string;
-  work_time: string | null;
-  break_time: number;
-  worker_id: number | null;
-  created_at: string;
-  updated_at: string;
 }
 
 // ── HR (인사관리) ─────────────────────────────────────────────────────────────

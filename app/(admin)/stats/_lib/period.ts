@@ -6,10 +6,6 @@ export const PERIOD_LABELS: Record<Period, string> = {
   month: '이번 달',
 };
 
-export function getKSTDateStr(): string {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-}
-
 export function getPeriodBounds(period: Period): { startISO: string; endISO: string; label: string } {
   const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
   const todayStr = kstNow.toISOString().slice(0, 10);
