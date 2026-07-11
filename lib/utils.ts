@@ -26,7 +26,6 @@ export function formatDateLabel(dateStr: string): string {
 }
 
 export const MIN_HOURLY_WAGE = 10_320;
-export const EFFECTIVE_MIN_WAGE = Math.round(MIN_HOURLY_WAGE * 1.2);
 
 // Supabase Auth 호출이 락 경합 등으로 무한정 멈추는 경우를 막기 위한 안전장치.
 // 지정 시간 내에 끝나지 않으면 reject해서 UI가 영원히 로딩 상태에 갇히지 않도록 한다.

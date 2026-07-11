@@ -9,6 +9,10 @@ export const addDays = (s: string, n: number): string => {
   return toDateStr(d)
 }
 
+// KST 기준 오늘 날짜(YYYY-MM-DD) — 서버(UTC)/클라이언트 어디서든 동일
+export const kstToday = (): string =>
+  new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+
 export const prevDate = (s: string): string => addDays(s, -1)
 
 export const dayOfWeek = (s: string): number => parseDate(s).getDay()

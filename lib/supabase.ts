@@ -11,15 +11,3 @@ export interface OrderItemInput {
   price: number;
   count: number;
 }
-
-export interface WorkerInput {
-  event_id: number;
-  name: string;
-  color?: string;
-  phone?: string;
-  bank_name?: string;
-  bank_account?: string;
-  hourly_rate?: number;
-  worker_role?: string;
-  user_profile_id?: string;
-}

@@ -19,12 +19,6 @@ export interface SaveOrderResponse {
   error?: string;
 }
 
-export interface ResetSalesResponse {
-  success: boolean;
-  deletedCount?: number;
-  error?: string;
-}
-
 export interface MenuSalesItem {
   id: number;
   name: string;

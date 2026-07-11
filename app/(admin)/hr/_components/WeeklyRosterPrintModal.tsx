@@ -7,6 +7,7 @@ import { WeeklyRosterDocument } from './WeeklyRosterDocument'
 import { fetchWeeklyRosterForPrint } from '@/app/actions/roster'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { showMsg } from '@/lib/toast'
+import { toDateStr, addDays } from '@/lib/date'
 
 interface Props {
   onClose: () => void
@@ -14,21 +15,9 @@ interface Props {
 
 const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
 
-function pad(n: number) { return String(n).padStart(2, '0') }
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
 function getThisMonday(): string {
   const d = new Date()
   d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1))
-  return toDateStr(d)
-}
-
-function addDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + n)
   return toDateStr(d)
 }
 

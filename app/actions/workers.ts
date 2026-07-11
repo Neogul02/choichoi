@@ -191,15 +191,6 @@ export async function getMyOrderStats(): Promise<ApiResponse<MyOrderStats>> {
   }
 }
 
-export interface RegisterProfileInput {
-  userId: string
-  name: string
-  phone: string
-  bankName?: string
-  bankAccount?: string
-  healthCertUrl?: string
-}
-
 export interface UpdateProfileInput {
   name?: string
   email?: string
@@ -237,30 +228,6 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<ApiRes
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(user.id, authUpdates)
       if (authError) return { success: false, error: authError.message }
     }
-
-    return { success: true }
-  } catch (err) {
-    return { success: false, error: String(err) }
-  }
-}
-
-export async function registerProfile(input: RegisterProfileInput): Promise<ApiResponse> {
-  try {
-    const { error } = await supabaseAdmin.from('user_profiles').insert([{
-      id: input.userId,
-      name: input.name,
-      phone: input.phone || null,
-      bank_name: input.bankName || null,
-      bank_account: input.bankAccount || null,
-      health_cert_url: input.healthCertUrl || null,
-      worker_role: 'user',
-    }])
-    if (error) return { success: false, error: error.message }
-
-    // user_metadata.role 동기화
-    await supabaseAdmin.auth.admin.updateUserById(input.userId, {
-      user_metadata: { role: 'user', name: input.name },
-    })
 
     return { success: true }
   } catch (err) {
@@ -311,13 +278,6 @@ export async function resolveLoginEmail(identifier: string): Promise<ApiResponse
   } catch (err) {
     return { success: false, error: String(err) }
   }
-}
-
-export async function checkSignupCode(code: string): Promise<ApiResponse> {
-  const expected = process.env.SIGNUP_CODE
-  if (!expected) return { success: false, error: '초대 코드가 설정되지 않았습니다.' }
-  if (code.trim() !== expected.trim()) return { success: false, error: '초대 코드가 올바르지 않습니다.' }
-  return { success: true }
 }
 
 export interface CreateWorkerAccountInput {

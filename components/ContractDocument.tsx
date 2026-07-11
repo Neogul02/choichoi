@@ -168,9 +168,9 @@ export function ContractDocument(p: ContractData) {
         {/* 당사자 */}
         <View style={s.partyLine}>
           <Underline value={p.employerName} width={120} />
-          <Text>(이하 "사업주"라 함)과(와) </Text>
+          <Text>(이하 &quot;사업주&quot;라 함)과(와) </Text>
           <Underline value={p.workerName} width={80} />
-          <Text>(이하 "근로자"라 함)은 다음과 같이 근로계약을 체결한다.</Text>
+          <Text>(이하 &quot;근로자&quot;라 함)은 다음과 같이 근로계약을 체결한다.</Text>
         </View>
 
         {/* 1. 근로개시일 */}
@@ -323,7 +323,7 @@ export function ContractDocument(p: ContractData) {
           </View>
           <Text style={s.note}>
             ※ 단시간근로자와 사용자 사이에 근로하기로 정한 시간을 초과하여 근로하면 법정 근로시간 내라도{'\n'}
-               통상임금의 100분의 50%이상의 가산임금 지급('14.9.19. 시행)
+               통상임금의 100분의 50%이상의 가산임금 지급(&apos;14.9.19. 시행)
           </Text>
           <View style={[s.bullet, s.row]}>
             <Text>- 임금지급일 : 매월(매주 또는 매일) </Text>
@@ -370,7 +370,7 @@ export function ContractDocument(p: ContractData) {
         <View style={s.section}>
           <Text style={s.sectionLabel}>8. 근로계약서 교부</Text>
           <Text style={s.clauseText}>
-            - "사업주"는 근로계약을 체결함과 동시에 본 계약서를 사본하여 "근로자"의 교부요구와 관계없이 "근로자"에게 교부함(근로기준법 제17조 이행)
+            - &quot;사업주&quot;는 근로계약을 체결함과 동시에 본 계약서를 사본하여 &quot;근로자&quot;의 교부요구와 관계없이 &quot;근로자&quot;에게 교부함(근로기준법 제17조 이행)
           </Text>
         </View>
 
@@ -421,6 +421,8 @@ export function ContractDocument(p: ContractData) {
               <Underline value={p.employerRepresentative} width={80} />
               <Text>  (서명)</Text>
               {p.employerSignatureBase64 && (
+                // react-pdf의 Image는 DOM <img>가 아니라 alt prop이 없음
+                // eslint-disable-next-line jsx-a11y/alt-text
                 <Image src={p.employerSignatureBase64} style={s.signImg} />
               )}
             </View>
@@ -442,6 +444,8 @@ export function ContractDocument(p: ContractData) {
               <Underline value={p.workerName} width={80} />
               <Text>  (서명)</Text>
               {p.workerSignatureBase64 && (
+                // react-pdf의 Image는 DOM <img>가 아니라 alt prop이 없음
+                // eslint-disable-next-line jsx-a11y/alt-text
                 <Image src={p.workerSignatureBase64} style={s.signImg} />
               )}
             </View>

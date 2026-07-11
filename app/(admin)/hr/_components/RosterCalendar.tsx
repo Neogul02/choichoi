@@ -6,15 +6,19 @@ import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
   updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement, autoFillRoster, clearRosterRange,
+  copyPreviousWeek, undoRosterChange,
 } from '@/app/actions/roster';
-import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
+import type { RosterUnit, RosterMonthData, AutoFillLogEntry, RosterUndoPayload } from '@/app/actions/roster';
 import type { StaffProfile, Store, StaffRole, RosterShift, RosterAssignment } from '@/types/database';
-import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability } from './constants';
-import { getWeekStart } from '@/lib/staffing';
+import { DAY_NAMES, STATUS_LABELS, ROLE_LABELS, checkStaffAvailability, shiftTextColor } from './constants';
+import { getWeekStart, findRosterViolations, toMinutes, MIN_REST_MINUTES } from '@/lib/staffing';
 import { parseDate, addDays, prevDate, dayOfWeek } from '@/lib/date';
 import ShiftManageModal from './ShiftManageModal';
+import BulkEditModal from './BulkEditModal';
+import WeekMatrix from './WeekMatrix';
 import AutoFillLogPanel from './AutoFillLogPanel';
 import ShortagesPanel from './ShortagesPanel';
+import StaffTotalsPanel from './StaffTotalsPanel';
 
 interface Props {
   staffList: StaffProfile[];
@@ -23,12 +27,6 @@ interface Props {
   refreshSignal?: number;
   /** 서버(page.tsx)가 프리페치한 당월 데이터 — 첫 로드 시 단위·월이 일치하면 왕복 없이 사용 */
   initialData?: { unit: RosterUnit; y: number; m: number; data: RosterMonthData };
-}
-
-// 파트 순서에 따라 순환하는 강조색
-const SHIFT_TEXT_COLORS = ['text-orange-600', 'text-indigo-600', 'text-emerald-600', 'text-rose-500', 'text-cyan-600'] as const;
-export function shiftTextColor(index: number): string {
-  return SHIFT_TEXT_COLORS[index % SHIFT_TEXT_COLORS.length];
 }
 
 function toDateStr(y: number, m: number, d: number): string {
@@ -57,10 +55,15 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   // 월 커서 — SSR/hydration 불일치를 피하려고 마운트 후 초기화
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null);
   const [todayStr, setTodayStr] = useState('');
+  // 월/주 뷰 토글 — 주 뷰는 weekStart(일요일)~+6일 범위를 로드해 인원별 매트릭스로 표시
+  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+  const [weekStart, setWeekStart] = useState<string | null>(null);
   useEffect(() => {
     const now = new Date();
+    const ds = toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
     setCursor({ y: now.getFullYear(), m: now.getMonth() });
-    setTodayStr(toDateStr(now.getFullYear(), now.getMonth(), now.getDate()));
+    setTodayStr(ds);
+    setWeekStart(getWeekStart(ds));
   }, []);
 
   const [shifts, setShifts] = useState<RosterShift[]>([]);
@@ -69,10 +72,14 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showShiftManage, setShowShiftManage] = useState(false);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [fillLog, setFillLog] = useState<AutoFillLogEntry[] | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
+  // 파괴적 작업 직후 10초간 되돌리기 제공
+  const [undoState, setUndoState] = useState<{ label: string; payload: RosterUndoPayload } | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 날짜 범위 필터 (빈 문자열 = 제한 없음) — localStorage로 탭 전환 후에도 유지
   const [rangeFrom, setRangeFrom] = useState('');
@@ -84,12 +91,16 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
 
   const monthStart = cursor ? toDateStr(cursor.y, cursor.m, 1) : '';
   const monthEnd = cursor ? toDateStr(cursor.y, cursor.m, new Date(cursor.y, cursor.m + 1, 0).getDate()) : '';
+  const weekEndStr = weekStart ? addDays(weekStart, 6) : '';
+  // 현재 뷰가 로드하는 데이터 범위 — 주 뷰는 월 경계를 넘을 수 있어 월 범위와 별개
+  const loadFrom = viewMode === 'week' && weekStart ? weekStart : monthStart;
+  const loadTo = viewMode === 'week' && weekStart ? weekEndStr : monthEnd;
 
   const loadRange = async () => {
     if (!cursor) return;
     // 캐셔는 storeId가 null이면 stores 미로드 상태 — 로드 건너뜀
     if (unit.staffRole === 'cashier' && unit.storeId === null) return;
-    const r = await fetchRosterRange(unit, monthStart, monthEnd);
+    const r = await fetchRosterRange(unit, loadFrom, loadTo);
     if (r.success && r.data) {
       setShifts(r.data.shifts);
       setAssignments(r.data.assignments);
@@ -97,11 +108,16 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     }
   };
 
-  // 마운트 시 localStorage에서 범위 복원
+  // 마운트 시 localStorage에서 범위·뷰 모드 복원
   useEffect(() => {
     setRangeFrom(localStorage.getItem('roster_rangeFrom') ?? '');
     setRangeTo(localStorage.getItem('roster_rangeTo') ?? '');
+    if (localStorage.getItem('roster_viewMode') === 'week') setViewMode('week');
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('roster_viewMode', viewMode);
+  }, [viewMode]);
 
   // 현재 보고 있는 달 저장 (근무표 인쇄 모달 자동 날짜에 사용)
   useEffect(() => {
@@ -135,6 +151,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     if (!initialDataConsumed.current) {
       initialDataConsumed.current = true;
       if (
+        viewMode === 'month' &&
         initialData &&
         cursor.y === initialData.y && cursor.m === initialData.m &&
         unit.staffRole === initialData.unit.staffRole && unit.storeId === initialData.unit.storeId
@@ -147,9 +164,9 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
       }
     }
     loadRange().then(() => setIsLoading(false));
-    // loadRange는 cursor·unit을 클로저로 캡처하므로 deps에 추가하면 무한루프 — cursor·unit이 이미 있어 동기화됨
+    // loadRange는 cursor·unit·viewMode·weekStart를 클로저로 캡처하므로 deps에 추가하면 무한루프 — 이미 deps로 동기화됨
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursor, unit]);
+  }, [cursor, unit, viewMode, weekStart]);
 
   // 현재 단위 소속 직원만 (주방 전체 / 해당 매장 캐셔)
   const unitStaff = useMemo(
@@ -168,6 +185,17 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   }, [assignments]);
 
   const getAssigned = (dateStr: string, shiftId: number) => assignMap.get(`${dateStr}|${shiftId}`) ?? [];
+
+  // 저장된 배정의 규칙 위반 — 배정 id → 사유 목록 (로드된 범위 기준 판정)
+  const violations = useMemo(
+    () => findRosterViolations(assignments, shifts, unitStaff),
+    [assignments, shifts, unitStaff],
+  );
+  const violationDates = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of assignments) if (violations.has(a.id)) set.add(a.work_date);
+    return set;
+  }, [assignments, violations]);
 
   const getRequired = (dateStr: string, shift: RosterShift): number => {
     if (shift.active_from && dateStr < shift.active_from) return 0;
@@ -221,13 +249,27 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     return cells;
   }, [cursor, rangeFrom, rangeTo]);
 
-  // 이달의 인원 부족 목록 (범위 적용)
+  // 화면에 보이는 날짜들 — 주 뷰는 해당 주 7일, 월 뷰는 달력 그리드
+  const visibleDates = useMemo(
+    () => viewMode === 'week' && weekStart
+      ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+      : gridDates,
+    [viewMode, weekStart, gridDates],
+  );
+
+  // 표시 범위에 속한 배정만 (인원별 합계용)
+  const visibleAssignments = useMemo(() => {
+    const dateSet = new Set(visibleDates.filter((d): d is string => d !== null));
+    return assignments.filter(a => dateSet.has(a.work_date));
+  }, [assignments, visibleDates]);
+
+  // 인원 부족 목록 (뷰 범위 적용)
   const shortages = useMemo(() => {
     const list: { date: string; shift: RosterShift; missing: number }[] = [];
-    for (const dateStr of gridDates) {
+    for (const dateStr of visibleDates) {
       if (!dateStr) continue;
-      if (rangeFrom && dateStr < rangeFrom) continue;
-      if (rangeTo && dateStr > rangeTo) continue;
+      if (viewMode === 'month' && rangeFrom && dateStr < rangeFrom) continue;
+      if (viewMode === 'month' && rangeTo && dateStr > rangeTo) continue;
       for (const shift of shifts) {
         const required = getRequired(dateStr, shift);
         const filled = getAssigned(dateStr, shift.id).length;
@@ -237,19 +279,45 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     return list;
     // getRequired는 shifts·overrides를 클로저로 캡처 — 이미 deps에 포함되어 있으므로 별도 등록 불필요
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gridDates, assignMap, overrides, shifts, rangeFrom, rangeTo]);
+  }, [visibleDates, assignMap, overrides, shifts, rangeFrom, rangeTo, viewMode]);
+
+  // 현재 화면이 작업 대상으로 삼는 기간 — 주 뷰는 표시 중인 주, 월 뷰는 범위 필터 또는 월 전체
+  const targetFrom = viewMode === 'week' && weekStart ? weekStart : (rangeFrom || monthStart);
+  const targetTo = viewMode === 'week' && weekStart ? weekEndStr : (rangeTo || monthEnd);
+  const targetLabel = viewMode === 'week' && weekStart
+    ? `${weekStart} ~ ${weekEndStr}`
+    : (rangeFrom || rangeTo) ? `${rangeFrom || monthStart} ~ ${rangeTo || monthEnd}` : cursor ? `${cursor.m + 1}월 전체` : '';
+
+  const syncCursorToDate = (ds: string) => {
+    const d = parseDate(ds);
+    setCursor(c => c && c.y === d.getFullYear() && c.m === d.getMonth() ? c : { y: d.getFullYear(), m: d.getMonth() });
+  };
+
+  const moveWeek = (delta: number) => {
+    if (!weekStart) return;
+    const next = addDays(weekStart, delta);
+    setWeekStart(next);
+    syncCursorToDate(next);
+  };
+
+  const switchView = (mode: 'month' | 'week') => {
+    if (mode === viewMode) return;
+    if (mode === 'week') {
+      // 선택된 날짜 > 오늘(이번 달일 때) > 월초 순으로 기준 주 결정
+      const base = selectedDate ?? ((todayStr >= monthStart && todayStr <= monthEnd) ? todayStr : monthStart);
+      setWeekStart(getWeekStart(base));
+    }
+    setViewMode(mode);
+  };
 
   const handleAutoFill = async () => {
     if (!cursor) return;
-    const effectiveStart = rangeFrom || monthStart;
-    const effectiveEnd = rangeTo || monthEnd;
     // 지난 날짜는 건드리지 않는다
-    const from = todayStr > effectiveStart ? todayStr : effectiveStart;
-    if (from > effectiveEnd) { showMsg('지난 날짜는 자동 배정할 수 없습니다'); return; }
-    const rangeLabel = (rangeFrom || rangeTo) ? `${rangeFrom || monthStart} ~ ${rangeTo || monthEnd}` : `${cursor.m + 1}월 전체`;
-    if (!confirm(`${rangeLabel} 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
+    const from = todayStr > targetFrom ? todayStr : targetFrom;
+    if (from > targetTo) { showMsg('지난 날짜는 자동 배정할 수 없습니다'); return; }
+    if (!confirm(`${targetLabel} 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
     setIsAutoFilling(true);
-    const r = await autoFillRoster(unit, from, effectiveEnd);
+    const r = await autoFillRoster(unit, from, targetTo);
     if (r.success && r.data) {
       const { added, holes, log } = r.data;
       const msg = added === 0
@@ -264,15 +332,51 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     setIsAutoFilling(false);
   };
 
+  const offerUndo = (label: string, payload: RosterUndoPayload) => {
+    if (payload.deleted.length === 0 && payload.updated.length === 0) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndoState({ label, payload });
+    undoTimer.current = setTimeout(() => setUndoState(null), 10000);
+  };
+
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
+
+  const handleUndo = async () => {
+    if (!undoState) return;
+    const { payload } = undoState;
+    setUndoState(null);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    const r = await undoRosterChange(payload);
+    if (r.success && r.data) {
+      showMsg(`${r.data.restored}건 되돌렸습니다`);
+      await loadRange();
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
+  };
+
+  const handleCopyPrevWeek = async () => {
+    if (!weekStart) return;
+    const prevLabel = `${addDays(weekStart, -7)} ~ ${addDays(weekStart, -1)}`;
+    if (!confirm(`직전 주(${prevLabel}) 배정을 이번 주 같은 요일로 복사할까요?\n(지난 날짜는 복사하지 않으며, 이미 있는 배정은 건너뛴 건수로 표시됩니다)`)) return;
+    const r = await copyPreviousWeek(unit, weekStart);
+    if (r.success && r.data) {
+      showMsg(r.data.added === 0
+        ? '복사할 배정이 없습니다'
+        : `${r.data.added}건 복사됨${r.data.skipped > 0 ? ` · ${r.data.skipped}건 건너뜀` : ''}`);
+      await loadRange();
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
+  };
+
   const handleClearRoster = async () => {
-    const effectiveFrom = rangeFrom || monthStart;
-    const effectiveTo = rangeTo || monthEnd;
-    const label = (rangeFrom || rangeTo) ? `${effectiveFrom} ~ ${effectiveTo}` : `${cursor.m + 1}월 전체`;
-    if (!confirm(`[${unitLabel}] ${label} 스케줄을 초기화할까요?\n배정된 근무자가 모두 삭제됩니다.`)) return;
-    const r = await clearRosterRange(unit, effectiveFrom, effectiveTo);
-    if (r.success) {
-      setAssignments(p => p.filter(a => a.work_date < effectiveFrom || a.work_date > effectiveTo));
+    if (!confirm(`[${unitLabel}] ${targetLabel} 스케줄을 초기화할까요?\n배정된 근무자가 모두 삭제됩니다.`)) return;
+    const r = await clearRosterRange(unit, targetFrom, targetTo);
+    if (r.success && r.data) {
+      setAssignments(p => p.filter(a => a.work_date < targetFrom || a.work_date > targetTo));
       showMsg('스케줄이 초기화됐습니다');
+      offerUndo(`${r.data.removed}건 삭제됨`, r.data.undo);
     } else {
       showMsg(`오류: ${r.error}`);
     }
@@ -353,19 +457,62 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           <div className="flex items-center gap-2">
             <button
               className="w-7 h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
-              onClick={() => setCursor(c => c && (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))}
+              onClick={() => viewMode === 'week'
+                ? moveWeek(-7)
+                : setCursor(c => c && (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))}
             >
               &lt;
             </button>
-            <h3 className="m-0 text-base font-extrabold w-[110px] text-center">{cursor.y}년 {cursor.m + 1}월</h3>
+            <h3 className="m-0 text-base font-extrabold w-[110px] text-center">
+              {viewMode === 'week' && weekStart
+                ? `${Number(weekStart.slice(5, 7))}/${Number(weekStart.slice(8))} ~ ${Number(weekEndStr.slice(5, 7))}/${Number(weekEndStr.slice(8))}`
+                : `${cursor.y}년 ${cursor.m + 1}월`}
+            </h3>
             <button
               className="w-7 h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
-              onClick={() => setCursor(c => c && (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))}
+              onClick={() => viewMode === 'week'
+                ? moveWeek(7)
+                : setCursor(c => c && (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))}
             >
               &gt;
             </button>
+            {viewMode === 'week' && (
+              <button
+                onClick={() => { if (todayStr) { setWeekStart(getWeekStart(todayStr)); syncCursorToDate(todayStr); } }}
+                className="px-2 py-1 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
+              >
+                이번 주
+              </button>
+            )}
+            <div className="flex rounded-lg border border-hairline overflow-hidden ml-1">
+              <button
+                onClick={() => switchView('month')}
+                className={`px-2.5 py-1 text-[11px] font-bold cursor-pointer border-none transition ${
+                  viewMode === 'month' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                }`}
+              >
+                월
+              </button>
+              <button
+                onClick={() => switchView('week')}
+                className={`px-2.5 py-1 text-[11px] font-bold cursor-pointer border-none transition ${
+                  viewMode === 'week' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                }`}
+              >
+                주
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {viewMode === 'week' && (
+              <button
+                onClick={handleCopyPrevWeek}
+                disabled={isLoading}
+                className="px-2.5 py-1.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                지난주 복사
+              </button>
+            )}
             <button
               onClick={handleAutoFill}
               disabled={isAutoFilling || isLoading}
@@ -381,6 +528,13 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
               초기화
             </button>
             <button
+              onClick={() => setShowBulkEdit(true)}
+              disabled={isLoading}
+              className="px-2.5 py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              일괄 편집
+            </button>
+            <button
               onClick={() => setShowShiftManage(true)}
               className="px-2.5 py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
             >
@@ -389,7 +543,8 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           </div>
         </div>
 
-        {/* 날짜 범위 필터 */}
+        {/* 날짜 범위 필터 (월 뷰 전용) */}
+        {viewMode === 'month' && (
         <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-canvas-soft border border-hairline">
           <span className="text-[11px] font-semibold text-ink-muted shrink-0">표시 범위</span>
           <input
@@ -418,9 +573,22 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
             </button>
           )}
         </div>
+        )}
 
         {isLoading ? (
           <p className="text-ink-faint text-sm">불러오는 중...</p>
+        ) : viewMode === 'week' && weekStart ? (
+          <WeekMatrix
+            weekStart={weekStart}
+            todayStr={todayStr}
+            shifts={shifts}
+            staffList={unitStaff}
+            getAssigned={getAssigned}
+            getRequired={getRequired}
+            violations={violations}
+            selectedDate={selectedDate}
+            onDateClick={ds => setSelectedDate(prev => (prev === ds ? null : ds))}
+          />
         ) : (
           <div className="grid grid-cols-7 gap-1">
             {DAY_NAMES.map((d, i) => (
@@ -466,11 +634,16 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
                       : isSelected ? 'border-primary-700 ring-2 ring-primary-700/20' : 'border-hairline hover:border-primary-400'
                   } ${isPast ? 'opacity-50' : ''}`}
                 >
-                  <span className={`text-[11px] font-bold leading-none mb-0.5 ${
-                    isToday ? 'text-white bg-primary-700 rounded-full w-[18px] h-[18px] flex items-center justify-center'
-                    : day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'
-                  }`}>
-                    {dayNum}
+                  <span className="flex items-center gap-0.5 mb-0.5">
+                    <span className={`text-[11px] font-bold leading-none ${
+                      isToday ? 'text-white bg-primary-700 rounded-full w-[18px] h-[18px] flex items-center justify-center'
+                      : day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'
+                    }`}>
+                      {dayNum}
+                    </span>
+                    {violationDates.has(dateStr) && (
+                      <span className="text-[9px] leading-none" title="근무 규칙 위반 있음 (휴식 9시간 미만 또는 주 최대일 초과)">⚠️</span>
+                    )}
                   </span>
                   {shifts.map(shift => {
                     const required = getRequired(dateStr, shift);
@@ -496,6 +669,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
 
         {fillLog && <AutoFillLogPanel fillLog={fillLog} onClose={() => setFillLog(null)} onDateClick={setSelectedDate} />}
         <ShortagesPanel shortages={shortages} isLoading={isLoading} onDateClick={setSelectedDate} />
+        <StaffTotalsPanel staffList={unitStaff} shifts={shifts} assignments={visibleAssignments} isLoading={isLoading} />
       </div>
 
       {/* ── 날짜 상세 패널 ── */}
@@ -505,6 +679,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           shifts={shifts}
           staffList={unitStaff}
           overrides={overrides}
+          violations={violations}
           getAssigned={getAssigned}
           getRequired={getRequired}
           getWeeklyDayCount={getWeeklyDayCount}
@@ -524,6 +699,24 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           shifts={shifts}
           onShiftsChange={setShifts}
           onClose={() => setShowShiftManage(false)}
+        />
+      )}
+
+      {showBulkEdit && (
+        <BulkEditModal
+          unit={unit}
+          unitLabel={unitLabel}
+          shifts={shifts}
+          staffList={unitStaff}
+          assignments={assignments}
+          defaultFrom={targetFrom}
+          defaultTo={targetTo}
+          monthStart={loadFrom}
+          monthEnd={loadTo}
+          todayStr={todayStr}
+          onApplied={loadRange}
+          onUndoable={offerUndo}
+          onClose={() => setShowBulkEdit(false)}
         />
       )}
     </div>
@@ -552,6 +745,24 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
       </>,
       document.body,
     )}
+    {undoState && createPortal(
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 bg-[#161616] text-white rounded-xl px-4 py-2.5 shadow-level-2">
+        <span className="text-[12px] font-semibold">{undoState.label}</span>
+        <button
+          onClick={handleUndo}
+          className="px-2.5 py-1 rounded-lg bg-white/15 border-none text-white text-[12px] font-bold cursor-pointer hover:bg-white/25 transition"
+        >
+          되돌리기
+        </button>
+        <button
+          onClick={() => setUndoState(null)}
+          className="bg-transparent border-none text-white/60 text-[14px] cursor-pointer leading-none hover:text-white transition"
+        >
+          ×
+        </button>
+      </div>,
+      document.body,
+    )}
     </>
   );
 }
@@ -559,7 +770,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
 // ── 날짜 상세 패널 ────────────────────────────────────────────────────────────
 
 function DayPanel({
-  dateStr, shifts, staffList, overrides,
+  dateStr, shifts, staffList, overrides, violations,
   getAssigned, getRequired, getWeeklyDayCount, onAdd, onRemove, onTimeChange,
   onRequirementChange, onRequirementReset, onClose,
 }: {
@@ -567,6 +778,7 @@ function DayPanel({
   shifts: RosterShift[];
   staffList: StaffProfile[];
   overrides: Record<string, number>;
+  violations: Map<number, string[]>;
   getAssigned: (d: string, shiftId: number) => RosterAssignment[];
   getRequired: (d: string, s: RosterShift) => number;
   getWeeklyDayCount: (staffId: number, d: string) => number;
@@ -622,7 +834,6 @@ function DayPanel({
   };
 
   const prevDay = prevDate(dateStr);
-  const toMins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const prevDayEnds = new Map<number, string>(); // staff_id → 전날 퇴근 시간
   for (const sh of shifts) {
     for (const a of getAssigned(prevDay, sh.id)) {
@@ -661,7 +872,7 @@ function DayPanel({
               reasons.push(`주 ${s.max_days_per_week}일 도달`);
             }
             const prevEnd = prevDayEnds.get(s.id);
-            if (prevEnd && toMins(shift.start_time) + 24 * 60 - toMins(prevEnd) < 9 * 60) {
+            if (prevEnd && toMinutes(shift.start_time) + 24 * 60 - toMinutes(prevEnd) < MIN_REST_MINUTES) {
               reasons.push('전날 야간 근무 (9h 미만 휴식)');
             }
             return { staff: s, avail: { ok: reasons.length === 0, reasons } };
@@ -719,7 +930,12 @@ function DayPanel({
                     </>
                   ) : (
                     <>
-                      <span className="text-[12px] font-bold text-ink flex-1 min-w-0 truncate">{a.staff_profiles?.name ?? `#${a.staff_id}`}</span>
+                      <span className="text-[12px] font-bold text-ink flex-1 min-w-0 truncate">
+                        {a.staff_profiles?.name ?? `#${a.staff_id}`}
+                        {violations.get(a.id) && (
+                          <span className="ml-1 text-[10px]" title={violations.get(a.id)!.join(', ')}>⚠️</span>
+                        )}
+                      </span>
                       <button
                         onClick={() => {
                           setEditingTimeId(a.id);
