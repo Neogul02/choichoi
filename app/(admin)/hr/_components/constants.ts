@@ -2,6 +2,12 @@ import type { StaffRole, StaffStatus } from '@/types/database';
 
 export { DAY_NAMES, checkStaffAvailability } from '@/lib/staffing';
 
+// 파트 순서에 따라 순환하는 강조색
+const SHIFT_TEXT_COLORS = ['text-orange-600', 'text-indigo-600', 'text-emerald-600', 'text-rose-500', 'text-cyan-600'] as const;
+export function shiftTextColor(index: number): string {
+  return SHIFT_TEXT_COLORS[index % SHIFT_TEXT_COLORS.length];
+}
+
 export const ROLE_LABELS: Record<StaffRole, string> = {
   kitchen: '주방',
   cashier: '캐셔',

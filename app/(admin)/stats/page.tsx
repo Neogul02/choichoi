@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import NavBar from '@/components/NavBar';
-import { getKSTDateStr } from './_lib/period';
+import { kstToday } from '@/lib/date';
 import { useTodayStats } from './_hooks/useTodayStats';
 import { useBreakdown } from './_hooks/useBreakdown';
 import { useCalendar } from './_hooks/useCalendar';
@@ -20,7 +20,7 @@ export default function StatsPage() {
   const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, saveDay, removeDay } = useCalendar();
   const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading: isPopupStatsLoading } = usePopupStats();
 
-  const todayStr = getKSTDateStr();
+  const todayStr = kstToday();
   const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0), [todayOrders]);
 
   return (

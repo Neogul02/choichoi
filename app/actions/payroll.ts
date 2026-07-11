@@ -165,7 +165,7 @@ export async function fetchMonthlyPayroll(
       if (!staff) continue
       const totalHours = Math.round((minutes / 60) * 10) / 10
       const totalPay = staff.hourly_rate != null ? Math.round(totalHours * staff.hourly_rate) : null
-      rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: (staff as any).bank_name ?? null, bankAccount: (staff as any).bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
+      rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: staff.bank_name ?? null, bankAccount: staff.bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
     }
 
     rows.sort((a, b) => b.totalHours - a.totalHours)

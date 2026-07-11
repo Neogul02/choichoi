@@ -16,6 +16,7 @@ import type {
   DailySalesItem,
 } from '@/types/api'
 import type { OrderItemInput } from '@/lib/supabase'
+import { kstToday } from '@/lib/date'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -25,31 +26,18 @@ if (!supabaseUrl) {
   console.error('[Supabase Admin] Missing NEXT_PUBLIC_SUPABASE_URL')
 }
 
-if (!serviceKey) {
-  if (process.env.NODE_ENV === 'production') {
-    console.warn(
-      '[Supabase Admin] Missing SUPABASE_SERVICE_ROLE_KEY in production! Falling back to ANON_KEY. RLS might block operations.',
-    )
-  } else {
-    console.log('[Supabase Admin] No SERVICE_ROLE_KEY found, using ANON_KEY.')
-  }
+if (!serviceKey && process.env.NODE_ENV === 'production') {
+  console.warn(
+    '[Supabase Admin] Missing SUPABASE_SERVICE_ROLE_KEY in production! Falling back to ANON_KEY. RLS might block operations.',
+  )
 }
 
 const supabaseKey = serviceKey || anonKey || ''
-if (supabaseKey === serviceKey && serviceKey) {
-  console.log('[Supabase Admin] Initializing with SERVICE_ROLE_KEY')
-} else if (supabaseKey === anonKey && anonKey) {
-  console.log('[Supabase Admin] Initializing with ANON_KEY')
-}
 
 const supabaseAdmin = createClient(supabaseUrl || '', supabaseKey)
 
-function getKSTDateStr(): string {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().split('T')[0]
-}
-
 export function getKSTDateBounds(kstDateStr?: string): { start: string; end: string } {
-  const d = kstDateStr ?? getKSTDateStr()
+  const d = kstDateStr ?? kstToday()
   // created_at은 timestamp without time zone(naive UTC) 컬럼 — +09:00 오프셋 문자열을 그대로 보내면
   // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
   return {
@@ -158,20 +146,6 @@ export async function getTodaysOrderListWithItems(
       })),
     }
   })
-}
-
-export async function clearTodaysOrders(): Promise<{ deletedCount: number }> {
-  const { start, end } = getKSTDateBounds()
-
-  const { data, error } = await supabaseAdmin
-    .from('orders')
-    .delete()
-    .gte('created_at', start)
-    .lte('created_at', end)
-    .select('id')
-
-  if (error) throw error
-  return { deletedCount: data?.length ?? 0 }
 }
 
 export async function createOrder(
@@ -872,7 +846,23 @@ export async function getOrdersByDate(
 
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []).map((order: any) => ({
+  type OrderItemRow = {
+    menu_item_id: number
+    quantity: number
+    subtotal: number | string
+    menu_items: { name: string } | null
+  }
+  type OrderRow = {
+    id: number
+    total_price: number | string
+    created_at: string
+    payment_status: string
+    cashier_name: string | null
+    is_prepared: boolean
+    order_items: OrderItemRow[] | null
+  }
+  // menu_items는 다대일 관계라 런타임엔 객체지만, select 문자열 추론은 배열로 잡아 unknown 경유가 필요
+  return ((data ?? []) as unknown as OrderRow[]).map(order => ({
     id: order.id,
     total_price: Number(order.total_price),
     created_at: order.created_at,
@@ -880,62 +870,11 @@ export async function getOrdersByDate(
     cashier_name: order.cashier_name,
     is_prepared: order.is_prepared,
     popup_name: null,
-    items: (order.order_items ?? []).map((item: any) => ({
+    items: (order.order_items ?? []).map(item => ({
       menu_item_id: item.menu_item_id,
       name: item.menu_items?.name ?? '알 수 없음',
       quantity: item.quantity,
       subtotal: Number(item.subtotal),
     })),
   }))
-}
-
-// ── Cheers ────────────────────────────────────────────────────────────────────
-
-export async function incrementCheer(
-  popupId: number,
-  workerName: string,
-): Promise<number> {
-  const today = getKSTDateStr()
-  const { data: existing } = await supabaseAdmin
-    .from('cheers')
-    .select('count')
-    .eq('popup_id', popupId)
-    .eq('worker_name', workerName)
-    .eq('date', today)
-    .maybeSingle()
-  const newCount = (existing?.count ?? 0) + 1
-  const { error } = await supabaseAdmin.from('cheers').upsert(
-    {
-      popup_id: popupId,
-      worker_name: workerName,
-      date: today,
-      count: newCount,
-    },
-    { onConflict: 'popup_id,worker_name,date' },
-  )
-  if (error) throw error
-  return newCount
-}
-
-export async function getTodayCheersByPopup(
-  popupId: number,
-): Promise<Array<{ worker_name: string; count: number }>> {
-  const today = getKSTDateStr()
-  const { data, error } = await supabaseAdmin
-    .from('cheers')
-    .select('worker_name, count')
-    .eq('popup_id', popupId)
-    .eq('date', today)
-  if (error) throw error
-  return data ?? []
-}
-
-export async function resetTodayCheersByPopup(popupId: number): Promise<void> {
-  const today = getKSTDateStr()
-  const { error } = await supabaseAdmin
-    .from('cheers')
-    .delete()
-    .eq('popup_id', popupId)
-    .eq('date', today)
-  if (error) throw error
 }
