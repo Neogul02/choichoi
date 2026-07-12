@@ -87,9 +87,45 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const inputClass =
     'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas'
 
+  // 로그인 성공(비밀번호 로그인 또는 회원가입 직후 자동 로그인) 후 공통 후처리
+  const finishAuth = async (user: { id: string; user_metadata?: { name?: string } }, email: string) => {
+    const supabase = createSupabaseBrowserClient()
+
+    // user_profiles에서 이름 + role 조회 → user_metadata 동기화
+    const { data: profile } = await withTimeout(
+      Promise.resolve(supabase.from('user_profiles').select('name, worker_role').eq('id', user.id).maybeSingle()),
+      8000,
+      '프로필 조회',
+    )
+
+    const syncedRole =
+      profile?.worker_role === 'admin' ? 'admin' :
+      profile?.worker_role === 'manager' ? 'manager' : 'user'
+    await withTimeout(
+      supabase.auth.updateUser({
+        data: { role: syncedRole, name: profile?.name ?? user.user_metadata?.name },
+      }),
+      8000,
+      '권한 동기화',
+    )
+
+    const name = profile?.name ?? user.user_metadata?.name ?? ''
+    const isKitchen = selectedPopupId === 'kitchen'
+    const popup = isKitchen ? null : popupEvents.find((p) => p.id === selectedPopupId)
+    try {
+      if (name) localStorage.setItem(CASHIER_NAME_KEY, name)
+      localStorage.setItem(POPUP_ID_KEY, isKitchen ? '0' : String(selectedPopupId))
+      localStorage.setItem(POPUP_NAME_KEY, isKitchen ? '주방' : (popup?.name ?? ''))
+      localStorage.setItem(WORKER_ROLE_KEY, isKitchen ? 'kitchen' : '')
+    } catch { /* ignore */ }
+
+    notifyLoginEvent(name, email).catch(() => {})
+    setIsAuthed(true)
+  }
+
   const onLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedPopupId) { setError('팝업을 선택해주세요.'); return }
+    if (!selectedPopupId) { setError('근무지를 선택해주세요.'); return }
     if (!loginEmail.trim() || !loginPassword) {
       setError('이메일(또는 이름)과 비밀번호를 입력해주세요.')
       return
@@ -116,36 +152,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
         return
       }
 
-      // user_profiles에서 이름 + role 조회 → user_metadata 동기화
-      const { data: profile } = await withTimeout(
-        Promise.resolve(supabase.from('user_profiles').select('name, worker_role').eq('id', data.user.id).maybeSingle()),
-        8000,
-        '프로필 조회',
-      )
-
-      const syncedRole =
-        profile?.worker_role === 'admin' ? 'admin' :
-        profile?.worker_role === 'manager' ? 'manager' : 'user'
-      await withTimeout(
-        supabase.auth.updateUser({
-          data: { role: syncedRole, name: profile?.name ?? data.user.user_metadata?.name },
-        }),
-        8000,
-        '권한 동기화',
-      )
-
-      const name = profile?.name ?? data.user.user_metadata?.name ?? ''
-      const isKitchen = selectedPopupId === 'kitchen'
-      const popup = isKitchen ? null : popupEvents.find((p) => p.id === selectedPopupId)
-      try {
-        if (name) localStorage.setItem(CASHIER_NAME_KEY, name)
-        localStorage.setItem(POPUP_ID_KEY, isKitchen ? '0' : String(selectedPopupId))
-        localStorage.setItem(POPUP_NAME_KEY, isKitchen ? '주방' : (popup?.name ?? ''))
-        localStorage.setItem(WORKER_ROLE_KEY, isKitchen ? 'kitchen' : '')
-      } catch { /* ignore */ }
-
-      notifyLoginEvent(name, resolved.data.email).catch(() => {})
-      setIsAuthed(true)
+      await finishAuth(data.user, resolved.data.email)
     } catch (err) {
       setError(err instanceof Error ? err.message : '로그인 중 오류가 발생했습니다.')
     } finally {
@@ -155,6 +162,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
   const onSignup = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!selectedPopupId) { setError('근무지를 선택해주세요.'); return }
     if (!signupName.trim()) { setError('이름을 입력해주세요.'); return }
     if (!signupEmail.trim()) { setError('이메일을 입력해주세요.'); return }
     if (!signupPhone.trim()) { setError('전화번호를 입력해주세요. (초기 비밀번호로 사용됩니다)'); return }
@@ -164,11 +172,14 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setError('')
     setIsSubmitting(true)
 
+    const email = signupEmail.trim()
+    const password = signupPhone.trim()
+
     // 서버 액션: 초대코드 검증 + 계정 생성 + 프로필 INSERT (이메일 발송 없음)
     const result = await createWorkerAccount({
       inviteCode: signupInviteCode,
-      email: signupEmail.trim(),
-      password: signupPhone.trim(),
+      email,
+      password,
       name: signupName.trim(),
       phone: signupPhone.trim(),
       bankName: signupBankName.trim() || undefined,
@@ -182,8 +193,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     }
 
     // 보건증 업로드 (선택, 클라이언트 스토리지)
+    const supabase = createSupabaseBrowserClient()
     if (signupHealthCert && result.data?.userId) {
-      const supabase = createSupabaseBrowserClient()
       const ext = signupHealthCert.name.split('.').pop()
       const path = `${result.data.userId}/health_cert.${ext}`
       const { error: uploadError } = await supabase.storage
@@ -197,49 +208,69 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       }
     }
 
+    // 가입 직후 자동 로그인 (방금 만든 계정 이메일 + 초기 비밀번호로 즉시 세션 발급)
+    const { data, error: authError } = await withTimeout(
+      supabase.auth.signInWithPassword({ email, password }),
+      8000,
+      '로그인',
+    )
+
     setIsSubmitting(false)
-    setInfo(`가입 완료! 초기 비밀번호는 전화번호(${signupPhone.trim()})입니다.`)
-    setView('login')
+
+    if (authError || !data.user) {
+      // 자동 로그인만 실패한 경우 — 계정은 이미 생성됐으므로 로그인 화면으로 안내
+      setInfo(`가입 완료! 초기 비밀번호는 전화번호(${password})입니다. 로그인해주세요.`)
+      setView('login')
+      setSignupName(''); setSignupEmail(''); setSignupPhone('')
+      setSignupBankName(''); setSignupBankAccount(''); setSignupHealthCert(null); setSignupInviteCode(''); setSignupConsent(false)
+      return
+    }
+
+    await finishAuth(data.user, email)
     setSignupName(''); setSignupEmail(''); setSignupPhone('')
     setSignupBankName(''); setSignupBankAccount(''); setSignupHealthCert(null); setSignupInviteCode(''); setSignupConsent(false)
   }
 
+
+  const popupSelectField = (
+    <div className='relative mb-3'>
+      <select
+        className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'}`}
+        value={selectedPopupId}
+        onChange={(e) => {
+          const v = e.target.value
+          setSelectedPopupId(v === 'kitchen' ? 'kitchen' : v ? Number(v) : '')
+        }}
+      >
+        <option value=''>근무지 선택</option>
+        <option value='kitchen'>주방</option>
+        {popupEvents.map((p) => (
+          <option key={p.id} value={p.id}>{p.name}</option>
+        ))}
+      </select>
+      <span className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint'>
+        <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
+          <path d='M2 4l4 4 4-4' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+        </svg>
+      </span>
+    </div>
+  )
 
   if (!isAuthed) {
     return (
       <div className='min-h-screen bg-[#f5f6f7] flex items-center justify-center p-4'>
         <div className='w-full max-w-[360px]'>
           <div className='text-center mb-5'>
-            <h1 className='text-2xl font-black text-ink m-0 mb-1'>ChoiChoi POS</h1>
+            <h1 className='text-2xl font-black text-ink m-0 mb-1'>ChoiChoi 직원</h1>
             <p className='m-0 text-ink-muted text-sm'>
-              {view === 'login' ? '로그인' : '회원가입'} 후 이용해주세요.
+              {view === 'login' ? '직원 계정으로 로그인해주세요.' : '처음 오셨다면 직원 계정을 만들어주세요.'}
             </p>
           </div>
 
           {view === 'login' && (
             <form className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline' onSubmit={onLogin}>
               {info && <div className='text-emerald-600 text-[13px] mb-3 bg-emerald-50 rounded-lg px-3 py-2'>{info}</div>}
-              <div className='relative mb-3'>
-                <select
-                  className={`${inputClass} mb-0 appearance-none pr-8 cursor-pointer ${!selectedPopupId ? 'text-ink-faint' : 'text-ink'}`}
-                  value={selectedPopupId}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setSelectedPopupId(v === 'kitchen' ? 'kitchen' : v ? Number(v) : '')
-                  }}
-                >
-                  <option value=''>근무지 선택</option>
-                  <option value='kitchen'>주방</option>
-                  {popupEvents.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <span className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint'>
-                  <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
-                    <path d='M2 4l4 4 4-4' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
-                  </svg>
-                </span>
-              </div>
+              {popupSelectField}
               <input type='text' className={inputClass} value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)} placeholder='이메일 또는 이름' autoComplete='email' />
               <input type='password' className={inputClass} value={loginPassword}
@@ -249,10 +280,13 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                 className='w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mb-3'>
                 {isSubmitting ? '로그인 중...' : '로그인'}
               </button>
-              <button type='button' onClick={() => { setError(''); setInfo(''); setView('signup') }}
-                className='w-full text-center text-[13px] text-ink-muted hover:text-primary-700 transition-colors bg-transparent border-none cursor-pointer'>
-                회원가입
-              </button>
+              <p className='m-0 text-center text-[13px] text-ink-muted'>
+                처음이라면?{' '}
+                <button type='button' onClick={() => { setError(''); setInfo(''); setView('signup') }}
+                  className='text-primary-700 font-semibold underline bg-transparent border-none cursor-pointer p-0'>
+                  회원가입
+                </button>
+              </p>
             </form>
           )}
 
@@ -261,6 +295,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
               <div className='text-[12px] text-ink-muted bg-canvas-soft rounded-lg px-3 py-2 mb-3'>
                 💡 초기 비밀번호는 전화번호로 설정됩니다.
               </div>
+              {popupSelectField}
               <input type='text' className={inputClass} value={signupName}
                 onChange={(e) => setSignupName(e.target.value)} placeholder='이름 *' autoFocus autoComplete='name' />
               <input type='email' className={inputClass} value={signupEmail}
