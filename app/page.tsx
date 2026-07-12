@@ -19,8 +19,8 @@ export default function LandingPage() {
               <path d="M8 21h8M12 17v4" />
             </svg>
           </div>
-          <div className="text-lg font-black mb-0.5">캐셔 화면</div>
-          <div className="text-sm font-normal opacity-70">주문 접수 및 결제</div>
+          <div className="text-lg font-black mb-0.5">직원 화면</div>
+          <div className="text-sm font-normal opacity-70">주방 및 주문 접수 캐셔</div>
         </Link>
 
         <Link
@@ -38,6 +38,13 @@ export default function LandingPage() {
           <div className="text-sm font-normal text-ink-faint">주문 확인 및 메뉴 선택</div>
         </Link>
       </div>
+
+      <p className="mt-8 text-sm text-ink-faint text-center">
+        처음이라면?{' '}
+        <Link href="/pos?view=signup" className="text-primary-700 font-semibold underline">
+          회원가입
+        </Link>
+      </p>
     </div>
   );
 }
