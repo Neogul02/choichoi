@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { fetchPopupEvents } from '@/app/actions/schedule';
-import { fetchMenuSalesBreakdown, fetchDailySalesByPeriod, fetchManualSalesForRange } from '@/app/actions/stats';
+import { fetchMenuSalesBreakdown, fetchDailySalesByPeriod, fetchManualSalesForRange, fetchManualMenuSales } from '@/app/actions/stats';
 import { fetchOrdersByPeriod } from '@/app/actions/orders';
 import type { MenuSalesItem, DailySalesItem, ManualSalesEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
@@ -27,6 +27,17 @@ function applyManualOverrides(daily: DailySalesItem[], manualEntries: ManualSale
   return merged.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function applyMenuManualOverrides(computed: MenuSalesItem[], manualEntries: MenuSalesItem[]): MenuSalesItem[] {
+  if (manualEntries.length === 0) return computed;
+  const manualById = new Map(manualEntries.map((m) => [m.id, m]));
+  const merged = computed.map((item) => manualById.get(item.id) ?? item);
+  const existingIds = new Set(computed.map((item) => item.id));
+  for (const entry of manualEntries) {
+    if (!existingIds.has(entry.id)) merged.push(entry);
+  }
+  return merged;
+}
+
 export function usePopupStats() {
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([]);
   const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null);
@@ -34,6 +45,7 @@ export function usePopupStats() {
   const [popupDailySales, setPopupDailySales] = useState<DailySalesItem[]>([]);
   const [popupRawOrders, setPopupRawOrders] = useState<Array<{ created_at: string; total_price: number }>>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetchPopupEvents().then((res) => {
@@ -54,15 +66,18 @@ export function usePopupStats() {
       // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
       const startISO = new Date(`${popup.start_date}T00:00:00+09:00`).toISOString();
       const endISO = new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString();
-      const [menuRes, dailyRes, rawRes, manualRes] = await Promise.all([
+      const [menuRes, dailyRes, rawRes, manualRes, manualMenuRes] = await Promise.all([
         fetchMenuSalesBreakdown(startISO, endISO, String(selectedPopupId)),
         fetchDailySalesByPeriod(startISO, endISO, String(selectedPopupId)),
         fetchOrdersByPeriod(startISO, endISO, String(selectedPopupId)),
         fetchManualSalesForRange(popup.start_date, popup.end_date),
+        fetchManualMenuSales(selectedPopupId),
       ]);
       if (!isCurrent) return;
-      if (menuRes.success && menuRes.data) setPopupMenuBreakdown(menuRes.data);
-      else { setPopupMenuBreakdown([]); if (!menuRes.success) toast.error(`팝업 메뉴 조회 실패: ${menuRes.error}`); }
+      if (menuRes.success && menuRes.data) {
+        const manualMenuEntries = manualMenuRes.success && manualMenuRes.data ? manualMenuRes.data : [];
+        setPopupMenuBreakdown(applyMenuManualOverrides(menuRes.data, manualMenuEntries));
+      } else { setPopupMenuBreakdown([]); if (!menuRes.success) toast.error(`팝업 메뉴 조회 실패: ${menuRes.error}`); }
       if (dailyRes.success && dailyRes.data) {
         const manualEntries = manualRes.success && manualRes.data ? manualRes.data : [];
         setPopupDailySales(applyManualOverrides(dailyRes.data, manualEntries));
@@ -73,7 +88,9 @@ export function usePopupStats() {
 
     doFetch();
     return () => { isCurrent = false; };
-  }, [selectedPopupId, popupEvents]);
+  }, [selectedPopupId, popupEvents, refreshKey]);
+
+  const refreshPopupStats = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   return {
     popupEvents,
@@ -83,5 +100,6 @@ export function usePopupStats() {
     popupDailySales,
     popupRawOrders,
     isLoading,
+    refreshPopupStats,
   };
 }
