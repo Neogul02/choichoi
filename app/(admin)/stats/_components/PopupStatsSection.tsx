@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
   LineChart, Line, Legend,
@@ -12,6 +13,8 @@ import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 import { analyzePopupSales } from '@/app/actions/gemini';
+
+const MenuSalesEditModal = dynamic(() => import('./MenuSalesEditModal'), { ssr: false });
 
 type Metric = 'revenue' | 'orderCount';
 
@@ -57,16 +60,18 @@ interface Props {
   popupRawOrders: Array<{ created_at: string; total_price: number }>;
   isLoading: boolean;
   onSelectPopup: (id: number | null) => void;
+  onRefresh: () => void;
 }
 
 export default function PopupStatsSection({
-  popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading, onSelectPopup,
+  popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading, onSelectPopup, onRefresh,
 }: Props) {
   const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
   const [metric, setMetric] = useState<Metric>('revenue');
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [showMenuSalesEdit, setShowMenuSalesEdit] = useState(false);
 
   function handleSelectPopup(id: number | null) {
     setAiAnalysis(null);
@@ -267,9 +272,17 @@ export default function PopupStatsSection({
                   )}
                 </div>
 
-                {popupMenuBreakdown.length > 0 ? (
-                  <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4]">
-                    <h4 className="m-0 mb-3 text-sm font-bold text-ink-secondary">메뉴별 판매</h4>
+                <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4]">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="m-0 text-sm font-bold text-ink-secondary">메뉴별 판매</h4>
+                    <button
+                      onClick={() => setShowMenuSalesEdit(true)}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer"
+                    >
+                      수기 입력
+                    </button>
+                  </div>
+                  {popupMenuBreakdown.length > 0 ? (
                     <ResponsiveContainer width="100%" height={popupMenuChartHeight}>
                         <BarChart layout="vertical" data={popupMenuBreakdown} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
@@ -284,14 +297,23 @@ export default function PopupStatsSection({
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p className="text-ink-faint text-sm">메뉴 판매 내역이 없습니다.</p>
-                )}
+                  ) : (
+                    <p className="m-0 text-ink-faint text-sm">메뉴 판매 내역이 없습니다.</p>
+                  )}
+                </div>
               </>
             )
           )}
         </>
+      )}
+
+      {showMenuSalesEdit && selectedPopup && (
+        <MenuSalesEditModal
+          popupId={selectedPopup.id}
+          popupName={selectedPopup.name}
+          onClose={() => setShowMenuSalesEdit(false)}
+          onSaved={() => { setShowMenuSalesEdit(false); onRefresh(); }}
+        />
       )}
     </div>
   );

@@ -827,6 +827,59 @@ export async function deleteDailySales(id: number): Promise<void> {
   if (error) throw error
 }
 
+// ── Manual Menu Sales (manual_menu_sales) ─────────────────────────────────────
+
+export async function getManualMenuSalesForPopup(popupId: number): Promise<MenuSalesItem[]> {
+  const { data, error } = await supabaseAdmin
+    .from('manual_menu_sales')
+    .select('quantity, menu_items(id, name, price, color)')
+    .eq('popup_id', popupId)
+  if (error) throw error
+  type MenuItemRef = { id: number; name: string; price: number; color: string }
+  type Row = { quantity: number; menu_items: MenuItemRef | MenuItemRef[] | null }
+  return ((data ?? []) as unknown as Row[])
+    .map((row) => ({ quantity: row.quantity, item: Array.isArray(row.menu_items) ? row.menu_items[0] : row.menu_items }))
+    .filter((row): row is { quantity: number; item: MenuItemRef } => Boolean(row.item))
+    .map((row) => ({
+      id: row.item.id,
+      name: row.item.name,
+      price: Number(row.item.price),
+      color: row.item.color,
+      totalQuantity: row.quantity,
+      totalRevenue: row.quantity * Number(row.item.price),
+    }))
+}
+
+export async function upsertManualMenuSales(
+  popupId: number,
+  entries: Array<{ menuItemId: number; quantity: number }>,
+): Promise<void> {
+  const toUpsert = entries.filter((e) => e.quantity > 0)
+  const toDelete = entries.filter((e) => e.quantity <= 0).map((e) => e.menuItemId)
+
+  if (toUpsert.length > 0) {
+    const { error } = await supabaseAdmin.from('manual_menu_sales').upsert(
+      toUpsert.map((e) => ({
+        popup_id: popupId,
+        menu_item_id: e.menuItemId,
+        quantity: e.quantity,
+        updated_at: new Date().toISOString(),
+      })),
+      { onConflict: 'popup_id,menu_item_id' },
+    )
+    if (error) throw error
+  }
+
+  if (toDelete.length > 0) {
+    const { error } = await supabaseAdmin
+      .from('manual_menu_sales')
+      .delete()
+      .eq('popup_id', popupId)
+      .in('menu_item_id', toDelete)
+    if (error) throw error
+  }
+}
+
 export async function getOrdersByDate(
   kstDateStr: string,
   popupId?: string | number | null,
