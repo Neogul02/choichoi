@@ -63,6 +63,13 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     })
   }, [])
 
+  // 분기 페이지의 "처음이라면? 회원가입" 링크(/pos?view=signup)로 들어왔을 때 바로 회원가입 화면을 띄움
+  // useSearchParams 대신 window.location을 직접 읽어 전체 앱의 정적 렌더링에 영향을 주지 않는다.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URLSearchParams(window.location.search).get('view') === 'signup') setView('signup')
+  }, [])
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
 
