@@ -10,6 +10,7 @@ import { fetchStores } from './stores'
 import { fetchStaffProfiles } from './staff'
 import { fetchPopupEvents } from './schedule'
 import { filterVisibleStores } from '@/lib/staffing'
+import { extractErrorMessage } from './_base'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -83,7 +84,7 @@ export async function fetchRosterOverview(fromDate: string, toDate: string): Pro
       },
     }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -112,7 +113,7 @@ export async function createRosterMemo(memoDate: string, content: string): Promi
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as RosterMemo }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -123,6 +124,6 @@ export async function deleteRosterMemo(id: number): Promise<ApiResponse> {
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }

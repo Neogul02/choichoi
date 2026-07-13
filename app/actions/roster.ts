@@ -6,6 +6,7 @@ import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
 import { checkStaffAvailability, getWeekStart, toMinutes, MIN_REST_MINUTES } from '@/lib/staffing'
 import { parseDate, toDateStr, addDays, prevDate, dayOfWeek, dayGroup, kstToday } from '@/lib/date'
+import { extractErrorMessage } from './_base'
 
 // 시프트 이름 고정 우선순위: 오전 → 오후 → 기타
 const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
@@ -55,7 +56,7 @@ export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<R
     if (createError) return { success: false, error: createError.message }
     return { success: true, data: (created ?? []) as RosterShift[] }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -70,7 +71,7 @@ export async function fetchAllRosterShifts(): Promise<ApiResponse<RosterShift[]>
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as RosterShift[] }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -100,7 +101,7 @@ export async function createRosterShift(unit: RosterUnit, input: RosterShiftInpu
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as RosterShift }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -116,7 +117,7 @@ export async function updateRosterShift(id: number, input: RosterShiftInput): Pr
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as RosterShift }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -127,7 +128,7 @@ export async function updateRosterShiftOrder(updates: { id: number; sort_order: 
     )
     return { success: true }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -138,7 +139,7 @@ export async function deleteRosterShift(id: number): Promise<ApiResponse> {
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -185,7 +186,7 @@ export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDat
       },
     }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -207,7 +208,7 @@ export async function addRosterAssignment(
     }
     return { success: true, data: data as unknown as RosterAssignment }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -217,7 +218,7 @@ export async function removeRosterAssignment(id: number): Promise<ApiResponse> {
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -236,7 +237,7 @@ export async function updateRosterAssignmentTime(
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as unknown as RosterAssignment }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -282,7 +283,7 @@ export async function undoRosterChange(payload: RosterUndoPayload): Promise<ApiR
     }
     return { success: true, data: { restored } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -338,7 +339,7 @@ export async function moveStaffAssignments(
     }
     return { success: true, data: { moved: toMove.length, merged: toMerge.length, undo } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -366,7 +367,7 @@ export async function clearStaffAssignments(
     const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
     return { success: true, data: { removed: rows.length, undo: { deleted: rows, updated: [] } } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -419,7 +420,7 @@ export async function swapStaffAssignments(
     }
     return { success: true, data: { swapped: aRows.length + bRows.length, undo } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -437,7 +438,7 @@ export async function setShiftRequirement(
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as RosterShiftRequirement }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -452,7 +453,7 @@ export async function clearShiftRequirement(workDate: string, shiftId: number): 
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -721,7 +722,7 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
 
     return { success: true, data: { added: bestInserts.length, holes: bestHoles, log: bestLog } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -767,7 +768,7 @@ export async function bulkAddRosterAssignments(
     const added = (data ?? []).length
     return { success: true, data: { added, skipped: dates.length - added } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -807,7 +808,7 @@ export async function copyPreviousWeek(
     const added = (inserted ?? []).length
     return { success: true, data: { added, skipped: candidates.length - added } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -830,7 +831,7 @@ export async function clearRosterRange(
     const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
     return { success: true, data: { removed: rows.length, undo: { deleted: rows, updated: [] } } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -954,7 +955,7 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
       data: withOrder.map(({ sort_order: _s, shift_sort_order: _ss, ...entry }) => entry),
     }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
 
@@ -1011,6 +1012,6 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
 
     return { success: true, data: { shifts, hourlyRate: staff.hourly_rate ?? null } }
   } catch (err) {
-    return { success: false, error: String(err) }
+    return { success: false, error: extractErrorMessage(err) }
   }
 }
