@@ -7,18 +7,28 @@ import { moveStaffAssignments, clearStaffAssignments, swapStaffAssignments } fro
 import type { RosterUnit, RosterUndoPayload } from '@/app/actions/roster';
 import type { RosterAssignment, RosterShift, StaffProfile } from '@/types/database';
 
-interface Props {
+export interface BulkEditContext {
   unit: RosterUnit;
   unitLabel: string;
   shifts: RosterShift[];
   staffList: StaffProfile[];
   /** 현재 로드된 월의 배정 전체 — 미리보기 건수 계산용 */
   assignments: RosterAssignment[];
+  todayStr: string;
+}
+
+export interface BulkEditRange {
   defaultFrom: string;
   defaultTo: string;
   monthStart: string;
   monthEnd: string;
-  todayStr: string;
+}
+
+interface Props {
+  /** 편집 대상 단위와 현재 데이터 */
+  context: BulkEditContext;
+  /** 기본 기간과 선택 가능 범위 */
+  range: BulkEditRange;
   /** 적용 후 캘린더 재로드 */
   onApplied: () => Promise<void>;
   /** 되돌리기 배너 표시 (부모가 10초간 제공) */
@@ -26,10 +36,9 @@ interface Props {
   onClose: () => void;
 }
 
-export default function BulkEditModal({
-  unit, unitLabel, shifts, staffList, assignments,
-  defaultFrom, defaultTo, monthStart, monthEnd, todayStr, onApplied, onUndoable, onClose,
-}: Props) {
+export default function BulkEditModal({ context, range, onApplied, onUndoable, onClose }: Props) {
+  const { unit, unitLabel, shifts, staffList, assignments, todayStr } = context;
+  const { defaultFrom, defaultTo, monthStart, monthEnd } = range;
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [staffId, setStaffId] = useState<number | null>(null);

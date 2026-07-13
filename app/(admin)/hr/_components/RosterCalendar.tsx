@@ -425,16 +425,8 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
 
       {showBulkEdit && (
         <BulkEditModal
-          unit={unit}
-          unitLabel={unitLabel}
-          shifts={shifts}
-          staffList={unitStaff}
-          assignments={assignments}
-          defaultFrom={targetFrom}
-          defaultTo={targetTo}
-          monthStart={loadFrom}
-          monthEnd={loadTo}
-          todayStr={todayStr}
+          context={{ unit, unitLabel, shifts, staffList: unitStaff, assignments, todayStr }}
+          range={{ defaultFrom: targetFrom, defaultTo: targetTo, monthStart: loadFrom, monthEnd: loadTo }}
           onApplied={loadRange}
           onUndoable={offerUndo}
           onClose={() => setShowBulkEdit(false)}
