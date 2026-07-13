@@ -111,6 +111,15 @@ export interface RosterAssignment {
   staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'status'>;
 }
 
+// 일정표(전체 근무표)의 날짜별 메모 — 매니저 이상이 작성·조회
+export interface RosterMemo {
+  id: number;
+  memo_date: string; // YYYY-MM-DD
+  content: string;
+  author_name: string | null;
+  created_at: string;
+}
+
 export interface Memo {
   id: number;
   title: string | null;
