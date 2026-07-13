@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import NavBar from '@/components/NavBar';
 import WeekMatrix from '@/app/(admin)/hr/_components/WeekMatrix';
 import { createRosterMemo, deleteRosterMemo, fetchRosterOverview } from '@/app/actions/roster-view';
@@ -38,22 +38,56 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
   const [memoContent, setMemoContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // 주별 캐시 — 캐시 히트 시 즉시 표시 후 백그라운드 재검증(SWR), 미스 시 스켈레톤
+  const cacheRef = useRef<Map<string, RosterOverview>>(
+    new Map(initialOverview ? [[initialWeekStart, initialOverview]] : []),
+  );
+  // 표시 중인 주 미러 — 비동기 응답이 도착했을 때 아직 그 주를 보고 있는지 판정
+  const weekStartRef = useRef(initialWeekStart);
+  // 연타 시 응답 역전 방지: 나중에 발행된 요청만 화면에 반영
+  const reqSeq = useRef(0);
+  const appliedSeq = useRef(0);
+  const prefetching = useRef(new Set<string>());
+
   const weekEnd = addDays(weekStart, 6);
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
-  const load = async (ws: string) => {
-    setIsLoading(true);
+  const fetchWeek = async (ws: string, background = false) => {
+    const seq = ++reqSeq.current;
+    if (!background) setIsLoading(true);
     const r = await fetchRosterOverview(ws, addDays(ws, 6));
-    if (r.success && r.data) setOverview(r.data);
-    else showMsg(`오류: ${r.error}`);
-    setIsLoading(false);
+    if (r.success && r.data) {
+      cacheRef.current.set(ws, r.data);
+      if (weekStartRef.current === ws && seq > appliedSeq.current) {
+        appliedSeq.current = seq;
+        setOverview(r.data);
+      }
+    } else if (!background && weekStartRef.current === ws) {
+      showMsg(`오류: ${r.error}`);
+    }
+    if (!background && weekStartRef.current === ws) setIsLoading(false);
   };
 
   // 서버 프리페치가 실패한 드문 경우에만 클라이언트에서 재시도
   useEffect(() => {
-    if (!initialOverview) load(initialWeekStart);
+    if (!initialOverview) fetchWeek(initialWeekStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 인접 주(±7일) 프리페치 — 주 이동을 체감 즉시로 만든다. 화면 상태는 건드리지 않고 캐시만 채움
+  const prefetch = (ws: string) => {
+    if (cacheRef.current.has(ws) || prefetching.current.has(ws)) return;
+    prefetching.current.add(ws);
+    fetchRosterOverview(ws, addDays(ws, 6)).then(r => {
+      prefetching.current.delete(ws);
+      if (r.success && r.data && !cacheRef.current.has(ws)) cacheRef.current.set(ws, r.data);
+    });
+  };
+  useEffect(() => {
+    const t = setTimeout(() => { prefetch(addDays(weekStart, -7)); prefetch(addDays(weekStart, 7)); }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart]);
 
   const moveWeek = (delta: number) => {
     const next = delta === 0 ? getWeekStart(today) : addDays(weekStart, delta * 7);
@@ -61,10 +95,19 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
     const nextEnd = addDays(next, 6);
     // 오늘이 새 주에 있으면 오늘, 아니면 기존 선택 요일을 보존해 이동
     const base = today >= next && today <= nextEnd ? today : addDays(next, dayOfWeek(selectedDate));
+    weekStartRef.current = next;
     setWeekStart(next);
     setSelectedDate(base);
     setMemoDate(base);
-    load(next);
+    const cached = cacheRef.current.get(next);
+    if (cached) {
+      setOverview(cached);
+      setIsLoading(false);
+      void fetchWeek(next, true); // 캐시를 먼저 보여주고 백그라운드에서 최신화
+    } else {
+      setOverview(null); // 이전 주 데이터가 새 주 라벨에 매핑돼 보이는 스테일 표시 방지 — 스켈레톤으로 전환
+      void fetchWeek(next);
+    }
   };
 
   const handleDateClick = (dateStr: string) => {
@@ -77,11 +120,16 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
     setIsSaving(true);
     const r = await createRosterMemo(memoDate, memoContent);
     if (r.success && r.data) {
-      setOverview(p => p ? {
-        ...p,
-        memos: [...p.memos, r.data!].sort((a, b) =>
-          a.memo_date.localeCompare(b.memo_date) || a.created_at.localeCompare(b.created_at)),
-      } : p);
+      setOverview(p => {
+        if (!p) return p;
+        const next = {
+          ...p,
+          memos: [...p.memos, r.data!].sort((a, b) =>
+            a.memo_date.localeCompare(b.memo_date) || a.created_at.localeCompare(b.created_at)),
+        };
+        cacheRef.current.set(weekStartRef.current, next); // 캐시도 함께 갱신 — 주 이동 후 복귀 시 메모 유실 방지
+        return next;
+      });
       setMemoContent('');
       showMsg('메모가 등록되었습니다');
     } else {
@@ -93,8 +141,14 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
   const handleDeleteMemo = async (id: number) => {
     if (!confirm('이 메모를 삭제할까요?')) return;
     const r = await deleteRosterMemo(id);
-    if (r.success) setOverview(p => p ? { ...p, memos: p.memos.filter(m => m.id !== id) } : p);
-    else showMsg(`오류: ${r.error}`);
+    if (r.success) {
+      setOverview(p => {
+        if (!p) return p;
+        const next = { ...p, memos: p.memos.filter(m => m.id !== id) };
+        cacheRef.current.set(weekStartRef.current, next);
+        return next;
+      });
+    } else showMsg(`오류: ${r.error}`);
   };
 
   return (
