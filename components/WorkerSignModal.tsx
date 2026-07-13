@@ -88,9 +88,10 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 md:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-0 md:p-4">
 
-      <div className="bg-canvas rounded-2xl shadow-xl w-full max-w-7xl h-[90vh] flex flex-col overflow-hidden">
+      {/* 모바일은 전체 화면 — 주소창/키보드로 가용 높이가 줄어도 서명 버튼이 잘리지 않게 */}
+      <div className="bg-canvas rounded-none md:rounded-2xl shadow-xl w-full max-w-7xl h-full md:h-[90vh] flex flex-col overflow-hidden">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-hairline shrink-0">
