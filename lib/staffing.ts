@@ -1,5 +1,5 @@
 import type { StaffProfile } from '@/types/database';
-import { prevDate } from '@/lib/date';
+import { prevDate, dayOfWeek } from '@/lib/date';
 
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -20,6 +20,35 @@ export function filterVisibleStores<S extends { id: number }>(
     const linked = popups.filter(p => p.store_id === store.id);
     return linked.length === 0 || linked.some(p => p.is_active !== false);
   });
+}
+
+export interface ShiftRequirementSource {
+  id: number;
+  active_from: string | null;
+  active_to: string | null;
+  weekday_required: number;
+  weekend_required: number;
+}
+
+/** 파트의 해당 날짜 요구 인원 — 활성 기간 밖이면 0, 날짜별 예외(overrides) 우선, 이후 주말/평일 기본값 */
+export function requiredFor(dateStr: string, shift: ShiftRequirementSource, overrides: Record<string, number>): number {
+  if (shift.active_from && dateStr < shift.active_from) return 0;
+  if (shift.active_to && dateStr > shift.active_to) return 0;
+  const override = overrides[`${dateStr}|${shift.id}`];
+  if (override !== undefined) return override;
+  const day = dayOfWeek(dateStr);
+  return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required;
+}
+
+/** 배정 목록 → `${work_date}|${shift_id}` 키 맵 (날짜+파트별 조회용) */
+export function buildAssignMap<A extends { work_date: string; shift_id: number }>(assignments: A[]): Map<string, A[]> {
+  const map = new Map<string, A[]>();
+  for (const a of assignments) {
+    const key = `${a.work_date}|${a.shift_id}`;
+    const bucket = map.get(key);
+    if (bucket) bucket.push(a); else map.set(key, [a]);
+  }
+  return map;
 }
 
 /** 해당 날짜가 속한 주의 시작일(일요일, 달력 표시 기준과 동일) — YYYY-MM-DD */

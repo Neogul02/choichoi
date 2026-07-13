@@ -5,9 +5,10 @@ import NavBar from '@/components/NavBar';
 import WeekMatrix from '@/app/(admin)/hr/_components/WeekMatrix';
 import { createRosterMemo, deleteRosterMemo, fetchRosterOverview } from '@/app/actions/roster-view';
 import type { RosterOverview, RosterUnitOverview } from '@/app/actions/roster-view';
-import { DAY_NAMES, findRosterViolations, getWeekStart } from '@/lib/staffing';
+import { DAY_NAMES, findRosterViolations, getWeekStart, requiredFor, buildAssignMap } from '@/lib/staffing';
 import { addDays, dayOfWeek } from '@/lib/date';
-import type { RosterAssignment, RosterShift } from '@/types/database';
+import { MatrixSkeleton } from '@/components/Skeleton';
+import type { RosterShift } from '@/types/database';
 import { showMsg } from '@/lib/toast';
 
 interface Props {
@@ -23,15 +24,6 @@ const fmtMD = (dateStr: string): string => {
 
 function fmtDate(dateStr: string): string {
   return `${fmtMD(dateStr)} (${DAY_NAMES[dayOfWeek(dateStr)]})`;
-}
-
-function requiredFor(dateStr: string, shift: RosterShift, overrides: Record<string, number>): number {
-  if (shift.active_from && dateStr < shift.active_from) return 0;
-  if (shift.active_to && dateStr > shift.active_to) return 0;
-  const override = overrides[`${dateStr}|${shift.id}`];
-  if (override !== undefined) return override;
-  const day = dayOfWeek(dateStr);
-  return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required;
 }
 
 const dayTextColor = (day: number, fallback: string) =>
@@ -153,7 +145,9 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
         </div>
 
         {overview === null ? (
-          !isLoading && <p className="text-ink-faint text-sm">근무표를 불러오지 못했습니다. 새로고침해 주세요.</p>
+          isLoading
+            ? <MatrixSkeleton rows={6} />
+            : <p className="text-ink-faint text-sm">근무표를 불러오지 못했습니다. 새로고침해 주세요.</p>
         ) : (
           <div className="flex flex-col gap-3 md:gap-4">
             <DayDetailCard overview={overview} dateStr={selectedDate} today={today} />
@@ -317,15 +311,7 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
     [staff, unit],
   );
 
-  const assignMap = useMemo(() => {
-    const map = new Map<string, RosterAssignment[]>();
-    for (const a of data.assignments) {
-      const key = `${a.work_date}|${a.shift_id}`;
-      const bucket = map.get(key);
-      if (bucket) bucket.push(a); else map.set(key, [a]);
-    }
-    return map;
-  }, [data.assignments]);
+  const assignMap = useMemo(() => buildAssignMap(data.assignments), [data.assignments]);
 
   const overrides = useMemo(
     () => Object.fromEntries(data.requirements.map(q => [`${q.work_date}|${q.shift_id}`, q.required])),
