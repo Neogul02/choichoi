@@ -19,6 +19,7 @@ const CASHIER_NAME_KEY = 'choichoi_cashier_name';
 const POPUP_ID_KEY = 'choichoi_popup_id';
 const POPUP_NAME_KEY = 'choichoi_popup_name';
 const WORKER_ROLE_KEY = 'choichoi_worker_role';
+const APP_ROLE_KEY = 'choichoi_app_role';
 
 const ALL_NAV_LINKS = [
   { href: '/pos', label: 'POS', minRole: 'user' },
@@ -66,51 +67,55 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       setCashierName(localStorage.getItem(CASHIER_NAME_KEY));
       setPopupName(localStorage.getItem(POPUP_NAME_KEY));
       setPopupId(localStorage.getItem(POPUP_ID_KEY) ?? '0');
+      // 마지막으로 확인된 역할을 즉시 적용 — 아래 세션 조회가 실패해도 관리자 탭이 사라지지 않는다
+      const cachedRole = localStorage.getItem(APP_ROLE_KEY);
+      if (cachedRole === 'admin' || cachedRole === 'manager') setRole(cachedRole);
     } catch { /* ignore */ }
 
     const supabase = createSupabaseBrowserClient();
 
-    const getUserResilient = async () => {
-      try {
-        return await withTimeout(supabase.auth.getUser(), 5000, '권한 확인')
-      } catch {
-        try {
-          const retryClient = createSupabaseBrowserClient()
-          return await withTimeout(retryClient.auth.getUser(), 5000, '권한 확인')
-        } catch {
-          return null
-        }
-      }
-    }
+    const applyRole = (value: unknown) => {
+      const appRole = toAppRole(value);
+      setRole(appRole);
+      try { localStorage.setItem(APP_ROLE_KEY, appRole); } catch { /* ignore */ }
+    };
 
     const loadProfile = async () => {
-      const result = await getUserResilient()
-      if (!result) return
-      const { data: { user } } = result
-      setRole(toAppRole(user?.user_metadata?.role))
-      if (user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('name')
-          .eq('id', user.id)
-          .maybeSingle()
-        const displayName = profile?.name
-          ?? user.user_metadata?.name
-          ?? user.email?.split('@')[0]
-          ?? null
-        if (displayName) {
-          try { localStorage.setItem('choichoi_cashier_name', displayName) } catch { /* ignore */ }
-          setCashierName(displayName)
-        }
+      // getUser()는 마운트마다 네트워크 왕복이라 간헐적으로 실패하면 role이 'user'로
+      // 남아 관리자 탭이 사라졌다 — 로컬 세션 기반 getSession()으로 대체하고,
+      // 실패 시에는 위에서 적용한 캐시 역할을 그대로 유지한다.
+      let session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] = null;
+      try {
+        ({ data: { session } } = await withTimeout(supabase.auth.getSession(), 5000, '권한 확인'));
+      } catch { return; }
+      if (!session) return;
+      applyRole(session.user.user_metadata?.role);
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('name')
+        .eq('id', session.user.id)
+        .maybeSingle()
+      const displayName = profile?.name
+        ?? session.user.user_metadata?.name
+        ?? session.user.email?.split('@')[0]
+        ?? null
+      if (displayName) {
+        try { localStorage.setItem(CASHIER_NAME_KEY, displayName) } catch { /* ignore */ }
+        setCashierName(displayName)
       }
     }
     loadProfile()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async () => {
-      const result = await getUserResilient()
-      if (!result) return
-      const { data: { user } } = result
-      setRole(toAppRole(user?.user_metadata?.role))
+    // 콜백이 세션을 직접 전달하므로 getUser() 재조회가 필요 없다
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        try { localStorage.removeItem(APP_ROLE_KEY); } catch { /* ignore */ }
+        setRole('user');
+      } else if (session) {
+        applyRole(session.user.user_metadata?.role);
+      }
+      // 그 외 세션 없는 이벤트에서는 캐시 역할 유지 (일시적 상태로 탭이 사라지지 않도록)
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -134,6 +139,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       localStorage.removeItem(POPUP_ID_KEY);
       localStorage.removeItem(POPUP_NAME_KEY);
       localStorage.removeItem(WORKER_ROLE_KEY);
+      localStorage.removeItem(APP_ROLE_KEY);
     } catch { /* ignore */ }
     // signOut 응답을 기다리지 않고 즉시 이동한다 — 호출이 멈추거나 느려도
     // /pos에 머무는 일 없이 항상 역할 선택 화면(/)으로 보낸다.

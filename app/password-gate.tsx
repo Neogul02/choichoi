@@ -13,6 +13,7 @@ export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
 export const POPUP_ID_KEY = 'choichoi_popup_id'
 export const POPUP_NAME_KEY = 'choichoi_popup_name'
 export const WORKER_ROLE_KEY = 'choichoi_worker_role'
+export const APP_ROLE_KEY = 'choichoi_app_role'
 
 type View = 'login' | 'signup'
 
@@ -22,6 +23,7 @@ function clearStorage() {
     localStorage.removeItem(POPUP_ID_KEY)
     localStorage.removeItem(POPUP_NAME_KEY)
     localStorage.removeItem(WORKER_ROLE_KEY)
+    localStorage.removeItem(APP_ROLE_KEY)
   } catch { /* ignore */ }
 }
 
@@ -124,6 +126,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       localStorage.setItem(POPUP_ID_KEY, isKitchen ? '0' : String(selectedPopupId))
       localStorage.setItem(POPUP_NAME_KEY, isKitchen ? '주방' : (popup?.name ?? ''))
       localStorage.setItem(WORKER_ROLE_KEY, isKitchen ? 'kitchen' : '')
+      localStorage.setItem(APP_ROLE_KEY, syncedRole)
     } catch { /* ignore */ }
 
     notifyLoginEvent(name, email).catch(() => {})
