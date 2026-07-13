@@ -110,7 +110,11 @@ export default function PopupManagementSection() {
     setTogglingId(null);
     if (res.success && res.data) {
       setEvents(p => p.map(e => e.id === ev.id ? res.data! : e));
-      toast.success(next ? '팝업이 활성화됐습니다' : '팝업이 비활성화됐습니다');
+      if (!next && ev.store_id == null) {
+        toast.success('팝업이 비활성화됐습니다 — 매장 미연결 팝업은 근무표에는 영향이 없습니다');
+      } else {
+        toast.success(next ? '팝업이 활성화됐습니다' : '팝업이 비활성화됐습니다');
+      }
     } else {
       setEvents(p => p.map(e => e.id === ev.id ? { ...e, is_active: !next } : e));
       toast.error(`오류: ${res.error}`);

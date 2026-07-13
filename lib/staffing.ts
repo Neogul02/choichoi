@@ -7,6 +7,10 @@ export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as co
  * 팝업 활성화 ↔ 매장 가시성 연동 규칙:
  * 연결된 팝업이 전부 비활성인 매장만 숨긴다. 팝업이 연결되지 않은 매장은 항상 표시.
  * (is_active 컬럼 미생성 DB에서는 undefined → 활성 취급)
+ *
+ * 매장 미연결 팝업(store_id=null)은 비활성화해도 근무표 가시성에 영향이 없다 — 공식 의미론.
+ * 팝업은 "일정 기간 운영되는 매장 이벤트"라 매장 연결이 가시성 연동의 전제이며,
+ * 미연결 팝업은 로그인 게이트·디스플레이 선택 용도로만 쓰인다.
  */
 export function filterVisibleStores<S extends { id: number }>(
   stores: S[],

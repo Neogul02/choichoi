@@ -67,7 +67,8 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
     const next = delta === 0 ? getWeekStart(today) : addDays(weekStart, delta * 7);
     if (next === weekStart) return;
     const nextEnd = addDays(next, 6);
-    const base = today >= next && today <= nextEnd ? today : next;
+    // 오늘이 새 주에 있으면 오늘, 아니면 기존 선택 요일을 보존해 이동
+    const base = today >= next && today <= nextEnd ? today : addDays(next, dayOfWeek(selectedDate));
     setWeekStart(next);
     setSelectedDate(base);
     setMemoDate(base);
