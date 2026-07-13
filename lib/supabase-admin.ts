@@ -386,14 +386,16 @@ export async function updateMenuOrder(orderedIds: number[]): Promise<void> {
 
 // ── Popup Events ──────────────────────────────────────────────────────────────
 
-export async function getPopupEvents(): Promise<PopupEvent[]> {
+export async function getPopupEvents(activeOnly = false): Promise<PopupEvent[]> {
   const { data, error } = await supabaseAdmin
     .from('popup_events')
     .select('*')
     .order('start_date', { ascending: false })
     .limit(50)
   if (error) throw error
-  return data ?? []
+  const events = (data ?? []) as PopupEvent[]
+  // is_active 컬럼이 아직 없는 DB에서도 동작하도록 JS 측에서 필터 (undefined → 활성 취급)
+  return activeOnly ? events.filter(e => e.is_active !== false) : events
 }
 
 export async function getPopupEventName(popupId: number): Promise<string | null> {
@@ -439,6 +441,17 @@ export async function updatePopupEvent(
   const { data, error } = await supabaseAdmin
     .from('popup_events')
     .update({ name, start_date: startDate, end_date: endDate, store_id: storeId })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as PopupEvent
+}
+
+export async function setPopupEventActive(id: number, isActive: boolean): Promise<PopupEvent> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .update({ is_active: isActive })
     .eq('id', id)
     .select()
     .single()

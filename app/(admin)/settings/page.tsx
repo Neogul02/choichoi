@@ -7,8 +7,9 @@ import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMen
 import type { MenuItem } from '@/types/database';
 import DevToolsSection from './_components/DevToolsSection';
 import UserManagementSection from './_components/UserManagementSection';
+import PopupManagementSection from './_components/PopupManagementSection';
 
-type ActiveTab = 'menu' | 'devtools' | 'users';
+type ActiveTab = 'menu' | 'popups' | 'devtools' | 'users';
 type ColorOption = { name: string; value: string };
 
 const COLOR_PALETTE: ColorOption[] = [
@@ -157,7 +158,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between mb-5">
             <h2 className="m-0 text-2xl font-extrabold">설정</h2>
             <div className="flex gap-1.5 bg-[#f5f6f7] p-1 rounded-xl">
-              {([['menu', '메뉴 관리'], ['users', '유저 관리'], ['devtools', '개발자 도구']] as [ActiveTab, string][]).map(([tab, label]) => (
+              {([['menu', '메뉴 관리'], ['popups', '팝업 관리'], ['users', '유저 관리'], ['devtools', '개발자 도구']] as [ActiveTab, string][]).map(([tab, label]) => (
                 <button key={tab} onClick={() => setActiveTab(tab)}
                   className={`px-3 py-1.5 text-sm font-semibold rounded-lg border-none cursor-pointer transition-all ${
                     activeTab === tab ? 'bg-canvas text-ink shadow-sm' : 'bg-transparent text-ink-muted hover:text-ink-secondary'
@@ -170,6 +171,7 @@ export default function SettingsPage() {
 
           {activeTab === 'devtools' ? <DevToolsSection />
            : activeTab === 'users' ? <UserManagementSection />
+           : activeTab === 'popups' ? <PopupManagementSection />
            : (
             <>
               {/* 새 메뉴 추가 폼 */}

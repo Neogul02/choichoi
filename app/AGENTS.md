@@ -10,7 +10,6 @@ Next.js 16 App Router root.
 | `/memo` | `memo/page.tsx` | PasswordGate |
 | `/stats` | `(admin)/stats/page.tsx` | AdminGate |
 | `/settings` | `(admin)/settings/page.tsx` | AdminGate |
-| `/schedule` | `(admin)/schedule/page.tsx` | AdminGate |
 | `/devtools` | `(admin)/devtools/page.tsx` | AdminGate |
 
 `(admin)/layout.tsx` wraps all admin routes with `<AdminGate>`. Root `layout.tsx` wraps everything in `<PasswordGate>`.

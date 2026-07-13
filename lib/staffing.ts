@@ -3,6 +3,21 @@ import { prevDate } from '@/lib/date';
 
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
+/**
+ * 팝업 활성화 ↔ 매장 가시성 연동 규칙:
+ * 연결된 팝업이 전부 비활성인 매장만 숨긴다. 팝업이 연결되지 않은 매장은 항상 표시.
+ * (is_active 컬럼 미생성 DB에서는 undefined → 활성 취급)
+ */
+export function filterVisibleStores<S extends { id: number }>(
+  stores: S[],
+  popups: { store_id: number | null; is_active?: boolean }[],
+): S[] {
+  return stores.filter(store => {
+    const linked = popups.filter(p => p.store_id === store.id);
+    return linked.length === 0 || linked.some(p => p.is_active !== false);
+  });
+}
+
 /** 해당 날짜가 속한 주의 시작일(일요일, 달력 표시 기준과 동일) — YYYY-MM-DD */
 export function getWeekStart(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');

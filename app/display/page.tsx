@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { supabase } from '@/lib/supabase';
 import { fetchMenuItems } from '@/app/actions/menu';
-import { fetchPopupEvents } from '@/app/actions/schedule';
+import { fetchActivePopupEvents } from '@/app/actions/schedule';
 import type { MenuItem, PopupEvent } from '@/types/database';
 import type { CartItem, Mode, DisplayState } from '@/types/display';
 import ViewMode from '@/components/display/ViewMode';
@@ -66,7 +66,7 @@ function PopupSelectScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchPopupEvents().then((result) => {
+    fetchActivePopupEvents().then((result) => {
       if (result.success && result.data) setPopupEvents(result.data);
       setLoading(false);
     });
