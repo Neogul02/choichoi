@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
@@ -10,11 +9,14 @@ import {
 } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData, AutoFillLogEntry, RosterUndoPayload } from '@/app/actions/roster';
 import type { StaffProfile, Store, StaffRole, RosterShift, RosterAssignment } from '@/types/database';
-import { DAY_NAMES, ROLE_LABELS } from './constants';
+import { ROLE_LABELS } from './constants';
 import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap } from '@/lib/staffing';
 import { parseDate, addDays, ymdToDateStr } from '@/lib/date';
 import { CalendarGridSkeleton, MatrixSkeleton } from '@/components/Skeleton';
 import DayPanel from './roster/DayPanel';
+import MonthGrid from './roster/MonthGrid';
+import UndoToast from './roster/UndoToast';
+import ShiftPickerPopover from './roster/ShiftPickerPopover';
 import ShiftManageModal from './ShiftManageModal';
 import BulkEditModal from './BulkEditModal';
 import WeekMatrix from './WeekMatrix';
@@ -73,7 +75,6 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [fillLog, setFillLog] = useState<AutoFillLogEntry[] | null>(null);
-  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
   // 파괴적 작업 직후 10초간 되돌리기 제공
   const [undoState, setUndoState] = useState<{ label: string; payload: RosterUndoPayload } | null>(null);
@@ -371,6 +372,14 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     else showMsg(`오류: ${r.error}`);
   };
 
+  // 직원 드롭 처리 — 활성 파트가 하나면 즉시 배정, 여럿이면 커서 위치에 파트 선택 팝오버
+  const handleDropStaff = (dateStr: string, staffId: number, x: number, y: number) => {
+    const active = shifts.filter(s => (!s.active_from || dateStr >= s.active_from) && (!s.active_to || dateStr <= s.active_to));
+    if (active.length === 0) { showMsg('이 날짜에 활성화된 파트가 없습니다'); return; }
+    if (active.length === 1) { handleAdd(dateStr, active[0].id, staffId); return; }
+    setDropTarget({ dateStr, staffId, x, y });
+  };
+
   const handleRemove = async (id: number) => {
     const r = await removeRosterAssignment(id);
     if (r.success) setAssignments(p => p.filter(a => a.id !== id));
@@ -577,81 +586,17 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
             onDateClick={ds => setSelectedDate(prev => (prev === ds ? null : ds))}
           />
         ) : (
-          <div className="grid grid-cols-7 gap-1">
-            {DAY_NAMES.map((d, i) => (
-              <div key={d} className={`text-center text-[11px] font-bold py-1 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>
-                {d}
-              </div>
-            ))}
-            {gridDates.map((dateStr, i) => {
-              if (!dateStr) return <div key={`empty-${i}`} />;
-              const dayNum = Number(dateStr.slice(8));
-              const day = i % 7;
-              const isToday = dateStr === todayStr;
-              const isSelected = dateStr === selectedDate;
-              const isPast = dateStr < todayStr;
-              return (
-                <button
-                  key={dateStr}
-                  onClick={() => setSelectedDate(isSelected ? null : dateStr)}
-                  onDragOver={e => {
-                    if (!isPast && e.dataTransfer.types.includes('application/staff-id')) {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'copy';
-                      setDragOverDate(dateStr);
-                    }
-                  }}
-                  onDragLeave={e => {
-                    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDate(null);
-                  }}
-                  onDrop={e => {
-                    e.preventDefault();
-                    setDragOverDate(null);
-                    if (isPast) return;
-                    const staffId = parseInt(e.dataTransfer.getData('application/staff-id'));
-                    if (isNaN(staffId)) return;
-                    const active = shifts.filter(s => (!s.active_from || dateStr >= s.active_from) && (!s.active_to || dateStr <= s.active_to));
-                    if (active.length === 0) { showMsg('이 날짜에 활성화된 파트가 없습니다'); return; }
-                    if (active.length === 1) { handleAdd(dateStr, active[0].id, staffId); return; }
-                    setDropTarget({ dateStr, staffId, x: e.clientX, y: e.clientY });
-                  }}
-                  className={`flex flex-col gap-0.5 items-stretch rounded-lg border p-1 md:p-1.5 min-h-[64px] cursor-pointer transition text-left bg-canvas ${
-                    dragOverDate === dateStr && !isPast
-                      ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/40'
-                      : isSelected ? 'border-primary-700 ring-2 ring-primary-700/20' : 'border-hairline hover:border-primary-400'
-                  } ${isPast ? 'opacity-50' : ''}`}
-                >
-                  <span className="flex items-center gap-0.5 mb-0.5">
-                    <span className={`text-[11px] font-bold leading-none ${
-                      isToday ? 'text-white bg-primary-700 rounded-full w-[18px] h-[18px] flex items-center justify-center'
-                      : day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'
-                    }`}>
-                      {dayNum}
-                    </span>
-                    {violationDates.has(dateStr) && (
-                      <span className="text-[9px] leading-none" title="근무 규칙 위반 있음 (휴식 9시간 미만 또는 주 최대일 초과)">⚠️</span>
-                    )}
-                  </span>
-                  {shifts.map(shift => {
-                    const required = getRequired(dateStr, shift);
-                    const filled = getAssigned(dateStr, shift.id).length;
-                    if (required === 0 && filled === 0) return null;
-                    const full = filled >= required;
-                    return (
-                      <span
-                        key={shift.id}
-                        className={`text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate ${
-                          full ? 'bg-emerald-50 text-emerald-700' : filled === 0 ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-700'
-                        }`}
-                      >
-                        {shift.name} {filled}/{required}
-                      </span>
-                    );
-                  })}
-                </button>
-              );
-            })}
-          </div>
+          <MonthGrid
+            gridDates={gridDates}
+            todayStr={todayStr}
+            selectedDate={selectedDate}
+            shifts={shifts}
+            violationDates={violationDates}
+            getAssigned={getAssigned}
+            getRequired={getRequired}
+            onSelectDate={setSelectedDate}
+            onDropStaff={handleDropStaff}
+          />
         )}
 
         {fillLog && <AutoFillLogPanel fillLog={fillLog} onClose={() => setFillLog(null)} onDateClick={setSelectedDate} />}
@@ -707,49 +652,18 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
         />
       )}
     </div>
-    {dropTarget && createPortal(
-      <>
-        <div className="fixed inset-0 z-[49]" onClick={() => setDropTarget(null)} />
-        <div
-          className="fixed z-50 bg-canvas border border-hairline rounded-xl shadow-level-2 p-2 min-w-[160px]"
-          style={{ left: dropTarget.x + 8, top: dropTarget.y + 8 }}
-        >
-          <p className="m-0 mb-1.5 text-[10px] font-bold text-ink-muted px-1">파트 선택</p>
-          {shifts
-            .filter(s => (!s.active_from || dropTarget.dateStr >= s.active_from) && (!s.active_to || dropTarget.dateStr <= s.active_to))
-            .map(s => (
-              <button
-                key={s.id}
-                onClick={() => { handleAdd(dropTarget.dateStr, s.id, dropTarget.staffId); setDropTarget(null); }}
-                className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] hover:bg-canvas-soft cursor-pointer bg-transparent border-none transition"
-              >
-                {s.name} <span className="text-ink-faint text-[10px]">{s.start_time}~{s.end_time}</span>
-              </button>
-            ))
-          }
-          <button onClick={() => setDropTarget(null)} className="w-full text-center text-[10px] text-ink-faint mt-1 bg-transparent border-none cursor-pointer hover:text-ink transition">취소</button>
-        </div>
-      </>,
-      document.body,
+    {dropTarget && (
+      <ShiftPickerPopover
+        dateStr={dropTarget.dateStr}
+        x={dropTarget.x}
+        y={dropTarget.y}
+        shifts={shifts}
+        onPick={shiftId => { handleAdd(dropTarget.dateStr, shiftId, dropTarget.staffId); setDropTarget(null); }}
+        onClose={() => setDropTarget(null)}
+      />
     )}
-    {undoState && createPortal(
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 bg-[#161616] text-white rounded-xl px-4 py-2.5 shadow-level-2">
-        <span className="text-[12px] font-semibold">{undoState.label}</span>
-        <button
-          onClick={handleUndo}
-          className="px-2.5 py-1 rounded-lg bg-white/15 border-none text-white text-[12px] font-bold cursor-pointer hover:bg-white/25 transition"
-        >
-          되돌리기
-        </button>
-        <button
-          onClick={() => setUndoState(null)}
-          aria-label="되돌리기 알림 닫기"
-          className="bg-transparent border-none text-white/60 text-[14px] cursor-pointer leading-none hover:text-white transition"
-        >
-          ×
-        </button>
-      </div>,
-      document.body,
+    {undoState && (
+      <UndoToast label={undoState.label} onUndo={handleUndo} onDismiss={() => setUndoState(null)} />
     )}
     </>
   );
