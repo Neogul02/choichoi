@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { fetchPopupEvents } from '@/app/actions/schedule'
+import { fetchActivePopupEvents } from '@/app/actions/schedule'
 import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
 import { notifyLoginEvent } from '@/app/actions/discord'
 import { withTimeout } from '@/lib/utils'
@@ -55,7 +55,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetchPopupEvents().then((result) => {
+    fetchActivePopupEvents().then((result) => {
       if (result.success && result.data) {
         setPopupEvents(result.data)
         if (result.data.length === 1) setSelectedPopupId(result.data[0].id)

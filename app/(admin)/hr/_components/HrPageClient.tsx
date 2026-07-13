@@ -12,7 +12,8 @@ import type { StaffProfileInput } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
 import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
 import { fetchContractedStaffIds } from '@/app/actions/contracts';
-import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift } from '@/types/database';
+import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift, PopupEvent } from '@/types/database';
+import { filterVisibleStores } from '@/lib/staffing';
 import StaffFormModal from './StaffFormModal';
 import StoreManageModal from './StoreManageModal';
 import RosterCalendar from './RosterCalendar';
@@ -43,6 +44,7 @@ interface Props {
   initialStaff: StaffProfile[];
   initialUserProfiles: UserProfile[];
   initialStores: Store[];
+  initialPopups: PopupEvent[];
   initialShifts: RosterShift[];
   initialContractedIds: number[];
   initialRoster: InitialRoster | null;
@@ -50,12 +52,14 @@ interface Props {
 
 // 초기 데이터는 서버 컴포넌트(page.tsx)가 렌더 시점에 병렬 조회해 props로 내려준다
 // — 클라이언트 마운트 후 서버 액션 직렬 워터폴(6회 왕복)을 없애기 위함
-export default function HrPageClient({ initialStaff, initialUserProfiles, initialStores, initialShifts, initialContractedIds, initialRoster }: Props) {
+export default function HrPageClient({ initialStaff, initialUserProfiles, initialStores, initialPopups, initialShifts, initialContractedIds, initialRoster }: Props) {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   // 달력·급여 패널과 등록 모달은 구체 역할만 받으므로, '전체' 뷰에서도 마지막 선택 역할을 유지
   const [concreteRole, setConcreteRole] = useState<StaffRole>('cashier');
   const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
   const [stores, setStores] = useState<Store[]>(initialStores);
+  // 스케줄 달력·매장 필터에는 활성 팝업 매장만 노출 (이름 조회·매장 관리 모달은 전체 stores 유지)
+  const visibleStores = useMemo(() => filterVisibleStores(stores, initialPopups), [stores, initialPopups]);
   const [allShifts] = useState<RosterShift[]>(initialShifts);
   const storeManage = useModal();
   const [staffList, setStaffList] = useState<StaffProfile[]>(initialStaff);
@@ -288,7 +292,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 flex-wrap">
                   <button onClick={() => setStoreFilter('all')} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${storeFilter === 'all' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}>전체</button>
-                  {stores.map(store => (
+                  {visibleStores.map(store => (
                     <button key={store.id} onClick={() => setStoreFilter(store.id)} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${storeFilter === store.id ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}>{store.name}</button>
                   ))}
                   {roleStaff.some(s => s.store_id === null) && (
@@ -461,7 +465,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             </div>
 
             {rightTab === 'roster'
-              ? <RosterCalendar staffList={staffList} stores={stores} roleFilter={concreteRole} refreshSignal={calendarRefreshKey} initialData={initialRoster ?? undefined} />
+              ? <RosterCalendar staffList={staffList} stores={visibleStores} roleFilter={concreteRole} refreshSignal={calendarRefreshKey} initialData={initialRoster ?? undefined} />
               : rightTab === 'payroll'
                 ? <PayrollPanel defaultRole={concreteRole} />
                 : <ContractsPanel

@@ -8,6 +8,8 @@ import { fetchRosterRange } from './roster'
 import type { RosterMonthData, RosterUnit } from './roster'
 import { fetchStores } from './stores'
 import { fetchStaffProfiles } from './staff'
+import { fetchPopupEvents } from './schedule'
+import { filterVisibleStores } from '@/lib/staffing'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,12 +43,14 @@ export async function fetchRosterOverview(fromDate: string, toDate: string): Pro
   try {
     if (!(await getManagerSession())) return { success: false, error: '권한이 없습니다.' }
 
-    const storesRes = await fetchStores()
+    const [storesRes, popupsRes] = await Promise.all([fetchStores(), fetchPopupEvents()])
     if (!storesRes.success || !storesRes.data) return { success: false, error: storesRes.error ?? '매장을 불러올 수 없습니다.' }
+    // 비활성 팝업만 연결된 매장은 일정표에서 제외 (팝업 조회 실패 시엔 전체 표시로 폴백)
+    const visibleStores = filterVisibleStores(storesRes.data, popupsRes.success ? (popupsRes.data ?? []) : [])
     // 주방 매니저가 주 사용자라 주방을 맨 위에 표시
     const unitDefs: { key: string; label: string; unit: RosterUnit }[] = [
       { key: 'kitchen', label: '주방', unit: { staffRole: 'kitchen' as const, storeId: null } },
-      ...storesRes.data.map(s => ({ key: `cashier-${s.id}`, label: s.name, unit: { staffRole: 'cashier' as const, storeId: s.id } })),
+      ...visibleStores.map(s => ({ key: `cashier-${s.id}`, label: s.name, unit: { staffRole: 'cashier' as const, storeId: s.id } })),
     ]
 
     const [staffRes, memosRes, rangeResults] = await Promise.all([

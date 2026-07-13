@@ -9,7 +9,7 @@ Key function groups:
 - **Menu**: `getMenuItems` (active only), `getAllMenuItems`, `addMenuItem`, `updateMenuItem`, `deleteMenuItem` (soft), `updateMenuOrder` (Promise.all, not atomic)
 - **Orders**: `createOrder`, `getTodaysSales`, `getTodaysOrderList`, `getTodaysOrderListWithItems`, `getPendingOrders`, `prepareOrder`, `deleteOrder`
 - **Stats**: `getMonthlySalesByDate` (RPC), `getMenuSalesByPeriod` (RPC), `getDailySalesByPeriod` (paginated)
-- **Popup Events**: `getPopupEvents`, `createPopupEvent`, `deletePopupEvent`
+- **Popup Events**: `getPopupEvents(activeOnly?)`, `createPopupEvent`, `updatePopupEvent`, `deletePopupEvent`, `setPopupEventActive`
 - **Schedule**: `getScheduleByEvent`, `addScheduleSlot`, `removeScheduleSlot`, `updateScheduleSlot`, `moveScheduleSlot`, `copyScheduleSlot`
 - **Workers**: `getWorkers`, `createWorker`, `updateWorker`, `deleteWorker`, `setWorkerPaymentDone`
 - **Memos**: `getAllMemos`, `createMemo`, `updateMemo`, `deleteMemo`

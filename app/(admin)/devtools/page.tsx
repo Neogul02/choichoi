@@ -134,6 +134,8 @@ const DB_SCHEMA: GroupDef[] = [
           { name: 'name', type: 'text' },
           { name: 'start_date', type: 'date' },
           { name: 'end_date', type: 'date' },
+          { name: 'store_id', type: 'int', nullable: true, fk: 'stores' },
+          { name: 'is_active', type: 'bool' },
           { name: 'created_at', type: 'timestamp' },
         ],
       },

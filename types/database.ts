@@ -26,6 +26,7 @@ export interface PopupEvent {
   start_date: string;
   end_date: string;
   store_id: number | null;
+  is_active: boolean;
   created_at: string;
 }
 

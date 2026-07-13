@@ -218,6 +218,8 @@ const DB_SCHEMA: SchemaTable[] = [
       { name: 'name', type: 'text', note: '행사명' },
       { name: 'start_date', type: 'date', note: '시작일' },
       { name: 'end_date', type: 'date', note: '종료일' },
+      { name: 'store_id', type: 'int8', nullable: true, note: 'FK → stores.id' },
+      { name: 'is_active', type: 'bool', note: '활성 여부 (기본 true)' },
       { name: 'created_at', type: 'timestamptz' },
     ],
   },
