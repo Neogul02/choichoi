@@ -7,10 +7,12 @@ import {
   updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement,
 } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
-import type { RosterShift, RosterAssignment } from '@/types/database';
+import type { RosterShift, RosterAssignment, StaffProfile } from '@/types/database';
 
 interface Options {
   unit: RosterUnit;
+  /** 낙관적 추가 시 이름 표시용 — 전체 직원 목록 */
+  staffList: StaffProfile[];
   cursor: { y: number; m: number } | null;
   viewMode: 'month' | 'week';
   weekStart: string | null;
@@ -29,7 +31,7 @@ interface Options {
  * 뷰 상태(cursor·viewMode·범위)는 useRosterView가 소유하고 여기서는 값만 받는다.
  */
 export function useRosterRange({
-  unit, cursor, viewMode, weekStart, loadFrom, loadTo, initialData, refreshSignal, onCursorChange,
+  unit, staffList, cursor, viewMode, weekStart, loadFrom, loadTo, initialData, refreshSignal, onCursorChange,
 }: Options) {
   const [shifts, setShifts] = useState<RosterShift[]>([]);
   const [assignments, setAssignments] = useState<RosterAssignment[]>([]);
@@ -37,6 +39,8 @@ export function useRosterRange({
   const [isLoading, setIsLoading] = useState(true);
   // 서버 프리페치 데이터는 최초 1회만 판정·소비 — 월 이동 후 복귀 시 낡은 데이터 재사용 방지
   const initialDataConsumed = useRef(!initialData);
+  // 낙관적 추가 행의 임시 id — 서버 id와 충돌하지 않게 음수 사용
+  const tempIdRef = useRef(-1);
 
   const loadRange = async () => {
     if (!cursor) return;
@@ -82,22 +86,54 @@ export function useRosterRange({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, unit, viewMode, weekStart]);
 
+  // 낙관적 추가 — 임시 음수 id로 즉시 표시 후 서버 행으로 치환, 실패(중복 배정 등) 시 제거
   const handleAdd = async (dateStr: string, shiftId: number, staffId: number) => {
+    const staff = staffList.find(s => s.id === staffId);
+    const tempId = tempIdRef.current--;
+    const optimistic: RosterAssignment = {
+      id: tempId,
+      work_date: dateStr,
+      shift_id: shiftId,
+      staff_id: staffId,
+      staff_role: unit.staffRole,
+      store_id: unit.storeId,
+      start_time: null,
+      end_time: null,
+      created_at: new Date().toISOString(),
+      staff_profiles: staff ? { id: staff.id, name: staff.name, phone: staff.phone, status: staff.status } : undefined,
+    };
+    setAssignments(p => [...p, optimistic]);
     const r = await addRosterAssignment(unit, dateStr, shiftId, staffId);
-    if (r.success && r.data) setAssignments(p => [...p, r.data!]);
-    else showMsg(`오류: ${r.error}`);
+    if (r.success && r.data) {
+      setAssignments(p => p.map(a => a.id === tempId ? r.data! : a));
+    } else {
+      setAssignments(p => p.filter(a => a.id !== tempId));
+      showMsg(`오류: ${r.error}`);
+    }
   };
 
+  // 낙관적 삭제 — 즉시 제거 후 실패 시 원복
   const handleRemove = async (id: number) => {
+    const removed = assignments.find(a => a.id === id);
+    setAssignments(p => p.filter(a => a.id !== id));
     const r = await removeRosterAssignment(id);
-    if (r.success) setAssignments(p => p.filter(a => a.id !== id));
-    else showMsg(`오류: ${r.error}`);
+    if (!r.success) {
+      if (removed) setAssignments(p => [...p, removed]);
+      showMsg(`오류: ${r.error}`);
+    }
   };
 
+  // 낙관적 시간 수정 — 즉시 반영 후 서버 행으로 확정, 실패 시 원복
   const handleTimeChange = async (id: number, start: string | null, end: string | null) => {
+    const prev = assignments.find(a => a.id === id);
+    setAssignments(p => p.map(a => a.id === id ? { ...a, start_time: start, end_time: end } : a));
     const r = await updateRosterAssignmentTime(id, start, end);
-    if (r.success && r.data) setAssignments(p => p.map(a => a.id === id ? r.data! : a));
-    else showMsg(`오류: ${r.error}`);
+    if (r.success && r.data) {
+      setAssignments(p => p.map(a => a.id === id ? r.data! : a));
+    } else {
+      if (prev) setAssignments(p => p.map(a => a.id === id ? prev : a));
+      showMsg(`오류: ${r.error}`);
+    }
   };
 
   const handleRequirementChange = async (dateStr: string, shiftId: number, required: number) => {

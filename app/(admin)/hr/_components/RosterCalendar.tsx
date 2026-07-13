@@ -65,7 +65,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     shifts, setShifts, assignments, setAssignments, overrides, isLoading, loadRange,
     handleAdd, handleRemove, handleTimeChange, handleRequirementChange, handleRequirementReset,
   } = useRosterRange({
-    unit, cursor, viewMode, weekStart, loadFrom, loadTo,
+    unit, staffList, cursor, viewMode, weekStart, loadFrom, loadTo,
     initialData, refreshSignal, onCursorChange: resetOnCursorChange,
   });
 
