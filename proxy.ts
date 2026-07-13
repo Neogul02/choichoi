@@ -33,7 +33,7 @@ export async function proxy(request: NextRequest) {
 
   const role = user.user_metadata?.role
   const adminOnlyPrefixes = ['/settings', '/devtools', '/hr', '/stats', '/schedule']
-  const managerPrefixes = ['/inventory']
+  const managerPrefixes = ['/inventory', '/roster']
   const isAdminOnlyPath = adminOnlyPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
   const isManagerPath = managerPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
 
@@ -58,6 +58,7 @@ export const config = {
     '/schedule/:path*',
     '/settings/:path*',
     '/inventory/:path*',
+    '/roster/:path*',
     '/devtools/:path*',
     '/hr/:path*',
   ],
