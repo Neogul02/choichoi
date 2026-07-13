@@ -20,7 +20,11 @@ import RosterCalendar from './RosterCalendar';
 import PayrollPanel from './PayrollPanel';
 import ContractsPanel from './ContractsPanel';
 import StaffAssignModal from './StaffAssignModal';
-import { STATUS_LABELS, STATUS_COLORS, DAY_NAMES, ROLE_LABELS, formatRanges } from './constants';
+import { StaffRow, StaffCard } from './StaffList';
+import RejectionNoticeBox from './RejectionNoticeBox';
+import { useStaffFilters } from './useStaffFilters';
+import type { RoleFilter, StatusFilter } from './useStaffFilters';
+import { STATUS_LABELS, ROLE_LABELS } from './constants';
 import { useModal } from '@/lib/useModal';
 
 const HrContractModal = dynamic(() => import('./HrContractModal'), { ssr: false });
@@ -28,9 +32,6 @@ const StaffContractsListModal = dynamic(() => import('./StaffContractsListModal'
 const StaffCalendarModal = dynamic(() => import('./StaffCalendarModal'), { ssr: false });
 const WeeklyRosterPrintModal = dynamic(() => import('./WeeklyRosterPrintModal'), { ssr: false });
 
-type StatusFilter = StaffStatus | 'all';
-type StoreFilter = number | 'all' | 'none';
-type RoleFilter = StaffRole | 'all';
 type RightTab = 'roster' | 'payroll' | 'contracts';
 
 export interface InitialRoster {
@@ -53,10 +54,8 @@ interface Props {
 // 초기 데이터는 서버 컴포넌트(page.tsx)가 렌더 시점에 병렬 조회해 props로 내려준다
 // — 클라이언트 마운트 후 서버 액션 직렬 워터폴(6회 왕복)을 없애기 위함
 export default function HrPageClient({ initialStaff, initialUserProfiles, initialStores, initialPopups, initialShifts, initialContractedIds, initialRoster }: Props) {
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   // 달력·급여 패널과 등록 모달은 구체 역할만 받으므로, '전체' 뷰에서도 마지막 선택 역할을 유지
   const [concreteRole, setConcreteRole] = useState<StaffRole>('cashier');
-  const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
   const [stores, setStores] = useState<Store[]>(initialStores);
   // 스케줄 달력·매장 필터에는 활성 팝업 매장만 노출 (이름 조회·매장 관리 모달은 전체 stores 유지)
   const visibleStores = useMemo(() => filterVisibleStores(stores, initialPopups), [stores, initialPopups]);
@@ -64,8 +63,11 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
   const storeManage = useModal();
   const [staffList, setStaffList] = useState<StaffProfile[]>(initialStaff);
   const [userProfiles] = useState<UserProfile[]>(initialUserProfiles);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [search, setSearch] = useState('');
+  // 역할·매장·상태·검색 필터 + 컬럼 정렬
+  const {
+    roleFilter, setRoleFilter, storeFilter, setStoreFilter, statusFilter, setStatusFilter,
+    search, setSearch, sortKey, sortDir, handleSort, roleStaff, statusCounts, filtered,
+  } = useStaffFilters(staffList, allShifts);
   const form = useModal();
   const [editingStaff, setEditingStaff] = useState<StaffProfile | null>(null);
 
@@ -96,31 +98,8 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
     setContractsRefreshKey(k => k + 1);
   };
 
-  // 불합격 통지 템플릿
-  const DEFAULT_REJECTION_MSG = `안녕하세요, [이름]님.
-
-히요리산도 아르바이트에 관심 가져주셔서 감사합니다.
-
-신중한 검토 끝에, 아쉽게도 이번에는 함께하기 어렵게 되었습니다.
-
-소중한 시간 내어 면접에 참여해 주신 점 진심으로 감사드리며, 앞으로의 활동에 좋은 결과가 있으시길 바랍니다.
-
-감사합니다.
-초이초이 드림`;
-  const [rejectionMsg, setRejectionMsg] = useState(DEFAULT_REJECTION_MSG);
-
   // 배정 후 캘린더 리프레시 트리거
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
-
-  // 컬럼 정렬
-  type SortKey = 'name' | 'status' | 'shifts' | 'available';
-  type SortDir = 'asc' | 'desc';
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(key); setSortDir('asc'); }
-  };
 
   // 근무자 순서 드래그
   const [draggingStaffId, setDraggingStaffId] = useState<number | null>(null);
@@ -150,50 +129,6 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerUp);
   }, []);
-
-  const roleStaff = useMemo(
-    () => roleFilter === 'all' ? staffList : staffList.filter(s => s.staff_role === roleFilter),
-    [staffList, roleFilter],
-  );
-
-  const statusCounts = useMemo(() => {
-    const counts: Record<StatusFilter, number> = { all: roleStaff.length, candidate: 0, confirmed: 0, rejected: 0, inactive: 0 };
-    for (const s of roleStaff) counts[s.status]++;
-    return counts;
-  }, [roleStaff]);
-
-  const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 1, rejected: 2, inactive: 3 };
-  const filtered = useMemo(() => {
-    let list = roleStaff.filter(s => {
-      if (roleFilter === 'cashier' && storeFilter !== 'all') {
-        if (storeFilter === 'none' ? s.store_id !== null : s.store_id !== storeFilter) return false;
-      }
-      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
-      if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
-      return true;
-    });
-    if (sortKey) {
-      list = [...list].sort((a, b) => {
-        let cmp = 0;
-        if (sortKey === 'name') {
-          cmp = a.name.localeCompare(b.name, 'ko');
-        } else if (sortKey === 'status') {
-          cmp = (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9);
-        } else if (sortKey === 'shifts') {
-          const aS = a.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name ?? '').join(',');
-          const bS = b.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name ?? '').join(',');
-          cmp = aS.localeCompare(bS, 'ko');
-        } else if (sortKey === 'available') {
-          const aD = a.available_ranges[0]?.from ?? '9999';
-          const bD = b.available_ranges[0]?.from ?? '9999';
-          cmp = aD.localeCompare(bD);
-        }
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
-    return list;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleStaff, roleFilter, storeFilter, statusFilter, search, sortKey, sortDir, allShifts]);
 
   const handleStaffDrop = async (targetId: number) => {
     if (!draggingStaffId || draggingStaffId === targetId) { setDraggingStaffId(null); setDragOverStaffId(null); return; }
@@ -330,31 +265,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             </div>
 
             {/* 불합격 통지 폼 */}
-            {statusFilter === 'rejected' && (
-              <div className="mb-3 p-3 rounded-2xl bg-rose-50 border border-rose-200">
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="m-0 text-[12px] font-bold text-rose-700">불합격 통지 메시지</p>
-                  <button
-                    onClick={async () => { await navigator.clipboard.writeText(rejectionMsg); showMsg('클립보드에 복사됐습니다!'); }}
-                    className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-bold border-none cursor-pointer hover:bg-rose-700 transition"
-                  >
-                    복사
-                  </button>
-                </div>
-                <textarea
-                  value={rejectionMsg}
-                  onChange={e => setRejectionMsg(e.target.value)}
-                  rows={8}
-                  className="w-full px-2.5 py-2 border border-rose-200 rounded-lg text-[12px] bg-white focus:outline-none focus:border-rose-400 resize-y leading-relaxed"
-                />
-                <button
-                  onClick={() => setRejectionMsg(DEFAULT_REJECTION_MSG)}
-                  className="mt-1 text-[10px] text-rose-500 bg-transparent border-none cursor-pointer hover:text-rose-700 transition"
-                >
-                  기본 양식으로 초기화
-                </button>
-              </div>
-            )}
+            {statusFilter === 'rejected' && <RejectionNoticeBox />}
 
             {/* 직원 테이블 */}
             <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
@@ -543,191 +454,5 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
         <WeeklyRosterPrintModal onClose={rosterPrint.close} />
       )}
     </>
-  );
-}
-
-function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
-  isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: {
-  staff: StaffProfile;
-  shiftNames: string;
-  store: Store | null;
-  isLast: boolean;
-  contractDone: boolean;
-  onRowClick: () => void;
-  onStatusChange: (s: StaffStatus) => void;
-  onContract: () => void;
-  onContractsList: () => void;
-  onAssign: () => void;
-  onCalendar: () => void;
-  isDragging?: boolean;
-  isDragOver?: boolean;
-  onDragStart?: () => void;
-  onDragOver?: () => void;
-  onDragEnd?: () => void;
-  onDrop?: () => void;
-}) {
-  const sc = STATUS_COLORS[staff.status];
-
-  return (
-    <tr
-      draggable
-      onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('application/staff-id', String(staff.id)); e.dataTransfer.effectAllowed = 'copy'; onDragStart?.(); }}
-      onDragOver={e => { e.preventDefault(); e.stopPropagation(); onDragOver?.(); }}
-      onDragEnd={onDragEnd}
-      onDrop={e => { e.preventDefault(); e.stopPropagation(); onDrop?.(); }}
-      className={`transition cursor-pointer ${isDragOver ? 'bg-primary-50 outline outline-2 outline-primary-400 outline-offset-[-1px]' : 'hover:bg-canvas-soft'} ${isDragging ? 'opacity-40' : ''} ${!isLast ? 'border-b border-hairline' : ''}`}
-      onClick={onRowClick}
-    >
-      <td className="px-1 py-2.5 w-5 cursor-grab" onClick={e => e.stopPropagation()}>
-        <span className="text-ink-faint text-[13px] select-none">⋮⋮</span>
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="font-bold text-ink leading-tight">{staff.name}</div>
-        {staff.phone && <div className="text-[12px] text-ink-muted mt-0.5">{staff.phone}</div>}
-        {staff.staff_role === 'cashier' ? (
-          <div className={`text-[11px] font-semibold mt-0.5 ${store ? 'text-violet-600' : 'text-amber-600'}`}>
-            {store ? store.name : '매장 미배정'}
-          </div>
-        ) : (
-          <div className="text-[11px] font-semibold mt-0.5 text-ink-muted">주방</div>
-        )}
-      </td>
-      <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
-        <select
-          value={staff.status}
-          onChange={e => onStatusChange(e.target.value as StaffStatus)}
-          className={`text-[11px] font-bold px-1.5 py-1 rounded-md border cursor-pointer appearance-none text-center ${sc.bg} ${sc.text} ${sc.border}`}
-        >
-          {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-          ))}
-        </select>
-      </td>
-      <td className="px-2 py-2.5 font-semibold text-ink whitespace-nowrap">
-        {staff.preferred_shift_ids.length === 0 ? <span className="text-ink-faint font-normal">무관</span> : shiftNames}
-      </td>
-      <td className="px-2 py-2.5 text-ink-muted whitespace-nowrap">
-        {staff.available_ranges.length === 0 ? '무관' : formatRanges(staff.available_ranges)}
-      </td>
-      <td className="px-2 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-        <StaffActions
-          staff={staff}
-          contractDone={contractDone}
-          onContract={onContract}
-          onContractsList={onContractsList}
-          onAssign={onAssign}
-          onCalendar={onCalendar}
-        />
-      </td>
-    </tr>
-  );
-}
-
-// 테이블 행(md+)과 모바일 카드가 공유하는 액션 버튼 묶음
-function StaffActions({ staff, contractDone, onContract, onContractsList, onAssign, onCalendar }: {
-  staff: StaffProfile;
-  contractDone: boolean;
-  onContract: () => void;
-  onContractsList: () => void;
-  onAssign: () => void;
-  onCalendar: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      <button
-        onClick={onCalendar}
-        title="근무 캘린더"
-        className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
-      >
-        달력
-      </button>
-      <button
-        onClick={onAssign}
-        title="일정 배정"
-        className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition cursor-pointer"
-      >
-        배정
-      </button>
-      {staff.user_profile_id && (
-        <button
-          onClick={onContract}
-          title="근로계약서 작성"
-          className={`whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg border transition cursor-pointer ${
-            contractDone
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-          }`}
-        >
-          {contractDone ? '계약서 ✓' : '계약서'}
-        </button>
-      )}
-      {contractDone && (
-        <button
-          onClick={onContractsList}
-          title="근로계약서 목록"
-          className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
-        >
-          목록
-        </button>
-      )}
-    </div>
-  );
-}
-
-// md 미만 전용 카드 — 테이블의 가로 스크롤 없이 한 화면(393px)에 담기는 레이아웃
-function StaffCard({ staff, shiftNames, store, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar }: {
-  staff: StaffProfile;
-  shiftNames: string;
-  store: Store | null;
-  contractDone: boolean;
-  onRowClick: () => void;
-  onStatusChange: (s: StaffStatus) => void;
-  onContract: () => void;
-  onContractsList: () => void;
-  onAssign: () => void;
-  onCalendar: () => void;
-}) {
-  const sc = STATUS_COLORS[staff.status];
-  return (
-    <div onClick={onRowClick} className="p-3 cursor-pointer active:bg-canvas-soft transition">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-bold text-ink text-[14px] leading-tight">{staff.name}</div>
-          {staff.phone && <div className="text-[12px] text-ink-muted mt-0.5">{staff.phone}</div>}
-          {staff.staff_role === 'cashier' ? (
-            <div className={`text-[11px] font-semibold mt-0.5 ${store ? 'text-violet-600' : 'text-amber-600'}`}>
-              {store ? store.name : '매장 미배정'}
-            </div>
-          ) : (
-            <div className="text-[11px] font-semibold mt-0.5 text-ink-muted">주방</div>
-          )}
-        </div>
-        <div onClick={e => e.stopPropagation()}>
-          <select
-            value={staff.status}
-            onChange={e => onStatusChange(e.target.value as StaffStatus)}
-            className={`text-[11px] font-bold px-1.5 py-1 rounded-md border cursor-pointer appearance-none text-center ${sc.bg} ${sc.text} ${sc.border}`}
-          >
-            {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
-              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="text-[11px] text-ink-muted mt-1.5 truncate">
-        파트 <span className="font-semibold text-ink">{shiftNames || '무관'}</span>
-        {' · '}가용 {staff.available_ranges.length === 0 ? '무관' : formatRanges(staff.available_ranges)}
-      </div>
-      <div className="mt-2" onClick={e => e.stopPropagation()}>
-        <StaffActions
-          staff={staff}
-          contractDone={contractDone}
-          onContract={onContract}
-          onContractsList={onContractsList}
-          onAssign={onAssign}
-          onCalendar={onCalendar}
-        />
-      </div>
-    </div>
   );
 }
