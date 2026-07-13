@@ -86,7 +86,6 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
   useEffect(() => {
     const t = setTimeout(() => { prefetch(addDays(weekStart, -7)); prefetch(addDays(weekStart, 7)); }, 400);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart]);
 
   const moveWeek = (delta: number) => {
