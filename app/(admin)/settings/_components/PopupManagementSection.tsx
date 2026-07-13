@@ -172,7 +172,8 @@ export default function PopupManagementSection() {
       {/* 팝업 목록 */}
       <h3 className="mb-1.5 text-base font-bold">팝업 목록</h3>
       <p className="mt-0 mb-3 text-xs text-ink-muted">
-        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 스케줄의 매장 목록에서 숨겨집니다.
+        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 스케줄·일정표의 매장 목록에서 숨겨집니다.
+        매장 숨김은 팝업에 매장을 연결해야 적용됩니다.
       </p>
       {isLoading ? <p className="text-ink-muted text-sm">로딩 중...</p> : events.length === 0 ? (
         <p className="text-ink-faint text-sm">등록된 팝업이 없습니다.</p>
@@ -219,7 +220,11 @@ export default function PopupManagementSection() {
                       )}
                       <span className="block text-xs text-ink-muted">
                         {ev.start_date} ~ {ev.end_date}
-                        {storeName(ev.store_id) && <span className="ml-2 text-primary-700 font-semibold">{storeName(ev.store_id)}</span>}
+                        {ev.store_id != null ? (
+                          <span className="ml-2 text-primary-700 font-semibold">{storeName(ev.store_id)}</span>
+                        ) : (
+                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600" title="매장을 연결해야 비활성화 시 인사 스케줄·일정표에서 매장이 숨겨집니다">매장 미연결</span>
+                        )}
                       </span>
                     </div>
                     <div className="flex gap-1.5 shrink-0">
