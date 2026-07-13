@@ -18,6 +18,10 @@ const supabaseAdmin = createClient(
 
 const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, store_id, start_time, end_time, created_at, staff_profiles (id, name, phone, status)'
 
+// staff_profiles 중첩 조인 select의 반환 타입이 제네릭 추론과 안 맞아 단언이 필요 — 한 곳에만 모아둔다
+const castAssignment = (row: unknown): RosterAssignment => row as RosterAssignment
+const castAssignments = (rows: unknown[] | null): RosterAssignment[] => (rows ?? []) as RosterAssignment[]
+
 // 스케줄 단위(unit) = 주방 전체(storeId null) 또는 캐셔의 특정 매장
 export interface RosterUnit {
   staffRole: StaffRole
@@ -181,7 +185,7 @@ export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDat
       success: true,
       data: {
         shifts,
-        assignments: (assignRes.data ?? []) as unknown as RosterAssignment[],
+        assignments: castAssignments(assignRes.data),
         requirements: (reqRes.data ?? []) as RosterShiftRequirement[],
       },
     }
@@ -206,7 +210,7 @@ export async function addRosterAssignment(
       if (error.code === '23505') return { success: false, error: '이미 해당 파트에 배정되어 있습니다.' }
       return { success: false, error: error.message }
     }
-    return { success: true, data: data as unknown as RosterAssignment }
+    return { success: true, data: castAssignment(data) }
   } catch (err) {
     return { success: false, error: extractErrorMessage(err) }
   }
@@ -235,7 +239,7 @@ export async function updateRosterAssignmentTime(
       .select(ASSIGNMENT_COLUMNS)
       .single()
     if (error) return { success: false, error: error.message }
-    return { success: true, data: data as unknown as RosterAssignment }
+    return { success: true, data: castAssignment(data) }
   } catch (err) {
     return { success: false, error: extractErrorMessage(err) }
   }

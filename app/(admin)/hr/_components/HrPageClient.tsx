@@ -126,26 +126,29 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
   const [draggingStaffId, setDraggingStaffId] = useState<number | null>(null);
   const [dragOverStaffId, setDragOverStaffId] = useState<number | null>(null);
 
-  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+  // pointer 이벤트 사용 — 마우스뿐 아니라 터치/펜으로도 리사이즈 가능
+  const handleDividerPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     let dragging = true;
-    const onMouseMove = (ev: MouseEvent) => {
+    const onPointerMove = (ev: PointerEvent) => {
       if (!dragging || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const next = ev.clientX - rect.left;
       setLeftWidth(Math.max(260, Math.min(next, rect.width - 300)));
     };
-    const onMouseUp = () => {
+    const onPointerUp = () => {
       dragging = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointercancel', onPointerUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerUp);
   }, []);
 
   const roleStaff = useMemo(
@@ -433,8 +436,8 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
 
           {/* 드래그 바 */}
           <div
-            onMouseDown={handleDividerMouseDown}
-            className="hidden lg:flex w-3 shrink-0 self-stretch cursor-col-resize items-center justify-center group"
+            onPointerDown={handleDividerPointerDown}
+            className="hidden lg:flex w-3 shrink-0 self-stretch cursor-col-resize items-center justify-center group touch-none"
           >
             <div className="w-0.5 h-12 rounded-full bg-hairline group-hover:bg-primary-400 transition-colors" />
           </div>

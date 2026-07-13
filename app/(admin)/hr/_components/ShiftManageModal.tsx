@@ -168,7 +168,7 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
       <div className="bg-canvas w-full max-w-[420px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]">
         <div className="flex items-center justify-between mb-1">
           <h3 className="m-0 text-[16px] font-bold text-ink">파트 관리</h3>
-          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+          <button onClick={onClose} aria-label="파트 관리 닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
         <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} · ⋮⋮ 드래그로 순서 변경</p>
 

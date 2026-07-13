@@ -109,7 +109,7 @@ export default function PopupManagementSection() {
     const res = await togglePopupEventActive(ev.id, next);
     setTogglingId(null);
     if (res.success && res.data) {
-      setEvents(p => p.map(e => e.id === ev.id ? res.data! : e));
+      // 낙관적 상태가 이미 최종 상태와 동일 — 재반영하면 불필요한 리렌더만 생긴다
       if (!next && ev.store_id == null) {
         toast.success('팝업이 비활성화됐습니다 — 매장 미연결 팝업은 근무표에는 영향이 없습니다');
       } else {

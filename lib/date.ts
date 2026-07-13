@@ -3,6 +3,10 @@ export const parseDate = (s: string): Date => new Date(s + 'T00:00:00')
 export const toDateStr = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+// (연, 0-기준 월, 일) → YYYY-MM-DD — Date 객체 없이 달력 그리드 셀을 만들 때 사용
+export const ymdToDateStr = (y: number, m: number, d: number): string =>
+  `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+
 export const addDays = (s: string, n: number): string => {
   const d = parseDate(s)
   d.setDate(d.getDate() + n)
