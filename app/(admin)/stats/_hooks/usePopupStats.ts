@@ -38,8 +38,9 @@ function applyMenuManualOverrides(computed: MenuSalesItem[], manualEntries: Menu
   return merged;
 }
 
-export function usePopupStats() {
-  const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([]);
+// initialPopupEvents: 서버 컴포넌트가 프리페치한 목록 — 있으면 마운트 직후 재조회를 건너뛴다
+export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
+  const [popupEvents, setPopupEvents] = useState<PopupEvent[]>(initialPopupEvents ?? []);
   const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null);
   const [popupMenuBreakdown, setPopupMenuBreakdown] = useState<MenuSalesItem[]>([]);
   const [popupDailySales, setPopupDailySales] = useState<DailySalesItem[]>([]);
@@ -48,10 +49,12 @@ export function usePopupStats() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    if (initialPopupEvents != null) return;
     fetchPopupEvents().then((res) => {
       if (res.success && res.data) setPopupEvents(res.data);
       else if (!res.success) toast.error(`팝업 이벤트 조회 실패: ${res.error}`);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회만
   }, []);
 
   useEffect(() => {

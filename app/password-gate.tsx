@@ -7,6 +7,7 @@ import { fetchActivePopupEvents } from '@/app/actions/schedule'
 import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
 import { notifyLoginEvent } from '@/app/actions/discord'
 import { withTimeout } from '@/lib/utils'
+import LoadingScreen from '@/components/LoadingScreen'
 import type { PopupEvent } from '@/types/database'
 
 export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
@@ -75,9 +76,17 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
 
+    // 낙관적 렌더: 이전 로그인 흔적(근무지 선택 기록)이 있으면 화면을 먼저 보여주고 세션은 뒤에서 검증
+    // — 검증 실패 시 아래 checkAuth가 로그인 화면으로 되돌린다
+    try {
+      if (localStorage.getItem(POPUP_ID_KEY)) { setIsAuthed(true); setChecked(true) }
+    } catch { /* ignore */ }
+
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user && localStorage.getItem(POPUP_ID_KEY)) setIsAuthed(true)
+      // getSession()은 저장된 세션을 로컬에서 읽어 네트워크 왕복 없이 판정한다 (만료 시에만 갱신 요청)
+      // 실제 권한 검증은 proxy.ts와 서버 액션이 담당하므로 이 게이트는 UX용 판정으로 충분
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsAuthed(!!session && !!localStorage.getItem(POPUP_ID_KEY))
       setChecked(true)
     }
 
@@ -91,7 +100,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   }, [])
 
   if (pathname === '/display' || pathname === '/') return <>{children}</>
-  if (!checked) return null
+  if (!checked) return <LoadingScreen label="로그인 확인 중..." />
 
   const inputClass =
     'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas'

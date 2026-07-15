@@ -23,15 +23,18 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getClaims()는 비대칭 키(ES256) 프로젝트에서 JWT를 로컬 검증한다 (JWKS는 인스턴스 내 캐시)
+  // — getUser()의 매 요청 Auth 서버 왕복을 제거. 페이지 이동·서버 액션 POST 전부에 붙던 비용이었다.
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims
 
-  if (!user) {
+  if (!claims) {
     const url = request.nextUrl.clone()
     url.pathname = '/pos'
     return NextResponse.redirect(url)
   }
 
-  const role = user.user_metadata?.role
+  const role = (claims.user_metadata as { role?: string } | undefined)?.role
   const adminOnlyPrefixes = ['/settings', '/devtools', '/hr', '/stats']
   const managerPrefixes = ['/inventory', '/roster']
   const isAdminOnlyPath = adminOnlyPrefixes.some(p => request.nextUrl.pathname.startsWith(p))

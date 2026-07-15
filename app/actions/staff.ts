@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthUser } from './_base'
 import type { ApiResponse } from '@/types/api'
 import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
 
@@ -201,8 +201,7 @@ export async function getStaffById(staffId: number): Promise<ApiResponse<StaffPr
 
 export async function getMyStaffProfile(): Promise<ApiResponse<StaffProfile | null>> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
