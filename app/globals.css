@@ -119,6 +119,17 @@ body {
   to   { transform: translateY(0);     opacity: 1; }
 }
 
+/* ── 모바일 입력 확대 방지 ──
+   iOS Safari는 16px 미만 입력에 포커스하면 화면 전체를 강제 줌한다.
+   유틸리티 클래스(text-[13px] 등)보다 우선해야 해서 !important 사용 */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar        { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track  { background: transparent; }

@@ -276,7 +276,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
               ) : (
                 <>
                 {/* md 이상: 테이블 (드래그 순서변경 포함) */}
-                <div className="hidden md:block max-h-[calc(100vh-280px)] overflow-y-auto overflow-x-auto">
+                <div className="hidden md:block max-h-[calc(100dvh-280px)] overflow-y-auto overflow-x-auto">
                   <table className="w-full min-w-[540px] border-collapse text-[13px]">
                     <thead>
                       <tr className="border-b border-hairline bg-canvas-soft sticky top-0">
@@ -323,7 +323,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                   </table>
                 </div>
                 {/* md 미만: 카드 리스트 (드래그 순서변경은 데스크톱 전용) */}
-                <div className="md:hidden divide-y divide-hairline max-h-[calc(100vh-280px)] overflow-y-auto">
+                <div className="md:hidden divide-y divide-hairline max-h-[calc(100dvh-280px)] overflow-y-auto">
                   {filtered.map(staff => (
                     <StaffCard
                       key={staff.id}
