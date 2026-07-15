@@ -53,16 +53,23 @@
 
 ## 발견 이슈 (검증 스윕 결과 기록)
 
+2026-07-16 1차 스윕: Playwright 모바일 에뮬레이션(iPhone SE 320px · iPhone 15 393px · Android 360px · iPad 가로 944px) × 미인증 화면 4종(랜딩·로그인·회원가입·디스플레이). 가로 오버플로우 자동 검사 + 스크린샷 육안 확인.
+
 | # | 화면 | 뷰포트 | 증상 | 심각도 | 상태 |
 |---|------|--------|------|--------|------|
-| - | (스윕 후 기록) | | | | |
+| 1 | 랜딩·로그인·회원가입·디스플레이 | 전체 4종 | 가로 오버플로우 0건, 레이아웃 정상 | - | 이상 없음 |
+| 2 | 인증 필요 화면(pos·my·roster·hr·stats 등) | - | 로컬 스윕은 로그인 불가로 미검증 — 테스트 계정 또는 실기기 필요 | - | 대기 |
+
+정적 감사에서 확인한 사항:
+- `min-w-[540px]`(HrPageClient 테이블)·`min-w-[560px]`(WeekMatrix)은 모두 `overflow-x-auto` 래퍼 안에 있어 정상 패턴.
+- `<table>` 중 `overflow-x-auto` 래퍼가 없는 곳: `my/page.tsx`(w-full이라 축소됨, 실기기 확인 권장), `PayrollDetailModal`, `StaffTotalsPanel`, `ShortagesPanel` (관리자 화면 — 모바일 사용 시 확인 필요).
 
 ## 진행 상황
 
-- [ ] P0-1 검증 스윕 (매트릭스 × 뷰포트)
-- [ ] P0-2 iOS 입력 줌 방지
-- [ ] P0-3 100vh → dvh
-- [ ] P0-4 safe-area 대응
-- [ ] P1-5~8 상호작용·레이아웃
+- [x] P0-1 검증 스윕 1차 — 미인증 화면 4종 × 뷰포트 4종 통과. 인증 화면은 테스트 계정 확보 후 2차 스윕
+- [x] P0-2 iOS 입력 줌 방지 — `globals.css` 모바일 한정 input/select/textarea 16px
+- [x] P0-3 100vh → dvh — HrPageClient 2곳
+- [x] P0-4 safe-area 대응 — POS sticky 결제 바, 바텀시트 모달 2곳에 `env(safe-area-inset-bottom)` (브라우저 모드에선 0으로 무해, 홈 화면 추가/PWA 모드에서 유효)
+- [ ] P1-5~8 상호작용·레이아웃 (2차 스윕 결과 기반)
 - [ ] P2-9~12 오류 수집·복원력
 - [ ] P3-13~14 재발 방지

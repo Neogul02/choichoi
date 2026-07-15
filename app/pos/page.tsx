@@ -685,7 +685,8 @@ export default function PosPage() {
           {/* 모바일 전용 sticky 결제 바 */}
           <div className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3">
             <div className="absolute -top-6 inset-x-0 h-6 bg-gradient-to-t from-canvas-soft to-transparent pointer-events-none" />
-            <div className="px-3 pb-3 pt-3 bg-canvas-soft">
+            {/* pb: 아이폰 홈바(safe-area)와 결제 버튼 겹침 방지 */}
+            <div className="px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft">
               <button
                 type="button"
                 onClick={handleCheckout}
