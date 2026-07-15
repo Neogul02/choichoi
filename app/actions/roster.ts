@@ -1,12 +1,11 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
 import { checkStaffAvailability, getWeekStart, toMinutes, MIN_REST_MINUTES } from '@/lib/staffing'
 import { parseDate, toDateStr, addDays, prevDate, dayOfWeek, dayGroup, kstToday } from '@/lib/date'
-import { extractErrorMessage } from './_base'
+import { extractErrorMessage, getAuthUser } from './_base'
 
 // 시프트 이름 고정 우선순위: 오전 → 오후 → 기타
 const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
@@ -965,8 +964,7 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
 
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
     const { data: staff, error: staffError } = await supabaseAdmin

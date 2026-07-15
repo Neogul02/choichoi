@@ -1,83 +1,51 @@
-'use client';
+import StatsPageClient from './_components/StatsPageClient';
+import { fetchTodaysSales, fetchTodaysOrdersWithItems } from '@/app/actions/orders';
+import { fetchMenuSalesBreakdown, fetchMonthlySalesCalendar, fetchManualSalesForMonth } from '@/app/actions/stats';
+import { fetchPopupEvents } from '@/app/actions/schedule';
+import { getPeriodBounds } from './_lib/period';
+import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
 
-import { useMemo, useState } from 'react';
-import NavBar from '@/components/NavBar';
-import { kstToday } from '@/lib/date';
-import { useTodayStats } from './_hooks/useTodayStats';
-import { useBreakdown } from './_hooks/useBreakdown';
-import { useCalendar } from './_hooks/useCalendar';
-import { usePopupStats } from './_hooks/usePopupStats';
-import TodaySummary from './_components/TodaySummary';
-import MenuBreakdownSection from './_components/MenuBreakdownSection';
-import TodayOrdersSection from './_components/TodayOrdersSection';
-import CalendarSection from './_components/CalendarSection';
-import PopupStatsSection from './_components/PopupStatsSection';
-import HourlySalesSection from './_components/HourlySalesSection';
+// 매출 데이터는 요청 시점 기준이어야 하므로 빌드 타임 프리렌더 금지
+export const dynamic = 'force-dynamic';
 
-export default function StatsPage() {
-  const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats();
-  const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown();
-  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, saveDay, removeDay } = useCalendar();
-  const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading: isPopupStatsLoading, refreshPopupStats } = usePopupStats();
+// 서버 컴포넌트에서 서버 액션 함수를 직접 호출하면 HTTP 왕복 없이 in-process로 병렬 실행된다.
+// 클라이언트 마운트 후 호출하던 기존 방식은 Next.js가 액션 POST를 직렬화하는 데다
+// 요청마다 proxy.ts의 인증 검사가 붙어 초기 로딩이 느렸다. (hr/page.tsx와 동일 패턴)
+async function getStatsBootstrap() {
+  const { startISO, endISO } = getPeriodBounds('today');
+  const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+  const y = kstNow.getUTCFullYear();
+  const m = kstNow.getUTCMonth() + 1;
 
-  const todayStr = kstToday();
-  const todayRevenue = useMemo(() => todayOrders.reduce((sum, o) => sum + Number(o.total_price ?? 0), 0), [todayOrders]);
+  return Promise.all([
+    fetchTodaysSales(),
+    fetchTodaysOrdersWithItems(),
+    fetchMenuSalesBreakdown(startISO, endISO),
+    fetchMonthlySalesCalendar(y, m),
+    fetchManualSalesForMonth(y, m),
+    fetchPopupEvents(),
+  ]);
+}
 
+export default async function StatsPage() {
+  const [summaryRes, ordersRes, breakdownRes, calRes, manualRes, popupsRes] = await getStatsBootstrap();
+
+  // 수동 입력 매출을 달력 데이터에 병합 — useCalendar.load()와 동일한 형태로 맞춘다
+  const manualByDate: Record<string, ManualSalesEntry> = {};
+  if (manualRes.success && manualRes.data) {
+    for (const entry of manualRes.data) manualByDate[entry.sale_date] = entry;
+  }
+  const initialCalendar: CalendarSalesData | null =
+    calRes.success && calRes.data ? { ...calRes.data, manualByDate } : null;
+
+  // 실패한 항목은 null로 내려 클라이언트 훅이 기존 경로로 재조회하게 한다
   return (
-    <>
-      <NavBar />
-      <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="max-w-[800px] mx-auto flex flex-col gap-3 md:gap-4">
-          <h2 className="m-0 px-1 text-heading-1 text-ink">통계</h2>
-
-          <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
-
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <PopupStatsSection
-              popupEvents={popupEvents}
-              selectedPopupId={selectedPopupId}
-              popupMenuBreakdown={popupMenuBreakdown}
-              popupDailySales={popupDailySales}
-              popupRawOrders={popupRawOrders}
-              isLoading={isPopupStatsLoading}
-              onSelectPopup={setSelectedPopupId}
-              onRefresh={refreshPopupStats}
-            />
-          </div>
-
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <MenuBreakdownSection
-              breakdown={breakdown}
-              period={breakdownPeriod}
-              isLoading={isBreakdownLoading}
-              periodLabel={periodLabel}
-              onPeriodChange={setBreakdownPeriod}
-            />
-          </div>
-
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <HourlySalesSection todayOrders={todayOrders} isLoadingToday={isLoading} popupEvents={popupEvents} />
-          </div>
-
-          <TodayOrdersSection
-            orders={todayOrders}
-            todayRevenue={todayRevenue}
-            isLoading={isLoading}
-            onDeleteOrder={handleDeleteOrder}
-          />
-
-          <CalendarSection
-            calendarSales={calendarSales}
-            calendarMonth={calendarMonth}
-            isLoading={isCalendarLoading}
-            todayStr={todayStr}
-            onMonthChange={changeMonth}
-            saveDay={saveDay}
-            removeDay={removeDay}
-          />
-        </div>
-      </main>
-
-    </>
+    <StatsPageClient
+      initialSummary={summaryRes.success ? summaryRes.data ?? null : null}
+      initialOrders={ordersRes.success ? ordersRes.data ?? null : null}
+      initialBreakdown={breakdownRes.success ? breakdownRes.data ?? null : null}
+      initialCalendar={initialCalendar}
+      initialPopupEvents={popupsRes.success ? popupsRes.data ?? null : null}
+    />
   );
 }

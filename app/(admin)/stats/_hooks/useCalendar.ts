@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { fetchMonthlySalesCalendar, fetchManualSalesForMonth, saveManualSales, removeManualSales } from '@/app/actions/stats';
 import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
@@ -12,10 +12,12 @@ function getInitialMonth(): Date {
 
 const EMPTY: CalendarSalesData = { byDate: {}, monthTotal: 0, totalOrders: 0, manualByDate: {} };
 
-export function useCalendar() {
+// initialData: 서버 컴포넌트가 당월 기준으로 프리페치한 데이터 — 있으면 마운트 직후 재조회를 건너뛴다
+export function useCalendar(initialData?: CalendarSalesData | null) {
   const [calendarMonth, setCalendarMonth] = useState<Date>(getInitialMonth);
-  const [calendarSales, setCalendarSales] = useState<CalendarSalesData>(EMPTY);
-  const [isLoading, setIsLoading] = useState(true);
+  const [calendarSales, setCalendarSales] = useState<CalendarSalesData>(initialData ?? EMPTY);
+  const [isLoading, setIsLoading] = useState(initialData == null);
+  const skipFirstLoad = useRef(initialData != null);
 
   const load = useCallback(async (month: Date) => {
     setIsLoading(true);
@@ -32,7 +34,10 @@ export function useCalendar() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => { load(calendarMonth); }, [calendarMonth, load]);
+  useEffect(() => {
+    if (skipFirstLoad.current) { skipFirstLoad.current = false; return; }
+    load(calendarMonth);
+  }, [calendarMonth, load]);
 
   const changeMonth = useCallback((offset: number) => {
     setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));

@@ -10,7 +10,8 @@ import type { TodaysSales, OrderRecordWithItems } from '@/types/api';
 const SUMMARY_KEY = ['today-stats-summary'];
 const ORDERS_KEY = ['today-stats-orders'];
 
-export function useTodayStats() {
+// initial: 서버 컴포넌트가 프리페치한 데이터 — 있으면 마운트 직후 재조회 없이 즉시 표시 (갱신은 realtime invalidate가 담당)
+export function useTodayStats(initial?: { summary: TodaysSales | null; orders: OrderRecordWithItems[] | null }) {
   const queryClient = useQueryClient();
 
   const summaryQuery = useQuery<TodaysSales>({
@@ -20,6 +21,7 @@ export function useTodayStats() {
       if (!res.success || !res.data) throw new Error(res.error || '매출 조회 실패');
       return res.data;
     },
+    initialData: initial?.summary ?? undefined,
   });
 
   const ordersQuery = useQuery<OrderRecordWithItems[]>({
@@ -29,6 +31,7 @@ export function useTodayStats() {
       if (!res.success || !res.data) throw new Error(res.error || '주문 조회 실패');
       return res.data;
     },
+    initialData: initial?.orders ?? undefined,
   });
 
   useEffect(() => {

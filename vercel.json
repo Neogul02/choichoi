@@ -1,5 +1,6 @@
 {
   "framework": "nextjs",
+  "regions": ["icn1"],
   "crons": [
     {
       "path": "/api/cron/daily-schedule",

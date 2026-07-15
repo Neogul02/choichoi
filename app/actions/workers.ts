@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthUser } from './_base'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
@@ -27,8 +27,7 @@ export interface UserProfile {
 
 export async function getMyProfile(): Promise<ApiResponse<UserProfile>> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
     const { data, error } = await supabaseAdmin
@@ -69,8 +68,7 @@ export interface MyOrderStats {
 
 export async function getMyOrderStats(): Promise<ApiResponse<MyOrderStats>> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
     const { data: profile } = await supabaseAdmin
@@ -202,8 +200,7 @@ export interface UpdateProfileInput {
 
 export async function updateMyProfile(input: UpdateProfileInput): Promise<ApiResponse> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
     const updates: Record<string, string | null> = {}
@@ -237,8 +234,7 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<ApiRes
 
 export async function changeMyPassword(currentPassword: string, newPassword: string): Promise<ApiResponse> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
     if (!user.email) return { success: false, error: '이메일 계정이 없습니다.' }
 
@@ -388,8 +384,7 @@ export async function setUserRole(userId: string, role: UserAppRole): Promise<Ap
 
 export async function deleteMyAccount(): Promise<ApiResponse> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
     const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', user.id).maybeSingle()
