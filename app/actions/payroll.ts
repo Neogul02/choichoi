@@ -75,7 +75,16 @@ export interface StaffDayDetail {
   shiftName: string
   startTime: string
   endTime: string
+  /** 유급 시간 (휴게 차감 후, 0.1h 단위 반올림) */
   hours: number
+  /** 실근무 분 (휴게 차감 전) */
+  rawMinutes: number
+  /** 휴게 차감 분 — 7시간(420분) 이상 근무 시 60분 */
+  breakMinutes: number
+  /** 유급 분 — 월 합계는 이 값을 합산 후 시간 환산해야 fetchMonthlyPayroll과 일치 */
+  paidMinutes: number
+  /** 파트 기본 시간이 아닌 개별 수정 시간인지 */
+  isCustomTime: boolean
 }
 
 export async function fetchStaffMonthlyDetail(
@@ -104,9 +113,19 @@ export async function fetchStaffMonthlyDetail(
       const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
       const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
       const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
-      const rawMins = timeToMinutes(endTime) - timeToMinutes(startTime)
-      const hours = Math.round((rawMins >= 420 ? rawMins - 60 : rawMins) / 60 * 10) / 10
-      return { date: a.work_date, shiftName: shift?.name ?? '파트 미정', startTime, endTime, hours }
+      const rawMinutes = timeToMinutes(endTime) - timeToMinutes(startTime)
+      const breakMinutes = rawMinutes >= 420 ? 60 : 0
+      const paidMinutes = rawMinutes - breakMinutes
+      const hours = Math.round(paidMinutes / 60 * 10) / 10
+      return {
+        date: a.work_date,
+        shiftName: shift?.name ?? '파트 미정',
+        startTime: startTime.slice(0, 5),
+        endTime: endTime.slice(0, 5),
+        hours,
+        rawMinutes, breakMinutes, paidMinutes,
+        isCustomTime: a.start_time != null || a.end_time != null,
+      }
     })
 
     return { success: true, data: details }

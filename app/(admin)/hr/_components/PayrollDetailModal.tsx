@@ -110,6 +110,25 @@ export default function PayrollDetailModal({
   const adjustTotal = adjustments.reduce((s, a) => s + a.amount, 0)
   const finalPay = basePay != null ? basePay + adjustTotal : null
 
+  // 계산식 — 일별 유급 분을 합산해 시간 환산 (fetchMonthlyPayroll과 동일한 방식)
+  const minToH = (min: number) => Math.round(min / 60 * 10) / 10
+  const rawSum = details?.reduce((s, d) => s + d.rawMinutes, 0) ?? 0
+  const breakSum = details?.reduce((s, d) => s + d.breakMinutes, 0) ?? 0
+  const formulaLines: string[] = []
+  if (details && details.length > 0) {
+    formulaLines.push(`실근무 ${minToH(rawSum)}h − 휴게 ${minToH(breakSum)}h = 유급 ${totalHours}h`)
+    if (hourlyRate != null && basePay != null) {
+      formulaLines.push(`기본급 = ${totalHours}h × ${hourlyRate.toLocaleString('ko-KR')}원 = ${basePay.toLocaleString('ko-KR')}원`)
+    }
+    for (const a of adjustments) {
+      formulaLines.push(`${a.amount >= 0 ? '+' : '−'} ${a.label} ${Math.abs(a.amount).toLocaleString('ko-KR')}원`)
+    }
+    if (finalPay != null && (adjustments.length > 0 || basePay != null)) {
+      formulaLines.push(`최종 지급액 = ${finalPay.toLocaleString('ko-KR')}원`)
+    }
+  }
+  const formulaText = formulaLines.join('\n')
+
   const addAdjustment = () => {
     const amount = Number(newAmount)
     if (!newLabel.trim() || isNaN(amount) || !newAmount.trim()) return
@@ -134,10 +153,17 @@ export default function PayrollDetailModal({
       }
     }
     if (finalPay != null) lines.push('', `✅ 최종 지급액: ${finalPay.toLocaleString('ko-KR')}원`)
+    if (formulaLines.length > 0) {
+      lines.push('', '[ 계산식 ]', ...formulaLines, '※ 1일 7시간 이상 근무 시 휴게 1시간 차감')
+    }
     if (details && details.length > 0) {
       lines.push('', '[ 근무 상세 ]')
       for (const d of details) {
-        lines.push(`${d.date} ${d.shiftName} ${d.startTime}~${d.endTime} (${d.hours}h)`)
+        const extras = [
+          d.breakMinutes > 0 ? `휴게 ${minToH(d.breakMinutes)}h 차감` : '',
+          d.isCustomTime ? '개별 수정' : '',
+        ].filter(Boolean)
+        lines.push(`${d.date} ${d.shiftName} ${d.startTime}~${d.endTime} = ${d.hours}h${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`)
       }
     }
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -216,25 +242,34 @@ export default function PayrollDetailModal({
                       <th className="text-left px-3 py-2 font-semibold text-ink-muted">날짜</th>
                       <th className="text-left px-2 py-2 font-semibold text-ink-muted">파트</th>
                       <th className="text-center px-2 py-2 font-semibold text-ink-muted">시간</th>
-                      <th className="text-right px-3 py-2 font-semibold text-ink-muted">시간수</th>
+                      <th className="text-center px-2 py-2 font-semibold text-ink-muted">휴게</th>
+                      <th className="text-right px-3 py-2 font-semibold text-ink-muted">유급</th>
                     </tr>
                   </thead>
                   <tbody>
                     {details.map((d, i) => (
                       <tr key={i} className={i !== details.length - 1 ? 'border-b border-hairline' : ''}>
-                        <td className="px-3 py-2 font-semibold text-ink">{formatDate(d.date)}</td>
+                        <td className="px-3 py-2 font-semibold text-ink whitespace-nowrap">{formatDate(d.date)}</td>
                         <td className="px-2 py-2 text-ink-muted">{d.shiftName}</td>
-                        <td className="px-2 py-2 text-center text-ink-muted">{d.startTime}~{d.endTime}</td>
+                        <td className={`px-2 py-2 text-center whitespace-nowrap ${d.isCustomTime ? 'text-primary-700 font-semibold' : 'text-ink-muted'}`} title={d.isCustomTime ? '파트 기본 시간이 아닌 개별 수정 시간' : undefined}>
+                          {d.startTime}~{d.endTime}{d.isCustomTime && <span className="ml-0.5 align-super text-[9px]">*</span>}
+                        </td>
+                        <td className="px-2 py-2 text-center text-ink-faint">{d.breakMinutes > 0 ? `−${minToH(d.breakMinutes)}h` : '—'}</td>
                         <td className="px-3 py-2 text-right font-semibold text-ink">{d.hours}h</td>
                       </tr>
                     ))}
                     <tr className="border-t border-hairline bg-canvas-soft">
-                      <td colSpan={3} className="px-3 py-2 text-[11px] font-semibold text-ink-muted">합계</td>
+                      <td colSpan={2} className="px-3 py-2 text-[11px] font-semibold text-ink-muted">합계</td>
+                      <td className="px-2 py-2 text-center text-[11px] text-ink-muted">실근무 {minToH(rawSum)}h</td>
+                      <td className="px-2 py-2 text-center text-[11px] text-ink-muted">−{minToH(breakSum)}h</td>
                       <td className="px-3 py-2 text-right font-bold text-ink">{totalHours}h</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+            )}
+            {details && details.some(d => d.isCustomTime) && (
+              <p className="m-0 mt-1.5 text-[10px] text-ink-faint"><span className="text-primary-700 font-semibold">*</span> 파트 기본 시간이 아닌 개별 수정된 시간</p>
             )}
           </div>
 
@@ -307,6 +342,25 @@ export default function PayrollDetailModal({
               </div>
             </div>
           </div>
+
+          {/* 계산식 */}
+          {formulaLines.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="m-0 text-[11px] font-bold text-ink-muted uppercase tracking-wide">계산식</h4>
+                <button
+                  onClick={() => copyText('formula', formulaText)}
+                  className="px-2 py-0.5 rounded-md border border-hairline bg-canvas-soft text-[10px] font-semibold text-ink-muted cursor-pointer hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition"
+                >
+                  {copiedKey === 'formula' ? '복사됨!' : '계산식 복사'}
+                </button>
+              </div>
+              <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words">
+                {formulaText}
+              </div>
+              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 1일 7시간 이상 근무 시 휴게 1시간 차감 · 유급시간은 0.1h 단위 반올림</p>
+            </div>
+          )}
 
           {/* 공유 버튼 */}
           <button
