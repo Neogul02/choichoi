@@ -4,15 +4,15 @@ import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
-  LineChart, Line, Legend,
+  LineChart, Line, Legend, AreaChart, Area, PieChart, Pie, ReferenceLine,
 } from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
 import { buildDayHourMatrix, DAY_COLORS, DAYS } from '@/app/(admin)/stats/_lib/dayofweek';
-import { HOURS } from '@/app/(admin)/stats/_lib/hourly';
+import { HOURS, buildHourlyData } from '@/app/(admin)/stats/_lib/hourly';
+import { kstToday } from '@/lib/date';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
-import { analyzePopupSales } from '@/app/actions/gemini';
 
 const MenuSalesEditModal = dynamic(() => import('./MenuSalesEditModal'), { ssr: false });
 
@@ -52,6 +52,28 @@ function MenuTooltip({ active, payload }: MenuTooltipProps) {
   );
 }
 
+function StatTile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+  return (
+    <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] text-center">
+      <div className="text-[11px] text-ink-muted font-medium mb-0.5">{label}</div>
+      <div className={`text-[13px] font-extrabold ${accent ? 'text-primary-700' : 'text-ink-secondary'}`}>{value}</div>
+      {sub && <div className="text-[10px] text-ink-faint mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function ChartCard({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="m-0 text-sm font-bold text-ink-secondary">{title}</h4>
+        {right}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 interface Props {
   popupEvents: PopupEvent[];
   selectedPopupId: number | null;
@@ -68,47 +90,90 @@ export default function PopupStatsSection({
 }: Props) {
   const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
   const [metric, setMetric] = useState<Metric>('revenue');
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
   const [showMenuSalesEdit, setShowMenuSalesEdit] = useState(false);
-
-  function handleSelectPopup(id: number | null) {
-    setAiAnalysis(null);
-    setAiError(null);
-    onSelectPopup(id);
-  }
-
-  async function handleAiAnalyze() {
-    if (!selectedPopup || popupDailySales.length === 0) return;
-    setAiLoading(true);
-    setAiError(null);
-    const res = await analyzePopupSales(
-      selectedPopup.name,
-      selectedPopup.start_date,
-      selectedPopup.end_date,
-      popupDailySales,
-      popupMenuBreakdown,
-    );
-    setAiLoading(false);
-    if (res.success) setAiAnalysis(res.data ?? '');
-    else setAiError(res.error ?? '오류가 발생했습니다.');
-  }
 
   const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
   const popupTotalOrders = useMemo(() => popupDailySales.reduce((s, d) => s + d.orderCount, 0), [popupDailySales]);
-  const popupDaysCount = useMemo(() => {
-    if (!selectedPopup) return 0;
-    const start = new Date(selectedPopup.start_date);
-    const end = new Date(selectedPopup.end_date);
-    return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+
+  // 운영 기간 지표 — 총 일수, 현재까지 경과한 운영 일수, 진행 상태
+  const period = useMemo(() => {
+    if (!selectedPopup) return null;
+    const today = kstToday();
+    const dayMs = 86400000;
+    const start = new Date(selectedPopup.start_date + 'T00:00:00');
+    const end = new Date(selectedPopup.end_date + 'T00:00:00');
+    const totalDays = Math.round((end.getTime() - start.getTime()) / dayMs) + 1;
+    const status: '예정' | '진행중' | '종료' =
+      today < selectedPopup.start_date ? '예정' : today > selectedPopup.end_date ? '종료' : '진행중';
+    const elapsedDays =
+      status === '예정'
+        ? 0
+        : Math.min(totalDays, Math.round((new Date(today + 'T00:00:00').getTime() - start.getTime()) / dayMs) + 1);
+    return { totalDays, elapsedDays, remainingDays: totalDays - elapsedDays, status };
   }, [selectedPopup]);
 
-  const popupMenuChartHeight = useMemo(() => Math.max(180, popupMenuBreakdown.length * 38), [popupMenuBreakdown.length]);
+  const derived = useMemo(() => {
+    const elapsed = period?.elapsedDays ?? 0;
+    const salesDays = popupDailySales.filter((d) => d.revenue > 0).length;
+    const avgOrderValue = popupTotalOrders > 0 ? Math.round(popupTotalRevenue / popupTotalOrders) : 0;
+    const avgDailyRevenue = elapsed > 0 ? Math.round(popupTotalRevenue / elapsed) : 0;
+    const avgDailyOrders = elapsed > 0 ? popupTotalOrders / elapsed : 0;
+    const daysWithSales = popupDailySales.filter((d) => d.revenue > 0);
+    const bestDay = daysWithSales.reduce<DailySalesItem | null>((best, d) => (!best || d.revenue > best.revenue ? d : best), null);
+    const worstDay = daysWithSales.reduce<DailySalesItem | null>((worst, d) => (!worst || d.revenue < worst.revenue ? d : worst), null);
+    const projectedTotal =
+      period?.status === '진행중' && elapsed > 0 ? avgDailyRevenue * period.totalDays : null;
+    return { salesDays, avgOrderValue, avgDailyRevenue, avgDailyOrders, bestDay, worstDay, projectedTotal };
+  }, [period, popupDailySales, popupTotalRevenue, popupTotalOrders]);
+
   const dailyChartData = useMemo(
     () => popupDailySales.map((d) => ({ ...d, dateLabel: formatDateLabel(d.date) })),
     [popupDailySales]
   );
+
+  const cumulativeData = useMemo(() => {
+    let sum = 0;
+    return popupDailySales.map((d) => {
+      sum += d.revenue;
+      return { dateLabel: formatDateLabel(d.date), cumulative: sum };
+    });
+  }, [popupDailySales]);
+
+  const aovTrendData = useMemo(
+    () =>
+      popupDailySales
+        .filter((d) => d.orderCount > 0)
+        .map((d) => ({ dateLabel: formatDateLabel(d.date), aov: Math.round(d.revenue / d.orderCount) })),
+    [popupDailySales]
+  );
+
+  // 요일별 평균 매출 — 같은 요일이 여러 번이면 평균으로 집계
+  const dayOfWeekData = useMemo(() => {
+    const agg: Record<string, { total: number; count: number }> = {};
+    for (const d of popupDailySales) {
+      const [y, m, dd] = d.date.split('-').map(Number);
+      const label = DAYS[new Date(y, m - 1, dd).getDay()];
+      if (!agg[label]) agg[label] = { total: 0, count: 0 };
+      agg[label].total += d.revenue;
+      agg[label].count += 1;
+    }
+    return DAYS.filter((day) => agg[day]?.count).map((day) => ({
+      day,
+      avgRevenue: Math.round(agg[day].total / agg[day].count),
+      dayCount: agg[day].count,
+    }));
+  }, [popupDailySales]);
+
+  const hourlyData = useMemo(() => buildHourlyData(popupRawOrders), [popupRawOrders]);
+  const hasHourlyData = useMemo(() => hourlyData.some((h) => h.orderCount > 0), [hourlyData]);
+
+  const menuShareData = useMemo(
+    () => popupMenuBreakdown.filter((m) => m.totalRevenue > 0),
+    [popupMenuBreakdown]
+  );
+  const menuShareTotal = useMemo(() => menuShareData.reduce((s, m) => s + m.totalRevenue, 0), [menuShareData]);
+
+  const popupMenuChartHeight = useMemo(() => Math.max(180, popupMenuBreakdown.length * 38), [popupMenuBreakdown.length]);
 
   const { matrix, activeDays } = useMemo(() => buildDayHourMatrix(popupRawOrders), [popupRawOrders]);
 
@@ -131,7 +196,7 @@ export default function PopupStatsSection({
         <>
           <select
             value={selectedPopupId ?? ''}
-            onChange={(e) => handleSelectPopup(e.target.value ? Number(e.target.value) : null)}
+            onChange={(e) => onSelectPopup(e.target.value ? Number(e.target.value) : null)}
             className="w-full border border-[#d8e8e0] rounded-lg px-3 py-2.5 text-sm font-semibold bg-canvas text-ink-secondary outline-none focus:border-primary-700 mb-4"
           >
             <option value="">팝업을 선택하세요</option>
@@ -142,49 +207,221 @@ export default function PopupStatsSection({
             ))}
           </select>
 
-          {selectedPopup && (
+          {selectedPopup && period && (
             isLoading ? (
               <p className="text-ink-faint text-sm text-center py-6">데이터를 불러오는 중...</p>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] text-center">
-                    <div className="text-[11px] text-ink-muted font-medium mb-0.5">총 매출</div>
-                    <div className="text-[13px] font-extrabold text-primary-700">₩{formatPrice(popupTotalRevenue)}</div>
+                {/* 운영 기간 진행률 */}
+                <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h4 className="m-0 text-sm font-bold text-ink-secondary">운영 진행률</h4>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                        period.status === '진행중'
+                          ? 'bg-primary-700/10 text-primary-700 border-primary-700/30'
+                          : period.status === '종료'
+                            ? 'bg-[#f5f6f7] text-ink-muted border-hairline'
+                            : 'bg-sky-50 text-sky-600 border-sky-200'
+                      }`}>
+                        {period.status}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-ink-muted font-medium">
+                      {selectedPopup.start_date} ~ {selectedPopup.end_date}
+                    </span>
                   </div>
-                  <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] text-center">
-                    <div className="text-[11px] text-ink-muted font-medium mb-0.5">총 주문</div>
-                    <div className="text-[13px] font-extrabold text-ink-secondary">{popupTotalOrders}건</div>
+                  <div className="h-2 rounded-full bg-[#e8efeb] overflow-hidden mb-1.5">
+                    <div
+                      className="h-full rounded-full bg-primary-700 transition-all"
+                      style={{ width: `${Math.round((period.elapsedDays / period.totalDays) * 100)}%` }}
+                    />
                   </div>
-                  <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] text-center">
-                    <div className="text-[11px] text-ink-muted font-medium mb-0.5">운영 일수</div>
-                    <div className="text-[13px] font-extrabold text-ink-secondary">{popupDaysCount}일</div>
+                  <div className="flex items-center justify-between text-[11px] text-ink-muted">
+                    <span>현재 운영 <b className="text-ink-secondary">{period.elapsedDays}일</b> / 총 {period.totalDays}일</span>
+                    <span>{period.status === '종료' ? '운영 종료' : `잔여 ${period.remainingDays}일`}</span>
                   </div>
                 </div>
 
+                {/* 핵심 지표 */}
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <StatTile label="총 매출" value={`₩${formatPrice(popupTotalRevenue)}`} accent />
+                  <StatTile label="총 주문" value={`${popupTotalOrders}건`} />
+                  <StatTile label="평균 객단가" value={derived.avgOrderValue > 0 ? `₩${formatPrice(derived.avgOrderValue)}` : '-'} />
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <StatTile
+                    label="운영일수 평균 매출"
+                    value={derived.avgDailyRevenue > 0 ? `₩${formatPrice(derived.avgDailyRevenue)}` : '-'}
+                    sub={period.elapsedDays > 0 ? `운영 ${period.elapsedDays}일 기준` : undefined}
+                    accent
+                  />
+                  <StatTile
+                    label="일평균 주문"
+                    value={derived.avgDailyOrders > 0 ? `${derived.avgDailyOrders.toFixed(1)}건` : '-'}
+                  />
+                  <StatTile label="판매 발생일" value={`${derived.salesDays}일`} sub={period.elapsedDays > 0 ? `운영 ${period.elapsedDays}일 중` : undefined} />
+                </div>
+                <div className={`grid ${derived.projectedTotal != null ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-4`}>
+                  <StatTile
+                    label="최고 매출일"
+                    value={derived.bestDay ? `₩${formatPrice(derived.bestDay.revenue)}` : '-'}
+                    sub={derived.bestDay ? formatDateLabel(derived.bestDay.date) : undefined}
+                  />
+                  <StatTile
+                    label="최저 매출일"
+                    value={derived.worstDay ? `₩${formatPrice(derived.worstDay.revenue)}` : '-'}
+                    sub={derived.worstDay ? formatDateLabel(derived.worstDay.date) : undefined}
+                  />
+                  {derived.projectedTotal != null && (
+                    <StatTile
+                      label="예상 총 매출"
+                      value={`₩${formatPrice(derived.projectedTotal)}`}
+                      sub="현재 일평균 기준"
+                      accent
+                    />
+                  )}
+                </div>
+
                 {popupDailySales.length > 0 ? (
-                  <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
-                    <h4 className="m-0 mb-3 text-sm font-bold text-ink-secondary">일별 매출 추이</h4>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={dailyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                        <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
-                        <Tooltip content={<DailyTooltip />} />
-                        <Bar dataKey="revenue" fill="#3d9966" radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <>
+                    <ChartCard title="일별 매출 추이">
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={dailyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                          <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                          <Tooltip content={<DailyTooltip />} />
+                          {derived.avgDailyRevenue > 0 && (
+                            <ReferenceLine
+                              y={derived.avgDailyRevenue}
+                              stroke="#f59e0b"
+                              strokeDasharray="4 4"
+                              label={{ value: `평균 ${formatRevenueTick(derived.avgDailyRevenue)}`, position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }}
+                            />
+                          )}
+                          <Bar dataKey="revenue" fill="#3d9966" radius={[4, 4, 0, 0]}>
+                            <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </ChartCard>
+
+                    <ChartCard title="누적 매출 추이">
+                      <ResponsiveContainer width="100%" height={180}>
+                        <AreaChart data={cumulativeData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                          <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload?.length) return null;
+                              return (
+                                <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                  <p className="font-bold mb-1 text-ink-secondary">{label}</p>
+                                  <p className="text-primary-700 m-0">누적 ₩{Number(payload[0].value).toLocaleString('ko-KR')}</p>
+                                </div>
+                              );
+                            }}
+                          />
+                          <Area type="monotone" dataKey="cumulative" stroke="#3d9966" strokeWidth={2} fill="#3d9966" fillOpacity={0.12} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </ChartCard>
+
+                    {aovTrendData.length > 0 && (
+                      <ChartCard title="일별 객단가 추이">
+                        <ResponsiveContainer width="100%" height={180}>
+                          <LineChart data={aovTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                            <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                            <Tooltip
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                return (
+                                  <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                    <p className="font-bold mb-1 text-ink-secondary">{label}</p>
+                                    <p className="text-primary-700 m-0">객단가 ₩{Number(payload[0].value).toLocaleString('ko-KR')}</p>
+                                  </div>
+                                );
+                              }}
+                            />
+                            {derived.avgOrderValue > 0 && (
+                              <ReferenceLine y={derived.avgOrderValue} stroke="#f59e0b" strokeDasharray="4 4" />
+                            )}
+                            <Line type="monotone" dataKey="aov" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                        <p className="text-[10px] text-ink-faint mt-1 m-0">※ 주황 점선은 전체 기간 평균 객단가</p>
+                      </ChartCard>
+                    )}
+
+                    {dayOfWeekData.length > 0 && (
+                      <ChartCard title="요일별 평균 매출">
+                        <ResponsiveContainer width="100%" height={180}>
+                          <BarChart data={dayOfWeekData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="day" tickFormatter={(d: string) => `${d}요일`} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                            <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                            <Tooltip
+                              content={({ active, payload }) => {
+                                if (!active || !payload?.length) return null;
+                                const row = payload[0].payload as { day: string; avgRevenue: number; dayCount: number };
+                                return (
+                                  <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                    <p className="font-bold mb-1 text-ink-secondary">{row.day}요일 ({row.dayCount}일 평균)</p>
+                                    <p className="text-primary-700 m-0">₩{row.avgRevenue.toLocaleString('ko-KR')}</p>
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Bar dataKey="avgRevenue" radius={[4, 4, 0, 0]}>
+                              {dayOfWeekData.map((row) => (
+                                <Cell key={row.day} fill={DAY_COLORS[row.day as DayLabel]} />
+                              ))}
+                              <LabelList dataKey="avgRevenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </ChartCard>
+                    )}
+                  </>
                 ) : (
                   <p className="text-ink-faint text-sm mb-3">해당 팝업 기간에 매출 데이터가 없습니다.</p>
                 )}
 
+                {hasHourlyData && (
+                  <ChartCard title="시간대별 매출 분포">
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={hourlyData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                        <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const row = payload[0].payload as { label: string; revenue: number; orderCount: number };
+                            return (
+                              <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                <p className="font-bold mb-1 text-ink-secondary">{row.label}</p>
+                                <p className="text-primary-700">₩{row.revenue.toLocaleString('ko-KR')}</p>
+                                <p className="text-ink-muted">주문 {row.orderCount}건</p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Bar dataKey="revenue" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <p className="text-[10px] text-ink-faint mt-1 m-0">※ POS 주문 기준 (수기 입력 매출 제외)</p>
+                  </ChartCard>
+                )}
+
                 {activeDays.length > 0 && (
-                  <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="m-0 text-sm font-bold text-ink-secondary">요일 × 시간대별 판매 현황</h4>
+                  <ChartCard
+                    title="요일 × 시간대별 판매 현황"
+                    right={
                       <div className="flex gap-1">
                         {(['revenue', 'orderCount'] as Metric[]).map((m) => (
                           <button
@@ -196,7 +433,8 @@ export default function PopupStatsSection({
                           </button>
                         ))}
                       </div>
-                    </div>
+                    }
+                  >
                     <ResponsiveContainer width="100%" height={220}>
                       <LineChart data={dayHourRows} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -251,26 +489,50 @@ export default function PopupStatsSection({
                         ? `※ 판매 없는 요일(${DAYS.filter((d) => !activeDays.includes(d as DayLabel)).join('·')})은 표시 생략`
                         : null}
                     </p>
-                  </div>
+                  </ChartCard>
                 )}
 
-                <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="m-0 text-sm font-bold text-ink-secondary">AI 매출 분석</h4>
-                    <button
-                      onClick={handleAiAnalyze}
-                      disabled={aiLoading || popupDailySales.length === 0}
-                      className="px-3 py-1.5 rounded-full text-[11px] font-semibold bg-primary-700 text-white disabled:opacity-50 cursor-pointer"
-                    >
-                      {aiLoading ? '분석 중...' : 'AI 분석하기'}
-                    </button>
-                  </div>
-                  {aiError && <p className="text-red-500 text-xs m-0">{aiError}</p>}
-                  {aiAnalysis && <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap m-0">{aiAnalysis}</p>}
-                  {!aiAnalysis && !aiError && !aiLoading && (
-                    <p className="text-ink-faint text-xs m-0">버튼을 눌러 이 팝업의 매출을 AI로 분석하세요.</p>
-                  )}
-                </div>
+                {menuShareData.length > 0 && (
+                  <ChartCard title="메뉴별 매출 비중">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={menuShareData}
+                          dataKey="totalRevenue"
+                          nameKey="name"
+                          innerRadius="52%"
+                          outerRadius="80%"
+                          paddingAngle={2}
+                          strokeWidth={0}
+                        >
+                          {menuShareData.map((item) => (
+                            <Cell key={item.id} fill={item.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const row = payload[0].payload as MenuSalesItem;
+                            const pct = menuShareTotal > 0 ? Math.round((row.totalRevenue / menuShareTotal) * 100) : 0;
+                            return (
+                              <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                <p className="font-bold mb-1 text-ink-secondary">{row.name}</p>
+                                <p className="text-primary-700">₩{row.totalRevenue.toLocaleString('ko-KR')} ({pct}%)</p>
+                                <p className="text-ink-muted">판매량 {row.totalQuantity}개</p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend
+                          formatter={(value: string) => <span style={{ fontSize: 11, color: '#555' }}>{value}</span>}
+                          iconType="circle"
+                          iconSize={8}
+                          wrapperStyle={{ paddingTop: 8 }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                )}
 
                 <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4]">
                   <div className="flex items-center justify-between mb-3">
