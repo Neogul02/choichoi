@@ -15,7 +15,12 @@ export function formatKSTTime(isoString: string): string {
 }
 
 export function formatRevenueTick(value: number): string {
-  if (value >= 10000) return `${Math.round(value / 10000)}만`;
+  if (value >= 100000000) return `${Math.round(value / 10000000) / 10}억`;
+  // 10만 미만은 소수 1자리 유지 — 1.5만/2만이 모두 "2만"으로 뭉개지는 눈금 중복 방지
+  if (value >= 10000) {
+    const man = value / 10000;
+    return `${man >= 10 ? Math.round(man) : Math.round(man * 10) / 10}만`;
+  }
   if (value >= 1000) return `${Math.round(value / 1000)}천`;
   return String(value);
 }

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
-  LineChart, Line, Legend, AreaChart, Area, PieChart, Pie, ReferenceLine,
+  LineChart, Line, Legend, ComposedChart, Area, PieChart, Pie, ReferenceLine,
 } from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
 import { buildDayHourMatrix, DAY_COLORS, DAYS } from '@/app/(admin)/stats/_lib/dayofweek';
@@ -131,11 +131,19 @@ export default function PopupStatsSection({
     [popupDailySales]
   );
 
+  // 누적 매출 + 일별 매출 + 평균 페이스(일평균 × 경과일) — 페이스 대비 위/아래로 변동이 읽히도록
   const cumulativeData = useMemo(() => {
+    const total = popupDailySales.reduce((s, d) => s + d.revenue, 0);
+    const avg = popupDailySales.length > 0 ? total / popupDailySales.length : 0;
     let sum = 0;
-    return popupDailySales.map((d) => {
+    return popupDailySales.map((d, i) => {
       sum += d.revenue;
-      return { dateLabel: formatDateLabel(d.date), cumulative: sum };
+      return {
+        dateLabel: formatDateLabel(d.date),
+        cumulative: sum,
+        daily: d.revenue,
+        pace: Math.round(avg * (i + 1)),
+      };
     });
   }, [popupDailySales]);
 
@@ -286,11 +294,11 @@ export default function PopupStatsSection({
                 {popupDailySales.length > 0 ? (
                   <>
                     <ChartCard title="일별 매출 추이">
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={dailyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                      <ResponsiveContainer width="100%" height={216}>
+                        <BarChart data={dailyChartData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                           <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
                           <Tooltip content={<DailyTooltip />} />
                           {derived.avgDailyRevenue > 0 && (
                             <ReferenceLine
@@ -308,25 +316,34 @@ export default function PopupStatsSection({
                     </ChartCard>
 
                     <ChartCard title="누적 매출 추이">
-                      <ResponsiveContainer width="100%" height={180}>
-                        <AreaChart data={cumulativeData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <ComposedChart data={cumulativeData} margin={{ top: 12, right: 8, left: 0, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                           <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
                           <Tooltip
                             content={({ active, payload, label }) => {
                               if (!active || !payload?.length) return null;
+                              const row = payload[0].payload as { cumulative: number; daily: number; pace: number };
+                              const diff = row.cumulative - row.pace;
                               return (
                                 <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
                                   <p className="font-bold mb-1 text-ink-secondary">{label}</p>
-                                  <p className="text-primary-700 m-0">누적 ₩{Number(payload[0].value).toLocaleString('ko-KR')}</p>
+                                  <p className="text-primary-700">누적 ₩{row.cumulative.toLocaleString('ko-KR')}</p>
+                                  <p className="text-ink-muted">당일 ₩{row.daily.toLocaleString('ko-KR')}</p>
+                                  <p className={diff >= 0 ? 'text-primary-700 m-0' : 'text-rose-500 m-0'}>
+                                    평균 페이스 대비 {diff >= 0 ? '+' : '−'}₩{Math.abs(diff).toLocaleString('ko-KR')}
+                                  </p>
                                 </div>
                               );
                             }}
                           />
-                          <Area type="monotone" dataKey="cumulative" stroke="#3d9966" strokeWidth={2} fill="#3d9966" fillOpacity={0.12} />
-                        </AreaChart>
+                          <Bar dataKey="daily" fill="#3d9966" fillOpacity={0.25} radius={[4, 4, 0, 0]} />
+                          <Line type="monotone" dataKey="pace" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={false} />
+                          <Area type="monotone" dataKey="cumulative" stroke="#3d9966" strokeWidth={2} fill="#3d9966" fillOpacity={0.08} dot={{ r: 3, strokeWidth: 0, fill: '#3d9966' }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                        </ComposedChart>
                       </ResponsiveContainer>
+                      <p className="text-[10px] text-ink-faint mt-1 m-0">※ 옅은 막대는 일별 매출, 주황 점선은 평균 페이스 — 초록 선이 점선 위면 평균보다 앞선 페이스</p>
                     </ChartCard>
 
                     {aovTrendData.length > 0 && (
@@ -359,11 +376,11 @@ export default function PopupStatsSection({
 
                     {dayOfWeekData.length > 0 && (
                       <ChartCard title="요일별 평균 매출">
-                        <ResponsiveContainer width="100%" height={180}>
-                          <BarChart data={dayOfWeekData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                        <ResponsiveContainer width="100%" height={196}>
+                          <BarChart data={dayOfWeekData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                             <XAxis dataKey="day" tickFormatter={(d: string) => `${d}요일`} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                            <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                            <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
                             <Tooltip
                               content={({ active, payload }) => {
                                 if (!active || !payload?.length) return null;
@@ -394,10 +411,10 @@ export default function PopupStatsSection({
                 {hasHourlyData && (
                   <ChartCard title="시간대별 매출 분포">
                     <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={hourlyData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                      <BarChart data={hourlyData} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                         <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                        <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                        <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
                         <Tooltip
                           content={({ active, payload }) => {
                             if (!active || !payload?.length) return null;
