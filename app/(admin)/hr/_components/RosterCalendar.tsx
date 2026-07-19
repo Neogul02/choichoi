@@ -5,7 +5,7 @@ import { showMsg } from '@/lib/toast';
 import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
 import type { StaffProfile, Store, StaffRole, RosterShift } from '@/types/database';
-import { ROLE_LABELS } from './constants';
+import { DAY_NAMES, ROLE_LABELS } from './constants';
 import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap } from '@/lib/staffing';
 import { addDays } from '@/lib/date';
 import { CalendarGridSkeleton, MatrixSkeleton } from '@/components/Skeleton';
@@ -173,6 +173,40 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     }
   };
 
+  // 주간 근무 안내 텍스트 복사 — DayPanel의 일간 복사와 같은 포맷으로 7일치, 배정 없는 날은 생략
+  const handleCopyWeekText = async () => {
+    if (!weekStart) return;
+    try {
+      const fmt = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
+      const lines: string[] = [`📋 주간 근무 안내 (${fmt(weekStart)} ~ ${fmt(weekEndStr)})`, ''];
+      let hasAny = false;
+      for (let i = 0; i < 7; i++) {
+        const dateStr = addDays(weekStart, i);
+        const dayLines: string[] = [];
+        for (const shift of shifts) {
+          const assigned = getAssigned(dateStr, shift.id);
+          if (assigned.length === 0) continue;
+          dayLines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
+          for (const a of assigned) {
+            const custom = a.start_time || a.end_time
+              ? ` (${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)})`
+              : '';
+            dayLines.push(`· ${a.staff_profiles?.name ?? ''}${custom}`);
+          }
+        }
+        if (dayLines.length === 0) continue;
+        hasAny = true;
+        lines.push(`${Number(dateStr.slice(5, 7))}월 ${Number(dateStr.slice(8))}일(${DAY_NAMES[i]})`, ...dayLines, '');
+      }
+      await navigator.clipboard.writeText(
+        hasAny ? lines.join('\n').trimEnd() : `${lines[0]}\n\n배정된 근무자가 없습니다.`,
+      );
+      showMsg('클립보드에 복사됐습니다!');
+    } catch {
+      showMsg('복사 실패 — 브라우저 권한을 확인해주세요.');
+    }
+  };
+
   const handleClearRoster = async () => {
     if (!confirm(`[${unitLabel}] ${targetLabel} 스케줄을 초기화할까요?\n배정된 근무자가 모두 삭제됩니다.`)) return;
     const r = await clearRosterRange(unit, targetFrom, targetTo);
@@ -238,7 +272,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           <div className="flex items-center gap-2">
             <button
               aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}
-              className="w-7 h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
+              className="w-9 h-9 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
               onClick={() => viewMode === 'week'
                 ? moveWeek(-7)
                 : setCursor(c => c && (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))}
@@ -252,7 +286,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
             </h3>
             <button
               aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}
-              className="w-7 h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
+              className="w-9 h-9 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
               onClick={() => viewMode === 'week'
                 ? moveWeek(7)
                 : setCursor(c => c && (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))}
@@ -262,7 +296,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
             {viewMode === 'week' && (
               <button
                 onClick={() => { if (todayStr) { setWeekStart(getWeekStart(todayStr)); syncCursorToDate(todayStr); } }}
-                className="px-2 py-1 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
+                className="px-2.5 py-2 md:px-2 md:py-1 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
               >
                 이번 주
               </button>
@@ -271,7 +305,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
               <button
                 onClick={() => switchView('month')}
                 aria-pressed={viewMode === 'month'}
-                className={`px-2.5 py-1 text-[11px] font-bold cursor-pointer border-none transition ${
+                className={`px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-bold cursor-pointer border-none transition ${
                   viewMode === 'month' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                 }`}
               >
@@ -280,7 +314,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
               <button
                 onClick={() => switchView('week')}
                 aria-pressed={viewMode === 'week'}
-                className={`px-2.5 py-1 text-[11px] font-bold cursor-pointer border-none transition ${
+                className={`px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-bold cursor-pointer border-none transition ${
                   viewMode === 'week' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                 }`}
               >
@@ -288,40 +322,50 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {viewMode === 'week' && (
-              <button
-                onClick={handleCopyPrevWeek}
-                disabled={isLoading}
-                className="px-2.5 py-1.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                지난주 복사
-              </button>
+              <>
+                <button
+                  onClick={handleCopyPrevWeek}
+                  disabled={isLoading}
+                  className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  지난주 복사
+                </button>
+                <button
+                  onClick={handleCopyWeekText}
+                  disabled={isLoading}
+                  title="이번 주 근무 안내 텍스트 복사"
+                  className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  주간 복사
+                </button>
+              </>
             )}
             <button
               onClick={handleAutoFill}
               disabled={isAutoFilling || isLoading}
-              className="px-2.5 py-1.5 rounded-lg border-none bg-primary-700 text-white text-[11px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border-none bg-primary-700 text-white text-[11px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isAutoFilling ? '배정 중...' : '자동 채우기'}
             </button>
             <button
               onClick={handleClearRoster}
               disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[11px] font-bold cursor-pointer hover:bg-rose-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[11px] font-bold cursor-pointer hover:bg-rose-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               초기화
             </button>
             <button
               onClick={() => setShowBulkEdit(true)}
               disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               일괄 편집
             </button>
             <button
               onClick={() => setShowShiftManage(true)}
-              className="px-2.5 py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
+              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
             >
               ⚙ 파트 관리
             </button>
@@ -330,7 +374,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
 
         {/* 날짜 범위 필터 (월 뷰 전용) */}
         {viewMode === 'month' && (
-        <div className="flex items-center gap-1.5 mb-3 p-2 rounded-lg bg-canvas-soft border border-hairline">
+        <div className="flex flex-wrap items-center gap-1.5 mb-3 p-2 rounded-lg bg-canvas-soft border border-hairline">
           <span className="text-[11px] font-semibold text-ink-muted shrink-0">표시 범위</span>
           <input
             type="date"
@@ -338,7 +382,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
             min={monthStart}
             max={rangeTo || monthEnd}
             onChange={e => setRangeFrom(e.target.value)}
-            className="flex-1 min-w-0 px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+            className="flex-1 min-w-[136px] px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
           />
           <span className="text-ink-faint text-[11px] shrink-0">~</span>
           <input
@@ -347,7 +391,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
             min={rangeFrom || monthStart}
             max={monthEnd}
             onChange={e => setRangeTo(e.target.value)}
-            className="flex-1 min-w-0 px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+            className="flex-1 min-w-[136px] px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
           />
           {(rangeFrom || rangeTo) && (
             <button

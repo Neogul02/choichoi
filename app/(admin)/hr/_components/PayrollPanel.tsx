@@ -54,10 +54,31 @@ export default function PayrollPanel({ defaultRole }: Props) {
   const totalPay = rows.reduce((s, r) => s + (r.totalPay ?? 0), 0)
   const hasPayRate = rows.some(r => r.totalPay != null)
 
+  // 엑셀 한글 호환을 위해 UTF-8 BOM을 붙여 CSV 다운로드
+  const handleExportCsv = () => {
+    if (!cursor || rows.length === 0) return
+    const esc = (v: string) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+    const lines = [
+      ['이름', '전화', '근무일', '총 시간(h)', '시급(원)', '총 급여(원)'].join(','),
+      ...rows.map(r => [
+        esc(r.name), esc(r.phone ?? ''), String(r.days), String(r.totalHours),
+        r.hourlyRate != null ? String(r.hourlyRate) : '',
+        r.totalPay != null ? String(r.totalPay) : '',
+      ].join(',')),
+    ]
+    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `급여정산_${cursor.y}년${cursor.m + 1}월_${ROLE_LABELS[role]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
       {/* 헤더 */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-hairline bg-canvas-soft">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 border-b border-hairline bg-canvas-soft">
         <div className="flex items-center gap-1.5">
           <button
             onClick={prevMonth}
@@ -71,18 +92,27 @@ export default function PayrollPanel({ defaultRole }: Props) {
             className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-[#ececeb] text-base cursor-pointer flex items-center justify-center transition"
           >›</button>
         </div>
-        <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas">
-          {(['kitchen', 'cashier'] as StaffRole[]).map(r => (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${
-                role === r ? 'bg-ink text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
-              }`}
-            >
-              {ROLE_LABELS[r]}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas">
+            {(['kitchen', 'cashier'] as StaffRole[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setRole(r)}
+                className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${
+                  role === r ? 'bg-ink text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                }`}
+              >
+                {ROLE_LABELS[r]}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleExportCsv}
+            disabled={rows.length === 0}
+            className="px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            CSV
+          </button>
         </div>
       </div>
 
@@ -100,7 +130,7 @@ export default function PayrollPanel({ defaultRole }: Props) {
                   <th className="text-left px-4 py-2 font-semibold text-ink-muted">이름</th>
                   <th className="text-center px-3 py-2 font-semibold text-ink-muted">근무일</th>
                   <th className="text-center px-3 py-2 font-semibold text-ink-muted">총 시간</th>
-                  <th className="text-right px-3 py-2 font-semibold text-ink-muted">시급</th>
+                  <th className="hidden md:table-cell text-right px-3 py-2 font-semibold text-ink-muted">시급</th>
                   <th className="text-right px-4 py-2 font-semibold text-ink-muted">총 급여</th>
                 </tr>
               </thead>
@@ -117,7 +147,7 @@ export default function PayrollPanel({ defaultRole }: Props) {
                     </td>
                     <td className="px-3 py-2.5 text-center text-ink">{row.days}일</td>
                     <td className="px-3 py-2.5 text-center text-ink font-semibold">{row.totalHours}h</td>
-                    <td className="px-3 py-2.5 text-right text-ink-muted">
+                    <td className="hidden md:table-cell px-3 py-2.5 text-right text-ink-muted">
                       {row.hourlyRate != null
                         ? `${row.hourlyRate.toLocaleString('ko-KR')}원`
                         : <span className="text-ink-faint text-[11px]">미설정</span>}
