@@ -36,8 +36,25 @@ export default function DayPanel({
   const [editEnd, setEditEnd] = useState('');
   const [copying, setCopying] = useState(false);
   // 날짜 선택/변경 시 패널로 포커스 이동 — 키보드·스크린리더 사용자에게 열림을 알림
+  // lg 미만에서는 패널이 달력 아래에 렌더되어 열린 걸 모를 수 있으므로 화면 안으로 스크롤
   const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { panelRef.current?.focus(); }, [dateStr]);
+  useEffect(() => {
+    panelRef.current?.focus({ preventScroll: true });
+    if (!window.matchMedia('(min-width: 1024px)').matches) {
+      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [dateStr]);
+
+  // Escape — 시간 편집 중이면 편집 취소, 아니면 패널 닫기
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (editingTimeId !== null) setEditingTimeId(null);
+      else onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose, editingTimeId]);
 
   // 배정 후보: 불합격/퇴사 제외
   const selectableStaff = staffList.filter(s => s.status === 'confirmed' || s.status === 'candidate');

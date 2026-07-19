@@ -62,7 +62,8 @@ export default function WeekMatrix({
     <div className="overflow-x-auto">
       <div className="min-w-[560px] grid gap-px bg-hairline rounded-lg overflow-hidden border border-hairline" style={{ gridTemplateColumns: 'minmax(76px, auto) repeat(7, minmax(0, 1fr)) 44px' }}>
         {/* ── 헤더: 날짜 ── */}
-        <div className="bg-canvas-soft px-2 py-1.5" />
+        {/* 첫 열은 sticky — 모바일 가로 스크롤 시 이름·라벨이 왼쪽에 고정 (불투명 배경 + 우측 1px 그림자로 경계 유지) */}
+        <div className="sticky left-0 z-10 bg-canvas-soft px-2 py-1.5 shadow-[1px_0_0_var(--color-hairline)]" />
         {dates.map((dateStr, i) => {
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDate;
@@ -86,7 +87,7 @@ export default function WeekMatrix({
         <div className="bg-canvas-soft px-1 py-1.5 text-center text-[10px] font-bold text-ink-muted flex items-center justify-center">일수</div>
 
         {/* ── 충원 현황 행 ── */}
-        <div className="bg-canvas px-2 py-1 text-[10px] font-semibold text-ink-faint flex items-center">충원</div>
+        <div className="sticky left-0 z-10 bg-canvas px-2 py-1 text-[10px] font-semibold text-ink-faint flex items-center shadow-[1px_0_0_var(--color-hairline)]">충원</div>
         {dates.map(dateStr => (
           <div key={`fill-${dateStr}`} className="bg-canvas px-0.5 py-1 flex flex-col gap-0.5 items-stretch">
             {shifts.map(shift => {
@@ -115,7 +116,7 @@ export default function WeekMatrix({
           const workDays = dayMap?.size ?? 0;
           return (
             <div key={row.id} className="contents">
-              <div className="bg-canvas px-2 py-1.5 flex items-center min-w-0">
+              <div className="sticky left-0 z-10 bg-canvas px-2 py-1.5 flex items-center min-w-0 shadow-[1px_0_0_var(--color-hairline)]">
                 <span className="text-[12px] font-bold text-ink truncate">{row.name}</span>
               </div>
               {dates.map(dateStr => {
