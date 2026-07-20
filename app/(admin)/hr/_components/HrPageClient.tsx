@@ -75,7 +75,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
   const [rightTab, setRightTab] = useState<RightTab>('roster');
 
   // 드래그 리사이저
-  const [leftWidth, setLeftWidth] = useState(600);
+  const [leftWidth, setLeftWidth] = useState(500);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const contract = useModal<StaffProfile>();
@@ -277,11 +277,11 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                 <>
                 {/* md 이상: 테이블 (드래그 순서변경 포함) */}
                 <div className="hidden md:block max-h-[calc(100dvh-280px)] overflow-y-auto overflow-x-auto">
-                  <table className="w-full min-w-[540px] border-collapse text-[13px]">
+                  <table className="w-full min-w-[460px] border-collapse text-[13px]">
                     <thead>
                       <tr className="border-b border-hairline bg-canvas-soft sticky top-0">
                         <th className="w-5 px-1 py-2"></th>
-                        {([['name','이름'],['status','상태'],['shifts','파트'],['available','가용기간']] as ['name'|'status'|'shifts'|'available', string][]).map(([key, label]) => (
+                        {([['name','이름'],['status','상태'],['shifts','파트']] as ['name'|'status'|'shifts', string][]).map(([key, label]) => (
                           <th
                             key={key}
                             onClick={() => handleSort(key)}
@@ -381,7 +381,18 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             {rightTab === 'roster'
               ? <RosterCalendar staffList={staffList} stores={visibleStores} roleFilter={concreteRole} refreshSignal={calendarRefreshKey} initialData={initialRoster ?? undefined} />
               : rightTab === 'payroll'
-                ? <PayrollPanel defaultRole={concreteRole} />
+                ? <PayrollPanel
+                    defaultRole={concreteRole}
+                    onRetire={async (staffId) => {
+                      const r = await updateStaffStatus(staffId, 'inactive');
+                      if (r.success && r.data) {
+                        setStaffList(p => p.map(s => s.id === staffId ? r.data! : s));
+                        return true;
+                      }
+                      showMsg(`오류: ${r.error}`);
+                      return false;
+                    }}
+                  />
                 : <ContractsPanel
                     staffList={staffList}
                     stores={stores}

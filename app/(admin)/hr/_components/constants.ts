@@ -26,12 +26,3 @@ export const STATUS_COLORS: Record<StaffStatus, { bg: string; text: string; bord
   rejected: { bg: 'bg-rose-50', text: 'text-rose-500', border: 'border-rose-200' },
   inactive: { bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200' },
 };
-
-/** [{from:'2026-07-15',to:'2026-07-30'}] → "7/15~7/30, 8/1~8/5" */
-export function formatRanges(ranges: { from: string; to: string }[]): string {
-  const fmt = (d: string) => {
-    const [, m, day] = d.split('-');
-    return `${Number(m)}/${Number(day)}`;
-  };
-  return ranges.map(r => (r.from === r.to ? fmt(r.from) : `${fmt(r.from)}~${fmt(r.to)}`)).join(', ');
-}

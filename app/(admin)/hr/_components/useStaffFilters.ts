@@ -6,7 +6,7 @@ import type { StaffProfile, StaffStatus, StaffRole, RosterShift } from '@/types/
 export type StatusFilter = StaffStatus | 'all';
 export type StoreFilter = number | 'all' | 'none';
 export type RoleFilter = StaffRole | 'all';
-export type SortKey = 'name' | 'status' | 'shifts' | 'available';
+export type SortKey = 'name' | 'status' | 'shifts';
 export type SortDir = 'asc' | 'desc';
 
 const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 1, rejected: 2, inactive: 3 };
@@ -57,10 +57,6 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
           const aS = a.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name ?? '').join(',');
           const bS = b.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name ?? '').join(',');
           cmp = aS.localeCompare(bS, 'ko');
-        } else if (sortKey === 'available') {
-          const aD = a.available_ranges[0]?.from ?? '9999';
-          const bD = b.available_ranges[0]?.from ?? '9999';
-          cmp = aD.localeCompare(bD);
         }
         return sortDir === 'asc' ? cmp : -cmp;
       });
