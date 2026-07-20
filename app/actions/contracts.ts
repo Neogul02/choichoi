@@ -1,5 +1,6 @@
 'use server'
 
+import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { wrap } from './_base'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
@@ -39,10 +40,7 @@ export type ContractRecord = {
 }
 
 function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  return supabaseAdmin
 }
 
 async function attachSignedUrls(

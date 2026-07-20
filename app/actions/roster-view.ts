@@ -1,5 +1,6 @@
 'use server'
 
+import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
@@ -12,10 +13,6 @@ import { fetchPopupEvents } from './schedule'
 import { filterVisibleStores } from '@/lib/staffing'
 import { extractErrorMessage } from './_base'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-)
 
 // 일정표는 매니저도 접근하는 화면이라 레이아웃 게이트만 믿지 않고 액션에서도 역할을 검사한다
 async function getManagerSession() {

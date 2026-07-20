@@ -1,5 +1,6 @@
 'use server';
 
+import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { z } from 'zod';
 import { wrap, extractErrorMessage } from './_base';
 import {
@@ -67,12 +68,7 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
 
     if (cashierName) {
       try {
-        const { createClient } = await import('@supabase/supabase-js')
-        const adminClient = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        )
-        await adminClient.rpc('increment_worker_revenue', { p_name: cashierName, p_amount: totalPrice })
+        await supabaseAdmin.rpc('increment_worker_revenue', { p_name: cashierName, p_amount: totalPrice })
       } catch (err) {
         console.error('[saveOrder] revenue increment failed:', err)
       }
@@ -94,12 +90,7 @@ export async function fetchOrdersByPeriod(startISO: string, endISO: string, popu
 export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(() => prepareOrder(id)); }
 export async function removeOrder(id: number): Promise<ApiResponse> {
   try {
-    const { createClient } = await import('@supabase/supabase-js')
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    )
-    const { data: order } = await admin.from('orders').select('total_price, cashier_name').eq('id', id).maybeSingle()
+    const { data: order } = await supabaseAdmin.from('orders').select('total_price, cashier_name').eq('id', id).maybeSingle()
     const result = await wrap(() => deleteOrder(id))
     if (result.success && order) {
       const { notifyDiscord } = await import('@/lib/discord')

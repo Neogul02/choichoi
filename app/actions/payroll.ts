@@ -1,13 +1,10 @@
 'use server'
 
+import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-)
 
 export interface PayrollRow {
   staffId: number
