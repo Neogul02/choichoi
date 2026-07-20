@@ -197,6 +197,17 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
 
                   {/* 모바일 전용 우측 액션 */}
                   <div className="flex md:hidden items-center gap-1.5 shrink-0">
+                    {/* PWA(홈 화면 앱)에는 브라우저 새로고침 UI가 없어 전체 리로드 버튼 제공 */}
+                    <button
+                      onClick={() => window.location.reload()}
+                      title="새로고침"
+                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-primary-50 hover:text-primary-700 border-none cursor-pointer transition-all duration-200"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+                        <polyline points="21 3 21 9 15 9"/>
+                      </svg>
+                    </button>
                     <button
                       onClick={() => setShowLogoutConfirm(true)}
                       title="로그아웃"

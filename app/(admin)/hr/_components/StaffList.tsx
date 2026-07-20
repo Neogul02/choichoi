@@ -1,7 +1,7 @@
 'use client';
 
 import type { StaffProfile, StaffStatus, Store } from '@/types/database';
-import { STATUS_LABELS, STATUS_COLORS, formatRanges } from './constants';
+import { STATUS_LABELS, STATUS_COLORS } from './constants';
 
 interface RowProps {
   staff: StaffProfile;
@@ -67,9 +67,6 @@ export function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRow
       <td className="px-2 py-2.5 font-semibold text-ink whitespace-nowrap">
         {staff.preferred_shift_ids.length === 0 ? <span className="text-ink-faint font-normal">무관</span> : shiftNames}
       </td>
-      <td className="px-2 py-2.5 text-ink-muted whitespace-nowrap">
-        {staff.available_ranges.length === 0 ? '무관' : formatRanges(staff.available_ranges)}
-      </td>
       <td className="px-2 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
         <StaffActions
           staff={staff}
@@ -84,28 +81,32 @@ export function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRow
   );
 }
 
-// 테이블 행(md+)과 모바일 카드가 공유하는 액션 버튼 묶음
-function StaffActions({ staff, contractDone, onContract, onContractsList, onAssign, onCalendar }: {
+// 테이블 행(md+)과 모바일 카드가 공유하는 액션 버튼 묶음 — fill이면 버튼이 행 폭을 균등 분할 (모바일 카드용)
+function StaffActions({ staff, contractDone, fill, onContract, onContractsList, onAssign, onCalendar }: {
   staff: StaffProfile;
   contractDone: boolean;
+  fill?: boolean;
   onContract: () => void;
   onContractsList: () => void;
   onAssign: () => void;
   onCalendar: () => void;
 }) {
+  const btnBase = `whitespace-nowrap text-[11px] font-semibold rounded-lg border transition cursor-pointer ${
+    fill ? 'flex-1 px-2 py-1.5 text-center' : 'px-2 py-1'
+  }`;
   return (
-    <div className="flex items-center gap-1 flex-wrap">
+    <div className={`flex items-center ${fill ? 'gap-1.5' : 'gap-1 justify-end'}`}>
       <button
         onClick={onCalendar}
         title="근무 캘린더"
-        className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
+        className={`${btnBase} bg-canvas-soft text-ink-muted border-hairline hover:bg-[#ececeb]`}
       >
         달력
       </button>
       <button
         onClick={onAssign}
         title="일정 배정"
-        className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition cursor-pointer"
+        className={`${btnBase} bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100`}
       >
         배정
       </button>
@@ -113,7 +114,7 @@ function StaffActions({ staff, contractDone, onContract, onContractsList, onAssi
         <button
           onClick={onContract}
           title="근로계약서 작성"
-          className={`whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg border transition cursor-pointer ${
+          className={`${btnBase} ${
             contractDone
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
               : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
@@ -126,7 +127,7 @@ function StaffActions({ staff, contractDone, onContract, onContractsList, onAssi
         <button
           onClick={onContractsList}
           title="근로계약서 목록"
-          className="whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-lg bg-canvas-soft text-ink-muted border border-hairline hover:bg-[#ececeb] transition cursor-pointer"
+          className={`${btnBase} bg-canvas-soft text-ink-muted border-hairline hover:bg-[#ececeb]`}
         >
           목록
         </button>
@@ -166,11 +167,11 @@ export function StaffCard({ staff, shiftNames, store, contractDone, onRowClick, 
       </div>
       <div className="text-[11px] text-ink-muted mt-1.5 truncate">
         파트 <span className="font-semibold text-ink">{shiftNames || '무관'}</span>
-        {' · '}가용 {staff.available_ranges.length === 0 ? '무관' : formatRanges(staff.available_ranges)}
       </div>
       <div className="mt-2" onClick={e => e.stopPropagation()}>
         <StaffActions
           staff={staff}
+          fill
           contractDone={contractDone}
           onContract={onContract}
           onContractsList={onContractsList}

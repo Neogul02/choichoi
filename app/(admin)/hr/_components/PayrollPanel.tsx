@@ -3,19 +3,53 @@
 import { useEffect, useState } from 'react'
 import { fetchMonthlyPayroll, type PayrollRow } from '@/app/actions/payroll'
 import type { StaffRole } from '@/types/database'
+import { showMsg } from '@/lib/toast'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal from './PayrollDetailModal'
 
 interface Props {
   defaultRole: StaffRole
+  /** 지급 완료 체크 시 퇴사 전환 — 성공 여부 반환 (좌측 직원 목록 동기화는 부모가 담당) */
+  onRetire?: (staffId: number) => Promise<boolean>
 }
 
-export default function PayrollPanel({ defaultRole }: Props) {
+export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const [role, setRole] = useState<StaffRole>(defaultRole)
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null)
   const [rows, setRows] = useState<PayrollRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [detailTarget, setDetailTarget] = useState<PayrollRow | null>(null)
+  // 급여 지급 완료 표시 — 월별로 localStorage에 보관, 체크된 행은 회색 처리
+  const [paidIds, setPaidIds] = useState<Set<number>>(new Set())
+  const [retireTarget, setRetireTarget] = useState<PayrollRow | null>(null)
+  const [retiring, setRetiring] = useState(false)
+
+  const paidKey = cursor ? `payroll_paid_${cursor.y}-${cursor.m}` : null
+  useEffect(() => {
+    if (!paidKey) return
+    try {
+      setPaidIds(new Set(JSON.parse(localStorage.getItem(paidKey) ?? '[]') as number[]))
+    } catch {
+      setPaidIds(new Set())
+    }
+  }, [paidKey])
+
+  const setPaid = (staffId: number, paid: boolean) => {
+    const next = new Set(paidIds)
+    if (paid) next.add(staffId)
+    else next.delete(staffId)
+    setPaidIds(next)
+    if (paidKey) try { localStorage.setItem(paidKey, JSON.stringify([...next])) } catch { /* ignore */ }
+  }
+
+  const handleRetire = async () => {
+    if (!retireTarget || !onRetire) return
+    setRetiring(true)
+    const ok = await onRetire(retireTarget.staffId)
+    setRetiring(false)
+    if (ok) showMsg(`${retireTarget.name}님이 퇴사 처리되었습니다`)
+    setRetireTarget(null)
+  }
 
   useEffect(() => {
     try {
@@ -127,7 +161,8 @@ export default function PayrollPanel({ defaultRole }: Props) {
             <table className="w-full border-collapse text-[12px]">
               <thead>
                 <tr className="border-b border-hairline bg-canvas-soft">
-                  <th className="text-left px-4 py-2 font-semibold text-ink-muted">이름</th>
+                  <th className="w-8 px-2 py-2 font-semibold text-ink-muted text-center" title="급여 지급 완료">✓</th>
+                  <th className="text-left px-2 py-2 font-semibold text-ink-muted">이름</th>
                   <th className="text-center px-3 py-2 font-semibold text-ink-muted">근무일</th>
                   <th className="text-center px-3 py-2 font-semibold text-ink-muted">총 시간</th>
                   <th className="hidden md:table-cell text-right px-3 py-2 font-semibold text-ink-muted">시급</th>
@@ -135,14 +170,28 @@ export default function PayrollPanel({ defaultRole }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
+                {rows.map((row, i) => {
+                  const paid = paidIds.has(row.staffId)
+                  return (
                   <tr
                     key={row.staffId}
                     onClick={() => setDetailTarget(row)}
-                    className={`hover:bg-canvas-soft transition cursor-pointer ${i !== rows.length - 1 ? 'border-b border-hairline' : ''}`}
+                    className={`transition cursor-pointer ${paid ? 'bg-canvas-soft opacity-60' : 'hover:bg-canvas-soft'} ${i !== rows.length - 1 ? 'border-b border-hairline' : ''}`}
                   >
-                    <td className="px-4 py-2.5">
-                      <div className="font-bold text-ink">{row.name}</div>
+                    <td className="px-2 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={paid}
+                        onChange={e => {
+                          setPaid(row.staffId, e.target.checked)
+                          if (e.target.checked && onRetire) setRetireTarget(row)
+                        }}
+                        title="급여 지급 완료"
+                        className="w-4 h-4 accent-primary-700 cursor-pointer align-middle"
+                      />
+                    </td>
+                    <td className="px-2 py-2.5">
+                      <div className={`font-bold text-ink ${paid ? 'line-through' : ''}`}>{row.name}</div>
                       {row.phone && <div className="text-[10px] text-ink-muted mt-0.5">{row.phone}</div>}
                     </td>
                     <td className="px-3 py-2.5 text-center text-ink">{row.days}일</td>
@@ -158,7 +207,8 @@ export default function PayrollPanel({ defaultRole }: Props) {
                         : <span className="text-ink-faint text-[11px] font-normal">—</span>}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -169,12 +219,49 @@ export default function PayrollPanel({ defaultRole }: Props) {
               총 <span className="font-semibold text-ink">{rows.length}명</span>
               {' · '}
               <span className="font-semibold text-ink">{totalHours}h</span>
+              {paidIds.size > 0 && (
+                <>
+                  {' · '}지급 완료 <span className="font-semibold text-emerald-600">{rows.filter(r => paidIds.has(r.staffId)).length}명</span>
+                </>
+              )}
             </span>
             <span className="text-[15px] font-extrabold text-ink">
               {hasPayRate ? `${totalPay.toLocaleString('ko-KR')}원` : '—'}
             </span>
           </div>
         </>
+      )}
+
+      {/* 지급 완료 체크 시 퇴사 전환 확인 팝업 — 취소해도 지급 완료 표시는 유지 */}
+      {retireTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onClick={e => { if (e.target === e.currentTarget && !retiring) setRetireTarget(null) }}
+        >
+          <div className="bg-canvas w-full max-w-[320px] rounded-xl shadow-level-2 border border-hairline p-5">
+            <h3 className="m-0 mb-1.5 text-[16px] font-bold text-ink">{retireTarget.name}님을 퇴사 상태로 변경하시겠습니까?</h3>
+            <p className="m-0 mb-5 text-[13px] text-ink-muted">
+              급여 지급 완료로 표시됩니다. 퇴사 처리하면 직원 목록 상태가 퇴사로 바뀌고 이후 스케줄 배정 대상에서 제외됩니다.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setRetireTarget(null)}
+                disabled={retiring}
+                className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-muted text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition-colors disabled:opacity-50"
+              >
+                지급 완료만
+              </button>
+              <button
+                onClick={handleRetire}
+                disabled={retiring}
+                className="flex-1 py-2.5 rounded-lg border-none bg-rose-500 text-white text-[13px] font-bold cursor-pointer hover:bg-rose-600 transition-colors disabled:opacity-50"
+              >
+                {retiring ? '처리 중...' : '퇴사 처리'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {detailTarget && cursor && (
