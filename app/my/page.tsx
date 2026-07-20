@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { getWorkerTier } from '@/lib/tiers'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import NavBar from '@/components/NavBar'
@@ -16,6 +15,11 @@ import type { ContractRecord } from '@/app/actions/contracts'
 import dynamic from 'next/dynamic'
 
 const WorkerSignModal = dynamic(() => import('@/components/WorkerSignModal'), { ssr: false })
+// recharts(무거운 차트 라이브러리)를 본 번들에서 분리 — 차트가 보이는 경우에만 로드
+const DailyRevenueChart = dynamic(() => import('./_components/DailyRevenueChart'), {
+  ssr: false,
+  loading: () => <div className='h-[180px] rounded-xl bg-canvas-soft animate-pulse' />,
+})
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
 
@@ -588,44 +592,7 @@ function PopupStats({ popup }: { popup: PopupOrderStat }) {
       {popup.daily.length > 1 && (
         <div className='mb-4'>
           <p className='m-0 text-[13px] text-ink-muted mb-3'>일별 매출</p>
-          <ResponsiveContainer width='100%' height={180}>
-            <AreaChart data={popup.daily} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-              <defs>
-                <linearGradient id='myRevGrad' x1='0' y1='0' x2='0' y2='1'>
-                  <stop offset='5%' stopColor='var(--color-primary-700)' stopOpacity={0.25} />
-                  <stop offset='95%' stopColor='var(--color-primary-700)' stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray='3 3' stroke='var(--color-hairline)' vertical={false} />
-              <XAxis
-                dataKey='date'
-                tick={{ fontSize: 10, fill: 'var(--color-ink-muted)' }}
-                tickFormatter={(v) => v.slice(5)}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: 'var(--color-ink-muted)' }}
-                tickFormatter={(v) => `${(v / 10000).toFixed(0)}만`}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                formatter={(v: number) => [formatPrice(v), '매출']}
-                labelFormatter={(l) => l}
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid var(--color-hairline)' }}
-              />
-              <Area
-                type='monotone'
-                dataKey='revenue'
-                stroke='var(--color-primary-700)'
-                strokeWidth={2}
-                fill='url(#myRevGrad)'
-                dot={{ r: 3, fill: 'var(--color-primary-700)', strokeWidth: 0 }}
-                activeDot={{ r: 5 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <DailyRevenueChart daily={popup.daily} formatPrice={formatPrice} />
         </div>
       )}
 
