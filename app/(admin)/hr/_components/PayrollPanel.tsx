@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { fetchMonthlyPayroll, type PayrollRow } from '@/app/actions/payroll'
 import type { StaffRole } from '@/types/database'
 import { showMsg } from '@/lib/toast'
@@ -16,8 +17,6 @@ interface Props {
 export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const [role, setRole] = useState<StaffRole>(defaultRole)
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null)
-  const [rows, setRows] = useState<PayrollRow[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [detailTarget, setDetailTarget] = useState<PayrollRow | null>(null)
   // 급여 지급 완료 표시 — 월별로 localStorage에 보관, 체크된 행은 회색 처리
   const [paidIds, setPaidIds] = useState<Set<number>>(new Set())
@@ -72,14 +71,17 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
     setRole(defaultRole)
   }, [defaultRole])
 
-  useEffect(() => {
-    if (!cursor) return
-    setIsLoading(true)
-    fetchMonthlyPayroll(role, cursor.y, cursor.m).then(res => {
-      setRows(res.success && res.data ? res.data : [])
-      setIsLoading(false)
-    })
-  }, [role, cursor])
+  // react-query 캐시 — 탭을 떠났다 돌아와도 같은 월·역할이면 재조회 없이 즉시 표시 (staleTime 5분 전역 기본값)
+  const payrollQuery = useQuery<PayrollRow[]>({
+    queryKey: ['payroll', role, cursor?.y, cursor?.m],
+    queryFn: async () => {
+      const res = await fetchMonthlyPayroll(role, cursor!.y, cursor!.m)
+      return res.success && res.data ? res.data : []
+    },
+    enabled: cursor != null,
+  })
+  const rows = payrollQuery.data ?? []
+  const isLoading = cursor == null || payrollQuery.isPending
 
   const prevMonth = () => setCursor(c => !c ? c : c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 })
   const nextMonth = () => setCursor(c => !c ? c : c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 })

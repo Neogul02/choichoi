@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchAllContracts, deleteContract } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import type { StaffProfile, Store } from '@/types/database'
@@ -15,6 +16,9 @@ const FILTER_LABELS: Record<ContractFilter, string> = {
   missing: '미작성',
 }
 
+// contracts가 null이 아닌 빈 배열일 때 매 렌더 새 배열 생성을 막기 위한 안정된 참조
+const EMPTY_CONTRACTS: ContractRecord[] = []
+
 interface Props {
   staffList: StaffProfile[]
   stores: Store[]
@@ -24,14 +28,24 @@ interface Props {
 }
 
 export default function ContractsPanel({ staffList, stores, refreshSignal, onWriteContract, onChanged }: Props) {
-  const [contracts, setContracts] = useState<ContractRecord[] | null>(null)
   const [filter, setFilter] = useState<ContractFilter>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // react-query 캐시 — 탭 재방문 시 재조회 없이 즉시 표시, 작성·삭제 시그널은 invalidate로 처리
+  const queryClient = useQueryClient()
+  const contractsQuery = useQuery<ContractRecord[]>({
+    queryKey: ['contracts'],
+    queryFn: async () => {
+      const res = await fetchAllContracts()
+      return res.success ? (res.data ?? []) : []
+    },
+  })
+  // contractsQuery.data 자체(참조 안정)에 의존 — 매 렌더 새 배열을 만들면 아래 useMemo가 매번 재계산된다
+  const contracts = contractsQuery.isPending ? null : contractsQuery.data ?? EMPTY_CONTRACTS
+
   useEffect(() => {
-    setContracts(null)
-    fetchAllContracts().then(res => setContracts(res.success ? (res.data ?? []) : []))
-  }, [refreshSignal])
+    if (refreshSignal > 0) queryClient.invalidateQueries({ queryKey: ['contracts'] })
+  }, [refreshSignal, queryClient])
 
   const staffById = useMemo(() => new Map(staffList.map(s => [s.id, s])), [staffList])
   const storeById = useMemo(() => new Map(stores.map(s => [s.id, s])), [stores])
@@ -69,7 +83,7 @@ export default function ContractsPanel({ staffList, stores, refreshSignal, onWri
     const res = await deleteContract(c.id)
     setDeletingId(null)
     if (res.success) {
-      setContracts(prev => (prev ?? []).filter(x => x.id !== c.id))
+      queryClient.setQueryData<ContractRecord[]>(['contracts'], prev => (prev ?? []).filter(x => x.id !== c.id))
       showMsg('계약서가 삭제되었습니다.')
       onChanged()
     } else {
