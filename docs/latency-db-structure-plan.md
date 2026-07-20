@@ -78,3 +78,25 @@
 
 - P2-7 번들 측정 (Turbopack 미지원으로 보류 중)
 - P2-9 POS·RosterCalendar 실기기 프로파일 후 memo화
+
+## 진행 상황 (2026-07-20)
+
+- [x] P0-1 미사용 테이블 삭제 — `workers`·`schedule_slots`·`cheers` (백업 없이 진행, 사용자 승인) + `supabase/migrations/`에 SQL 기록
+- [x] P0-2 `pos_note` RLS 활성화 (사용자가 Supabase에서 직접 실행, 마이그레이션 파일로 기록)
+- [x] P0-3 FK 커버링 인덱스 8건 추가
+- [x] P0-3b `user_profiles` RLS initplan 수정 3건 (`auth.uid()` → `(select auth.uid())`)
+- [x] P0-5 `axios` 유지 결정 변경 — 사용자가 가독성상 axios 선호로 전환, Discord 웹훅 호출 fetch→axios
+- [x] P0-6 `my` 페이지 recharts `next/dynamic` 분리 (`_components/DailyRevenueChart.tsx`)
+- [x] P1-7 서버 프리페치 확산 — inventory·memo·settings·my/schedule·pos·orders·my 총 7페이지 전환 완료
+  - pos·orders는 `password-gate.tsx`가 저장하는 `choichoi_popup_id` **쿠키**(localStorage 병행)로 서버가 프리페치, 클라이언트는 `initialData`로 react-query 주입
+  - memo·my는 `force-dynamic` 지정 — 세션 기반 데이터라 정적 프리렌더 방지
+- [x] P1-8 NavBar 프로필 조회 세션당 1회 제한 (`sessionStorage` 플래그, 로그아웃 시 초기화)
+- [x] P2-9 admin client 공용화 — `lib/supabase-admin-client.ts` 신설, 9개 파일 중복 `createClient` 제거
+- [x] P2-12 `workers.ts` 파일 상단에 역할 주석 추가 (레거시 테이블과 무관함을 명시)
+- [x] P2-11(부분) HR `PayrollPanel`·`ContractsPanel` react-query 전환 — 탭 재방문 캐시 히트
+- [ ] P2-10 `lib/supabase-admin.ts` 도메인 분해(46개 함수) — 보류. 클라이언트 공용화만으로 중복은 이미 제거됨, 46개 함수를 전부 도메인별 액션 파일로 옮기는 건 diff가 크고 실익 대비 회귀 위험이 높아 별도 세션에서 파일 단위로 신중히 진행 권장
+- [ ] P2-11(나머지) `useRosterRange` react-query 전환 — 보류. 낙관적 추가/삭제/시간수정/요구인원 오버라이드가 세밀하게 얽혀 있고 이미 서버 프리페치+낙관적 갱신으로 체감 지연이 낮아, 재작성 리스크가 이득보다 큼
+
+### 검증
+- 각 커밋마다 `yarn lint` + `npx tsc --noEmit` (+주요 지점 `yarn build`) 통과 확인
+- 실사용 동작(POS 주문, 재고 조정, 메모, 급여 정산, 계약서) 브라우저 확인은 미실시 — 배포 후 스모크 테스트 필요
