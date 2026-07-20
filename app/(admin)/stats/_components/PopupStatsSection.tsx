@@ -7,7 +7,7 @@ import {
   LineChart, Line, Legend, ComposedChart, Area, PieChart, Pie, ReferenceLine,
 } from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
-import { buildDayHourMatrix, DAY_COLORS, DAYS } from '@/app/(admin)/stats/_lib/dayofweek';
+import { buildDayHourMatrix, DAY_COLORS, DAYS, WEEKDAY_ORDER, weekendAccentColor, getDayOfWeekLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import { HOURS, buildHourlyData } from '@/app/(admin)/stats/_lib/hourly';
 import { kstToday } from '@/lib/date';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
@@ -127,7 +127,7 @@ export default function PopupStatsSection({
   }, [period, popupDailySales, popupTotalRevenue, popupTotalOrders]);
 
   const dailyChartData = useMemo(
-    () => popupDailySales.map((d) => ({ ...d, dateLabel: formatDateLabel(d.date) })),
+    () => popupDailySales.map((d) => ({ ...d, dateLabel: formatDateLabel(d.date), day: getDayOfWeekLabel(d.date) })),
     [popupDailySales]
   );
 
@@ -140,6 +140,7 @@ export default function PopupStatsSection({
       sum += d.revenue;
       return {
         dateLabel: formatDateLabel(d.date),
+        day: getDayOfWeekLabel(d.date),
         cumulative: sum,
         daily: d.revenue,
         pace: Math.round(avg * (i + 1)),
@@ -151,21 +152,20 @@ export default function PopupStatsSection({
     () =>
       popupDailySales
         .filter((d) => d.orderCount > 0)
-        .map((d) => ({ dateLabel: formatDateLabel(d.date), aov: Math.round(d.revenue / d.orderCount) })),
+        .map((d) => ({ dateLabel: formatDateLabel(d.date), day: getDayOfWeekLabel(d.date), aov: Math.round(d.revenue / d.orderCount) })),
     [popupDailySales]
   );
 
-  // 요일별 평균 매출 — 같은 요일이 여러 번이면 평균으로 집계
+  // 요일별 평균 매출 — 같은 요일이 여러 번이면 평균으로 집계, 월요일부터 표시
   const dayOfWeekData = useMemo(() => {
     const agg: Record<string, { total: number; count: number }> = {};
     for (const d of popupDailySales) {
-      const [y, m, dd] = d.date.split('-').map(Number);
-      const label = DAYS[new Date(y, m - 1, dd).getDay()];
+      const label = getDayOfWeekLabel(d.date);
       if (!agg[label]) agg[label] = { total: 0, count: 0 };
       agg[label].total += d.revenue;
       agg[label].count += 1;
     }
-    return DAYS.filter((day) => agg[day]?.count).map((day) => ({
+    return WEEKDAY_ORDER.filter((day) => agg[day]?.count).map((day) => ({
       day,
       avgRevenue: Math.round(agg[day].total / agg[day].count),
       dayCount: agg[day].count,
@@ -308,11 +308,15 @@ export default function PopupStatsSection({
                               label={{ value: `평균 ${formatRevenueTick(derived.avgDailyRevenue)}`, position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }}
                             />
                           )}
-                          <Bar dataKey="revenue" fill="#3d9966" radius={[4, 4, 0, 0]}>
+                          <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                            {dailyChartData.map((d) => (
+                              <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, '#3d9966')} />
+                            ))}
                             <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
+                      <p className="text-[10px] text-ink-faint mt-1 m-0">※ 파란 막대는 토요일, 빨간 막대는 일요일</p>
                     </ChartCard>
 
                     <ChartCard title="누적 매출 추이">
@@ -338,7 +342,11 @@ export default function PopupStatsSection({
                               );
                             }}
                           />
-                          <Bar dataKey="daily" fill="#3d9966" fillOpacity={0.25} radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="daily" fillOpacity={0.25} radius={[4, 4, 0, 0]}>
+                            {cumulativeData.map((d) => (
+                              <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, '#3d9966')} />
+                            ))}
+                          </Bar>
                           <Line type="monotone" dataKey="pace" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={false} />
                           <Area type="monotone" dataKey="cumulative" stroke="#3d9966" strokeWidth={2} fill="#3d9966" fillOpacity={0.08} dot={{ r: 3, strokeWidth: 0, fill: '#3d9966' }} activeDot={{ r: 5, strokeWidth: 0 }} />
                         </ComposedChart>
@@ -367,7 +375,18 @@ export default function PopupStatsSection({
                             {derived.avgOrderValue > 0 && (
                               <ReferenceLine y={derived.avgOrderValue} stroke="#f59e0b" strokeDasharray="4 4" />
                             )}
-                            <Line type="monotone" dataKey="aov" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                            <Line
+                              type="monotone"
+                              dataKey="aov"
+                              stroke="#6366f1"
+                              strokeWidth={2}
+                              dot={(props: { cx?: number; cy?: number; index?: number; payload: { day: DayLabel } }) => {
+                                const { cx, cy, index, payload } = props;
+                                if (cx == null || cy == null) return <></>;
+                                return <circle key={`aov-dot-${index}`} cx={cx} cy={cy} r={3} fill={weekendAccentColor(payload.day, '#6366f1')} />;
+                              }}
+                              activeDot={{ r: 5, strokeWidth: 0 }}
+                            />
                           </LineChart>
                         </ResponsiveContainer>
                         <p className="text-[10px] text-ink-faint mt-1 m-0">※ 주황 점선은 전체 기간 평균 객단가</p>
