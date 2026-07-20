@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN is_prepared BOOLEAN NOT NULL DEFAULT FALSE;

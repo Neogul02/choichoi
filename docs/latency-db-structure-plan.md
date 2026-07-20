@@ -100,3 +100,15 @@
 ### 검증
 - 각 커밋마다 `yarn lint` + `npx tsc --noEmit` (+주요 지점 `yarn build`) 통과 확인
 - 실사용 동작(POS 주문, 재고 조정, 메모, 급여 정산, 계약서) 브라우저 확인은 미실시 — 배포 후 스모크 테스트 필요
+
+## 마이그레이션 히스토리 동기화 (2026-07-21)
+
+`supabase` CLI에서 "Remote migration versions not found in local migrations directory" 오류 발생.
+원인: `supabase/migrations/`가 이 저장소에 한 번도 정식으로 채워진 적이 없었고(7/20 P0 작업 때 임의 이름 `20260720_00_...` 형식 4개만 생성), 원격 `supabase_migrations.schema_migrations`에는 2026-05-19부터 55건의 실제 이력이 쌓여 있어 버전(14자리 타임스탬프) 전체가 로컬과 불일치했음.
+
+조치:
+- `pos_note` RLS 활성화(사용자가 대시보드에서 직접 실행, 이력 미기록)를 `INSERT ... schema_migrations`로 소급 등록 (`20260720010100_pos_note_enable_rls`)
+- 원격 `schema_migrations.statements`에서 SQL 원문을 base64로 안전하게 추출해 55개 파일을 `<14자리버전>_<name>.sql` 형식으로 전량 재생성, 기존 임의 이름 파일 4개는 삭제
+- 로컬 55개 = 원격 55행 정확히 일치 확인 (빈 파일 없음, 파일명 형식 검증 통과)
+
+향후 마이그레이션은 MCP `apply_migration`으로 원격 적용 후, 반환된 버전(또는 `schema_migrations` 조회)과 정확히 같은 파일명으로 `supabase/migrations/`에 즉시 커밋할 것 — 이번처럼 임의 이름을 쓰면 다시 어긋난다.
