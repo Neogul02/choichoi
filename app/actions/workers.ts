@@ -1,14 +1,13 @@
 'use server'
 
+// 파일명은 레거시 workers 테이블(2026-07-20 삭제, 코드 참조 0건 확인 후 제거)에서 유래.
+// 실제로는 user_profiles 기반 계정 관리 액션 — staff_profiles(근무자 프로필)와는 별개.
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import { getAuthUser } from './_base'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
-
-// user_profiles 테이블의 실제 컬럼 — active_title_key/title_color는 workers 테이블에만 있고
-// user_profiles에는 존재하지 않음 (CLAUDE.md/README.md 문서 오류, 별도 수정)
 const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role, total_revenue'
 
 export interface UserProfile {
