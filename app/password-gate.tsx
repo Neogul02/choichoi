@@ -18,6 +18,14 @@ export const APP_ROLE_KEY = 'choichoi_app_role'
 
 type View = 'login' | 'signup'
 
+// popupId는 쿠키에도 병행 저장 — 서버 컴포넌트(pos·orders)가 요청 시점에 팝업을 알고 프리페치할 수 있게 함
+export function setPopupIdCookie(popupId: string) {
+  try { document.cookie = `${POPUP_ID_KEY}=${popupId}; path=/; max-age=31536000; samesite=lax` } catch { /* ignore */ }
+}
+export function clearPopupIdCookie() {
+  try { document.cookie = `${POPUP_ID_KEY}=; path=/; max-age=0` } catch { /* ignore */ }
+}
+
 function clearStorage() {
   try {
     localStorage.removeItem(CASHIER_NAME_KEY)
@@ -26,6 +34,7 @@ function clearStorage() {
     localStorage.removeItem(WORKER_ROLE_KEY)
     localStorage.removeItem(APP_ROLE_KEY)
   } catch { /* ignore */ }
+  clearPopupIdCookie()
 }
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
@@ -133,6 +142,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     try {
       if (name) localStorage.setItem(CASHIER_NAME_KEY, name)
       localStorage.setItem(POPUP_ID_KEY, isKitchen ? '0' : String(selectedPopupId))
+      setPopupIdCookie(isKitchen ? '0' : String(selectedPopupId))
       localStorage.setItem(POPUP_NAME_KEY, isKitchen ? '주방' : (popup?.name ?? ''))
       localStorage.setItem(WORKER_ROLE_KEY, isKitchen ? 'kitchen' : '')
       localStorage.setItem(APP_ROLE_KEY, syncedRole)
