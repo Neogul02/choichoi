@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { Memo } from '@/types/database'
-import { parseChecklist, serializeChecklist } from './page'
+import { parseChecklist, serializeChecklist } from './MemoPageClient'
 
 type ChecklistItem = { done: boolean; text: string }
 
