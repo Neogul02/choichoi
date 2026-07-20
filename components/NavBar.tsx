@@ -153,6 +153,8 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       localStorage.removeItem(WORKER_ROLE_KEY);
       localStorage.removeItem(APP_ROLE_KEY);
       sessionStorage.removeItem(PROFILE_SYNCED_KEY);
+      // 서버 프리페치용 팝업 쿠키도 함께 제거 (password-gate에서 저장)
+      document.cookie = `${POPUP_ID_KEY}=; path=/; max-age=0`;
     } catch { /* ignore */ }
     // signOut 응답을 기다리지 않고 즉시 이동한다 — 호출이 멈추거나 느려도
     // /pos에 머무는 일 없이 항상 역할 선택 화면(/)으로 보낸다.
