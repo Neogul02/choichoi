@@ -19,9 +19,10 @@ export function getStatus(ing: Ingredient): IngredientStatus {
   return 'ok';
 }
 
-export function useInventory() {
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+/** initialIngredients가 있으면(서버 프리페치) 마운트 시 재조회를 건너뛰고 실시간 구독만 연다 */
+export function useInventory(initialIngredients?: Ingredient[] | null) {
+  const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients ?? []);
+  const [isLoading, setIsLoading] = useState(initialIngredients == null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -43,13 +44,13 @@ export function useInventory() {
   }, []);
 
   useEffect(() => {
-    load();
+    if (initialIngredients == null) load();
     const channel = supabase
       .channel(`inventory-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, () => load(true))
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [load]);
+  }, [load, initialIngredients]);
 
   return { ingredients, isLoading, reload: load, applyLocalDelta };
 }
