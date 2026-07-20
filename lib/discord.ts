@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
 const COLOR = {
@@ -18,19 +20,15 @@ export async function notifyDiscord(
 ): Promise<void> {
   if (!WEBHOOK_URL) return;
   try {
-    await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        embeds: [{
-          title,
-          description,
-          color: COLOR[type],
-          ...(fields && fields.length > 0 ? { fields } : {}),
-          timestamp: new Date().toISOString(),
-          footer: { text: 'ChoiChoi POS' },
-        }],
-      }),
+    await axios.post(WEBHOOK_URL, {
+      embeds: [{
+        title,
+        description,
+        color: COLOR[type],
+        ...(fields && fields.length > 0 ? { fields } : {}),
+        timestamp: new Date().toISOString(),
+        footer: { text: 'ChoiChoi POS' },
+      }],
     });
   } catch {
     // Discord 실패가 메인 작업에 영향 없도록 silently ignore
