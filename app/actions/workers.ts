@@ -1,14 +1,11 @@
 'use server'
 
+import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import { getAuthUser } from './_base'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-)
 
 // user_profiles 테이블의 실제 컬럼 — active_title_key/title_color는 workers 테이블에만 있고
 // user_profiles에는 존재하지 않음 (CLAUDE.md/README.md 문서 오류, 별도 수정)

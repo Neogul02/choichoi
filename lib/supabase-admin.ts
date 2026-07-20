@@ -1,3 +1,4 @@
+import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import type {
   MenuItem,
@@ -18,23 +19,7 @@ import type {
 import type { OrderItemInput } from '@/lib/supabase'
 import { kstToday } from '@/lib/date'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl) {
-  console.error('[Supabase Admin] Missing NEXT_PUBLIC_SUPABASE_URL')
-}
-
-if (!serviceKey && process.env.NODE_ENV === 'production') {
-  console.warn(
-    '[Supabase Admin] Missing SUPABASE_SERVICE_ROLE_KEY in production! Falling back to ANON_KEY. RLS might block operations.',
-  )
-}
-
-const supabaseKey = serviceKey || anonKey || ''
-
-const supabaseAdmin = createClient(supabaseUrl || '', supabaseKey)
+// 클라이언트 생성·환경변수 검증은 공용 모듈(supabase-admin-client)로 이동
 
 export function getKSTDateBounds(kstDateStr?: string): { start: string; end: string } {
   const d = kstDateStr ?? kstToday()
