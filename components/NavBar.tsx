@@ -20,6 +20,9 @@ const POPUP_ID_KEY = 'choichoi_popup_id';
 const POPUP_NAME_KEY = 'choichoi_popup_name';
 const WORKER_ROLE_KEY = 'choichoi_worker_role';
 const APP_ROLE_KEY = 'choichoi_app_role';
+// user_profiles 이름 재조회를 브라우저 세션당 1회로 제한 — NavBar는 모든 페이지에서 마운트되므로
+// 매 이동마다 SELECT가 나가던 것을 캐시 우선으로 바꾼다
+const PROFILE_SYNCED_KEY = 'choichoi_profile_synced';
 
 const ALL_NAV_LINKS = [
   { href: '/pos', label: 'POS', minRole: 'user' },
@@ -91,6 +94,11 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       if (!session) return;
       applyRole(session.user.user_metadata?.role);
 
+      // 이름이 캐시돼 있고 이 세션에서 이미 동기화했다면 네트워크 조회 생략
+      try {
+        if (localStorage.getItem(CASHIER_NAME_KEY) && sessionStorage.getItem(PROFILE_SYNCED_KEY)) return;
+      } catch { /* ignore */ }
+
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('name')
@@ -104,13 +112,17 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         try { localStorage.setItem(CASHIER_NAME_KEY, displayName) } catch { /* ignore */ }
         setCashierName(displayName)
       }
+      try { sessionStorage.setItem(PROFILE_SYNCED_KEY, '1') } catch { /* ignore */ }
     }
     loadProfile()
 
     // 콜백이 세션을 직접 전달하므로 getUser() 재조회가 필요 없다
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        try { localStorage.removeItem(APP_ROLE_KEY); } catch { /* ignore */ }
+        try {
+          localStorage.removeItem(APP_ROLE_KEY);
+          sessionStorage.removeItem(PROFILE_SYNCED_KEY);
+        } catch { /* ignore */ }
         setRole('user');
       } else if (session) {
         applyRole(session.user.user_metadata?.role);
@@ -140,6 +152,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       localStorage.removeItem(POPUP_NAME_KEY);
       localStorage.removeItem(WORKER_ROLE_KEY);
       localStorage.removeItem(APP_ROLE_KEY);
+      sessionStorage.removeItem(PROFILE_SYNCED_KEY);
     } catch { /* ignore */ }
     // signOut 응답을 기다리지 않고 즉시 이동한다 — 호출이 멈추거나 느려도
     // /pos에 머무는 일 없이 항상 역할 선택 화면(/)으로 보낸다.
