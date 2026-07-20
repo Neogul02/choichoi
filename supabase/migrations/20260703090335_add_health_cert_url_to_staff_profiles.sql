@@ -1,0 +1,1 @@
+ALTER TABLE staff_profiles ADD COLUMN IF NOT EXISTS health_cert_url TEXT DEFAULT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE public.pos_note ENABLE ROW LEVEL SECURITY;

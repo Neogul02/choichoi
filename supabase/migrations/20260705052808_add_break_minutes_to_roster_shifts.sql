@@ -1,0 +1,1 @@
+ALTER TABLE roster_shifts ADD COLUMN break_minutes INTEGER NOT NULL DEFAULT 0;
