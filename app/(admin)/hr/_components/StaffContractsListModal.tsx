@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { getWorkerContracts, deleteContract } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import { showMsg } from '@/lib/toast'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 
 interface Props {
   staffId: number
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function StaffContractsListModal({ staffId, name, onClose, onChange }: Props) {
+  useBodyScrollLock()
   const [contracts, setContracts] = useState<ContractRecord[] | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 

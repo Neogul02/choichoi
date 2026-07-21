@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { fetchMenuItems } from '@/app/actions/menu';
 import { fetchManualMenuSales, saveManualMenuSales } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import type { MenuItem } from '@/types/database';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function MenuSalesEditModal({ popupId, popupName, onClose, onSaved }: Props) {
+  useBodyScrollLock();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);

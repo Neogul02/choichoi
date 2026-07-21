@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getStaffById } from '@/app/actions/staff'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import type { StaffProfile } from '@/types/database'
 import type { ContractData } from '@/components/ContractDocument'
 
@@ -84,6 +85,7 @@ function formatDate(dateStr: string) {
 export default function PayrollDetailModal({
   staffId, name, phone, bankName, bankAccount, hourlyRate, basePay, totalHours, year, month, onClose,
 }: Props) {
+  useBodyScrollLock()
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const copyText = (key: string, text: string) => {
     navigator.clipboard.writeText(text).then(() => {

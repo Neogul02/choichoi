@@ -272,7 +272,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           <div className="flex items-center gap-2">
             <button
               aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}
-              className="w-9 h-9 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
+              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
               onClick={() => viewMode === 'week'
                 ? moveWeek(-7)
                 : setCursor(c => c && (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))}
@@ -286,7 +286,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
             </h3>
             <button
               aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}
-              className="w-9 h-9 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
+              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
               onClick={() => viewMode === 'week'
                 ? moveWeek(7)
                 : setCursor(c => c && (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))}

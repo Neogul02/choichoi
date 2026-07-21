@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { createIngredient } from '@/app/actions/inventory';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 
 interface Props {
   open: boolean;
@@ -35,6 +36,7 @@ const UNIT_PRESETS: Record<UnitType, { base: string; container: string }[]> = {
 };
 
 export default function AddIngredientModal({ open, onClose, onSuccess }: Props) {
+  useBodyScrollLock(open);
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [category, setCategory] = useState<typeof CATEGORIES[number]>('과일');

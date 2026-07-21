@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { updateMenuStock } from '@/app/actions/menu';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import type { MenuItem } from '@/types/database';
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function MenuStockModal({ open, menuItems, onClose, onSuccess }: Props) {
+  useBodyScrollLock(open);
   const [values, setValues] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
 

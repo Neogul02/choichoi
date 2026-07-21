@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { createStore, renameStore, deleteStore } from '@/app/actions/stores';
 import type { Store } from '@/types/database';
 
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function StoreManageModal({ stores, onStoresChange, onClose }: Props) {
+  useBodyScrollLock();
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');

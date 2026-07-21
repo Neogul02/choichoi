@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { Ingredient } from '@/types/database';
 import { updateIngredientSettings, setPhysicalInventory, deleteIngredientById } from '@/app/actions/inventory';
 import { totalQty } from '../_hooks/useInventory';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 
 interface Props {
   ingredient: Ingredient | null;
@@ -16,6 +17,7 @@ interface Props {
 type Tab = 'adjust' | 'settings';
 
 export default function IngredientManageModal({ ingredient, onClose, onSuccess }: Props) {
+  useBodyScrollLock(ingredient != null);
   const [tab, setTab] = useState<Tab>('adjust');
   const [containerSize, setContainerSize] = useState('');
   const [vendor, setVendor] = useState('');

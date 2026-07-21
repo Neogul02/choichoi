@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchMonthlyPayroll, type PayrollRow } from '@/app/actions/payroll'
 import type { StaffRole } from '@/types/database'
 import { showMsg } from '@/lib/toast'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal from './PayrollDetailModal'
 
@@ -22,6 +23,8 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const [paidIds, setPaidIds] = useState<Set<number>>(new Set())
   const [retireTarget, setRetireTarget] = useState<PayrollRow | null>(null)
   const [retiring, setRetiring] = useState(false)
+  // retireTarget 확인 팝업은 별도 컴포넌트가 아니라 인라인 JSX라 active 플래그로 조건부 잠금
+  useBodyScrollLock(retireTarget != null)
 
   const paidKey = cursor ? `payroll_paid_${cursor.y}-${cursor.m}` : null
   useEffect(() => {

@@ -153,7 +153,7 @@ export default function DayPanel({
                 <button
                   onClick={() => onRequirementChange(dateStr, shift.id, Math.max(0, required - 1))}
                   aria-label={`${shift.name} 필요 인원 줄이기`}
-                  className="w-5 h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
+                  className="w-10 h-10 md:w-5 md:h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[14px] md:text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
                 >
                   −
                 </button>
@@ -163,7 +163,7 @@ export default function DayPanel({
                 <button
                   onClick={() => onRequirementChange(dateStr, shift.id, required + 1)}
                   aria-label={`${shift.name} 필요 인원 늘리기`}
-                  className="w-5 h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
+                  className="w-10 h-10 md:w-5 md:h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[14px] md:text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
                 >
                   +
                 </button>
@@ -216,7 +216,7 @@ export default function DayPanel({
                       <button
                         onClick={() => onRemove(a.id)}
                         aria-label={`${a.staff_profiles?.name ?? `#${a.staff_id}`} 배정 삭제`}
-                        className="shrink-0 bg-transparent border-none text-ink-faint cursor-pointer text-[13px] leading-none hover:text-rose-500 transition"
+                        className="shrink-0 w-10 h-10 md:w-auto md:h-auto flex items-center justify-center bg-transparent border-none text-ink-faint cursor-pointer text-[16px] md:text-[13px] leading-none hover:text-rose-500 transition"
                       >
                         ×
                       </button>

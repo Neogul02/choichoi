@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import type { Memo } from '@/types/database'
 import { parseChecklist, serializeChecklist } from './MemoPageClient'
 
@@ -21,6 +22,7 @@ interface Props {
 const DEFAULT_COLOR = '#fff9c4'
 
 export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPin, onSubmit, MEMO_COLORS }: Props) {
+  useBodyScrollLock()
   const isCreate = !memo
   const [formData, setFormData] = useState({
     title: memo?.title ?? '',
