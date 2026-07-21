@@ -62,9 +62,9 @@ function StatTile({ label, value, sub, accent }: { label: string; value: string;
   );
 }
 
-function ChartCard({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+function ChartCard({ title, children, right, className = '' }: { title: string; children: React.ReactNode; right?: React.ReactNode; className?: string }) {
   return (
-    <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
+    <div className={`bg-canvas rounded-xl p-3 border border-[#e4e4e4] min-w-0 ${className}`}>
       <div className="flex items-center justify-between mb-3">
         <h4 className="m-0 text-sm font-bold text-ink-secondary">{title}</h4>
         {right}
@@ -291,6 +291,7 @@ export default function PopupStatsSection({
                   )}
                 </div>
 
+                <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:items-start">
                 {popupDailySales.length > 0 ? (
                   <>
                     <ChartCard title="일별 매출 추이">
@@ -424,7 +425,7 @@ export default function PopupStatsSection({
                     )}
                   </>
                 ) : (
-                  <p className="text-ink-faint text-sm mb-3">해당 팝업 기간에 매출 데이터가 없습니다.</p>
+                  <p className="lg:col-span-2 text-ink-faint text-sm">해당 팝업 기간에 매출 데이터가 없습니다.</p>
                 )}
 
                 {hasHourlyData && (
@@ -457,6 +458,7 @@ export default function PopupStatsSection({
                 {activeDays.length > 0 && (
                   <ChartCard
                     title="요일 × 시간대별 판매 현황"
+                    className="lg:col-span-2"
                     right={
                       <div className="flex gap-1">
                         {(['revenue', 'orderCount'] as Metric[]).map((m) => (
@@ -598,6 +600,7 @@ export default function PopupStatsSection({
                   ) : (
                     <p className="m-0 text-ink-faint text-sm">메뉴 판매 내역이 없습니다.</p>
                   )}
+                </div>
                 </div>
               </>
             )

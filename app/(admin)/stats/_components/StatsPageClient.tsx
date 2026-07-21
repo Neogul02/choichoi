@@ -42,13 +42,15 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
   return (
     <>
       <NavBar />
-      <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="max-w-[800px] mx-auto flex flex-col gap-3 md:gap-4">
-          <h2 className="m-0 px-1 text-heading-1 text-ink">통계</h2>
+      <main className="min-h-screen p-3 md:p-5 lg:p-8 max-w-[1100px] lg:max-w-[1600px] mx-auto">
+        <div className="max-w-[800px] lg:max-w-none mx-auto flex flex-col gap-3 md:gap-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
+          <h2 className="m-0 px-1 text-heading-1 text-ink lg:col-span-2">통계</h2>
 
-          <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
+          <div className="lg:col-span-2">
+            <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
+          </div>
 
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+          <div className="lg:col-span-2 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <PopupStatsSection
               popupEvents={popupEvents}
               selectedPopupId={selectedPopupId}
@@ -61,7 +63,7 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
             />
           </div>
 
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+          <div className="min-w-0 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <MenuBreakdownSection
               breakdown={breakdown}
               period={breakdownPeriod}
@@ -71,7 +73,7 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
             />
           </div>
 
-          <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+          <div className="min-w-0 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <HourlySalesSection todayOrders={todayOrders} isLoadingToday={isLoading} popupEvents={popupEvents} />
           </div>
 
