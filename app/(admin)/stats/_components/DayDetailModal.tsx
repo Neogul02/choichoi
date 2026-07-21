@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchOrdersByDate } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import type { ManualSalesEntry, OrderRecordWithItems } from '@/types/api';
 
 interface Props {
@@ -23,6 +24,7 @@ function formatDateLabel(dateStr: string) {
 }
 
 export default function DayDetailModal({ date, manualEntry, onSaved, onClose, saveDay, removeDay }: Props) {
+  useBodyScrollLock();
   const [orders, setOrders] = useState<OrderRecordWithItems[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [revenue, setRevenue] = useState(manualEntry?.total_revenue ?? 0);

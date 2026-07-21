@@ -46,6 +46,13 @@ body {
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+  /* 페이지 맨 위에서 아래로 당길 때 브라우저가 새로고침/뒤로가기 제스처로 오인하는 것 방지 (PWA에서 특히 중요) */
+  overscroll-behavior-y: contain;
+}
+
+button, a {
+  touch-action: manipulation;
 }
 
 /* ── Elevation — Notion 스타일 극미세 레이어 그림자 ── */

@@ -8,6 +8,7 @@ import { fetchWeeklyRosterForPrint } from '@/app/actions/roster'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { showMsg } from '@/lib/toast'
 import { toDateStr, addDays } from '@/lib/date'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 
 interface Props {
   onClose: () => void
@@ -50,6 +51,7 @@ function getInitialRange(): { from: string; to: string } {
 }
 
 export default function RosterPrintModal({ onClose }: Props) {
+  useBodyScrollLock()
   const monday = getThisMonday()
   const init = getInitialRange()
   const [from, setFrom] = useState(init.from)

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift, AvailabilityRange } from '@/types/database';
 import type { StaffProfileInput } from '@/app/actions/staff';
 import { uploadHealthCert, getHealthCertUrl } from '@/app/actions/staff';
@@ -25,6 +26,7 @@ export default function StaffFormModal({
   staff, userProfiles, stores, defaultRole, defaultStoreId,
   onClose, onSubmit, onDelete, onHealthCertUploaded,
 }: Props) {
+  useBodyScrollLock();
   const [name, setName] = useState(staff?.name ?? '');
   const [phone, setPhone] = useState(staff?.phone ?? '');
   const [bankName, setBankName] = useState(staff?.bank_name ?? '');

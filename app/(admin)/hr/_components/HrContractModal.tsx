@@ -8,6 +8,7 @@ import type { ContractData, SpecificWorkDate } from '@/components/ContractDocume
 import { fetchStaffAssignmentsInRange } from '@/app/actions/payroll'
 import { generateContract } from '@/app/actions/contracts'
 import { showMsg } from '@/lib/toast'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import SignaturePad from '@/components/SignaturePad'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
@@ -26,6 +27,7 @@ interface Props {
 function today() { return new Date().toISOString().slice(0, 10) }
 
 export default function HrContractModal({ staff, onClose, onComplete }: Props) {
+  useBodyScrollLock()
   // 사업주 정보
   const [employerName, setEmployerName] = useState('초이초이 - (히요리산도)')
   const [employerAddress, setEmployerAddress] = useState('경기 동두천시 동두천로119 1층 102호')

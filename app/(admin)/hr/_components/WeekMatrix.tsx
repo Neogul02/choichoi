@@ -126,7 +126,7 @@ export default function WeekMatrix({
                   <button
                     key={dateStr}
                     onClick={() => onDateClick(dateStr)}
-                    className={`px-0.5 py-1 min-h-[34px] flex flex-col gap-0.5 items-stretch justify-center cursor-pointer border-none transition ${
+                    className={`px-0.5 py-1 min-h-[44px] md:min-h-[34px] flex flex-col gap-0.5 items-stretch justify-center cursor-pointer border-none transition ${
                       isSelected ? 'bg-primary-50/70' : 'bg-canvas hover:bg-primary-50/40'
                     }`}
                   >

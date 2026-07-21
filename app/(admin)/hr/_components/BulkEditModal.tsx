@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { moveStaffAssignments, clearStaffAssignments, swapStaffAssignments } from '@/app/actions/roster';
 import type { RosterUnit, RosterUndoPayload } from '@/app/actions/roster';
 import type { RosterAssignment, RosterShift, StaffProfile } from '@/types/database';
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export default function BulkEditModal({ context, range, onApplied, onUndoable, onClose }: Props) {
+  useBodyScrollLock();
   const { unit, unitLabel, shifts, staffList, assignments, todayStr } = context;
   const { defaultFrom, defaultTo, monthStart, monthEnd } = range;
   const [from, setFrom] = useState(defaultFrom);

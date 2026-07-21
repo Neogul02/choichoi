@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -80,6 +81,7 @@ interface Props {
 export { CalendarGrid }
 
 export default function StaffCalendarModal({ staffId, name, onClose }: Props) {
+  useBodyScrollLock()
   const now = new Date()
   const [cursor, setCursor] = useState({ y: now.getFullYear(), m: now.getMonth() })
   const [details, setDetails] = useState<StaffDayDetail[] | null>(null)

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import { formatBreakMinutes } from '@/lib/utils';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { createRosterShift, updateRosterShift, deleteRosterShift, updateRosterShiftOrder } from '@/app/actions/roster';
 import type { RosterUnit, RosterShiftInput } from '@/app/actions/roster';
 import type { RosterShift } from '@/types/database';
@@ -19,6 +20,7 @@ interface Props {
 const EMPTY_FORM: RosterShiftInput = { name: '', start_time: '09:00', end_time: '18:00', weekday_required: 1, weekend_required: 1, active_from: null, active_to: null, break_minutes: 0 };
 
 export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChange, onClose }: Props) {
+  useBodyScrollLock();
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [form, setForm] = useState<RosterShiftInput>(EMPTY_FORM);
   const [isBusy, setIsBusy] = useState(false);
@@ -63,23 +65,34 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
     else showMsg(`오류: ${r.error}`);
   };
 
-  const handleDrop = async (targetId: number) => {
-    if (!draggingId || draggingId === targetId) { setDraggingId(null); setDragOverId(null); return; }
+  // draggedId를 toIdx 위치로 옮기고 서버에 반영 — 드래그 드롭과 ↑↓ 버튼(모바일 폴백) 양쪽에서 공유
+  const reorderShift = async (draggedId: number, toIdx: number) => {
     const ids = shifts.map(s => s.id);
-    const fromIdx = ids.indexOf(draggingId);
-    const toIdx = ids.indexOf(targetId);
-    if (fromIdx === -1 || toIdx === -1) { setDraggingId(null); setDragOverId(null); return; }
+    const fromIdx = ids.indexOf(draggedId);
+    if (fromIdx === -1 || toIdx < 0 || toIdx >= ids.length || fromIdx === toIdx) return;
     const newOrder = [...ids];
     newOrder.splice(fromIdx, 1);
-    newOrder.splice(toIdx, 0, draggingId);
+    newOrder.splice(toIdx, 0, draggedId);
     const currentOrders = ids.map(id => shifts.find(s => s.id === id)!.sort_order);
     const updates = newOrder.map((id, i) => ({ id, sort_order: currentOrders[i] }));
     const orderMap = new Map(updates.map(u => [u.id, u.sort_order]));
     const reordered = newOrder.map(id => ({ ...shifts.find(s => s.id === id)!, sort_order: orderMap.get(id)! }));
     onShiftsChange(reordered);
+    await updateRosterShiftOrder(updates);
+  };
+
+  const handleDrop = async (targetId: number) => {
+    if (!draggingId || draggingId === targetId) { setDraggingId(null); setDragOverId(null); return; }
+    const toIdx = shifts.map(s => s.id).indexOf(targetId);
     setDraggingId(null);
     setDragOverId(null);
-    await updateRosterShiftOrder(updates);
+    await reorderShift(draggingId, toIdx);
+  };
+
+  // HTML5 드래그앤드롭은 터치스크린에서 동작하지 않아 모바일에서 순서 변경이 불가능했다 — ↑↓ 버튼으로 대체 수단 제공
+  const moveShift = (id: number, dir: -1 | 1) => {
+    const fromIdx = shifts.map(s => s.id).indexOf(id);
+    reorderShift(id, fromIdx + dir);
   };
 
   const inputCls = 'px-2 py-1.5 border border-hairline rounded-lg text-[13px] bg-canvas focus:outline-none focus:border-primary-700';
@@ -170,10 +183,10 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
           <h3 className="m-0 text-[16px] font-bold text-ink">파트 관리</h3>
           <button onClick={onClose} aria-label="파트 관리 닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
-        <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} · ⋮⋮ 드래그로 순서 변경</p>
+        <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} · 드래그하거나 ↑↓ 버튼으로 순서 변경</p>
 
         <div className="flex flex-col gap-2">
-          {shifts.map(shift => (
+          {shifts.map((shift, idx) => (
             editingId === shift.id ? (
               <div key={shift.id}>{editForm}</div>
             ) : (
@@ -190,7 +203,23 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
                     : 'bg-canvas-soft'
                 } ${draggingId === shift.id ? 'opacity-40' : ''}`}
               >
-                <span className="text-ink-faint text-[13px] select-none cursor-grab shrink-0">⋮⋮</span>
+                <span className="text-ink-faint text-[13px] select-none cursor-grab shrink-0 hidden md:inline">⋮⋮</span>
+                <div className="flex flex-col shrink-0 -my-1">
+                  <button
+                    type="button" onClick={() => moveShift(shift.id, -1)} disabled={idx === 0}
+                    aria-label={`${shift.name} 위로 이동`}
+                    className="w-7 h-6 flex items-center justify-center bg-transparent border-none text-ink-faint cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed hover:text-primary-700 transition"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  </button>
+                  <button
+                    type="button" onClick={() => moveShift(shift.id, 1)} disabled={idx === shifts.length - 1}
+                    aria-label={`${shift.name} 아래로 이동`}
+                    className="w-7 h-6 flex items-center justify-center bg-transparent border-none text-ink-faint cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed hover:text-primary-700 transition"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="m-0 text-[13px] font-bold text-ink truncate">{shift.name}</p>
                   <p className="m-0 text-[11px] text-ink-muted">

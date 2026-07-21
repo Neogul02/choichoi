@@ -7,6 +7,7 @@ import { signContract } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import type { ContractData } from '@/components/ContractDocument'
 import { toast } from 'sonner'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), { ssr: false })
 
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function WorkerSignModal({ contract, workerName, workerPhone, onClose, onSuccess }: Props) {
+  useBodyScrollLock()
   const [workerAddress, setWorkerAddress] = useState('')
   const [signatureBase64, setSignatureBase64] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)

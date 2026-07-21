@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePresence, type PresenceUser } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { withTimeout } from '@/lib/utils';
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import type { UserAppRole } from '@/types/database';
 
 function toAppRole(value: unknown): UserAppRole {
@@ -60,6 +61,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+  useBodyScrollLock(showLogoutConfirm);
 
   const ownActiveCashiers = usePresence(activeCashiersProp !== undefined ? null : cashierName);
   const activeCashiers = activeCashiersProp ?? ownActiveCashiers;
