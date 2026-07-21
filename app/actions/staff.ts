@@ -67,6 +67,30 @@ export interface StaffProfileInput {
   user_profile_id?: string | null
 }
 
+export interface StaffPickerItem {
+  id: number
+  name: string
+  staff_role: StaffRole
+  status: StaffStatus
+}
+
+// 관리자가 '스케줄' 탭에서 다른 직원의 근무표를 조회할 대상을 고르는 목록 — 급여/연락처 등 민감 정보는 제외
+export async function fetchStaffPickerList(): Promise<ApiResponse<StaffPickerItem[]>> {
+  try {
+    const user = await getAuthUser()
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return { success: false, error: '권한이 없습니다.' }
+    const { data, error } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('id, name, staff_role, status')
+      .eq('status', 'confirmed')
+      .order('sort_order', { ascending: true })
+    if (error) return { success: false, error: error.message }
+    return { success: true, data: (data ?? []) as StaffPickerItem[] }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function fetchStaffProfiles(): Promise<ApiResponse<StaffProfile[]>> {
   try {
     const { data, error } = await supabaseAdmin

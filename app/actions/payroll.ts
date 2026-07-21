@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
+import { getAuthUser } from './_base'
 
 
 export interface PayrollRow {
@@ -90,6 +91,18 @@ export async function fetchStaffMonthlyDetail(
   month: number, // 0-indexed
 ): Promise<ApiResponse<StaffDayDetail[]>> {
   try {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+    if (user.role !== 'admin' && user.role !== 'manager') {
+      const { data: own } = await supabaseAdmin
+        .from('staff_profiles')
+        .select('id')
+        .eq('user_profile_id', user.id)
+        .eq('id', staffId)
+        .maybeSingle()
+      if (!own) return { success: false, error: '권한이 없습니다.' }
+    }
+
     const pad = (n: number) => String(n).padStart(2, '0')
     const from = `${year}-${pad(month + 1)}-01`
     const lastDay = new Date(year, month + 1, 0).getDate()

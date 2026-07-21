@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import NavBar from '@/components/NavBar'
-import { getMyStaffProfile } from '@/app/actions/staff'
+import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
-import { getMyRoster, type MyShift } from '@/app/actions/roster'
+import { getMyRoster, getStaffRosterAsManager, type MyShift } from '@/app/actions/roster'
 import { formatBreakMinutes } from '@/lib/utils'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
@@ -34,8 +34,11 @@ export interface InitialSchedule {
   cursor: { y: number; m: number }
 }
 
-export default function MySchedulePageClient({ initial }: { initial: InitialSchedule | null }) {
-  const [staffId, setStaffId] = useState<number | null>(initial?.staffId ?? null)
+export default function MySchedulePageClient({ initial, staffPicker }: { initial: InitialSchedule | null; staffPicker: StaffPickerItem[] | null }) {
+  // 관리자/매니저는 본인 근무 기록이 없어도 다른 직원의 스케줄을 조회할 수 있어야 하므로
+  // "내 staffId"(ownStaffId, 고정)와 "현재 화면에 보이는 staffId"(viewingId)를 분리한다
+  const [ownStaffId, setOwnStaffId] = useState<number | null>(initial?.staffId ?? null)
+  const [viewingId, setViewingId] = useState<number | null>(initial?.staffId ?? null)
   const [staffName, setStaffName] = useState(initial?.staffName ?? '')
   const [loaded, setLoaded] = useState(initial != null)
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(initial?.cursor ?? null)
@@ -47,12 +50,15 @@ export default function MySchedulePageClient({ initial }: { initial: InitialSche
   const [showAll, setShowAll] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
+  const canPickStaff = (staffPicker?.length ?? 0) > 0
+  const isOwnView = viewingId != null && viewingId === ownStaffId
+
   const today = todayStr()
   const upcomingShifts = useMemo(() => allShifts.filter(s => s.work_date >= today), [allShifts, today])
   const nextShift = upcomingShifts[0] ?? null
 
-  const loadRoster = useCallback(async () => {
-    const res = await getMyRoster()
+  const loadRoster = useCallback(async (targetId: number, own: boolean) => {
+    const res = own ? await getMyRoster() : await getStaffRosterAsManager(targetId)
     if (res.success && res.data) setAllShifts(res.data.shifts)
   }, [])
 
@@ -62,7 +68,8 @@ export default function MySchedulePageClient({ initial }: { initial: InitialSche
     setCursor({ y: now.getFullYear(), m: now.getMonth() })
     Promise.all([getMyStaffProfile(), getMyRoster()]).then(([profileRes, rosterRes]) => {
       if (profileRes.success && profileRes.data) {
-        setStaffId(profileRes.data.id)
+        setOwnStaffId(profileRes.data.id)
+        setViewingId(profileRes.data.id)
         setStaffName(profileRes.data.name)
       }
       if (rosterRes.success && rosterRes.data) {
@@ -74,30 +81,49 @@ export default function MySchedulePageClient({ initial }: { initial: InitialSche
   }, [])
 
   useEffect(() => {
-    if (!cursor || !staffId) return
+    if (!cursor || !viewingId) return
     if (skipFirstDetailRef.current) { skipFirstDetailRef.current = false; return }
     setIsLoading(true)
     setSelectedDate(null)
-    fetchStaffMonthlyDetail(staffId, cursor.y, cursor.m).then(res => {
+    fetchStaffMonthlyDetail(viewingId, cursor.y, cursor.m).then(res => {
       if (res.success && res.data) setDetails(res.data)
       else setDetails([])
       setIsLoading(false)
     })
-  }, [cursor, staffId])
+  }, [cursor, viewingId])
 
   // 앱 복귀/탭 전환 시 최신 스케줄로 갱신 — 관리자가 배정을 바꿔도 새로고침 없이 반영
   useEffect(() => {
     const onFocus = () => {
-      loadRoster()
-      if (staffId && cursor) {
-        fetchStaffMonthlyDetail(staffId, cursor.y, cursor.m).then(res => {
+      if (!viewingId) return
+      loadRoster(viewingId, isOwnView)
+      if (cursor) {
+        fetchStaffMonthlyDetail(viewingId, cursor.y, cursor.m).then(res => {
           if (res.success && res.data) setDetails(res.data)
         })
       }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [staffId, cursor, loadRoster])
+  }, [viewingId, cursor, isOwnView, loadRoster])
+
+  const handlePickStaff = useCallback((id: number, name: string) => {
+    if (id === viewingId) return
+    // 아래에서 상세를 직접 조회하므로, viewingId 변경으로 뒤따라 돌아가는 상세 재조회 effect는 건너뛴다
+    skipFirstDetailRef.current = true
+    setViewingId(id)
+    setStaffName(name)
+    setSelectedDate(null)
+    setShowAll(false)
+    setIsLoading(true)
+    const own = id === ownStaffId
+    const detailPromise = cursor ? fetchStaffMonthlyDetail(id, cursor.y, cursor.m) : Promise.resolve({ success: true as const, data: [] as StaffDayDetail[] })
+    Promise.all([own ? getMyRoster() : getStaffRosterAsManager(id), detailPromise]).then(([rosterRes, detailRes]) => {
+      setAllShifts(rosterRes.success && rosterRes.data ? rosterRes.data.shifts : [])
+      setDetails(detailRes.success && detailRes.data ? detailRes.data : [])
+      setIsLoading(false)
+    })
+  }, [viewingId, cursor, ownStaffId])
 
   const prevMonth = () => setCursor(c => c ? (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }) : c)
   const nextMonth = () => setCursor(c => c ? (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }) : c)
@@ -118,7 +144,22 @@ export default function MySchedulePageClient({ initial }: { initial: InitialSche
     )
   }
 
-  if (!staffId) {
+  if (!viewingId) {
+    // 관리자/매니저는 본인 근무 기록이 없어도 선택기를 바로 띄운다 — "할 게 없는 빈 탭" 대신 다른 직원 조회로 안내
+    if (canPickStaff) {
+      return (
+        <>
+          <NavBar />
+          <main className="min-h-screen p-4 pb-10">
+            <div className="max-w-[560px] mx-auto space-y-4">
+              <h1 className="m-0 text-[19px] font-extrabold text-ink">직원 스케줄 조회</h1>
+              <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
+              <p className="m-0 text-[14px] text-ink-muted">조회할 직원을 선택하세요.</p>
+            </div>
+          </main>
+        </>
+      )
+    }
     return (
       <>
         <NavBar />
@@ -139,6 +180,10 @@ export default function MySchedulePageClient({ initial }: { initial: InitialSche
         <div className="max-w-[560px] mx-auto space-y-4">
 
           <h1 className="m-0 text-[19px] font-extrabold text-ink">{staffName}님의 근무 일정</h1>
+
+          {canPickStaff && (
+            <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
+          )}
 
           {/* 다음 근무 히어로 카드 */}
           {nextShift ? (
@@ -220,6 +265,47 @@ export default function MySchedulePageClient({ initial }: { initial: InitialSche
         </div>
       </main>
     </>
+  )
+}
+
+// ── 직원 선택기 (관리자/매니저 전용) ──────────────────────────────────────────
+
+function StaffPicker({ staffPicker, ownStaffId, viewingId, onPick }: {
+  staffPicker: StaffPickerItem[]
+  ownStaffId: number | null
+  viewingId: number | null
+  onPick: (id: number, name: string) => void
+}) {
+  const ownName = ownStaffId != null ? staffPicker.find(s => s.id === ownStaffId)?.name ?? null : null
+  const kitchen = staffPicker.filter(s => s.staff_role === 'kitchen' && s.id !== ownStaffId)
+  const cashier = staffPicker.filter(s => s.staff_role === 'cashier' && s.id !== ownStaffId)
+
+  return (
+    <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
+      <label className="block mb-2 text-[13px] font-bold text-ink-muted">직원 선택 (관리자 전용)</label>
+      <select
+        value={viewingId ?? ''}
+        onChange={e => {
+          const id = Number(e.target.value)
+          const picked = staffPicker.find(s => s.id === id)
+          onPick(id, picked?.name ?? (id === ownStaffId ? (ownName ?? '나') : ''))
+        }}
+        className="w-full border border-hairline rounded-xl px-3 py-2.5 text-[14px] font-semibold bg-canvas-soft text-ink outline-none focus:border-primary-700"
+      >
+        {viewingId == null && <option value="" disabled>직원을 선택하세요</option>}
+        {ownStaffId != null && <option value={ownStaffId}>내 스케줄{ownName ? ` (${ownName})` : ''}</option>}
+        {kitchen.length > 0 && (
+          <optgroup label="주방">
+            {kitchen.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </optgroup>
+        )}
+        {cashier.length > 0 && (
+          <optgroup label="매장">
+            {cashier.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </optgroup>
+        )}
+      </select>
+    </section>
   )
 }
 
