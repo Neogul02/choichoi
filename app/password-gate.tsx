@@ -65,6 +65,12 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [info, setInfo] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const loginPasswordRef = useRef<HTMLInputElement>(null)
+  const signupEmailRef = useRef<HTMLInputElement>(null)
+  const signupPhoneRef = useRef<HTMLInputElement>(null)
+  const signupBankNameRef = useRef<HTMLInputElement>(null)
+  const signupBankAccountRef = useRef<HTMLInputElement>(null)
+  const signupInviteCodeRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchActivePopupEvents().then((result) => {
@@ -77,10 +83,12 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
   // 분기 페이지의 "처음이라면? 회원가입" 링크(/pos?view=signup)로 들어왔을 때 바로 회원가입 화면을 띄움
   // useSearchParams 대신 window.location을 직접 읽어 전체 앱의 정적 렌더링에 영향을 주지 않는다.
+  // PasswordGate는 레이아웃에 상주해 라우트 전환 시 리마운트되지 않으므로, pathname을 의존성에 넣어
+  // "/" → "/pos?view=signup" 같은 클라이언트 사이드 이동 후에도 쿼리를 다시 읽도록 한다.
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (new URLSearchParams(window.location.search).get('view') === 'signup') setView('signup')
-  }, [])
+  }, [pathname])
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -301,8 +309,10 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
               {info && <div className='text-emerald-600 text-[13px] mb-3 bg-emerald-50 rounded-lg px-3 py-2'>{info}</div>}
               {popupSelectField}
               <input type='text' className={inputClass} value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)} placeholder='이메일 또는 이름' autoComplete='email' />
-              <input type='password' className={inputClass} value={loginPassword}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loginPasswordRef.current?.focus() } }}
+                placeholder='이메일 또는 이름' autoComplete='email' autoFocus />
+              <input ref={loginPasswordRef} type='password' className={inputClass} value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)} placeholder='비밀번호' autoComplete='current-password' />
               {error && <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>}
               <button type='submit' disabled={isSubmitting}
@@ -326,17 +336,27 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
               </div>
               {popupSelectField}
               <input type='text' className={inputClass} value={signupName}
-                onChange={(e) => setSignupName(e.target.value)} placeholder='이름 *' autoFocus autoComplete='name' />
-              <input type='email' className={inputClass} value={signupEmail}
-                onChange={(e) => setSignupEmail(e.target.value)} placeholder='이메일 *' autoComplete='email' />
-              <input type='tel' className={inputClass} value={signupPhone}
-                onChange={(e) => setSignupPhone(e.target.value)} placeholder='전화번호 * (초기 비밀번호)' autoComplete='tel' />
-              <input type='text' className={inputClass} value={signupBankName}
-                onChange={(e) => setSignupBankName(e.target.value)} placeholder='은행명 (선택)' />
-              <input type='text' className={inputClass} value={signupBankAccount}
-                onChange={(e) => setSignupBankAccount(e.target.value)} placeholder='계좌번호 (선택)' />
+                onChange={(e) => setSignupName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupEmailRef.current?.focus() } }}
+                placeholder='이름 *' autoFocus autoComplete='name' />
+              <input ref={signupEmailRef} type='email' className={inputClass} value={signupEmail}
+                onChange={(e) => setSignupEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupPhoneRef.current?.focus() } }}
+                placeholder='이메일 *' autoComplete='email' />
+              <input ref={signupPhoneRef} type='tel' className={inputClass} value={signupPhone}
+                onChange={(e) => setSignupPhone(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupBankNameRef.current?.focus() } }}
+                placeholder='전화번호 * (초기 비밀번호)' autoComplete='tel' />
+              <input ref={signupBankNameRef} type='text' className={inputClass} value={signupBankName}
+                onChange={(e) => setSignupBankName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupBankAccountRef.current?.focus() } }}
+                placeholder='은행명 (선택)' />
+              <input ref={signupBankAccountRef} type='text' className={inputClass} value={signupBankAccount}
+                onChange={(e) => setSignupBankAccount(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupInviteCodeRef.current?.focus() } }}
+                placeholder='계좌번호 (선택)' />
 
-              <input type='text' className={inputClass} value={signupInviteCode}
+              <input ref={signupInviteCodeRef} type='text' className={inputClass} value={signupInviteCode}
                 onChange={(e) => setSignupInviteCode(e.target.value)} placeholder='초대 코드 *' autoComplete='off' />
 
               {/* 개인정보 수집·이용 동의 */}
