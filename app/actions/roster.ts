@@ -959,6 +959,48 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
   }
 }
 
+// 이번 달 1일 ~ 다음 달 말일 근무 배정을 조회 — 본인/관리자 조회 양쪽에서 공유
+async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | null): Promise<MyRosterData> {
+  // KST 기준 이번 달 1일 ~ 다음 달 말일
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const y = kst.getUTCFullYear()
+  const m = kst.getUTCMonth()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const from = `${y}-${pad(m + 1)}-01`
+  const endNext = new Date(Date.UTC(y, m + 2, 0))
+  const to = `${endNext.getUTCFullYear()}-${pad(endNext.getUTCMonth() + 1)}-${pad(endNext.getUTCDate())}`
+
+  const { data: assignData, error: assignError } = await supabaseAdmin
+    .from('roster_assignments')
+    .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time, break_minutes)')
+    .eq('staff_id', staffId)
+    .gte('work_date', from)
+    .lte('work_date', to)
+    .order('work_date')
+  if (assignError) throw new Error(assignError.message)
+
+  const shifts: MyShift[] = (assignData ?? []).map(a => {
+    const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string; break_minutes: number } | null
+    const start = a.start_time ?? shift?.start_time ?? '00:00'
+    const end = a.end_time ?? shift?.end_time ?? '00:00'
+    let mins = toMinutes(end) - toMinutes(start)
+    if (mins < 0) mins += 24 * 60
+    const hours = Math.round((mins / 60) * 10) / 10
+    const breakMinutes = shift?.break_minutes ?? 0
+    return {
+      work_date: a.work_date,
+      shift_name: shift?.name ?? '근무',
+      start_time: start,
+      end_time: end,
+      hours,
+      breakMinutes,
+      netHours: Math.round((hours - breakMinutes / 60) * 10) / 10,
+    }
+  })
+
+  return { shifts, hourlyRate }
+}
+
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   try {
     const user = await getAuthUser()
@@ -972,44 +1014,27 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
     if (staffError) return { success: false, error: staffError.message }
     if (!staff) return { success: true, data: null }
 
-    // KST 기준 이번 달 1일 ~ 다음 달 말일
-    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
-    const y = kst.getUTCFullYear()
-    const m = kst.getUTCMonth()
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const from = `${y}-${pad(m + 1)}-01`
-    const endNext = new Date(Date.UTC(y, m + 2, 0))
-    const to = `${endNext.getUTCFullYear()}-${pad(endNext.getUTCMonth() + 1)}-${pad(endNext.getUTCDate())}`
+    return { success: true, data: await fetchRosterDataForStaff(staff.id, staff.hourly_rate ?? null) }
+  } catch (err) {
+    return { success: false, error: extractErrorMessage(err) }
+  }
+}
 
-    const { data: assignData, error: assignError } = await supabaseAdmin
-      .from('roster_assignments')
-      .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time, break_minutes)')
-      .eq('staff_id', staff.id)
-      .gte('work_date', from)
-      .lte('work_date', to)
-      .order('work_date')
-    if (assignError) return { success: false, error: assignError.message }
+// 관리자/매니저가 '스케줄' 탭에서 다른 직원의 근무표를 유저와 동일한 화면으로 조회 — 일정표(요약 테이블)와 별개로 개인 캘린더 뷰를 그대로 재사용
+export async function getStaffRosterAsManager(staffId: number): Promise<ApiResponse<MyRosterData | null>> {
+  try {
+    const user = await getAuthUser()
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return { success: false, error: '권한이 없습니다.' }
 
-    const shifts: MyShift[] = (assignData ?? []).map(a => {
-      const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string; break_minutes: number } | null
-      const start = a.start_time ?? shift?.start_time ?? '00:00'
-      const end = a.end_time ?? shift?.end_time ?? '00:00'
-      let mins = toMinutes(end) - toMinutes(start)
-      if (mins < 0) mins += 24 * 60
-      const hours = Math.round((mins / 60) * 10) / 10
-      const breakMinutes = shift?.break_minutes ?? 0
-      return {
-        work_date: a.work_date,
-        shift_name: shift?.name ?? '근무',
-        start_time: start,
-        end_time: end,
-        hours,
-        breakMinutes,
-        netHours: Math.round((hours - breakMinutes / 60) * 10) / 10,
-      }
-    })
+    const { data: staff, error: staffError } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('id, hourly_rate')
+      .eq('id', staffId)
+      .maybeSingle()
+    if (staffError) return { success: false, error: staffError.message }
+    if (!staff) return { success: true, data: null }
 
-    return { success: true, data: { shifts, hourlyRate: staff.hourly_rate ?? null } }
+    return { success: true, data: await fetchRosterDataForStaff(staff.id, staff.hourly_rate ?? null) }
   } catch (err) {
     return { success: false, error: extractErrorMessage(err) }
   }

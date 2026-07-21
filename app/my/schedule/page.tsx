@@ -1,4 +1,4 @@
-import { getMyStaffProfile } from '@/app/actions/staff'
+import { getMyStaffProfile, fetchStaffPickerList } from '@/app/actions/staff'
 import { getMyRoster } from '@/app/actions/roster'
 import { fetchStaffMonthlyDetail } from '@/app/actions/payroll'
 import MySchedulePageClient, { type InitialSchedule } from './MySchedulePageClient'
@@ -13,8 +13,14 @@ export default async function MySchedulePage() {
   const today = kstToday()
   const cursor = { y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 }
 
-  const [profileRes, rosterRes] = await Promise.all([getMyStaffProfile(), getMyRoster()])
-  if (!profileRes.success) return <MySchedulePageClient initial={null} />
+  // fetchStaffPickerList는 관리자/매니저에게만 목록을 내려주므로, 실패(권한 없음)를 그대로
+  // "일반 직원 — 선택기 숨김" 신호로 사용한다. 별도 역할 조회를 추가할 필요가 없다.
+  const [profileRes, rosterRes, pickerRes] = await Promise.all([
+    getMyStaffProfile(),
+    getMyRoster(),
+    fetchStaffPickerList(),
+  ])
+  if (!profileRes.success) return <MySchedulePageClient initial={null} staffPicker={null} />
 
   const staffId = profileRes.data?.id ?? null
   const detailRes = staffId != null
@@ -28,5 +34,10 @@ export default async function MySchedulePage() {
     details: detailRes?.success && detailRes.data ? detailRes.data : [],
     cursor,
   }
-  return <MySchedulePageClient initial={initial} />
+  return (
+    <MySchedulePageClient
+      initial={initial}
+      staffPicker={pickerRes.success && pickerRes.data ? pickerRes.data : null}
+    />
+  )
 }
