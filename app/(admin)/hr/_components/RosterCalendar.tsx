@@ -13,6 +13,7 @@ import { useRosterView } from './roster/useRosterView';
 import { useRosterRange } from './roster/useRosterRange';
 import { useUndoToast } from './roster/useUndoToast';
 import DayPanel from './roster/DayPanel';
+import CalendarToolbar from './roster/CalendarToolbar';
 import MonthGrid from './roster/MonthGrid';
 import UndoToast from './roster/UndoToast';
 import ShiftPickerPopover from './roster/ShiftPickerPopover';
@@ -268,109 +269,26 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <button
-              aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}
-              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
-              onClick={() => viewMode === 'week'
-                ? moveWeek(-7)
-                : setCursor(c => c && (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))}
-            >
-              &lt;
-            </button>
-            <h3 className="m-0 text-base font-extrabold w-[110px] text-center">
-              {viewMode === 'week' && weekStart
-                ? `${Number(weekStart.slice(5, 7))}/${Number(weekStart.slice(8))} ~ ${Number(weekEndStr.slice(5, 7))}/${Number(weekEndStr.slice(8))}`
-                : `${cursor.y}년 ${cursor.m + 1}월`}
-            </h3>
-            <button
-              aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}
-              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
-              onClick={() => viewMode === 'week'
-                ? moveWeek(7)
-                : setCursor(c => c && (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))}
-            >
-              &gt;
-            </button>
-            {viewMode === 'week' && (
-              <button
-                onClick={() => { if (todayStr) { setWeekStart(getWeekStart(todayStr)); syncCursorToDate(todayStr); } }}
-                className="px-2.5 py-2 md:px-2 md:py-1 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
-              >
-                이번 주
-              </button>
-            )}
-            <div className="flex rounded-lg border border-hairline overflow-hidden ml-1">
-              <button
-                onClick={() => switchView('month')}
-                aria-pressed={viewMode === 'month'}
-                className={`px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-bold cursor-pointer border-none transition ${
-                  viewMode === 'month' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
-                }`}
-              >
-                월
-              </button>
-              <button
-                onClick={() => switchView('week')}
-                aria-pressed={viewMode === 'week'}
-                className={`px-3 py-2 md:px-2.5 md:py-1 text-[11px] font-bold cursor-pointer border-none transition ${
-                  viewMode === 'week' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
-                }`}
-              >
-                주
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {viewMode === 'week' && (
-              <>
-                <button
-                  onClick={handleCopyPrevWeek}
-                  disabled={isLoading}
-                  className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  지난주 복사
-                </button>
-                <button
-                  onClick={handleCopyWeekText}
-                  disabled={isLoading}
-                  title="이번 주 근무 안내 텍스트 복사"
-                  className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  주간 복사
-                </button>
-              </>
-            )}
-            <button
-              onClick={handleAutoFill}
-              disabled={isAutoFilling || isLoading}
-              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border-none bg-primary-700 text-white text-[11px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isAutoFilling ? '배정 중...' : '자동 채우기'}
-            </button>
-            <button
-              onClick={handleClearRoster}
-              disabled={isLoading}
-              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[11px] font-bold cursor-pointer hover:bg-rose-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              초기화
-            </button>
-            <button
-              onClick={() => setShowBulkEdit(true)}
-              disabled={isLoading}
-              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              일괄 편집
-            </button>
-            <button
-              onClick={() => setShowShiftManage(true)}
-              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
-            >
-              ⚙ 파트 관리
-            </button>
-          </div>
-        </div>
+        <CalendarToolbar
+          viewMode={viewMode}
+          cursor={cursor}
+          weekStart={weekStart}
+          weekEndStr={weekEndStr}
+          todayStr={todayStr}
+          isLoading={isLoading}
+          isAutoFilling={isAutoFilling}
+          setCursor={setCursor}
+          setWeekStart={setWeekStart}
+          moveWeek={moveWeek}
+          switchView={switchView}
+          syncCursorToDate={syncCursorToDate}
+          onCopyPrevWeek={handleCopyPrevWeek}
+          onCopyWeekText={handleCopyWeekText}
+          onAutoFill={handleAutoFill}
+          onClearRoster={handleClearRoster}
+          onShowBulkEdit={() => setShowBulkEdit(true)}
+          onShowShiftManage={() => setShowShiftManage(true)}
+        />
 
         {/* 날짜 범위 필터 (월 뷰 전용) */}
         {viewMode === 'month' && (

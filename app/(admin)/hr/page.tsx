@@ -8,6 +8,7 @@ import { fetchAllRosterShifts, fetchRosterRange } from '@/app/actions/roster';
 import type { RosterUnit } from '@/app/actions/roster';
 import { fetchContractedStaffIds } from '@/app/actions/contracts';
 import { filterVisibleStores } from '@/lib/staffing';
+import { kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date';
 
 // 서버 컴포넌트에서 서버 액션 함수를 직접 호출하면 HTTP 왕복 없이 in-process로 병렬 실행된다.
 // 클라이언트 마운트 후 호출하던 기존 방식은 Next.js가 액션 POST를 직렬화하는 데다
@@ -24,12 +25,9 @@ async function getHrBootstrap() {
   const initialUnit: RosterUnit = visibleStores.length > 0
     ? { staffRole: 'cashier', storeId: visibleStores[0].id }
     : { staffRole: 'kitchen', storeId: null };
-  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  const y = kstNow.getUTCFullYear();
-  const m = kstNow.getUTCMonth(); // 0-indexed — 클라이언트 cursor.m과 동일 기준
-  const mm = String(m + 1).padStart(2, '0');
-  const monthStart = `${y}-${mm}-01`;
-  const monthEnd = `${y}-${mm}-${String(new Date(Date.UTC(y, m + 1, 0)).getUTCDate()).padStart(2, '0')}`;
+  const { y, m } = kstYearMonth(); // m은 0-indexed — 클라이언트 cursor.m과 동일 기준
+  const monthStart = ymdToDateStr(y, m, 1);
+  const monthEnd = monthEndDateStr(y, m);
 
   const [staffRes, profileRes, shiftsRes, contractedRes, rosterRes] = await Promise.all([
     fetchStaffProfiles(),

@@ -17,6 +17,18 @@ export const addDays = (s: string, n: number): string => {
 export const kstToday = (): string =>
   new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
 
+// KST 기준 현재 (연, 0-기준 월) — "이번 달" 범위 계산의 공통 시작점
+export const kstYearMonth = (): { y: number; m: number } => {
+  const [y, mo] = kstToday().split('-').map(Number)
+  return { y, m: mo - 1 }
+}
+
+// (연, 0-기준 월)이 속한 달의 말일 → YYYY-MM-DD
+export const monthEndDateStr = (y: number, m: number): string => {
+  const end = new Date(Date.UTC(y, m + 1, 0))
+  return ymdToDateStr(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())
+}
+
 export const prevDate = (s: string): string => addDays(s, -1)
 
 export const dayOfWeek = (s: string): number => parseDate(s).getDay()
