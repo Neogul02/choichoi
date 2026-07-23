@@ -23,3 +23,12 @@ export function MatrixSkeleton({ rows = 5 }: { rows?: number }) {
     </div>
   );
 }
+
+/** 재고 카드 그리드 자리 (2열 카드) */
+export function InventoryGridSkeleton({ cards = 6 }: { cards?: number }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="status" aria-label="재고 불러오는 중">
+      {Array.from({ length: cards }, (_, i) => <Skeleton key={i} className="h-[168px]" />)}
+    </div>
+  );
+}

@@ -101,6 +101,12 @@ export default function PayrollDetailModal({
   const [contractData, setContractData] = useState<ContractData | null>(null)
 
   useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
     fetchStaffMonthlyDetail(staffId, year, month).then(res => {
       setDetails(res.success && res.data ? res.data : [])
     })
@@ -180,16 +186,21 @@ export default function PayrollDetailModal({
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className={`bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex overflow-hidden ${contractData ? 'max-w-[960px]' : 'max-w-[520px]'}`} style={{ maxHeight: '90vh' }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={`bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex flex-col md:flex-row overflow-hidden ${contractData ? 'max-w-[960px]' : 'max-w-[520px]'}`}
+        style={{ maxHeight: '90vh' }}
+      >
         {/* 좌측: 급여 세부내역 */}
-        <div className="flex flex-col overflow-y-auto [scrollbar-width:thin] flex-1 min-w-0" style={{ maxWidth: contractData ? 520 : undefined }}>
+        <div className={`flex flex-col overflow-y-auto [scrollbar-width:thin] flex-1 min-w-0 ${contractData ? 'md:max-w-[520px]' : ''}`}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-canvas-soft sticky top-0 z-10">
           <div>
             <h3 className="m-0 text-[16px] font-bold text-ink">{name}</h3>
             <p className="m-0 text-[12px] text-ink-muted">{year}년 {month + 1}월 급여 세부내역</p>
           </div>
-          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none w-8 h-8 flex items-center justify-center">×</button>
+          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none w-8 h-8 flex items-center justify-center">×</button>
         </div>
 
         <div className="p-5 flex flex-col gap-5">
@@ -376,7 +387,7 @@ export default function PayrollDetailModal({
 
         {/* 우측: 근로계약서 */}
         {contractData && (
-          <div className="border-l border-hairline flex flex-col" style={{ width: 420, minWidth: 420 }}>
+          <div className="border-t md:border-t-0 md:border-l border-hairline flex flex-col w-full md:w-[420px] md:min-w-[420px] min-h-[420px] md:min-h-0">
             <div className="px-4 py-4 border-b border-hairline bg-canvas-soft">
               <p className="m-0 text-[13px] font-bold text-ink">근로계약서</p>
               <p className="m-0 text-[11px] text-ink-muted mt-0.5">{name} · 최근 계약</p>

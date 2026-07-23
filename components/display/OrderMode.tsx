@@ -28,7 +28,7 @@ export default function OrderMode({ menuItems, localCounts, onIncrement, onDecre
       <div className="flex-1 p-4 flex flex-col items-center justify-center">
         {menuItems.length === 0 ? (
           <div className="flex items-center justify-center h-48">
-            <p className="text-[#999] text-base m-0">메뉴를 불러오는 중...</p>
+            <p className="text-ink-faint text-base m-0">메뉴를 불러오는 중...</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 max-w-2xl w-full">
@@ -51,9 +51,9 @@ export default function OrderMode({ menuItems, localCounts, onIncrement, onDecre
                 >
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                    <h3 className="m-0 text-lg font-bold text-[#1a1a1a] leading-snug">{item.name}</h3>
+                    <h3 className="m-0 text-lg font-bold text-ink leading-snug">{item.name}</h3>
                   </div>
-                  <p className="m-0 text-xl font-extrabold text-[#333] mb-3">{formatPrice(item.price)}원</p>
+                  <p className="m-0 text-xl font-extrabold text-ink-secondary mb-3">{formatPrice(item.price)}원</p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={(e) => { e.stopPropagation(); onDecrement(item.id); }}
@@ -62,7 +62,7 @@ export default function OrderMode({ menuItems, localCounts, onIncrement, onDecre
                     >
                       −
                     </button>
-                    <span className={`flex-1 text-center text-xl font-black ${count > 0 ? 'text-primary-700' : 'text-[#ccc]'}`}>
+                    <span className={`flex-1 text-center text-xl font-black ${count > 0 ? 'text-primary-700' : 'text-hairline'}`}>
                       {count}
                     </span>
                     <button
@@ -89,11 +89,11 @@ export default function OrderMode({ menuItems, localCounts, onIncrement, onDecre
             transition={{ type: 'spring', stiffness: 320, damping: 28 }}
             className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-20"
           >
-            <div className="bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-5 border border-[#eee]">
+            <div className="bg-white rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-5 border border-hairline">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="m-0 text-[#888] text-sm font-semibold mb-1">선택한 항목</p>
-                  <p className="m-0 text-[#1a1a1a] text-2xl font-black leading-none">
+                  <p className="m-0 text-ink-muted text-sm font-semibold mb-1">선택한 항목</p>
+                  <p className="m-0 text-ink text-2xl font-black leading-none">
                     {localTotalCount}개 &middot; {formatPrice(localTotalPrice)}원
                   </p>
                 </div>

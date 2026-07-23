@@ -23,7 +23,7 @@ export default function FilterBar({ category, sort, onCategoryChange, onSortChan
           <button
             key={c}
             onClick={() => onCategoryChange(c)}
-            className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
+            className={`shrink-0 text-[11px] font-bold px-2.5 py-2.5 rounded-lg border-none cursor-pointer transition ${
               category === c
                 ? 'bg-primary-700 text-white'
                 : 'bg-canvas text-ink-muted border border-hairline hover:bg-primary-50 hover:text-primary-700'

@@ -105,6 +105,23 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
                 </div>
               ))}
             </div>
+          ) : pendingOrdersQuery.isError ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-canvas rounded-xl p-8 shadow-level-1 text-center"
+            >
+              <p className="m-0 text-rose-500 text-sm">
+                불러오지 못했습니다. 다시 시도해주세요.{' '}
+                <button
+                  type="button"
+                  onClick={() => pendingOrdersQuery.refetch()}
+                  className="underline font-semibold cursor-pointer bg-transparent border-none text-rose-500 p-0"
+                >
+                  다시 시도
+                </button>
+              </p>
+            </motion.div>
           ) : pendingOrders.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
@@ -138,7 +155,7 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
                     </div>
                     <ul className="m-0 p-0 list-none mb-3">
                       {order.items.map((item, idx) => (
-                        <li key={idx} className="flex justify-between items-center py-1.5 border-b border-[#f5f5f5] last:border-0">
+                        <li key={idx} className="flex justify-between items-center py-1.5 border-b border-hairline last:border-0">
                           <span className="text-sm font-semibold text-ink-secondary">{item.name}</span>
                           <span className="text-sm text-ink-muted">× {item.quantity}</span>
                         </li>

@@ -25,6 +25,13 @@ export default function MenuStockModal({ open, menuItems, onClose, onSuccess }: 
     }
   }, [open, menuItems]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
   async function handleSave() {
     setSaving(true);
     const changed = menuItems.filter((m) => {
@@ -68,16 +75,18 @@ export default function MenuStockModal({ open, menuItems, onClose, onSuccess }: 
             transition={{ type: 'spring', damping: 28, stiffness: 340 }}
             className="bg-canvas w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
               <div>
                 <h2 className="text-[15px] font-extrabold text-ink">재고 설정</h2>
                 <p className="text-[11px] text-ink-faint mt-0.5">비워두면 재고를 추적하지 않습니다</p>
               </div>
-              <button onClick={onClose} className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition bg-transparent border-none">✕</button>
+              <button onClick={onClose} aria-label="닫기" className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition bg-transparent border-none">✕</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 pb-2 divide-y divide-[#f5f5f5]">
+            <div className="flex-1 overflow-y-auto px-5 pb-2 divide-y divide-hairline">
               {menuItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-2 py-2.5">
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />

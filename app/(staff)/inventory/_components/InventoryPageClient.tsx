@@ -10,6 +10,7 @@ import FilterBar, { type SortKey } from './FilterBar';
 import IngredientCard from './IngredientCard';
 import IngredientManageModal from './IngredientManageModal';
 import AddIngredientModal from './AddIngredientModal';
+import { InventoryGridSkeleton } from '@/components/Skeleton';
 
 const SYNC_DEBOUNCE_MS = 700;
 
@@ -21,6 +22,7 @@ export default function InventoryPageClient({ initialIngredients }: { initialIng
   const [sort, setSort] = useState<SortKey>('default');
   const [manageTarget, setManageTarget] = useState<Ingredient | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
 
   const pendingRef = useRef<Record<string, { sealed: number; opened: number }>>({});
   const timerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -58,13 +60,27 @@ export default function InventoryPageClient({ initialIngredients }: { initialIng
       const res = await restockIngredient(id, delta.sealed, delta.opened);
       if (!res.success) {
         toast.error(`재고 변경 실패: ${res.error}`);
+        setFailedIds((prev) => new Set(prev).add(id));
         reload();
+      } else {
+        setFailedIds((prev) => {
+          if (!prev.has(id)) return prev;
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
       }
     }, SYNC_DEBOUNCE_MS);
   }, [reload]);
 
   const adjustSealed = useCallback((ing: Ingredient, delta: 1 | -1) => {
     applyLocalDelta(ing.id, delta, 0);
+    setFailedIds((prev) => {
+      if (!prev.has(ing.id)) return prev;
+      const next = new Set(prev);
+      next.delete(ing.id);
+      return next;
+    });
     const p = pendingRef.current[ing.id] ?? { sealed: 0, opened: 0 };
     pendingRef.current[ing.id] = { sealed: p.sealed + delta, opened: p.opened };
     scheduleSync(ing.id);
@@ -72,6 +88,12 @@ export default function InventoryPageClient({ initialIngredients }: { initialIng
 
   const adjustOpened = useCallback((ing: Ingredient, delta: 1 | -1) => {
     applyLocalDelta(ing.id, 0, delta);
+    setFailedIds((prev) => {
+      if (!prev.has(ing.id)) return prev;
+      const next = new Set(prev);
+      next.delete(ing.id);
+      return next;
+    });
     const p = pendingRef.current[ing.id] ?? { sealed: 0, opened: 0 };
     pendingRef.current[ing.id] = { sealed: p.sealed, opened: p.opened + delta };
     scheduleSync(ing.id);
@@ -103,7 +125,9 @@ export default function InventoryPageClient({ initialIngredients }: { initialIng
             onSortChange={setSort}
           />
 
-          {filtered.length === 0 && !isLoading ? (
+          {isLoading && ingredients.length === 0 ? (
+            <InventoryGridSkeleton />
+          ) : filtered.length === 0 ? (
             <p className="text-[12px] text-ink-faint px-0.5">재료가 없습니다.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -116,6 +140,7 @@ export default function InventoryPageClient({ initialIngredients }: { initialIng
                   onDecreaseBox={() => adjustSealed(ing, -1)}
                   onIncreaseUnit={() => adjustOpened(ing, 1)}
                   onDecreaseUnit={() => adjustOpened(ing, -1)}
+                  hasError={failedIds.has(ing.id)}
                 />
               ))}
             </div>

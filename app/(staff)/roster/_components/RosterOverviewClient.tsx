@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NavBar from '@/components/NavBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import WeekMatrix from '@/app/(admin)/hr/_components/WeekMatrix';
 import { createRosterMemo, deleteRosterMemo, fetchRosterOverview } from '@/app/actions/roster-view';
 import type { RosterOverview, RosterUnitOverview } from '@/app/actions/roster-view';
@@ -37,6 +38,7 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
   const [memoDate, setMemoDate] = useState(today);
   const [memoContent, setMemoContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteMemoId, setDeleteMemoId] = useState<number | null>(null);
 
   // 주별 캐시 — 캐시 히트 시 즉시 표시 후 백그라운드 재검증(SWR), 미스 시 스켈레톤
   const cacheRef = useRef<Map<string, RosterOverview>>(
@@ -137,8 +139,12 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
     setIsSaving(false);
   };
 
-  const handleDeleteMemo = async (id: number) => {
-    if (!confirm('이 메모를 삭제할까요?')) return;
+  const handleDeleteMemo = (id: number) => setDeleteMemoId(id);
+
+  const confirmDeleteMemo = async () => {
+    const id = deleteMemoId;
+    if (id == null) return;
+    setDeleteMemoId(null);
     const r = await deleteRosterMemo(id);
     if (r.success) {
       setOverview(p => {
@@ -280,6 +286,14 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
           </div>
         )}
       </main>
+      <ConfirmDialog
+        open={deleteMemoId != null}
+        title="이 메모를 삭제할까요?"
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDeleteMemo}
+        onClose={() => setDeleteMemoId(null)}
+      />
     </>
   );
 }

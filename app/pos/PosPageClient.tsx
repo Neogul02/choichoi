@@ -11,6 +11,7 @@ import { fireConfetti, fireTierConfetti } from '@/lib/confetti'
 import FloatingEmojis from '@/components/FloatingEmojis'
 import PosNoteWidget from '@/components/PosNoteWidget'
 import MenuStockModal from '@/components/MenuStockModal'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { fetchMenuItems } from '@/app/actions/menu';
 import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from '@/app/actions/orders'
 import type { MenuItem } from '@/types/database'
@@ -63,6 +64,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   const [cashierName, setCashierName] = useState<string | null>(null)
   const [popupId, setPopupId] = useState(initialPopupId ?? '0')
   const [stockModalOpen, setStockModalOpen] = useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [showNote, setShowNote] = useState(true)
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevTierLvRef = useRef(0)
@@ -396,7 +398,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
       if (event.key === 'Escape') {
         event.preventDefault()
-        resetOrder()
+        setResetConfirmOpen(true)
         return
       }
 
@@ -468,7 +470,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
             </div>
             <button
               className="text-[12px] font-bold text-rose-400 border border-rose-200 rounded-lg px-2.5 py-1 bg-canvas cursor-pointer transition-all duration-200 hover:bg-rose-50 active:scale-95"
-              onClick={resetOrder}
+              onClick={() => setResetConfirmOpen(true)}
             >
               초기화
             </button>
@@ -490,11 +492,22 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
             className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-2.5 mb-4"
             aria-label="메뉴 목록"
           >
-            {menuQuery.isLoading && menuItems.length === 0 && (
+            {menuQuery.isError && menuItems.length === 0 ? (
+              <p className="m-0 text-rose-500 text-sm">
+                메뉴를 불러오지 못했습니다. 다시 시도해주세요.{' '}
+                <button
+                  type="button"
+                  onClick={() => menuQuery.refetch()}
+                  className="underline font-semibold cursor-pointer bg-transparent border-none text-rose-500 p-0"
+                >
+                  다시 시도
+                </button>
+              </p>
+            ) : menuQuery.isLoading && menuItems.length === 0 ? (
               <p className="m-0 text-ink-faint text-sm">
                 메뉴를 불러오는 중입니다...
               </p>
-            )}
+            ) : null}
             {menuItems.map((item, index) => {
               const count = counts[item.id] ?? 0
               const shortcutNumber = index + 1
@@ -541,13 +554,13 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                     <p className="m-0 text-xl md:text-2xl font-extrabold text-ink-secondary">
                       {formatPrice(item.price)}원
                     </p>
-                    <p className="m-0 h-4 text-[11px] font-normal text-ink-faint">
+                    <p className="m-0 h-4 text-[11px] font-normal text-ink-muted">
                       {item.stock !== null ? `${item.stock}개` : ' '}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+                      className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
                       onClick={(e) => {
                         e.stopPropagation()
                         decrease(item.id)
@@ -570,7 +583,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                       {count}개
                     </motion.strong>
                     <button
-                      className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+                      className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
                       onClick={(e) => {
                         e.stopPropagation()
                         increase(item.id)
@@ -627,7 +640,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
             )}
 
             <button
-              className="hidden md:block w-full p-3 mt-3 text-base font-bold bg-primary-700 text-white border-none rounded-xl cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-[#ccc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#ccc] disabled:hover:translate-y-0"
+              className="hidden md:block w-full p-3 mt-3 text-base font-bold bg-primary-700 text-white border-none rounded-xl cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-ink-faint disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-ink-faint disabled:hover:translate-y-0"
               onClick={handleCheckout}
               disabled={checkoutMutation.isPending || orderedItems.length === 0}
             >
@@ -645,6 +658,17 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
             </h2>
             {recentOrdersQuery.isLoading ? (
               <p className="m-0 text-ink-faint text-sm">불러오는 중...</p>
+            ) : recentOrdersQuery.isError ? (
+              <p className="m-0 text-rose-500 text-sm">
+                불러오지 못했습니다. 다시 시도해주세요.{' '}
+                <button
+                  type="button"
+                  onClick={() => recentOrdersQuery.refetch()}
+                  className="underline font-semibold cursor-pointer bg-transparent border-none text-rose-500 p-0"
+                >
+                  다시 시도
+                </button>
+              </p>
             ) : recentOrders.length === 0 ? (
               <p className="m-0 text-ink-faint text-sm">
                 오늘 주문 내역이 없습니다.
@@ -704,7 +728,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                 type="button"
                 onClick={handleCheckout}
                 disabled={checkoutMutation.isPending || orderedItems.length === 0}
-                className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-[#ccc] disabled:cursor-not-allowed"
+                className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-ink-faint disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-2.5">
                   <span className="min-w-7 h-7 px-2 rounded-full bg-canvas/20 text-xs font-black flex items-center justify-center tabular-nums">
@@ -731,12 +755,24 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
 
       </main>
-      <FloatingEmojis burstKey={0} />
+      <FloatingEmojis burstKey={flashKey} />
       <MenuStockModal
         open={stockModalOpen}
         menuItems={menuItems}
         onClose={() => setStockModalOpen(false)}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ['menu-items'] })}
+      />
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title="주문을 초기화할까요?"
+        description="현재 담긴 주문 내역이 모두 사라집니다."
+        confirmLabel="초기화"
+        danger
+        onConfirm={() => {
+          resetOrder()
+          setResetConfirmOpen(false)
+        }}
+        onClose={() => setResetConfirmOpen(false)}
       />
     </>
   )

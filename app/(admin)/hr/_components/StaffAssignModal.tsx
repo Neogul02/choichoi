@@ -40,6 +40,12 @@ export default function StaffAssignModal({ staff, stores, onClose, onAssigned }:
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
     fetchRosterShifts(unit).then(res => {
       if (res.success && res.data && res.data.length > 0) {
         setShifts(res.data)
@@ -86,13 +92,17 @@ export default function StaffAssignModal({ staff, stores, onClose, onAssigned }:
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-canvas w-full max-w-[420px] rounded-xl shadow-level-2 border border-hairline overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="bg-canvas w-full max-w-[420px] rounded-xl shadow-level-2 border border-hairline overflow-hidden"
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-canvas-soft">
           <div>
             <h3 className="m-0 text-[15px] font-bold text-ink">{staff.name}</h3>
             <p className="m-0 text-[12px] text-ink-muted">근무 일정 일괄 배정</p>
           </div>
-          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition w-8 h-8 flex items-center justify-center">×</button>
+          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition w-8 h-8 flex items-center justify-center">×</button>
         </div>
 
         <div className="p-5 flex flex-col gap-4">

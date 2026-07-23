@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Memo } from '@/types/database'
 import { parseChecklist, serializeChecklist } from './MemoPageClient'
 
@@ -37,6 +38,13 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
   const [editingIdx, setEditingIdx] = useState<number | null>(isCreate ? 0 : null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !confirmDeleteOpen) onClose() }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose, confirmDeleteOpen])
 
   const getContent = () =>
     formData.type === 'checklist'
@@ -71,7 +79,8 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
   }
 
   const handleDelete = async () => {
-    if (!onRemove || !confirm('이 메모를 삭제하시겠습니까?')) return
+    if (!onRemove) return
+    setConfirmDeleteOpen(false)
     setDeleting(true)
     const res = await onRemove()
     setDeleting(false)
@@ -122,6 +131,8 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
           exit={{ scale: 0.92, opacity: 0, y: 20 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           className="bg-canvas w-full sm:max-w-[600px] rounded-xl shadow-level-2 border border-hairline overflow-hidden max-h-[90dvh] flex flex-col"
+          role="dialog"
+          aria-modal="true"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-hairline shrink-0">
@@ -159,6 +170,7 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
               )}
               <button
                 onClick={onClose}
+                aria-label="닫기"
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-canvas-soft text-ink-faint transition-colors cursor-pointer"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -262,7 +274,7 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
           <div className="px-5 py-3 border-t border-hairline flex items-center justify-between shrink-0">
             {!isCreate && onRemove ? (
               <button
-                onClick={handleDelete}
+                onClick={() => setConfirmDeleteOpen(true)}
                 disabled={deleting}
                 className="px-4 py-2 rounded-lg bg-rose-500 text-white text-[12px] font-semibold hover:bg-rose-600 transition-colors disabled:opacity-60 cursor-pointer"
               >
@@ -281,6 +293,15 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
           </div>
         </motion.div>
       </motion.div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="이 메모를 삭제하시겠습니까?"
+        confirmLabel="삭제"
+        danger
+        onConfirm={handleDelete}
+        onClose={() => setConfirmDeleteOpen(false)}
+      />
     </AnimatePresence>
   )
 }

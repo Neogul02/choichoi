@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import { formatBreakMinutes } from '@/lib/utils';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { createRosterShift, updateRosterShift, deleteRosterShift, updateRosterShiftOrder } from '@/app/actions/roster';
 import type { RosterUnit, RosterShiftInput } from '@/app/actions/roster';
 import type { RosterShift } from '@/types/database';
@@ -26,6 +27,7 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
   const [isBusy, setIsBusy] = useState(false);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RosterShift | null>(null);
 
   const startEdit = (shift: RosterShift) => {
     setEditingId(shift.id);
@@ -56,8 +58,14 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
     setIsBusy(false);
   };
 
-  const handleDelete = async (shift: RosterShift) => {
-    if (!confirm(`"${shift.name}" 파트를 삭제하시겠습니까?\n이 파트의 배정 내역도 함께 삭제됩니다.`)) return;
+  const handleDelete = (shift: RosterShift) => {
+    setDeleteTarget(shift);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const shift = deleteTarget;
+    setDeleteTarget(null);
     setIsBusy(true);
     const r = await deleteRosterShift(shift.id);
     setIsBusy(false);
@@ -264,6 +272,16 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title={`"${deleteTarget?.name}" 파트를 삭제하시겠습니까?`}
+        description="이 파트의 배정 내역도 함께 삭제됩니다."
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>,
     document.body,
   );

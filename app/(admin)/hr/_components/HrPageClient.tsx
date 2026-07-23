@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import NavBar from '@/components/NavBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { showMsg } from '@/lib/toast';
 import {
   createStaffProfile, updateStaffProfile,
@@ -169,7 +170,18 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
     }
   };
 
-  const handleStatusChange = async (staff: StaffProfile, status: StaffStatus) => {
+  // 상태 변경은 즉시 반영하지 않고 확인 팝업을 거친다 — 취소 시 select는 staff.status로 되돌아가 표시됨
+  const [statusChangeTarget, setStatusChangeTarget] = useState<{ staff: StaffProfile; status: StaffStatus } | null>(null);
+
+  const handleStatusChange = (staff: StaffProfile, status: StaffStatus) => {
+    if (status === staff.status) return;
+    setStatusChangeTarget({ staff, status });
+  };
+
+  const confirmStatusChange = async () => {
+    if (!statusChangeTarget) return;
+    const { staff, status } = statusChangeTarget;
+    setStatusChangeTarget(null);
     const r = await updateStaffStatus(staff.id, status);
     if (r.success && r.data) setStaffList(p => p.map(s => s.id === staff.id ? r.data! : s));
     else showMsg(`오류: ${r.error}`);
@@ -464,6 +476,15 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
       {rosterPrint.isOpen && (
         <WeeklyRosterPrintModal onClose={rosterPrint.close} />
       )}
+
+      <ConfirmDialog
+        open={statusChangeTarget != null}
+        title={`${statusChangeTarget?.staff.name}님의 상태를 '${statusChangeTarget ? STATUS_LABELS[statusChangeTarget.status] : ''}'로 변경할까요?`}
+        confirmLabel="변경"
+        danger={statusChangeTarget?.status === 'inactive' || statusChangeTarget?.status === 'rejected'}
+        onConfirm={confirmStatusChange}
+        onClose={() => setStatusChangeTarget(null)}
+      />
     </>
   );
 }

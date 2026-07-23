@@ -27,7 +27,7 @@ export default function BottomBanner() {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-10 bg-primary-600 px-6 py-5 flex items-center justify-center overflow-hidden"
+      className="fixed bottom-0 left-0 right-0 z-10 bg-primary-600 px-6 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] flex items-center justify-center overflow-hidden"
       style={{ perspective: '800px' }}
     >
       <AnimatePresence mode="wait">

@@ -1,6 +1,7 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '@/app/actions/menu';
@@ -42,6 +43,9 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
   // 드래그
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
+
+  // 삭제 확인
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   useEffect(() => {
     if (initialMenuItems != null) return; // 서버 프리페치 성공 시 재조회 생략
@@ -109,8 +113,12 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
   };
 
   // ── 삭제 ──────────────────────────────────────────────
-  const handleDelete = async (id: number) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+  const handleDelete = (id: number) => setDeleteTargetId(id);
+
+  const confirmDelete = async () => {
+    const id = deleteTargetId;
+    if (id == null) return;
+    setDeleteTargetId(null);
     const res = await removeMenuItem(id);
     if (res.success) {
       setMenuItems(p => p.filter(m => m.id !== id));
@@ -324,6 +332,14 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
 
         </div>
       </main>
+      <ConfirmDialog
+        open={deleteTargetId != null}
+        title="정말 삭제하시겠습니까?"
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTargetId(null)}
+      />
     </>
   );
 }

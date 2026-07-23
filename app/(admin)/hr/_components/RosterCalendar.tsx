@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { showMsg } from '@/lib/toast';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
 import type { StaffProfile, Store, StaffRole, RosterShift } from '@/types/database';
@@ -77,6 +78,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [fillLog, setFillLog] = useState<AutoFillLogEntry[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'autofill' | 'copyPrevWeek' | 'clear' | null>(null);
 
   // 현재 단위 소속 직원만 (주방 전체 / 해당 매장 캐셔)
   const unitStaff = useMemo(
@@ -137,12 +139,18 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleDates, assignMap, overrides, shifts, rangeFrom, rangeTo, viewMode]);
 
-  const handleAutoFill = async () => {
+  const handleAutoFill = () => {
     if (!cursor) return;
     // 지난 날짜는 건드리지 않는다
     const from = todayStr > targetFrom ? todayStr : targetFrom;
     if (from > targetTo) { showMsg('지난 날짜는 자동 배정할 수 없습니다'); return; }
-    if (!confirm(`${targetLabel} 빈 자리를 자동 배정할까요?\n(오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배)`)) return;
+    setConfirmAction('autofill');
+  };
+
+  const runAutoFill = async () => {
+    setConfirmAction(null);
+    if (!cursor) return;
+    const from = todayStr > targetFrom ? todayStr : targetFrom;
     setIsAutoFilling(true);
     const r = await autoFillRoster(unit, from, targetTo);
     if (r.success && r.data) {
@@ -159,10 +167,14 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     setIsAutoFilling(false);
   };
 
-  const handleCopyPrevWeek = async () => {
+  const handleCopyPrevWeek = () => {
     if (!weekStart) return;
-    const prevLabel = `${addDays(weekStart, -7)} ~ ${addDays(weekStart, -1)}`;
-    if (!confirm(`직전 주(${prevLabel}) 배정을 이번 주 같은 요일로 복사할까요?\n(지난 날짜는 복사하지 않으며, 이미 있는 배정은 건너뛴 건수로 표시됩니다)`)) return;
+    setConfirmAction('copyPrevWeek');
+  };
+
+  const runCopyPrevWeek = async () => {
+    setConfirmAction(null);
+    if (!weekStart) return;
     const r = await copyPreviousWeek(unit, weekStart);
     if (r.success && r.data) {
       showMsg(r.data.added === 0
@@ -208,8 +220,12 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     }
   };
 
-  const handleClearRoster = async () => {
-    if (!confirm(`[${unitLabel}] ${targetLabel} 스케줄을 초기화할까요?\n배정된 근무자가 모두 삭제됩니다.`)) return;
+  const handleClearRoster = () => {
+    setConfirmAction('clear');
+  };
+
+  const runClearRoster = async () => {
+    setConfirmAction(null);
     const r = await clearRosterRange(unit, targetFrom, targetTo);
     if (r.success && r.data) {
       setAssignments(p => p.filter(a => a.work_date < targetFrom || a.work_date > targetTo));
@@ -233,6 +249,38 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   const unitLabel = unit.staffRole === 'kitchen'
     ? ROLE_LABELS.kitchen
     : (stores.find(s => s.id === unit.storeId)?.name ?? ROLE_LABELS.cashier);
+
+  const prevWeekLabel = weekStart ? `${addDays(weekStart, -7)} ~ ${addDays(weekStart, -1)}` : '';
+  const confirmDialogProps = (() => {
+    switch (confirmAction) {
+      case 'autofill':
+        return {
+          title: `${targetLabel} 빈 자리를 자동 배정할까요?`,
+          description: '오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배',
+          confirmLabel: '자동 배정',
+          danger: false,
+          onConfirm: runAutoFill,
+        };
+      case 'copyPrevWeek':
+        return {
+          title: `직전 주(${prevWeekLabel}) 배정을 이번 주 같은 요일로 복사할까요?`,
+          description: '지난 날짜는 복사하지 않으며, 이미 있는 배정은 건너뛴 건수로 표시됩니다',
+          confirmLabel: '복사',
+          danger: false,
+          onConfirm: runCopyPrevWeek,
+        };
+      case 'clear':
+        return {
+          title: `[${unitLabel}] ${targetLabel} 스케줄을 초기화할까요?`,
+          description: '배정된 근무자가 모두 삭제됩니다.',
+          confirmLabel: '초기화',
+          danger: true,
+          onConfirm: runClearRoster,
+        };
+      default:
+        return null;
+    }
+  })();
 
   return (
     <>
@@ -408,6 +456,15 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     {undoState && (
       <UndoToast label={undoState.label} onUndo={handleUndo} onDismiss={dismissUndo} />
     )}
+    <ConfirmDialog
+      open={confirmDialogProps != null}
+      title={confirmDialogProps?.title ?? ''}
+      description={confirmDialogProps?.description}
+      confirmLabel={confirmDialogProps?.confirmLabel ?? '확인'}
+      danger={confirmDialogProps?.danger ?? false}
+      onConfirm={() => confirmDialogProps?.onConfirm()}
+      onClose={() => setConfirmAction(null)}
+    />
     </>
   );
 }

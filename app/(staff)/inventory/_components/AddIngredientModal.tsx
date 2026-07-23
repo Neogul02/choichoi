@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { createIngredient } from '@/app/actions/inventory';
@@ -37,6 +37,14 @@ const UNIT_PRESETS: Record<UnitType, { base: string; container: string }[]> = {
 
 export default function AddIngredientModal({ open, onClose, onSuccess }: Props) {
   useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [category, setCategory] = useState<typeof CATEGORIES[number]>('과일');
@@ -106,14 +114,16 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
             transition={{ type: 'spring', damping: 28, stiffness: 340 }}
             className="bg-canvas w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
           >
             {/* 헤더 */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
               <h2 className="text-[15px] font-extrabold text-ink">재고 종류 추가</h2>
-              <button onClick={onClose} className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition">✕</button>
+              <button onClick={onClose} aria-label="닫기" className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition">✕</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 pb-5 flex flex-col gap-4">
+            <div className="flex-1 overflow-y-auto px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] flex flex-col gap-4">
               {/* 이름 + ID */}
               <div className="flex gap-2">
                 <div className="flex-1">
