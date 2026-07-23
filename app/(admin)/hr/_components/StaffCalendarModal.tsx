@@ -87,6 +87,12 @@ export default function StaffCalendarModal({ staffId, name, onClose }: Props) {
   const [details, setDetails] = useState<StaffDayDetail[] | null>(null)
 
   useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
     setDetails(null)
     fetchStaffMonthlyDetail(staffId, cursor.y, cursor.m).then(res => {
       setDetails(res.success && res.data ? res.data : [])
@@ -105,13 +111,17 @@ export default function StaffCalendarModal({ staffId, name, onClose }: Props) {
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-canvas w-full max-w-[420px] max-h-[90vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline [scrollbar-width:thin]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="bg-canvas w-full max-w-[420px] max-h-[90vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline [scrollbar-width:thin]"
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-canvas-soft sticky top-0 z-10">
           <div>
             <h3 className="m-0 text-[15px] font-bold text-ink">{name}</h3>
             <p className="m-0 text-[11px] text-ink-muted mt-0.5">근무 캘린더</p>
           </div>
-          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none w-8 h-8 flex items-center justify-center">×</button>
+          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none w-8 h-8 flex items-center justify-center">×</button>
         </div>
 
         <div className="p-4">

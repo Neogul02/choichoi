@@ -169,6 +169,12 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   return (
     <>
       <div className="mb-4">
+        {/* mounted가 되기 전(=localStorage에서 교정된 collapsed 값이 아직 반영되기 전)에는
+            숨겨서, 이전에 접어둔 사용자가 열린 상태로 반짝였다가 닫히는 플래시를 방지한다.
+            AnimatePresence 자체는 항상 마운트돼 있어 이 래퍼는 순수 CSS 토글이며,
+            헤더는 최초 렌더부터 트리에 존재하므로 collapsed=false인 사용자에게는
+            새로운 진입 애니메이션이 추가로 재생되지 않는다. */}
+        <div className={mounted ? undefined : 'invisible h-0 overflow-hidden'}>
         <AnimatePresence initial={false}>
           {!collapsed && (
             <motion.header
@@ -218,6 +224,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                     <button
                       onClick={() => window.location.reload()}
                       title="새로고침"
+                      aria-label="새로고침"
                       className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-primary-50 hover:text-primary-700 border-none cursor-pointer transition-all duration-200"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -228,6 +235,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                     <button
                       onClick={() => setShowLogoutConfirm(true)}
                       title="로그아웃"
+                      aria-label="로그아웃"
                       className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -247,6 +255,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                         <li key={href}>
                           <Link
                             href={href}
+                            aria-current={pathname === href ? 'page' : undefined}
                             className={`block px-3 py-1.5 md:px-4 md:py-2 text-[13px] md:text-sm rounded-lg no-underline font-semibold transition-all duration-200 whitespace-nowrap ${
                               pathname === href
                                 ? 'bg-primary-700 text-white'
@@ -266,6 +275,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                     <button
                       onClick={() => setShowLogoutConfirm(true)}
                       title="로그아웃"
+                      aria-label="로그아웃"
                       className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 border-none cursor-pointer transition-all duration-200"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -280,6 +290,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
             </motion.header>
           )}
         </AnimatePresence>
+        </div>
 
         <div className="flex justify-center pt-1 cursor-pointer">
           <button

@@ -14,7 +14,7 @@ function NoticeToggle({ noticeType, setNoticeType }: { noticeType: ScreenNotice;
       <button
         onClick={() => setNoticeType('away')}
         className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer border-none ${
-          noticeType === 'away' ? 'bg-white text-[#1a1a1a] shadow-sm' : 'bg-transparent text-[#999] hover:text-[#555]'
+          noticeType === 'away' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
         }`}
       >
         부재중
@@ -22,7 +22,7 @@ function NoticeToggle({ noticeType, setNoticeType }: { noticeType: ScreenNotice;
       <button
         onClick={() => setNoticeType('soldout')}
         className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer border-none ${
-          noticeType === 'soldout' ? 'bg-white text-[#1a1a1a] shadow-sm' : 'bg-transparent text-[#999] hover:text-[#555]'
+          noticeType === 'soldout' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
         }`}
       >
         품절안내문
@@ -73,7 +73,7 @@ export default function ScreenMode() {
         />
         <button
           onClick={startEditing}
-          className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-[#eee] hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
+          className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-hairline hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
           title="문구 수정"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -98,7 +98,7 @@ export default function ScreenMode() {
                 value={draft.title}
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
                 placeholder="제목"
-                className="w-full px-4 py-3 rounded-xl border border-[#e0e0e0] text-xl font-bold text-[#1a1a1a] outline-none focus:border-primary-700"
+                className="w-full px-4 py-3 rounded-xl border border-[#e0e0e0] text-xl font-bold text-ink outline-none focus:border-primary-700"
               />
               <input
                 value={draft.subtitle}
@@ -113,7 +113,7 @@ export default function ScreenMode() {
                     key={c}
                     onClick={() => setDraft((d) => ({ ...d, color: c }))}
                     className={`w-8 h-8 rounded-full border-2 cursor-pointer transition-all duration-150 ${
-                      draft.color === c ? 'border-[#1a1a1a] scale-110' : 'border-transparent'
+                      draft.color === c ? 'border-ink scale-110' : 'border-transparent'
                     }`}
                     style={{ backgroundColor: c }}
                     aria-label={`색상 ${c}`}

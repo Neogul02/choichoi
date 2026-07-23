@@ -31,27 +31,27 @@ function fireConfetti() {
 
 function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
   return (
-    <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1">
+    <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <button
         onClick={() => setMode('view')}
-        className={`px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
-          mode === 'view' ? 'bg-white text-[#1a1a1a] shadow-sm' : 'bg-transparent text-[#999] hover:text-[#555]'
+        className={`shrink-0 whitespace-nowrap px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
+          mode === 'view' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
         }`}
       >
         프론트
       </button>
       <button
         onClick={() => setMode('order')}
-        className={`px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
-          mode === 'order' ? 'bg-white text-[#1a1a1a] shadow-sm' : 'bg-transparent text-[#999] hover:text-[#555]'
+        className={`shrink-0 whitespace-nowrap px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
+          mode === 'order' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
         }`}
       >
         주문하기
       </button>
       <button
         onClick={() => setMode('screen')}
-        className={`px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
-          mode === 'screen' ? 'bg-white text-[#1a1a1a] shadow-sm' : 'bg-transparent text-[#999] hover:text-[#555]'
+        className={`shrink-0 whitespace-nowrap px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
+          mode === 'screen' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
         }`}
       >
         스크린
@@ -73,26 +73,26 @@ function PopupSelectScreen() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#f5f6f7] flex flex-col items-center justify-center p-8">
+    <div className="min-h-screen bg-canvas-soft flex flex-col items-center justify-center p-8">
       <div className="text-center mb-10">
-        <h1 className="text-4xl font-black text-[#1a1a1a] m-0 mb-2">CHOICHOI</h1>
-        <p className="text-[#999] text-base m-0">고객 화면을 연결할 팝업을 선택해주세요</p>
+        <h1 className="text-4xl font-black text-ink m-0 mb-2">CHOICHOI</h1>
+        <p className="text-ink-faint text-base m-0">고객 화면을 연결할 팝업을 선택해주세요</p>
       </div>
       <div className="flex flex-col gap-3 w-full max-w-sm">
         {loading && (
-          <div className="text-center text-[#bbb] text-sm py-8">불러오는 중...</div>
+          <div className="text-center text-ink-faint text-sm py-8">불러오는 중...</div>
         )}
         {!loading && popupEvents.length === 0 && (
-          <div className="text-center text-[#bbb] text-sm py-8">등록된 팝업이 없습니다</div>
+          <div className="text-center text-ink-faint text-sm py-8">등록된 팝업이 없습니다</div>
         )}
         {popupEvents.map((popup) => (
           <button
             key={popup.id}
             onClick={() => router.push(`/display?popup=${popup.id}`)}
-            className="w-full bg-white text-[#1a1a1a] text-left px-6 py-5 rounded-2xl border-none shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.13)] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            className="w-full bg-white text-ink text-left px-6 py-5 rounded-2xl border-none shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.13)] active:scale-[0.98] transition-all duration-200 cursor-pointer"
           >
             <div className="text-lg font-black mb-0.5">{popup.name}</div>
-            <div className="text-sm text-[#999]">{popup.start_date} ~ {popup.end_date}</div>
+            <div className="text-sm text-ink-faint">{popup.start_date} ~ {popup.end_date}</div>
           </button>
         ))}
       </div>
@@ -213,18 +213,18 @@ function DisplayContent({ popupId }: { popupId: string }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f6f7] flex flex-col select-none">
+    <div className="min-h-screen bg-canvas-soft flex flex-col select-none">
       <motion.header
         animate={{ height: navExpanded ? 'auto' : 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-white border-b border-[#eee] shadow-sm overflow-hidden"
+        className="bg-white border-b border-hairline shadow-sm overflow-hidden"
         style={{ minHeight: 0 }}
       >
         <div className="px-6 py-4 grid grid-cols-3 items-center">
           <Link
             href="/"
             title="홈으로"
-            className="justify-self-start flex items-center justify-center w-9 h-9 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-rose-50 hover:text-rose-500 transition-all duration-200"
+            className="justify-self-start flex items-center justify-center w-9 h-9 rounded-lg bg-canvas-soft text-ink-faint hover:bg-rose-50 hover:text-rose-500 transition-all duration-200"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -232,11 +232,11 @@ function DisplayContent({ popupId }: { popupId: string }) {
               <line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
           </Link>
-          <div className="justify-self-center flex items-center gap-1">
+          <div className="justify-self-center flex items-center gap-1 min-w-0 max-w-full">
             <ModeToggle mode={mode} setMode={setMode} />
             <button
               onClick={toggleNav}
-              className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-[#eee] hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
+              className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-hairline hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
               title="헤더 접기"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -255,12 +255,12 @@ function DisplayContent({ popupId }: { popupId: string }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-2xl p-1.5 shadow-lg border border-[#eee]"
+            className="fixed top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-2xl p-1.5 shadow-lg border border-hairline max-w-[calc(100vw-2rem)]"
           >
             <ModeToggle mode={mode} setMode={setMode} />
             <button
               onClick={toggleNav}
-              className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg bg-[#f5f6f7] text-[#999] hover:bg-[#eee] hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
+              className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-hairline hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
               title="헤더 펼치기"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

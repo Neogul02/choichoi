@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import SectionHeader from './SectionHeader';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import type { OrderRecordWithItems } from '@/types/api';
 
 interface Props {
@@ -21,10 +22,14 @@ function formatKSTTime(isoString: string): string {
 
 export default function TodayOrdersSection({ orders, todayRevenue, isLoading, onDeleteOrder }: Props) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OrderRecordWithItems | null>(null);
 
-  const handleDelete = async (order: OrderRecordWithItems) => {
-    const label = `${formatKSTTime(order.created_at)} / ₩${Number(order.total_price).toLocaleString('ko-KR')}`;
-    if (!window.confirm(`이 주문을 삭제하시겠습니까?\n${label}\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+  const handleDelete = (order: OrderRecordWithItems) => setDeleteTarget(order);
+
+  const confirmDelete = async () => {
+    const order = deleteTarget;
+    if (!order) return;
+    setDeleteTarget(null);
     setDeletingId(order.id);
     await onDeleteOrder(order.id);
     setDeletingId(null);
@@ -78,6 +83,17 @@ export default function TodayOrdersSection({ orders, todayRevenue, isLoading, on
           ))}
         </ul>
       )}
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title="이 주문을 삭제하시겠습니까?"
+        description={deleteTarget
+          ? `${formatKSTTime(deleteTarget.created_at)} / ₩${Number(deleteTarget.total_price).toLocaleString('ko-KR')} — 이 작업은 되돌릴 수 없습니다.`
+          : undefined}
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent, togglePopupEventActive,
 } from '@/app/actions/schedule';
@@ -35,6 +36,7 @@ export default function PopupManagementSection() {
   const [inlineEdits, setInlineEdits] = useState<Record<number, EventForm>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PopupEvent | null>(null);
 
   useEffect(() => {
     Promise.all([fetchPopupEvents(), fetchStores()]).then(([evRes, stRes]) => {
@@ -89,8 +91,12 @@ export default function PopupManagementSection() {
   };
 
   // ── 삭제 ──────────────────────────────────────────────
-  const handleDelete = async (ev: PopupEvent) => {
-    if (!confirm(`"${ev.name}" 팝업을 삭제하시겠습니까?`)) return;
+  const handleDelete = (ev: PopupEvent) => setDeleteTarget(ev);
+
+  const confirmDelete = async () => {
+    const ev = deleteTarget;
+    if (!ev) return;
+    setDeleteTarget(null);
     const res = await removePopupEvent(ev.id);
     if (res.success) {
       setEvents(p => p.filter(e => e.id !== ev.id));
@@ -248,6 +254,14 @@ export default function PopupManagementSection() {
           })}
         </ul>
       )}
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title={`"${deleteTarget?.name ?? ''}" 팝업을 삭제하시겠습니까?`}
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </>
   );
 }

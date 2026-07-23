@@ -184,16 +184,18 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                     className={`transition cursor-pointer ${paid ? 'bg-canvas-soft opacity-60' : 'hover:bg-canvas-soft'} ${i !== rows.length - 1 ? 'border-b border-hairline' : ''}`}
                   >
                     <td className="px-2 py-2.5 text-center" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={paid}
-                        onChange={e => {
-                          setPaid(row.staffId, e.target.checked)
-                          if (e.target.checked && onRetire) setRetireTarget(row)
-                        }}
-                        title="급여 지급 완료"
-                        className="w-4 h-4 accent-primary-700 cursor-pointer align-middle"
-                      />
+                      <label className="inline-flex items-center justify-center p-3 -m-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={paid}
+                          onChange={e => {
+                            setPaid(row.staffId, e.target.checked)
+                            if (e.target.checked && onRetire) setRetireTarget(row)
+                          }}
+                          title="급여 지급 완료"
+                          className="w-4 h-4 accent-primary-700 cursor-pointer align-middle"
+                        />
+                      </label>
                     </td>
                     <td className="px-2 py-2.5">
                       <div className={`font-bold text-ink ${paid ? 'line-through' : ''}`}>{row.name}</div>

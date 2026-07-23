@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift, AvailabilityRange } from '@/types/database';
 import type { StaffProfileInput } from '@/app/actions/staff';
 import { uploadHealthCert, getHealthCertUrl } from '@/app/actions/staff';
@@ -51,6 +52,13 @@ export default function StaffFormModal({
   const [isUploadingCert, setIsUploadingCert] = useState(false);
   const [isViewingCert, setIsViewingCert] = useState(false);
   const certInputRef = useRef<HTMLInputElement>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !showDeleteConfirm) onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose, showDeleteConfirm]);
 
   useEffect(() => {
     if (staffRole === 'cashier' && storeId === null) { setUnitShifts([]); return; }
@@ -125,7 +133,11 @@ export default function StaffFormModal({
   };
 
   const handleDelete = () => {
-    if (!confirm(`"${staff?.name}" 정보를 삭제하시겠습니까?`)) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    setShowDeleteConfirm(false);
     onDelete?.();
   };
 
@@ -142,10 +154,17 @@ export default function StaffFormModal({
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-canvas w-full max-w-[480px] max-h-[90vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]">
-        <h3 className="m-0 mb-4 text-[16px] font-bold text-ink">
-          {staff ? '직원 정보 수정' : '직원 등록'}
-        </h3>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="bg-canvas w-full max-w-[480px] max-h-[90vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="m-0 text-[16px] font-bold text-ink">
+            {staff ? '직원 정보 수정' : '직원 등록'}
+          </h3>
+          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+        </div>
 
         <div className="flex flex-col gap-3.5">
           {/* 기본 정보 */}
@@ -385,6 +404,15 @@ export default function StaffFormModal({
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title={`"${staff?.name}" 정보를 삭제하시겠습니까?`}
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setShowDeleteConfirm(false)}
+      />
     </div>,
     document.body,
   );

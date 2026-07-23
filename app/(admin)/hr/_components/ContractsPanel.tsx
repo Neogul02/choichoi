@@ -6,6 +6,7 @@ import { fetchAllContracts, deleteContract } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import type { StaffProfile, Store } from '@/types/database'
 import { showMsg } from '@/lib/toast'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 type ContractFilter = 'all' | 'signed' | 'pending' | 'missing'
 
@@ -30,6 +31,7 @@ interface Props {
 export default function ContractsPanel({ staffList, stores, refreshSignal, onWriteContract, onChanged }: Props) {
   const [filter, setFilter] = useState<ContractFilter>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ContractRecord | null>(null)
 
   // react-query 캐시 — 탭 재방문 시 재조회 없이 즉시 표시, 작성·삭제 시그널은 invalidate로 처리
   const queryClient = useQueryClient()
@@ -76,9 +78,14 @@ export default function ContractsPanel({ staffList, stores, refreshSignal, onWri
     return staff.store_id != null ? (storeById.get(staff.store_id)?.name ?? '매장 미배정') : '매장 미배정'
   }
 
-  const handleDelete = async (c: ContractRecord) => {
-    const who = staffById.get(c.worker_id)?.name ?? `#${c.worker_id}`
-    if (!confirm(`${who} — "${c.start_date}${c.end_date ? ` ~ ${c.end_date}` : ''}" 계약서를 삭제할까요?\nPDF 파일도 함께 삭제됩니다.`)) return
+  const handleDelete = (c: ContractRecord) => {
+    setDeleteTarget(c)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    const c = deleteTarget
+    setDeleteTarget(null)
     setDeletingId(c.id)
     const res = await deleteContract(c.id)
     setDeletingId(null)
@@ -195,6 +202,16 @@ export default function ContractsPanel({ staffList, stores, refreshSignal, onWri
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title={`${deleteTarget ? (staffById.get(deleteTarget.worker_id)?.name ?? `#${deleteTarget.worker_id}`) : ''} — "${deleteTarget?.start_date}${deleteTarget?.end_date ? ` ~ ${deleteTarget.end_date}` : ''}" 계약서를 삭제할까요?`}
+        description="PDF 파일도 함께 삭제됩니다."
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

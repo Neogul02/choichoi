@@ -10,6 +10,8 @@ interface Props {
   onDecreaseBox: () => void;
   onIncreaseUnit: () => void;
   onDecreaseUnit: () => void;
+  /** 디바운스 동기화 실패로 로컬 변경분이 되돌려졌을 때 카드에 표시 */
+  hasError?: boolean;
 }
 
 function formatRemaining(ing: Ingredient): string {
@@ -49,14 +51,14 @@ const CATEGORY_COLOR: Record<string, string> = {
   '패키지': 'bg-blue-100 text-blue-600',
 };
 
-export default function IngredientCard({ ingredient, onManage, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit }: Props) {
+export default function IngredientCard({ ingredient, onManage, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit, hasError }: Props) {
   const status = getStatus(ingredient);
   const styles = STATUS_STYLES[status];
 
   return (
     <div
       onClick={onManage}
-      className={`${styles.bg} w-full text-left rounded-xl p-3.5 shadow-level-1 border-[1.5px] ${styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
+      className={`${styles.bg} w-full text-left rounded-xl p-3.5 shadow-level-1 border-[1.5px] ${hasError ? 'border-rose-400' : styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
     >
       {/* 헤더 */}
       <div className="flex items-center gap-1.5 flex-wrap mb-1">
@@ -91,6 +93,10 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
         1{ingredient.container_unit} = {ingredient.container_size}{ingredient.base_unit}
       </div>
 
+      {hasError && (
+        <p className="text-[11px] font-bold text-rose-500 mb-2 -mt-1">저장 실패, 다시 시도해주세요</p>
+      )}
+
       {/* POS식 +/- 재고 조작: 박스 단위 + 낱개 단위 */}
       <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
@@ -98,7 +104,7 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
           <button
             onClick={onDecreaseBox}
             disabled={ingredient.sealed_count <= 0}
-            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label={`${ingredient.name} 1${ingredient.container_unit} 감소`}
           >
             −
@@ -116,7 +122,7 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
           </span>
           <button
             onClick={onIncreaseBox}
-            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
+            className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
             aria-label={`${ingredient.name} 1${ingredient.container_unit} 증가`}
           >
             +
@@ -127,7 +133,7 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
           <button
             onClick={onDecreaseUnit}
             disabled={ingredient.opened_remaining <= 0}
-            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label={`${ingredient.name} 낱개 1${ingredient.base_unit} 감소`}
           >
             −
@@ -145,7 +151,7 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
           </span>
           <button
             onClick={onIncreaseUnit}
-            className="flex items-center justify-center w-9 h-9 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
+            className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] active:scale-95 leading-none"
             aria-label={`${ingredient.name} 낱개 1${ingredient.base_unit} 증가`}
           >
             +

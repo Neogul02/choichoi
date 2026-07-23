@@ -37,6 +37,13 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
     }
   }, [ingredient]);
 
+  useEffect(() => {
+    if (!ingredient) return undefined;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [ingredient, onClose]);
+
   if (!ingredient) return null;
 
   const currentTotal = totalQty(ingredient);
@@ -118,6 +125,8 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
           transition={{ type: 'spring', damping: 28, stiffness: 340 }}
           className="bg-canvas w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
         >
           {/* 헤더 */}
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -129,6 +138,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
             </div>
             <button
               onClick={onClose}
+              aria-label="닫기"
               className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition"
             >
               ✕
@@ -152,7 +162,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
             ))}
           </div>
 
-          <div className="px-5 pb-5">
+          <div className="px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             {tab === 'adjust' && (
               <div className="flex flex-col gap-4">
                 <p className="text-[11px] text-ink-faint">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다. 카드의 +/- 버튼으로도 빠르게 조정할 수 있습니다.</p>

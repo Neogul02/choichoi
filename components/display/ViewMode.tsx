@@ -37,8 +37,8 @@ export default function ViewMode({ cartItems, cartTotalPrice }: Props) {
             transition={{ duration: 0.25 }}
             className="text-center"
           >
-            <h2 className="text-5xl font-black text-[#1a1a1a] mb-3 m-0">안녕하세요!</h2>
-            <p className="text-[#999] text-2xl m-0">주문을 기다리고 있어요</p>
+            <h2 className="text-5xl font-black text-ink mb-3 m-0">안녕하세요!</h2>
+            <p className="text-ink-faint text-2xl m-0">주문을 기다리고 있어요</p>
           </motion.div>
         ) : (
           <motion.div
@@ -51,7 +51,7 @@ export default function ViewMode({ cartItems, cartTotalPrice }: Props) {
           >
             <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] overflow-hidden mb-4">
               <div className="px-6 py-4 border-b border-[#f0f0f0]">
-                <h3 className="text-base font-bold text-[#888] tracking-wide uppercase m-0">주문 내역</h3>
+                <h3 className="text-base font-bold text-ink-muted tracking-wide uppercase m-0">주문 내역</h3>
               </div>
               <ul className="m-0 p-0 list-none divide-y divide-[#f5f5f5]">
                 <AnimatePresence initial={false}>
@@ -68,10 +68,10 @@ export default function ViewMode({ cartItems, cartTotalPrice }: Props) {
                         {item.color && (
                           <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                         )}
-                        <span className="text-[22px] font-semibold text-[#1a1a1a]">{item.name}</span>
-                        <span className="text-base font-bold text-[#bbb]">× {item.count}</span>
+                        <span className="text-[22px] font-semibold text-ink">{item.name}</span>
+                        <span className="text-base font-bold text-ink-faint">× {item.count}</span>
                       </div>
-                      <span className="text-[22px] font-bold text-[#333]">
+                      <span className="text-[22px] font-bold text-ink-secondary">
                         {formatPrice(item.price * item.count)}원
                       </span>
                     </motion.li>

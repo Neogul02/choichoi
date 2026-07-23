@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { moveStaffAssignments, clearStaffAssignments, swapStaffAssignments } from '@/app/actions/roster';
 import type { RosterUnit, RosterUndoPayload } from '@/app/actions/roster';
 import type { RosterAssignment, RosterShift, StaffProfile } from '@/types/database';
@@ -50,6 +51,13 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
   const [clearShiftId, setClearShiftId] = useState<number | null>(null); // null = 전체 파트
   const [swapTargetId, setSwapTargetId] = useState<number | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'move' | 'swap' | 'clear' | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pendingMode) onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose, pendingMode]);
 
   // 기간 내 배정 (기간이 뒤집히면 빈 목록)
   const inRange = useMemo(
@@ -125,15 +133,28 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
 
   const rangeLabel = `${from.slice(5).replace('-', '/')} ~ ${to.slice(5).replace('-', '/')}`;
 
-  const handleApply = async () => {
+  const handleApply = () => {
     if (staffId === null) { showMsg('근무자를 선택하세요'); return; }
     if (mode === 'move') {
       if (fromShiftId === null || toShiftId === null) { showMsg('이동할 파트를 선택하세요'); return; }
       if (!movePreview || movePreview.total === 0) { showMsg('이동할 배정이 없습니다'); return; }
-      const mergeNote = movePreview.merged > 0
-        ? `\n(${movePreview.merged}건은 ${shiftName(toShiftId)} 파트에 이미 있어 ${shiftName(fromShiftId)}에서만 제거됩니다)`
-        : '';
-      if (!confirm(`${staffName} · ${rangeLabel}\n${shiftName(fromShiftId)} → ${shiftName(toShiftId)} 파트로 ${movePreview.total}건을 이동할까요?${mergeNote}`)) return;
+      setPendingMode('move');
+    } else if (mode === 'swap') {
+      if (swapTargetId === null || !swapPreview) { showMsg('교환할 근무자를 선택하세요'); return; }
+      if (swapPreview.total === 0) { showMsg('교환할 배정이 없습니다'); return; }
+      setPendingMode('swap');
+    } else {
+      if (clearCount === 0) { showMsg('해제할 배정이 없습니다'); return; }
+      setPendingMode('clear');
+    }
+  };
+
+  const runApply = async () => {
+    const currentMode = pendingMode;
+    setPendingMode(null);
+    if (staffId === null) return;
+    if (currentMode === 'move') {
+      if (fromShiftId === null || toShiftId === null) return;
       setIsBusy(true);
       const r = await moveStaffAssignments(unit, staffId, fromShiftId, toShiftId, from, to);
       if (r.success && r.data) {
@@ -145,10 +166,8 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
         showMsg(`오류: ${r.error}`);
       }
       setIsBusy(false);
-    } else if (mode === 'swap') {
-      if (swapTargetId === null || !swapPreview) { showMsg('교환할 근무자를 선택하세요'); return; }
-      if (swapPreview.total === 0) { showMsg('교환할 배정이 없습니다'); return; }
-      if (!confirm(`${staffName} ↔ ${swapTargetName} · ${rangeLabel}\n두 사람의 배정 ${swapPreview.total}건을 서로 맞바꿀까요?`)) return;
+    } else if (currentMode === 'swap') {
+      if (swapTargetId === null) return;
       setIsBusy(true);
       const r = await swapStaffAssignments(unit, staffId, swapTargetId, from, to);
       if (r.success && r.data) {
@@ -160,10 +179,7 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
         showMsg(`오류: ${r.error}`);
       }
       setIsBusy(false);
-    } else {
-      if (clearCount === 0) { showMsg('해제할 배정이 없습니다'); return; }
-      const shiftLabel = clearShiftId === null ? '전체 파트' : `${shiftName(clearShiftId)} 파트`;
-      if (!confirm(`${staffName} · ${rangeLabel}\n${shiftLabel} 배정 ${clearCount}건을 해제할까요?`)) return;
+    } else if (currentMode === 'clear') {
       setIsBusy(true);
       const r = await clearStaffAssignments(unit, staffId, from, to, clearShiftId);
       if (r.success && r.data) {
@@ -177,6 +193,38 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
       setIsBusy(false);
     }
   };
+
+  const confirmDialogProps = (() => {
+    if (pendingMode === 'move') {
+      const mergeNote = movePreview && movePreview.merged > 0
+        ? ` (${movePreview.merged}건은 ${shiftName(toShiftId)} 파트에 이미 있어 ${shiftName(fromShiftId)}에서만 제거됩니다)`
+        : '';
+      return {
+        title: `${staffName} · ${rangeLabel}`,
+        description: `${shiftName(fromShiftId)} → ${shiftName(toShiftId)} 파트로 ${movePreview?.total ?? 0}건을 이동할까요?${mergeNote}`,
+        confirmLabel: '이동',
+        danger: false,
+      };
+    }
+    if (pendingMode === 'swap') {
+      return {
+        title: `${staffName} ↔ ${swapTargetName} · ${rangeLabel}`,
+        description: `두 사람의 배정 ${swapPreview?.total ?? 0}건을 서로 맞바꿀까요?`,
+        confirmLabel: '교환',
+        danger: false,
+      };
+    }
+    if (pendingMode === 'clear') {
+      const shiftLabel = clearShiftId === null ? '전체 파트' : `${shiftName(clearShiftId)} 파트`;
+      return {
+        title: `${staffName} · ${rangeLabel}`,
+        description: `${shiftLabel} 배정 ${clearCount}건을 해제할까요?`,
+        confirmLabel: '해제',
+        danger: true,
+      };
+    }
+    return null;
+  })();
 
   const canApply = staffId !== null && !isBusy && (
     mode === 'move' ? movePreview !== null && movePreview.total > 0
@@ -197,10 +245,14 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-canvas w-full max-w-[420px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="bg-canvas w-full max-w-[420px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]"
+      >
         <div className="flex items-center justify-between mb-1">
           <h3 className="m-0 text-[16px] font-bold text-ink">일괄 편집</h3>
-          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
         <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} · 특정 근무자의 배정을 한 번에 옮기거나 해제합니다</p>
 
@@ -375,6 +427,16 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDialogProps != null}
+        title={confirmDialogProps?.title ?? ''}
+        description={confirmDialogProps?.description}
+        confirmLabel={confirmDialogProps?.confirmLabel ?? '확인'}
+        danger={confirmDialogProps?.danger ?? false}
+        onConfirm={runApply}
+        onClose={() => setPendingMode(null)}
+      />
     </div>,
     document.body,
   );

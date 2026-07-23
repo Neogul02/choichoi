@@ -135,6 +135,12 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
 
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
   const handleComplete = async () => {
     setSaving(true)
     const r = await generateContract({ workerId: staff.id, workerName: staff.name, startDate, hourlyRate: Number(hourlyRate), contractData })
@@ -158,17 +164,21 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
       style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-canvas w-full max-w-[1100px] max-h-[95vh] rounded-xl shadow-level-2 border border-hairline flex flex-col overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="bg-canvas w-full max-w-[1100px] max-h-[95vh] rounded-xl shadow-level-2 border border-hairline flex flex-col overflow-hidden"
+      >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-hairline bg-canvas-soft shrink-0">
           <h3 className="m-0 text-[15px] font-bold text-ink">{staff.name} — 근로계약서</h3>
-          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none">×</button>
+          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none">×</button>
         </div>
 
-        {/* 본문: 좌측 폼 + 우측 미리보기 */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* 본문: 좌측 폼 + 우측 미리보기 — 모바일은 세로 스택, md 이상은 좌우 분할 */}
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
           {/* 좌측: 입력 폼 */}
-          <div className="w-[420px] shrink-0 overflow-y-auto p-4 flex flex-col gap-3 border-r border-hairline [scrollbar-width:thin]">
+          <div className="w-full md:w-[420px] shrink-0 md:overflow-y-auto p-4 flex flex-col gap-3 border-b md:border-b-0 md:border-r border-hairline [scrollbar-width:thin]">
 
             {/* 사업주 */}
             <div>
@@ -273,7 +283,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
           </div>
 
           {/* 우측: PDF 미리보기 */}
-          <div className="flex-1 min-w-0 bg-canvas-soft flex flex-col">
+          <div className="flex-1 min-w-0 min-h-[480px] md:min-h-0 bg-canvas-soft flex flex-col">
             <div className="px-4 py-2 border-b border-hairline bg-canvas text-[11px] text-ink-muted font-semibold shrink-0">미리보기</div>
             <div className="flex-1 min-h-0">
               <PDFPreviewPanel contractData={previewData} />

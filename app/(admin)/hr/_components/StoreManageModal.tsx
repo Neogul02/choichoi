@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { createStore, renameStore, deleteStore } from '@/app/actions/stores';
 import type { Store } from '@/types/database';
 
@@ -19,6 +20,13 @@ export default function StoreManageModal({ stores, onStoresChange, onClose }: Pr
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [isBusy, setIsBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Store | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !deleteTarget) onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose, deleteTarget]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -43,8 +51,14 @@ export default function StoreManageModal({ stores, onStoresChange, onClose }: Pr
     } else showMsg(`오류: ${r.error}`);
   };
 
-  const handleDelete = async (store: Store) => {
-    if (!confirm(`"${store.name}" 매장을 삭제하시겠습니까?\n이 매장의 스케줄 데이터도 함께 삭제되고, 배속된 캐셔는 미배정이 됩니다.`)) return;
+  const handleDelete = (store: Store) => {
+    setDeleteTarget(store);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const store = deleteTarget;
+    setDeleteTarget(null);
     setIsBusy(true);
     const r = await deleteStore(store.id);
     setIsBusy(false);
@@ -62,10 +76,14 @@ export default function StoreManageModal({ stores, onStoresChange, onClose }: Pr
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-canvas w-full max-w-[400px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="bg-canvas w-full max-w-[400px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]"
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="m-0 text-[16px] font-bold text-ink">매장 관리</h3>
-          <button onClick={onClose} className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
 
         {/* 추가 */}
@@ -133,6 +151,16 @@ export default function StoreManageModal({ stores, onStoresChange, onClose }: Pr
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title={`"${deleteTarget?.name}" 매장을 삭제하시겠습니까?`}
+        description="이 매장의 스케줄 데이터도 함께 삭제되고, 배속된 캐셔는 미배정이 됩니다."
+        confirmLabel="삭제"
+        danger
+        onConfirm={confirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>,
     document.body,
   );
