@@ -11,7 +11,7 @@ export type SortDir = 'asc' | 'desc';
 
 const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 1, rejected: 2, inactive: 3 };
 
-/** 직원 목록의 역할·매장·상태·검색 필터와 컬럼 정렬 상태 + 필터링 결과를 관리하는 훅 */
+/** 직원 목록의 역할·팝업·상태·검색 필터와 컬럼 정렬 상태 + 필터링 결과를 관리하는 훅 */
 export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShift[]) {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
@@ -40,7 +40,7 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
   const filtered = useMemo(() => {
     let list = roleStaff.filter(s => {
       if (roleFilter === 'cashier' && storeFilter !== 'all') {
-        if (storeFilter === 'none' ? s.store_id !== null : s.store_id !== storeFilter) return false;
+        if (storeFilter === 'none' ? s.popup_id !== null : s.popup_id !== storeFilter) return false;
       }
       if (statusFilter !== 'all' && s.status !== statusFilter) return false;
       if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;

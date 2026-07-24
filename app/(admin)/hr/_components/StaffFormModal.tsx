@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift, AvailabilityRange } from '@/types/database';
+import type { StaffProfile, StaffStatus, StaffRole, PopupEvent, RosterShift, AvailabilityRange } from '@/types/database';
 import type { StaffProfileInput } from '@/app/actions/staff';
 import { uploadHealthCert, getHealthCertUrl } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
@@ -14,9 +14,9 @@ import { STATUS_LABELS, DAY_NAMES, ROLE_LABELS } from './constants';
 interface Props {
   staff: StaffProfile | null;
   userProfiles: UserProfile[];
-  stores: Store[];
+  popups: PopupEvent[];
   defaultRole?: StaffRole;
-  defaultStoreId?: number | null;
+  defaultPopupId?: number | null;
   onClose: () => void;
   onSubmit: (input: StaffProfileInput) => Promise<void>;
   onDelete?: () => void;
@@ -24,7 +24,7 @@ interface Props {
 }
 
 export default function StaffFormModal({
-  staff, userProfiles, stores, defaultRole, defaultStoreId,
+  staff, userProfiles, popups, defaultRole, defaultPopupId,
   onClose, onSubmit, onDelete, onHealthCertUploaded,
 }: Props) {
   useBodyScrollLock();
@@ -33,7 +33,7 @@ export default function StaffFormModal({
   const [bankName, setBankName] = useState(staff?.bank_name ?? '');
   const [bankAccount, setBankAccount] = useState(staff?.bank_account ?? '');
   const [staffRole, setStaffRole] = useState<StaffRole>(staff?.staff_role ?? defaultRole ?? 'cashier');
-  const [storeId, setStoreId] = useState<number | null>(staff?.store_id ?? defaultStoreId ?? null);
+  const [popupId, setPopupId] = useState<number | null>(staff?.popup_id ?? defaultPopupId ?? null);
   const [shiftIds, setShiftIds] = useState<number[]>(staff?.preferred_shift_ids ?? []);
   const [unitShifts, setUnitShifts] = useState<RosterShift[] | null>(null);
   const [days, setDays] = useState<number[]>(staff?.preferred_days ?? []);
@@ -61,11 +61,11 @@ export default function StaffFormModal({
   }, [onClose, showDeleteConfirm]);
 
   useEffect(() => {
-    if (staffRole === 'cashier' && storeId === null) { setUnitShifts([]); return; }
+    if (staffRole === 'cashier' && popupId === null) { setUnitShifts([]); return; }
     setUnitShifts(null);
-    fetchRosterShifts({ staffRole, storeId: staffRole === 'kitchen' ? null : storeId })
+    fetchRosterShifts({ staffRole, popupId: staffRole === 'kitchen' ? null : popupId })
       .then(r => setUnitShifts(r.success && r.data ? r.data : []));
-  }, [staffRole, storeId]);
+  }, [staffRole, popupId]);
 
   const toggleDay = (d: number) =>
     setDays(p => p.includes(d) ? p.filter(v => v !== d) : [...p, d].sort());
@@ -95,7 +95,7 @@ export default function StaffFormModal({
       name, phone: phone || null,
       bank_name: bankName || null, bank_account: bankAccount || null,
       staff_role: staffRole,
-      store_id: staffRole === 'cashier' ? storeId : null,
+      popup_id: staffRole === 'cashier' ? popupId : null,
       preferred_shift_ids: shiftIds.filter(id => (unitShifts ?? []).some(s => s.id === id)),
       preferred_days: days, available_ranges: validRanges,
       has_health_cert: hasHealthCert, health_cert_url: certPath,
@@ -201,10 +201,10 @@ export default function StaffFormModal({
 
           {staffRole === 'cashier' && (
             <div className="flex flex-col gap-1">
-              <label className={labelCls}>매장 <span className="text-ink-faint font-normal">(미배정이면 스케줄 달력에 안 나옴)</span></label>
-              <select value={storeId ?? ''} onChange={e => setStoreId(e.target.value ? Number(e.target.value) : null)} className={inputCls}>
+              <label className={labelCls}>팝업 <span className="text-ink-faint font-normal">(미배정이면 스케줄 달력에 안 나옴)</span></label>
+              <select value={popupId ?? ''} onChange={e => setPopupId(e.target.value ? Number(e.target.value) : null)} className={inputCls}>
                 <option value="">미배정</option>
-                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {popups.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
           )}
@@ -224,8 +224,8 @@ export default function StaffFormModal({
           {/* 선호 파트 */}
           <div className="flex flex-col gap-1">
             <label className={labelCls}>선호 파트 <span className="text-ink-faint font-normal">(선택 안 하면 모든 파트 가능)</span></label>
-            {staffRole === 'cashier' && storeId === null ? (
-              <p className="m-0 text-[12px] text-ink-faint">매장을 먼저 선택하면 파트를 고를 수 있습니다.</p>
+            {staffRole === 'cashier' && popupId === null ? (
+              <p className="m-0 text-[12px] text-ink-faint">팝업을 먼저 선택하면 파트를 고를 수 있습니다.</p>
             ) : unitShifts === null ? (
               <p className="m-0 text-[12px] text-ink-faint">파트 불러오는 중...</p>
             ) : (

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchAllContracts, deleteContract } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
-import type { StaffProfile, Store } from '@/types/database'
+import type { StaffProfile, PopupEvent } from '@/types/database'
 import { showMsg } from '@/lib/toast'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
@@ -22,13 +22,13 @@ const EMPTY_CONTRACTS: ContractRecord[] = []
 
 interface Props {
   staffList: StaffProfile[]
-  stores: Store[]
+  popups: PopupEvent[]
   refreshSignal: number
   onWriteContract: (staff: StaffProfile) => void
   onChanged: () => void
 }
 
-export default function ContractsPanel({ staffList, stores, refreshSignal, onWriteContract, onChanged }: Props) {
+export default function ContractsPanel({ staffList, popups, refreshSignal, onWriteContract, onChanged }: Props) {
   const [filter, setFilter] = useState<ContractFilter>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ContractRecord | null>(null)
@@ -50,7 +50,7 @@ export default function ContractsPanel({ staffList, stores, refreshSignal, onWri
   }, [refreshSignal, queryClient])
 
   const staffById = useMemo(() => new Map(staffList.map(s => [s.id, s])), [staffList])
-  const storeById = useMemo(() => new Map(stores.map(s => [s.id, s])), [stores])
+  const popupById = useMemo(() => new Map(popups.map(p => [p.id, p])), [popups])
 
   // 계약서가 한 건도 없는 재직자 — '미작성' 행으로 노출
   const missingStaff = useMemo(() => {
@@ -75,7 +75,7 @@ export default function ContractsPanel({ staffList, stores, refreshSignal, onWri
   const affiliationLabel = (staff: StaffProfile | undefined) => {
     if (!staff) return null
     if (staff.staff_role === 'kitchen') return '주방'
-    return staff.store_id != null ? (storeById.get(staff.store_id)?.name ?? '매장 미배정') : '매장 미배정'
+    return staff.popup_id != null ? (popupById.get(staff.popup_id)?.name ?? '팝업 미배정') : '팝업 미배정'
   }
 
   const handleDelete = (c: ContractRecord) => {

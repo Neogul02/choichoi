@@ -5,7 +5,7 @@ import { showMsg } from '@/lib/toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
-import type { StaffProfile, Store, StaffRole, RosterShift } from '@/types/database';
+import type { StaffProfile, PopupEvent, StaffRole, RosterShift } from '@/types/database';
 import { DAY_NAMES, ROLE_LABELS } from './constants';
 import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap } from '@/lib/staffing';
 import { addDays } from '@/lib/date';
@@ -27,32 +27,32 @@ import StaffTotalsPanel from './StaffTotalsPanel';
 
 interface Props {
   staffList: StaffProfile[];
-  stores: Store[];
+  popups: PopupEvent[];
   roleFilter: StaffRole;
   refreshSignal?: number;
   /** 서버(page.tsx)가 프리페치한 당월 데이터 — 첫 로드 시 단위·월이 일치하면 왕복 없이 사용 */
   initialData?: { unit: RosterUnit; y: number; m: number; data: RosterMonthData };
 }
 
-export default function RosterCalendar({ staffList, stores, roleFilter, refreshSignal, initialData }: Props) {
-  // 단위 = 주방 전체 또는 캐셔의 특정 매장
-  const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', storeId: null });
+export default function RosterCalendar({ staffList, popups, roleFilter, refreshSignal, initialData }: Props) {
+  // 단위 = 주방 전체 또는 캐셔의 특정 팝업
+  const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', popupId: null });
 
   // 좌측 roleFilter 변경 시 캘린더 단위 동기화
-  // stores를 deps에 포함 — 스토어가 로드되기 전에 storeId=null로 초기화되면 잘못된 시프트 set이 생성됨
+  // popups를 deps에 포함 — 팝업이 로드되기 전에 popupId=null로 초기화되면 잘못된 시프트 set이 생성됨
   useEffect(() => {
     if (roleFilter === 'kitchen') {
-      setUnit({ staffRole: 'kitchen', storeId: null });
+      setUnit({ staffRole: 'kitchen', popupId: null });
       return;
     }
-    // 캐셔는 stores가 로드된 후에만 초기화
-    if (stores.length === 0) return;
+    // 캐셔는 popups가 로드된 후에만 초기화
+    if (popups.length === 0) return;
     setUnit(prev => {
-      // 이미 올바른 매장이 선택된 경우 유지
-      if (prev.staffRole === 'cashier' && prev.storeId !== null) return prev;
-      return { staffRole: 'cashier', storeId: stores[0].id };
+      // 이미 올바른 팝업이 선택된 경우 유지
+      if (prev.staffRole === 'cashier' && prev.popupId !== null) return prev;
+      return { staffRole: 'cashier', popupId: popups[0].id };
     });
-  }, [roleFilter, stores]);
+  }, [roleFilter, popups]);
   // 뷰 상태(월 커서·월/주 토글·범위 필터·선택 날짜 + localStorage 동기화)
   const {
     cursor, setCursor, todayStr, viewMode, weekStart, setWeekStart,
@@ -80,9 +80,9 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
   const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
   const [confirmAction, setConfirmAction] = useState<'autofill' | 'copyPrevWeek' | 'clear' | null>(null);
 
-  // 현재 단위 소속 직원만 (주방 전체 / 해당 매장 캐셔)
+  // 현재 단위 소속 직원만 (주방 전체 / 해당 팝업 캐셔)
   const unitStaff = useMemo(
-    () => staffList.filter(s => s.staff_role === unit.staffRole && (unit.staffRole === 'kitchen' || s.store_id === unit.storeId)),
+    () => staffList.filter(s => s.staff_role === unit.staffRole && (unit.staffRole === 'kitchen' || s.popup_id === unit.popupId)),
     [staffList, unit],
   );
 
@@ -248,7 +248,7 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
 
   const unitLabel = unit.staffRole === 'kitchen'
     ? ROLE_LABELS.kitchen
-    : (stores.find(s => s.id === unit.storeId)?.name ?? ROLE_LABELS.cashier);
+    : (popups.find(p => p.id === unit.popupId)?.name ?? ROLE_LABELS.cashier);
 
   const prevWeekLabel = weekStart ? `${addDays(weekStart, -7)} ~ ${addDays(weekStart, -1)}` : '';
   const confirmDialogProps = (() => {
@@ -287,23 +287,23 @@ export default function RosterCalendar({ staffList, stores, roleFilter, refreshS
     <div className="flex flex-col lg:flex-row gap-3 items-start">
       {/* ── 달력 ── */}
       <div className="flex-1 min-w-0 w-full bg-canvas rounded-2xl p-3 md:p-4 shadow-level-1 border border-hairline">
-        {/* 매장 선택 (캐셔일 때만) */}
+        {/* 팝업 선택 (캐셔일 때만) */}
         {roleFilter === 'cashier' && (
           <div className="flex flex-wrap items-center gap-1.5 mb-3 pb-3 border-b border-hairline">
-            {stores.length === 0 ? (
-              <span className="text-[11px] text-ink-faint">매장을 먼저 등록하면 여기에 나타납니다</span>
+            {popups.length === 0 ? (
+              <span className="text-[11px] text-ink-faint">팝업을 먼저 등록하면 여기에 나타납니다</span>
             ) : (
-              stores.map(store => (
+              popups.map(popup => (
                 <button
-                  key={store.id}
-                  onClick={() => setUnit({ staffRole: 'cashier', storeId: store.id })}
+                  key={popup.id}
+                  onClick={() => setUnit({ staffRole: 'cashier', popupId: popup.id })}
                   className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
-                    unit.storeId === store.id
+                    unit.popupId === popup.id
                       ? 'bg-primary-700 text-white border-primary-700'
                       : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
                   }`}
                 >
-                  {store.name}
+                  {popup.name}
                 </button>
               ))
             )}

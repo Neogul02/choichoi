@@ -5,11 +5,10 @@ import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { fetchRosterShifts, bulkAddRosterAssignments } from '@/app/actions/roster'
 import type { RosterUnit } from '@/app/actions/roster'
-import type { StaffProfile, Store, RosterShift } from '@/types/database'
+import type { StaffProfile, RosterShift } from '@/types/database'
 
 interface Props {
   staff: StaffProfile
-  stores: Store[]
   onClose: () => void
   onAssigned: (count: number) => void
 }
@@ -24,9 +23,9 @@ function dateStr(y: number, m: number, d: number) {
   return `${y}-${pad(m + 1)}-${pad(d)}`
 }
 
-export default function StaffAssignModal({ staff, stores, onClose, onAssigned }: Props) {
+export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) {
   useBodyScrollLock()
-  const unit: RosterUnit = { staffRole: staff.staff_role, storeId: staff.store_id }
+  const unit: RosterUnit = { staffRole: staff.staff_role, popupId: staff.popup_id }
 
   const [shifts, setShifts] = useState<RosterShift[]>([])
   const [shiftId, setShiftId] = useState<number | null>(null)

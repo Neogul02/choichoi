@@ -6,14 +6,13 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent, togglePopupEventActive,
 } from '@/app/actions/schedule';
-import { fetchStores } from '@/app/actions/stores';
-import type { PopupEvent, Store } from '@/types/database';
+import type { PopupEvent } from '@/types/database';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
-type EventForm = { name: string; startDate: string; endDate: string; storeId: number | null };
+type EventForm = { name: string; startDate: string; endDate: string };
 
-const INITIAL_FORM: EventForm = { name: '', startDate: '', endDate: '', storeId: null };
+const INITIAL_FORM: EventForm = { name: '', startDate: '', endDate: '' };
 
 function weekdayOf(date: string): string | null {
   return date ? DAY_NAMES[new Date(date + 'T00:00:00').getDay()] : null;
@@ -27,7 +26,6 @@ function validateForm(form: EventForm): string | null {
 
 export default function PopupManagementSection() {
   const [events, setEvents] = useState<PopupEvent[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [addForm, setAddForm] = useState<EventForm>(INITIAL_FORM);
@@ -39,21 +37,18 @@ export default function PopupManagementSection() {
   const [deleteTarget, setDeleteTarget] = useState<PopupEvent | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchPopupEvents(), fetchStores()]).then(([evRes, stRes]) => {
-      if (evRes.success && evRes.data) setEvents(evRes.data);
-      if (stRes.success && stRes.data) setStores(stRes.data);
+    fetchPopupEvents().then(res => {
+      if (res.success && res.data) setEvents(res.data);
       setIsLoading(false);
     });
   }, []);
-
-  const storeName = (id: number | null) => (id == null ? null : stores.find(s => s.id === id)?.name ?? '알 수 없는 매장');
 
   // ── 추가 ──────────────────────────────────────────────
   const handleAdd = async () => {
     const invalid = validateForm(addForm);
     if (invalid) { toast.error(invalid); return; }
     setIsAdding(true);
-    const res = await createNewPopupEvent(addForm.name.trim(), addForm.startDate, addForm.endDate, addForm.storeId);
+    const res = await createNewPopupEvent(addForm.name.trim(), addForm.startDate, addForm.endDate);
     setIsAdding(false);
     if (res.success && res.data) {
       setEvents(p => [res.data!, ...p]);
@@ -66,7 +61,7 @@ export default function PopupManagementSection() {
 
   // ── 인라인 수정 ────────────────────────────────────────
   const startEdit = (ev: PopupEvent) => {
-    setInlineEdits(p => ({ ...p, [ev.id]: { name: ev.name, startDate: ev.start_date, endDate: ev.end_date, storeId: ev.store_id } }));
+    setInlineEdits(p => ({ ...p, [ev.id]: { name: ev.name, startDate: ev.start_date, endDate: ev.end_date } }));
   };
 
   const cancelEdit = (id: number) => {
@@ -79,7 +74,7 @@ export default function PopupManagementSection() {
     const invalid = validateForm(draft);
     if (invalid) { toast.error(invalid); return; }
     setSavingId(id);
-    const res = await editPopupEvent(id, draft.name.trim(), draft.startDate, draft.endDate, draft.storeId);
+    const res = await editPopupEvent(id, draft.name.trim(), draft.startDate, draft.endDate);
     setSavingId(null);
     if (res.success && res.data) {
       setEvents(p => p.map(ev => ev.id === id ? res.data! : ev));
@@ -116,11 +111,7 @@ export default function PopupManagementSection() {
     setTogglingId(null);
     if (res.success && res.data) {
       // 낙관적 상태가 이미 최종 상태와 동일 — 재반영하면 불필요한 리렌더만 생긴다
-      if (!next && ev.store_id == null) {
-        toast.success('팝업이 비활성화됐습니다 — 매장 미연결 팝업은 근무표에는 영향이 없습니다');
-      } else {
-        toast.success(next ? '팝업이 활성화됐습니다' : '팝업이 비활성화됐습니다');
-      }
+      toast.success(next ? '팝업이 활성화됐습니다' : '팝업이 비활성화됐습니다 — 근무표에서도 숨겨집니다');
     } else {
       setEvents(p => p.map(e => e.id === ev.id ? { ...e, is_active: !next } : e));
       toast.error(`오류: ${res.error}`);
@@ -140,14 +131,6 @@ export default function PopupManagementSection() {
             onChange={e => onChange({ name: e.target.value })}
             className={`flex-1 ${inputCls}`}
           />
-          <select
-            value={form.storeId ?? ''}
-            onChange={e => onChange({ storeId: e.target.value ? Number(e.target.value) : null })}
-            className={`w-40 ${inputCls}`}
-          >
-            <option value="">매장 선택 안 함</option>
-            {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
         </div>
         <div className="flex gap-2">
           <div className="flex-1 flex flex-col gap-0.5">
@@ -182,8 +165,7 @@ export default function PopupManagementSection() {
       {/* 팝업 목록 */}
       <h3 className="mb-1.5 text-base font-bold">팝업 목록</h3>
       <p className="mt-0 mb-3 text-xs text-ink-muted">
-        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 스케줄·일정표의 매장 목록에서 숨겨집니다.
-        매장 숨김은 팝업에 매장을 연결해야 적용됩니다.
+        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 스케줄·일정표에서 숨겨집니다.
       </p>
       {isLoading ? <p className="text-ink-muted text-sm">로딩 중...</p> : events.length === 0 ? (
         <p className="text-ink-faint text-sm">등록된 팝업이 없습니다.</p>
@@ -230,11 +212,6 @@ export default function PopupManagementSection() {
                       )}
                       <span className="block text-xs text-ink-muted">
                         {ev.start_date} ~ {ev.end_date}
-                        {ev.store_id != null ? (
-                          <span className="ml-2 text-primary-700 font-semibold">{storeName(ev.store_id)}</span>
-                        ) : (
-                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600" title="매장을 연결해야 비활성화 시 인사 스케줄·일정표에서 매장이 숨겨집니다">매장 미연결</span>
-                        )}
                       </span>
                     </div>
                     <div className="flex gap-1.5 shrink-0">
@@ -257,6 +234,7 @@ export default function PopupManagementSection() {
       <ConfirmDialog
         open={deleteTarget != null}
         title={`"${deleteTarget?.name ?? ''}" 팝업을 삭제하시겠습니까?`}
+        description="이 팝업에 배속된 캐셔의 파트·근무 배정 데이터도 함께 삭제되고, 배속된 캐셔는 미배정이 됩니다."
         confirmLabel="삭제"
         danger
         onConfirm={confirmDelete}

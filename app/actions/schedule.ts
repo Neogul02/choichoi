@@ -9,6 +9,7 @@ import {
   updatePopupEvent,
   setPopupEventActive,
 } from '@/lib/supabase-admin';
+import { classifyStaffByPopupSchedule } from './staffPopups';
 import type { ApiResponse, FetchEventsResponse } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
@@ -29,16 +30,22 @@ export async function togglePopupEventActive(id: number, isActive: boolean): Pro
   return wrap(() => setPopupEventActive(id, isActive));
 }
 
-export async function createNewPopupEvent(name: string, startDate: string, endDate: string, storeId: number | null): Promise<ApiResponse<PopupEvent>> {
+export async function createNewPopupEvent(name: string, startDate: string, endDate: string): Promise<ApiResponse<PopupEvent>> {
   const parsed = PopupEventSchema.safeParse({ name, startDate, endDate });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => createPopupEvent(parsed.data.name, parsed.data.startDate, parsed.data.endDate, storeId));
+  const res = await wrap(() => createPopupEvent(parsed.data.name, parsed.data.startDate, parsed.data.endDate));
+  // 기간 안에 이미 배정된 근무자가 있으면(드문 경우지만 과거 날짜로 소급 생성 등) 바로 팝업 소속으로 분류
+  if (res.success && res.data) await classifyStaffByPopupSchedule(res.data.id);
+  return res;
 }
 
 export async function removePopupEvent(id: number): Promise<ApiResponse> { return wrap(() => deletePopupEvent(id)); }
 
-export async function editPopupEvent(id: number, name: string, startDate: string, endDate: string, storeId: number | null): Promise<ApiResponse<PopupEvent>> {
+export async function editPopupEvent(id: number, name: string, startDate: string, endDate: string): Promise<ApiResponse<PopupEvent>> {
   const parsed = PopupEventSchema.safeParse({ name, startDate, endDate });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => updatePopupEvent(id, parsed.data.name, parsed.data.startDate, parsed.data.endDate, storeId));
+  const res = await wrap(() => updatePopupEvent(id, parsed.data.name, parsed.data.startDate, parsed.data.endDate));
+  // 기간을 수정하면(연장 등) 새로 기간에 들어온 근무자를 다시 분류
+  if (res.success && res.data) await classifyStaffByPopupSchedule(id);
+  return res;
 }

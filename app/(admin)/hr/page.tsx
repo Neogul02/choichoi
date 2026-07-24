@@ -2,39 +2,37 @@ import HrPageClient from './_components/HrPageClient';
 import type { InitialRoster } from './_components/HrPageClient';
 import { fetchStaffProfiles } from '@/app/actions/staff';
 import { fetchAllUserProfiles } from '@/app/actions/workers';
-import { fetchStores } from '@/app/actions/stores';
 import { fetchPopupEvents } from '@/app/actions/schedule';
 import { fetchAllRosterShifts, fetchRosterRange } from '@/app/actions/roster';
 import type { RosterUnit } from '@/app/actions/roster';
 import { fetchContractedStaffIds } from '@/app/actions/contracts';
-import { filterVisibleStores } from '@/lib/staffing';
+import { fetchStaffPopupAssignments } from '@/app/actions/staffPopups';
 import { kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date';
 
 // 서버 컴포넌트에서 서버 액션 함수를 직접 호출하면 HTTP 왕복 없이 in-process로 병렬 실행된다.
 // 클라이언트 마운트 후 호출하던 기존 방식은 Next.js가 액션 POST를 직렬화하는 데다
 // 요청마다 proxy.ts의 getUser() 인증 왕복이 붙어 초기 로딩이 수 초씩 걸렸다.
 async function getHrBootstrap() {
-  // 매장 목록은 달력 초기 단위(캐셔=첫 매장) 결정에 필요해 먼저 조회
-  // 팝업은 비활성 팝업 매장을 스케줄에서 숨기는 데 사용
-  const [storesRes, popupsRes] = await Promise.all([fetchStores(), fetchPopupEvents()]);
-  const stores = storesRes.success ? (storesRes.data ?? []) : [];
+  // 팝업 목록은 달력 초기 단위(캐셔=첫 활성 팝업) 결정에 필요해 먼저 조회
+  const popupsRes = await fetchPopupEvents();
   const popups = popupsRes.success ? (popupsRes.data ?? []) : [];
-  const visibleStores = filterVisibleStores(stores, popups);
+  const visiblePopups = popups.filter(p => p.is_active !== false);
 
   // RosterCalendar의 초기 상태와 동일한 단위·당월(KST)을 프리페치 — 단위·월이 어긋나면 클라이언트가 무시하고 직접 조회
-  const initialUnit: RosterUnit = visibleStores.length > 0
-    ? { staffRole: 'cashier', storeId: visibleStores[0].id }
-    : { staffRole: 'kitchen', storeId: null };
+  const initialUnit: RosterUnit = visiblePopups.length > 0
+    ? { staffRole: 'cashier', popupId: visiblePopups[0].id }
+    : { staffRole: 'kitchen', popupId: null };
   const { y, m } = kstYearMonth(); // m은 0-indexed — 클라이언트 cursor.m과 동일 기준
   const monthStart = ymdToDateStr(y, m, 1);
   const monthEnd = monthEndDateStr(y, m);
 
-  const [staffRes, profileRes, shiftsRes, contractedRes, rosterRes] = await Promise.all([
+  const [staffRes, profileRes, shiftsRes, contractedRes, rosterRes, staffPopupRes] = await Promise.all([
     fetchStaffProfiles(),
     fetchAllUserProfiles(),
     fetchAllRosterShifts(),
     fetchContractedStaffIds(),
     fetchRosterRange(initialUnit, monthStart, monthEnd),
+    fetchStaffPopupAssignments(),
   ]);
 
   const initialRoster: InitialRoster | null =
@@ -43,10 +41,10 @@ async function getHrBootstrap() {
   return {
     initialStaff: staffRes.success ? (staffRes.data ?? []) : [],
     initialUserProfiles: profileRes.success ? (profileRes.data ?? []) : [],
-    initialStores: stores,
     initialPopups: popups,
     initialShifts: shiftsRes.success ? (shiftsRes.data ?? []) : [],
     initialContractedIds: contractedRes.success ? (contractedRes.data ?? []) : [],
+    initialStaffPopupAssignments: staffPopupRes.success ? (staffPopupRes.data ?? []) : [],
     initialRoster,
   };
 }
