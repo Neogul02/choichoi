@@ -7,10 +7,8 @@ import type { ApiResponse } from '@/types/api'
 import type { RosterMemo, StaffProfile } from '@/types/database'
 import { fetchRosterRange } from './roster'
 import type { RosterMonthData, RosterUnit } from './roster'
-import { fetchStores } from './stores'
 import { fetchStaffProfiles } from './staff'
 import { fetchPopupEvents } from './schedule'
-import { filterVisibleStores } from '@/lib/staffing'
 import { extractErrorMessage } from './_base'
 
 
@@ -36,19 +34,19 @@ export interface RosterOverview {
   memos: RosterMemo[]
 }
 
-/** 주방 + 매장별 캐셔 근무표와 기간 내 메모를 한 번에 — 일정표(읽기 전용) 화면용 */
+/** 주방 + 팝업별 캐셔 근무표와 기간 내 메모를 한 번에 — 일정표(읽기 전용) 화면용 */
 export async function fetchRosterOverview(fromDate: string, toDate: string): Promise<ApiResponse<RosterOverview>> {
   try {
     if (!(await getManagerSession())) return { success: false, error: '권한이 없습니다.' }
 
-    const [storesRes, popupsRes] = await Promise.all([fetchStores(), fetchPopupEvents()])
-    if (!storesRes.success || !storesRes.data) return { success: false, error: storesRes.error ?? '매장을 불러올 수 없습니다.' }
-    // 비활성 팝업만 연결된 매장은 일정표에서 제외 (팝업 조회 실패 시엔 전체 표시로 폴백)
-    const visibleStores = filterVisibleStores(storesRes.data, popupsRes.success ? (popupsRes.data ?? []) : [])
+    const popupsRes = await fetchPopupEvents()
+    if (!popupsRes.success) return { success: false, error: popupsRes.error ?? '팝업을 불러올 수 없습니다.' }
+    // 비활성 팝업은 일정표에서 제외
+    const visiblePopups = (popupsRes.data ?? []).filter(p => p.is_active !== false)
     // 주방 매니저가 주 사용자라 주방을 맨 위에 표시
     const unitDefs: { key: string; label: string; unit: RosterUnit }[] = [
-      { key: 'kitchen', label: '주방', unit: { staffRole: 'kitchen' as const, storeId: null } },
-      ...visibleStores.map(s => ({ key: `cashier-${s.id}`, label: s.name, unit: { staffRole: 'cashier' as const, storeId: s.id } })),
+      { key: 'kitchen', label: '주방', unit: { staffRole: 'kitchen' as const, popupId: null } },
+      ...visiblePopups.map(p => ({ key: `cashier-${p.id}`, label: p.name, unit: { staffRole: 'cashier' as const, popupId: p.id } })),
     ]
 
     const [staffRes, memosRes, rangeResults] = await Promise.all([

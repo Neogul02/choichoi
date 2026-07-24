@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import { getAuthUser } from './_base'
+import { STAFF_COLUMNS } from '@/lib/staff-columns'
 import type { ApiResponse } from '@/types/api'
 import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
 
@@ -45,15 +46,13 @@ export async function getHealthCertUrl(path: string): Promise<ApiResponse<{ url:
   }
 }
 
-const STAFF_COLUMNS = 'id, name, phone, bank_name, bank_account, staff_role, store_id, preferred_shift_ids, preferred_days, available_ranges, has_health_cert, health_cert_url, wants_insurance, hourly_rate, max_days_per_week, status, notes, user_profile_id, sort_order, created_at, updated_at'
-
 export interface StaffProfileInput {
   name: string
   phone?: string | null
   bank_name?: string | null
   bank_account?: string | null
   staff_role: StaffRole
-  store_id?: number | null
+  popup_id?: number | null
   preferred_shift_ids: number[]
   preferred_days: number[]
   available_ranges: AvailabilityRange[]
@@ -125,7 +124,7 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
         bank_name: input.bank_name?.trim() || null,
         bank_account: input.bank_account?.trim() || null,
         staff_role: input.staff_role,
-        store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
+        popup_id: input.staff_role === 'cashier' ? (input.popup_id ?? null) : null,
         preferred_shift_ids: input.preferred_shift_ids,
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,
@@ -157,7 +156,7 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
         bank_name: input.bank_name?.trim() || null,
         bank_account: input.bank_account?.trim() || null,
         staff_role: input.staff_role,
-        store_id: input.staff_role === 'cashier' ? (input.store_id ?? null) : null,
+        popup_id: input.staff_role === 'cashier' ? (input.popup_id ?? null) : null,
         preferred_shift_ids: input.preferred_shift_ids,
         preferred_days: input.preferred_days,
         available_ranges: input.available_ranges,

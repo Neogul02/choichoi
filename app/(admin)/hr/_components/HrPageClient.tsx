@@ -13,20 +13,23 @@ import type { StaffProfileInput } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
 import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
 import { fetchContractedStaffIds } from '@/app/actions/contracts';
-import type { StaffProfile, StaffStatus, StaffRole, Store, RosterShift, PopupEvent } from '@/types/database';
-import { filterVisibleStores } from '@/lib/staffing';
+import { assignStaffToPopup, classifyStaffByPopupSchedule, fetchStaffPopupAssignments } from '@/app/actions/staffPopups';
+import type { StaffProfile, StaffStatus, StaffRole, RosterShift, PopupEvent, StaffPopupAssignment } from '@/types/database';
 import StaffFormModal from './StaffFormModal';
-import StoreManageModal from './StoreManageModal';
 import RosterCalendar from './RosterCalendar';
 import PayrollPanel from './PayrollPanel';
 import ContractsPanel from './ContractsPanel';
 import StaffAssignModal from './StaffAssignModal';
+import ImportStaffFromPopupModal from './ImportStaffFromPopupModal';
 import { StaffRow, StaffCard } from './StaffList';
 import RejectionNoticeBox from './RejectionNoticeBox';
 import { useStaffFilters } from './useStaffFilters';
 import type { RoleFilter, StatusFilter } from './useStaffFilters';
 import { STATUS_LABELS, ROLE_LABELS } from './constants';
 import { useModal } from '@/lib/useModal';
+
+// NavBar와 동일한 로컬 상수 컨벤션 — password-gate.tsx에서 로그인 시 설정된 팝업을 편의상 기본값으로 사용
+const POPUP_ID_KEY = 'choichoi_popup_id';
 
 const HrContractModal = dynamic(() => import('./HrContractModal'), { ssr: false });
 const StaffContractsListModal = dynamic(() => import('./StaffContractsListModal'), { ssr: false });
@@ -45,30 +48,54 @@ export interface InitialRoster {
 interface Props {
   initialStaff: StaffProfile[];
   initialUserProfiles: UserProfile[];
-  initialStores: Store[];
   initialPopups: PopupEvent[];
   initialShifts: RosterShift[];
   initialContractedIds: number[];
+  initialStaffPopupAssignments: StaffPopupAssignment[];
   initialRoster: InitialRoster | null;
 }
 
 // 초기 데이터는 서버 컴포넌트(page.tsx)가 렌더 시점에 병렬 조회해 props로 내려준다
 // — 클라이언트 마운트 후 서버 액션 직렬 워터폴(6회 왕복)을 없애기 위함
-export default function HrPageClient({ initialStaff, initialUserProfiles, initialStores, initialPopups, initialShifts, initialContractedIds, initialRoster }: Props) {
+export default function HrPageClient({ initialStaff, initialUserProfiles, initialPopups, initialShifts, initialContractedIds, initialStaffPopupAssignments, initialRoster }: Props) {
   // 달력·급여 패널과 등록 모달은 구체 역할만 받으므로, '전체' 뷰에서도 마지막 선택 역할을 유지
   const [concreteRole, setConcreteRole] = useState<StaffRole>('cashier');
-  const [stores, setStores] = useState<Store[]>(initialStores);
-  // 스케줄 달력·매장 필터에는 활성 팝업 매장만 노출 (이름 조회·매장 관리 모달은 전체 stores 유지)
-  const visibleStores = useMemo(() => filterVisibleStores(stores, initialPopups), [stores, initialPopups]);
+  // 스케줄 달력·캐셔 단위 필터에는 활성 팝업만 노출
+  const activePopups = useMemo(() => initialPopups.filter(p => p.is_active !== false), [initialPopups]);
   const [allShifts] = useState<RosterShift[]>(initialShifts);
-  const storeManage = useModal();
   const [staffList, setStaffList] = useState<StaffProfile[]>(initialStaff);
   const [userProfiles] = useState<UserProfile[]>(initialUserProfiles);
-  // 역할·매장·상태·검색 필터 + 컬럼 정렬
+
+  // 팝업 필터 — 로그인 시 선택한 팝업이 있으면 편의상 기본값으로 미리 선택 (전체 보기로 언제든 전환 가능)
+  const [popupFilter, setPopupFilter] = useState<number | 'all'>(() => {
+    if (typeof window === 'undefined') return 'all';
+    try {
+      const raw = localStorage.getItem(POPUP_ID_KEY);
+      const id = raw ? Number(raw) : NaN;
+      return Number.isFinite(id) && initialPopups.some(p => p.id === id) ? id : 'all';
+    } catch { return 'all'; }
+  });
+  const [staffPopupAssignments, setStaffPopupAssignments] = useState<StaffPopupAssignment[]>(initialStaffPopupAssignments);
+  const staffPopupMap = useMemo(() => {
+    const map = new Map<number, Set<number>>();
+    for (const a of staffPopupAssignments) {
+      if (!map.has(a.staff_id)) map.set(a.staff_id, new Set());
+      map.get(a.staff_id)!.add(a.popup_id);
+    }
+    return map;
+  }, [staffPopupAssignments]);
+  // 팝업 필터는 역할/팝업/상태/검색보다 먼저 적용되는 상위 필터 — 계약서/급여 탭은 아래에서 원본 staffList를 그대로 사용한다
+  const popupScopedStaff = useMemo(
+    () => popupFilter === 'all' ? staffList : staffList.filter(s => staffPopupMap.get(s.id)?.has(popupFilter)),
+    [staffList, popupFilter, staffPopupMap],
+  );
+  const importFromPopup = useModal();
+
+  // 역할·팝업·상태·검색 필터 + 컬럼 정렬
   const {
     roleFilter, setRoleFilter, storeFilter, setStoreFilter, statusFilter, setStatusFilter,
     search, setSearch, sortKey, sortDir, handleSort, roleStaff, statusCounts, filtered,
-  } = useStaffFilters(staffList, allShifts);
+  } = useStaffFilters(popupScopedStaff, allShifts);
   const form = useModal();
   const [editingStaff, setEditingStaff] = useState<StaffProfile | null>(null);
 
@@ -164,9 +191,36 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
       const r = await createStaffProfile(input);
       if (r.success && r.data) {
         setStaffList(p => [r.data!, ...p]);
+        // 팝업이 선택된 상태에서 등록하면 해당 팝업에 바로 배정 — 별도 조작 없이 현재 보고 있는 팝업 목록에 나타난다
+        if (popupFilter !== 'all') {
+          const staffId = r.data.id;
+          assignStaffToPopup(staffId, popupFilter).then(res => {
+            if (res.success) setStaffPopupAssignments(p => [...p, { id: -staffId, staff_id: staffId, popup_id: popupFilter, created_at: new Date().toISOString() }]);
+          });
+        }
         showMsg(`${input.name} 등록됨`);
         form.close();
       } else showMsg(`오류: ${r.error}`);
+    }
+  };
+
+  // 팝업 기간(캐셔는 근무표 popup_id, 주방은 날짜 범위) 안에 배정된 근무자를 이 팝업 소속으로 동기화 —
+  // 팝업 생성·기간 수정 시 자동으로도 실행되지만, 그 이후 새로 추가된 근무표 배정을 반영하려면 수동 실행이 필요하다
+  const [isSyncingPopup, setIsSyncingPopup] = useState(false);
+  const handleSyncPopupSchedule = async () => {
+    if (popupFilter === 'all') return;
+    setIsSyncingPopup(true);
+    const res = await classifyStaffByPopupSchedule(popupFilter);
+    if (res.success && res.data && res.data.added > 0) {
+      // 몇 명이 새로 추가됐는지만 알 수 있고 어떤 staff_id인지는 모르므로 전체 매핑을 다시 가져와 동기화
+      const mapRes = await fetchStaffPopupAssignments();
+      if (mapRes.success && mapRes.data) setStaffPopupAssignments(mapRes.data);
+    }
+    setIsSyncingPopup(false);
+    if (res.success && res.data) {
+      showMsg(res.data.added > 0 ? `${res.data.added}명 동기화됨` : '이미 모두 동기화되어 있습니다');
+    } else {
+      showMsg(`오류: ${res.error}`);
     }
   };
 
@@ -211,6 +265,40 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
         <div ref={containerRef} className="flex flex-col lg:flex-row items-stretch lg:items-start select-none gap-4 lg:gap-0">
           {/* 좌측: 직원 목록 — lg 미만에서는 전체 폭 세로 스택 */}
           <div className="flex flex-col shrink-0 min-w-0 w-full lg:w-[var(--left-w)]" style={{ '--left-w': `${leftWidth}px` } as React.CSSProperties}>
+            {/* 팝업 필터 + 기존 근무자 추가 + 근무표 동기화 */}
+            {initialPopups.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <select
+                  value={popupFilter === 'all' ? 'all' : String(popupFilter)}
+                  onChange={e => setPopupFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="px-3 py-1.5 border border-hairline rounded-xl text-[12px] font-bold bg-canvas shadow-level-1 focus:outline-none focus:border-primary-700"
+                >
+                  <option value="all">전체 팝업</option>
+                  {initialPopups.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                {popupFilter !== 'all' && (
+                  <>
+                    <button
+                      onClick={() => importFromPopup.open()}
+                      className="px-3 py-1.5 rounded-xl border border-primary-200 bg-primary-50 text-primary-700 text-[12px] font-bold cursor-pointer hover:bg-primary-100 transition"
+                    >
+                      기존 근무자 추가
+                    </button>
+                    <button
+                      onClick={handleSyncPopupSchedule}
+                      disabled={isSyncingPopup}
+                      title="이 팝업 기간에 근무표상 배정된 근무자를 자동으로 불러옵니다"
+                      className="px-3 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSyncingPopup ? '동기화 중...' : '근무표 기준 동기화'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* 주방/캐셔 + 등록 버튼 */}
             <div className="flex items-center gap-2 mb-3">
               <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
@@ -224,7 +312,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                   >
                     {r === 'all' ? '전체' : ROLE_LABELS[r]}
                     <span className={`ml-1 text-[11px] ${roleFilter === r ? 'opacity-70' : 'text-ink-faint'}`}>
-                      {r === 'all' ? staffList.length : staffList.filter(s => s.staff_role === r).length}
+                      {r === 'all' ? popupScopedStaff.length : popupScopedStaff.filter(s => s.staff_role === r).length}
                     </span>
                   </button>
                 ))}
@@ -237,19 +325,18 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
               </button>
             </div>
 
-            {/* 매장 필터 (캐셔) */}
+            {/* 팝업 필터 (캐셔 스케줄 단위) */}
             {roleFilter === 'cashier' && (
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 flex-wrap">
                   <button onClick={() => setStoreFilter('all')} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${storeFilter === 'all' ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}>전체</button>
-                  {visibleStores.map(store => (
-                    <button key={store.id} onClick={() => setStoreFilter(store.id)} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${storeFilter === store.id ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}>{store.name}</button>
+                  {activePopups.map(popup => (
+                    <button key={popup.id} onClick={() => setStoreFilter(popup.id)} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${storeFilter === popup.id ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}>{popup.name}</button>
                   ))}
-                  {roleStaff.some(s => s.store_id === null) && (
-                    <button onClick={() => setStoreFilter('none')} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${storeFilter === 'none' ? 'bg-amber-500 text-white' : 'bg-canvas text-amber-600 hover:bg-amber-50'}`}>미배정 {roleStaff.filter(s => s.store_id === null).length}</button>
+                  {roleStaff.some(s => s.popup_id === null) && (
+                    <button onClick={() => setStoreFilter('none')} className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${storeFilter === 'none' ? 'bg-amber-500 text-white' : 'bg-canvas text-amber-600 hover:bg-amber-50'}`}>미배정 {roleStaff.filter(s => s.popup_id === null).length}</button>
                   )}
                 </div>
-                <button onClick={() => storeManage.open()} className="px-2.5 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">⚙</button>
               </div>
             )}
 
@@ -283,7 +370,9 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
               {filtered.length === 0 ? (
                 <p className="text-ink-faint text-sm p-6 text-center m-0">
-                  {staffList.length === 0 ? '등록된 직원이 없습니다. 면접자 정보를 등록해보세요.' : '조건에 맞는 직원이 없습니다.'}
+                  {popupFilter !== 'all' && popupScopedStaff.length === 0
+                    ? '이 팝업에 배정된 직원이 없습니다. "기존 근무자 추가"나 "근무표 기준 동기화"로 불러오거나 새로 등록해보세요.'
+                    : staffList.length === 0 ? '등록된 직원이 없습니다. 면접자 정보를 등록해보세요.' : '조건에 맞는 직원이 없습니다.'}
                 </p>
               ) : (
                 <>
@@ -315,7 +404,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                           staff={staff}
                           isLast={i === filtered.length - 1}
                           shiftNames={staff.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name).filter(Boolean).join(' · ')}
-                          store={stores.find(st => st.id === staff.store_id) ?? null}
+                          popup={initialPopups.find(p => p.id === staff.popup_id) ?? null}
                           onRowClick={() => { setEditingStaff(staff); form.open(); }}
                           onStatusChange={s => handleStatusChange(staff, s)}
                           contractDone={completedContracts.has(staff.id)}
@@ -341,7 +430,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       key={staff.id}
                       staff={staff}
                       shiftNames={staff.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name).filter(Boolean).join(' · ')}
-                      store={stores.find(st => st.id === staff.store_id) ?? null}
+                      popup={initialPopups.find(p => p.id === staff.popup_id) ?? null}
                       contractDone={completedContracts.has(staff.id)}
                       onRowClick={() => { setEditingStaff(staff); form.open(); }}
                       onStatusChange={s => handleStatusChange(staff, s)}
@@ -391,7 +480,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             </div>
 
             {rightTab === 'roster'
-              ? <RosterCalendar staffList={staffList} stores={visibleStores} roleFilter={concreteRole} refreshSignal={calendarRefreshKey} initialData={initialRoster ?? undefined} />
+              ? <RosterCalendar staffList={staffList} popups={activePopups} roleFilter={concreteRole} refreshSignal={calendarRefreshKey} initialData={initialRoster ?? undefined} />
               : rightTab === 'payroll'
                 ? <PayrollPanel
                     defaultRole={concreteRole}
@@ -407,7 +496,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                   />
                 : <ContractsPanel
                     staffList={staffList}
-                    stores={stores}
+                    popups={initialPopups}
                     refreshSignal={contractsRefreshKey}
                     onWriteContract={s => contract.open(s)}
                     onChanged={refreshContractedStaffIds}
@@ -417,21 +506,34 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
         </div>
       </main>
 
-      {storeManage.isOpen && (
-        <StoreManageModal stores={stores} onStoresChange={setStores} onClose={storeManage.close} />
-      )}
-
       {form.isOpen && (
         <StaffFormModal
           staff={editingStaff}
           userProfiles={userProfiles}
-          stores={stores}
+          popups={activePopups}
           defaultRole={roleFilter === 'all' ? undefined : roleFilter}
-          defaultStoreId={typeof storeFilter === 'number' ? storeFilter : null}
+          defaultPopupId={typeof storeFilter === 'number' ? storeFilter : null}
           onClose={() => { form.close(); setEditingStaff(null); }}
           onSubmit={handleSubmit}
           onDelete={editingStaff ? () => handleDelete(editingStaff) : undefined}
           onHealthCertUploaded={handleHealthCertUploaded}
+        />
+      )}
+
+      {importFromPopup.isOpen && popupFilter !== 'all' && (
+        <ImportStaffFromPopupModal
+          popupId={popupFilter}
+          popupName={initialPopups.find(p => p.id === popupFilter)?.name ?? ''}
+          staffPopupMap={staffPopupMap}
+          popups={initialPopups}
+          onClose={importFromPopup.close}
+          onImported={(staffIds, added) => {
+            setStaffPopupAssignments(prev => [
+              ...prev,
+              ...staffIds.map(staffId => ({ id: -staffId, staff_id: staffId, popup_id: popupFilter as number, created_at: new Date().toISOString() })),
+            ]);
+            showMsg(added > 0 ? `${added}명 배정 완료` : '이미 모두 배정되어 있습니다');
+          }}
         />
       )}
 
@@ -455,7 +557,6 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
       {assigning.value && (
         <StaffAssignModal
           staff={assigning.value}
-          stores={stores}
           onClose={assigning.close}
           onAssigned={(count) => {
             showMsg(count > 0 ? `${count}일 배정 완료` : '새로 배정된 날짜가 없습니다 (이미 배정됨)');

@@ -1,12 +1,12 @@
 'use client';
 
-import type { StaffProfile, StaffStatus, Store } from '@/types/database';
+import type { StaffProfile, StaffStatus, PopupEvent } from '@/types/database';
 import { STATUS_LABELS, STATUS_COLORS } from './constants';
 
 interface RowProps {
   staff: StaffProfile;
   shiftNames: string;
-  store: Store | null;
+  popup: PopupEvent | null;
   contractDone: boolean;
   onRowClick: () => void;
   onStatusChange: (s: StaffStatus) => void;
@@ -17,7 +17,7 @@ interface RowProps {
 }
 
 /** md 이상 테이블 행 — 드래그로 순서 변경 지원 */
-export function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
+export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
   isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: RowProps & {
   isLast: boolean;
   isDragging?: boolean;
@@ -46,8 +46,8 @@ export function StaffRow({ staff, shiftNames, store, isLast, contractDone, onRow
         <div className="font-bold text-ink leading-tight">{staff.name}</div>
         {staff.phone && <div className="text-[12px] text-ink-muted mt-0.5">{staff.phone}</div>}
         {staff.staff_role === 'cashier' ? (
-          <div className={`text-[11px] font-semibold mt-0.5 ${store ? 'text-violet-600' : 'text-amber-600'}`}>
-            {store ? store.name : '매장 미배정'}
+          <div className={`text-[11px] font-semibold mt-0.5 ${popup ? 'text-violet-600' : 'text-amber-600'}`}>
+            {popup ? popup.name : '팝업 미배정'}
           </div>
         ) : (
           <div className="text-[11px] font-semibold mt-0.5 text-ink-muted">주방</div>
@@ -137,7 +137,7 @@ function StaffActions({ staff, contractDone, fill, onContract, onContractsList, 
 }
 
 /** md 미만 전용 카드 — 테이블의 가로 스크롤 없이 한 화면(393px)에 담기는 레이아웃 */
-export function StaffCard({ staff, shiftNames, store, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar }: RowProps) {
+export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar }: RowProps) {
   const sc = STATUS_COLORS[staff.status];
   return (
     <div onClick={onRowClick} className="p-3 cursor-pointer active:bg-canvas-soft transition">
@@ -146,8 +146,8 @@ export function StaffCard({ staff, shiftNames, store, contractDone, onRowClick, 
           <div className="font-bold text-ink text-[14px] leading-tight">{staff.name}</div>
           {staff.phone && <div className="text-[12px] text-ink-muted mt-0.5">{staff.phone}</div>}
           {staff.staff_role === 'cashier' ? (
-            <div className={`text-[11px] font-semibold mt-0.5 ${store ? 'text-violet-600' : 'text-amber-600'}`}>
-              {store ? store.name : '매장 미배정'}
+            <div className={`text-[11px] font-semibold mt-0.5 ${popup ? 'text-violet-600' : 'text-amber-600'}`}>
+              {popup ? popup.name : '팝업 미배정'}
             </div>
           ) : (
             <div className="text-[11px] font-semibold mt-0.5 text-ink-muted">주방</div>

@@ -300,7 +300,7 @@ function StaffPicker({ staffPicker, ownStaffId, viewingId, onPick }: {
           </optgroup>
         )}
         {cashier.length > 0 && (
-          <optgroup label="매장">
+          <optgroup label="캐셔">
             {cashier.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </optgroup>
         )}

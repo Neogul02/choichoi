@@ -44,8 +44,8 @@ export function useRosterRange({
 
   const loadRange = async () => {
     if (!cursor) return;
-    // 캐셔는 storeId가 null이면 stores 미로드 상태 — 로드 건너뜀
-    if (unit.staffRole === 'cashier' && unit.storeId === null) return;
+    // 캐셔는 popupId가 null이면 팝업 미로드 상태 — 로드 건너뜀
+    if (unit.staffRole === 'cashier' && unit.popupId === null) return;
     const r = await fetchRosterRange(unit, loadFrom, loadTo);
     if (r.success && r.data) {
       setShifts(r.data.shifts);
@@ -72,7 +72,7 @@ export function useRosterRange({
         viewMode === 'month' &&
         initialData &&
         cursor.y === initialData.y && cursor.m === initialData.m &&
-        unit.staffRole === initialData.unit.staffRole && unit.storeId === initialData.unit.storeId
+        unit.staffRole === initialData.unit.staffRole && unit.popupId === initialData.unit.popupId
       ) {
         setShifts(initialData.data.shifts);
         setAssignments(initialData.data.assignments);
@@ -96,7 +96,7 @@ export function useRosterRange({
       shift_id: shiftId,
       staff_id: staffId,
       staff_role: unit.staffRole,
-      store_id: unit.storeId,
+      popup_id: unit.popupId,
       start_time: null,
       end_time: null,
       created_at: new Date().toISOString(),

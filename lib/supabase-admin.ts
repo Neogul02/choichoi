@@ -397,11 +397,10 @@ export async function createPopupEvent(
   name: string,
   startDate: string,
   endDate: string,
-  storeId: number | null,
 ): Promise<PopupEvent> {
   const { data, error } = await supabaseAdmin
     .from('popup_events')
-    .insert([{ name, start_date: startDate, end_date: endDate, store_id: storeId }])
+    .insert([{ name, start_date: startDate, end_date: endDate }])
     .select()
     .single()
   if (error) throw error
@@ -421,11 +420,10 @@ export async function updatePopupEvent(
   name: string,
   startDate: string,
   endDate: string,
-  storeId: number | null,
 ): Promise<PopupEvent> {
   const { data, error } = await supabaseAdmin
     .from('popup_events')
-    .update({ name, start_date: startDate, end_date: endDate, store_id: storeId })
+    .update({ name, start_date: startDate, end_date: endDate })
     .eq('id', id)
     .select()
     .single()

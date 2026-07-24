@@ -12,23 +12,23 @@ import { getAuthUser, wrap } from './_base'
 const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
 
 
-const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, store_id, start_time, end_time, created_at, staff_profiles (id, name, phone, status)'
+const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time, created_at, staff_profiles (id, name, phone, status)'
 
 // staff_profiles 중첩 조인 select의 반환 타입이 제네릭 추론과 안 맞아 단언이 필요 — 한 곳에만 모아둔다
 const castAssignment = (row: unknown): RosterAssignment => row as RosterAssignment
 const castAssignments = (rows: unknown[] | null): RosterAssignment[] => (rows ?? []) as RosterAssignment[]
 
-// 스케줄 단위(unit) = 주방 전체(storeId null) 또는 캐셔의 특정 매장
+// 스케줄 단위(unit) = 주방 전체(popupId null) 또는 캐셔의 특정 팝업
 export interface RosterUnit {
   staffRole: StaffRole
-  storeId: number | null
+  popupId: number | null
 }
 
 // supabase 쿼리 빌더 제네릭을 그대로 제약하면 타입 추론이 폭발(TS2589)해서 내부만 느슨하게 처리
 interface UnitFilterable { eq(column: string, value: unknown): unknown; is(column: string, value: null): unknown }
 function applyUnitFilter<T>(query: T, unit: RosterUnit): T {
   const q = (query as unknown as UnitFilterable).eq('staff_role', unit.staffRole) as UnitFilterable
-  const filtered = unit.storeId === null ? q.is('store_id', null) : q.eq('store_id', unit.storeId)
+  const filtered = unit.popupId === null ? q.is('popup_id', null) : q.eq('popup_id', unit.popupId)
   return filtered as T
 }
 
@@ -51,7 +51,7 @@ export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<R
 
     const { data: created, error: createError } = await supabaseAdmin
       .from('roster_shifts')
-      .insert(DEFAULT_SHIFTS.map(s => ({ ...s, staff_role: unit.staffRole, store_id: unit.storeId })))
+      .insert(DEFAULT_SHIFTS.map(s => ({ ...s, staff_role: unit.staffRole, popup_id: unit.popupId })))
       .select('*')
     if (createError) throw new Error(createError.message)
     return (created ?? []) as RosterShift[]
@@ -91,7 +91,7 @@ export async function createRosterShift(unit: RosterUnit, input: RosterShiftInpu
     )
     const { data, error } = await supabaseAdmin
       .from('roster_shifts')
-      .insert([{ ...input, name: input.name.trim(), staff_role: unit.staffRole, store_id: unit.storeId, sort_order: count ?? 0 }])
+      .insert([{ ...input, name: input.name.trim(), staff_role: unit.staffRole, popup_id: unit.popupId, sort_order: count ?? 0 }])
       .select('*')
       .single()
     if (error) throw new Error(error.message)
@@ -180,7 +180,7 @@ export async function addRosterAssignment(
   return wrap(async () => {
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .insert([{ work_date: workDate, shift_id: shiftId, staff_id: staffId, staff_role: unit.staffRole, store_id: unit.storeId }])
+      .insert([{ work_date: workDate, shift_id: shiftId, staff_id: staffId, staff_role: unit.staffRole, popup_id: unit.popupId }])
       .select(ASSIGNMENT_COLUMNS)
       .single()
     if (error) {
@@ -221,7 +221,7 @@ export interface RosterAssignmentSnapshot {
   shift_id: number
   staff_id: number
   staff_role: StaffRole
-  store_id: number | null
+  popup_id: number | null
   start_time: string | null
   end_time: string | null
 }
@@ -231,7 +231,7 @@ export interface RosterUndoPayload {
   updated: { id: number; shift_id?: number; staff_id?: number; start_time?: string | null; end_time?: string | null }[]
 }
 
-const SNAPSHOT_COLUMNS = 'work_date, shift_id, staff_id, staff_role, store_id, start_time, end_time'
+const SNAPSHOT_COLUMNS = 'work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time'
 
 /** 파괴적 작업(초기화·일괄 해제·이동·교환) 되돌리기 — 삭제 행 재삽입 + 수정 행 원복 */
 export async function undoRosterChange(payload: RosterUndoPayload): Promise<ApiResponse<{ restored: number }>> {
@@ -304,7 +304,7 @@ export async function moveStaffAssignments(
     const undo: RosterUndoPayload = {
       deleted: toMerge.map(r => ({
         work_date: r.work_date, shift_id: fromShiftId, staff_id: staffId,
-        staff_role: unit.staffRole, store_id: unit.storeId,
+        staff_role: unit.staffRole, popup_id: unit.popupId,
         start_time: r.start_time, end_time: r.end_time,
       })),
       updated: toMove.map(r => ({ id: r.id, shift_id: fromShiftId, start_time: r.start_time, end_time: r.end_time })),
@@ -428,7 +428,7 @@ export interface AutoFillResult {
   log: AutoFillLogEntry[]
 }
 
-type InsertRow = { work_date: string; shift_id: number; staff_id: number; staff_role: StaffRole; store_id: number | null }
+type InsertRow = { work_date: string; shift_id: number; staff_id: number; staff_role: StaffRole; popup_id: number | null }
 
 interface GreedyCtx {
   dates: string[]
@@ -557,7 +557,7 @@ function runGreedy(staffList: StaffProfile[], ctx: GreedyCtx): { inserts: Insert
       const names: string[] = []
       for (const s of eligible) {
         if (filled >= required) break
-        inserts.push({ work_date: dateStr, shift_id: shift.id, staff_id: s.id, staff_role: unit.staffRole, store_id: unit.storeId })
+        inserts.push({ work_date: dateStr, shift_id: shift.id, staff_id: s.id, staff_role: unit.staffRole, popup_id: unit.popupId })
         names.push(s.name)
         filled++
         dayAssigned.add(s.id)
@@ -578,7 +578,7 @@ function runGreedy(staffList: StaffProfile[], ctx: GreedyCtx): { inserts: Insert
 }
 
 /**
- * 빈 자리 자동 배정 (fromDate~toDate, 양끝 포함). 단위(주방/매장)별로 독립 동작.
+ * 빈 자리 자동 배정 (fromDate~toDate, 양끝 포함). 단위(주방/팝업)별로 독립 동작.
  * - 해당 단위의 확정(confirmed) 직원만 대상
  * - 파트/요일/가용기간 조건이 모두 맞는 직원만 배정
  * - 같은 날 여러 파트 중복 배정 금지
@@ -596,7 +596,7 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     const weekTo = addDays(getWeekStart(toDate), 6)
     const staffQuery = supabaseAdmin.from('staff_profiles').select('*').eq('status', 'confirmed').eq('staff_role', unit.staffRole)
     const [staffRes, assignRes, reqRes] = await Promise.all([
-      unit.storeId === null ? staffQuery.is('store_id', null) : staffQuery.eq('store_id', unit.storeId),
+      unit.popupId === null ? staffQuery.is('popup_id', null) : staffQuery.eq('popup_id', unit.popupId),
       applyUnitFilter(
         supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id'),
         unit,
@@ -715,7 +715,7 @@ export async function bulkAddRosterAssignments(
       shift_id: shiftId,
       staff_id: staffId,
       staff_role: unit.staffRole,
-      store_id: unit.storeId,
+      popup_id: unit.popupId,
     }))
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
@@ -748,7 +748,7 @@ export async function copyPreviousWeek(
         shift_id: a.shift_id,
         staff_id: a.staff_id,
         staff_role: unit.staffRole,
-        store_id: unit.storeId,
+        popup_id: unit.popupId,
         start_time: a.start_time,
         end_time: a.end_time,
       }))

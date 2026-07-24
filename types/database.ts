@@ -25,7 +25,6 @@ export interface PopupEvent {
   name: string;
   start_date: string;
   end_date: string;
-  store_id: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -44,13 +43,6 @@ export type StaffRole = 'kitchen' | 'cashier';
 // (근무 역할인 StaffRole과는 별개 개념)
 export type UserAppRole = 'admin' | 'manager' | 'user';
 
-export interface Store {
-  id: number;
-  name: string;
-  sort_order: number;
-  created_at: string;
-}
-
 export interface StaffProfile {
   id: number;
   name: string;
@@ -58,7 +50,7 @@ export interface StaffProfile {
   bank_name: string | null;
   bank_account: string | null;
   staff_role: StaffRole;
-  store_id: number | null; // 캐셔만 사용, 주방은 null
+  popup_id: number | null; // 캐셔만 사용, 주방은 null
   preferred_shift_ids: number[]; // roster_shifts.id 목록, 빈 배열 = 파트 무관
   preferred_days: number[]; // 0=일 ~ 6=토, 빈 배열 = 요일 무관
   available_ranges: AvailabilityRange[];
@@ -75,11 +67,19 @@ export interface StaffProfile {
   updated_at: string;
 }
 
-// 파트 — 단위(주방/매장)별로 자유롭게 추가하는 근무 구간 (오전, 오후, 과일손질, 배송 ...)
+// 직원 ↔ 팝업 다대다 배정 — 한 직원이 여러 팝업을 오갈 수 있어 이력 보존을 위해 별도 테이블로 관리
+export interface StaffPopupAssignment {
+  id: number;
+  staff_id: number;
+  popup_id: number;
+  created_at: string;
+}
+
+// 파트 — 단위(주방/팝업)별로 자유롭게 추가하는 근무 구간 (오전, 오후, 과일손질, 배송 ...)
 export interface RosterShift {
   id: number;
   staff_role: StaffRole;
-  store_id: number | null;
+  popup_id: number | null;
   name: string;
   start_time: string;
   end_time: string;
@@ -105,7 +105,7 @@ export interface RosterAssignment {
   shift_id: number;
   staff_id: number;
   staff_role: StaffRole;
-  store_id: number | null;
+  popup_id: number | null;
   start_time: string | null; // null이면 파트 기본 시간
   end_time: string | null;
   created_at: string;

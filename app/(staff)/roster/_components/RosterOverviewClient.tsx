@@ -361,7 +361,7 @@ function DayDetailCard({ overview, dateStr, today }: {
   );
 }
 
-// ── 단위별(주방/매장) 읽기 전용 주간 매트릭스 ─────────────────────────────────
+// ── 단위별(주방/팝업) 읽기 전용 주간 매트릭스 ─────────────────────────────────
 
 function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, onDateClick }: {
   unitOverview: RosterUnitOverview;
@@ -374,7 +374,7 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
   const { label, unit, data } = unitOverview;
 
   const unitStaff = useMemo(
-    () => staff.filter(s => s.staff_role === unit.staffRole && (unit.staffRole === 'kitchen' || s.store_id === unit.storeId)),
+    () => staff.filter(s => s.staff_role === unit.staffRole && (unit.staffRole === 'kitchen' || s.popup_id === unit.popupId)),
     [staff, unit],
   );
 
