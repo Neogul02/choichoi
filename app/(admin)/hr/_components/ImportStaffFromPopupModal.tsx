@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { fetchImportCandidates, bulkAssignStaffToPopup } from '@/app/actions/staffPopups'
 import type { StaffProfile, PopupEvent } from '@/types/database'
 import { ROLE_LABELS } from './constants'
@@ -23,12 +24,13 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [search, setSearch] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+  })
 
   useEffect(() => {
     fetchImportCandidates(popupId).then(res => {
@@ -73,6 +75,7 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[420px] max-h-[85vh] rounded-xl shadow-level-2 border border-hairline overflow-hidden flex flex-col"
@@ -82,9 +85,10 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
             <h3 className="m-0 text-[15px] font-bold text-ink">기존 근무자 추가</h3>
             <p className="m-0 text-[12px] text-ink-muted">{popupName}에 배정 · 프로필 재입력 없이 배정만 추가됩니다</p>
           </div>
-          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition w-8 h-8 flex items-center justify-center shrink-0">×</button>
+          <button type="button" onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition w-8 h-8 flex items-center justify-center shrink-0">×</button>
         </div>
 
+        <form onSubmit={e => { e.preventDefault(); handleSubmit(); }} className="contents">
         <div className="px-5 pt-3 shrink-0">
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -133,19 +137,21 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
 
         <div className="flex gap-2 px-5 py-4 border-t border-hairline shrink-0">
           <button
-            onClick={handleSubmit}
+            type="submit"
             disabled={selected.size === 0 || isSubmitting}
             className="flex-1 py-2.5 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isSubmitting ? '불러오는 중...' : selected.size > 0 ? `${selected.size}명 불러오기` : '불러올 인원 선택'}
           </button>
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2.5 rounded-xl border border-hairline bg-transparent text-[13px] text-ink-muted cursor-pointer hover:bg-canvas-soft transition"
           >
             취소
           </button>
         </div>
+        </form>
       </div>
     </div>,
     document.body,

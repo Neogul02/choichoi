@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -85,12 +86,13 @@ export default function StaffCalendarModal({ staffId, name, onClose }: Props) {
   const now = new Date()
   const [cursor, setCursor] = useState({ y: now.getFullYear(), m: now.getMonth() })
   const [details, setDetails] = useState<StaffDayDetail[] | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+  })
 
   useEffect(() => {
     setDetails(null)
@@ -112,6 +114,7 @@ export default function StaffCalendarModal({ staffId, name, onClose }: Props) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[420px] max-h-[90vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline [scrollbar-width:thin]"

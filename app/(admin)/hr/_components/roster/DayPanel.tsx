@@ -183,17 +183,23 @@ export default function DayPanel({
               {assigned.map(a => (
                 <div key={a.id} className="flex items-center gap-1.5 bg-canvas-soft rounded-lg px-2.5 py-1.5">
                   {editingTimeId === a.id ? (
-                    <>
-                      <input type="time" value={editStart} onChange={e => setEditStart(e.target.value)} className="flex-1 min-w-0 px-1 py-0.5 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
-                      <span className="text-ink-faint text-[10px]">~</span>
-                      <input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)} className="flex-1 min-w-0 px-1 py-0.5 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
-                      <button
-                        onClick={async () => { await onTimeChange(a.id, editStart || null, editEnd || null); setEditingTimeId(null); }}
-                        className="shrink-0 text-[10px] font-bold text-white bg-primary-700 border-none rounded px-1.5 py-1 cursor-pointer hover:bg-primary-800 transition"
-                      >
-                        저장
-                      </button>
-                    </>
+                    (() => {
+                      const saveTimeEdit = async () => { await onTimeChange(a.id, editStart || null, editEnd || null); setEditingTimeId(null); };
+                      const onEnterSave = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { e.preventDefault(); void saveTimeEdit(); } };
+                      return (
+                        <>
+                          <input type="time" value={editStart} onChange={e => setEditStart(e.target.value)} onKeyDown={onEnterSave} className="flex-1 min-w-0 px-1 py-0.5 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
+                          <span className="text-ink-faint text-[10px]">~</span>
+                          <input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)} onKeyDown={onEnterSave} className="flex-1 min-w-0 px-1 py-0.5 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
+                          <button
+                            onClick={saveTimeEdit}
+                            className="shrink-0 text-[10px] font-bold text-white bg-primary-700 border-none rounded px-1.5 py-1 cursor-pointer hover:bg-primary-800 transition"
+                          >
+                            저장
+                          </button>
+                        </>
+                      );
+                    })()
                   ) : (
                     <>
                       <span className="text-[12px] font-bold text-ink flex-1 min-w-0 truncate">

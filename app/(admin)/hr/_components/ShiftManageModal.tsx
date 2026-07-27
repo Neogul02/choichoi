@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import { formatBreakMinutes } from '@/lib/utils';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { createRosterShift, updateRosterShift, deleteRosterShift, updateRosterShiftOrder } from '@/app/actions/roster';
 import type { RosterUnit, RosterShiftInput } from '@/app/actions/roster';
@@ -28,6 +29,13 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RosterShift | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useModalKeyboard({
+    active: !deleteTarget,
+    onClose,
+    containerRef: panelRef,
+  });
 
   const startEdit = (shift: RosterShift) => {
     setEditingId(shift.id);
@@ -107,7 +115,7 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
   const labelCls = 'text-[10px] font-semibold text-ink-muted';
 
   const editForm = (
-    <div className="flex flex-col gap-2 bg-primary-50/40 border border-primary-200 rounded-lg p-3">
+    <form onSubmit={e => { e.preventDefault(); handleSave(); }} className="flex flex-col gap-2 bg-primary-50/40 border border-primary-200 rounded-lg p-3">
       <div className="flex flex-col gap-1">
         <label className={labelCls}>파트 이름</label>
         <input
@@ -171,13 +179,13 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
           취소
         </button>
         <button
-          type="button" onClick={handleSave} disabled={isBusy || !form.name.trim()}
+          type="submit" disabled={isBusy || !form.name.trim()}
           className="flex-1 py-1.5 rounded-lg border-none bg-primary-700 text-white text-[12px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60"
         >
           {isBusy ? '저장 중...' : '저장'}
         </button>
       </div>
-    </div>
+    </form>
   );
 
   return createPortal(
@@ -186,10 +194,10 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-canvas w-full max-w-[420px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]">
+      <div ref={panelRef} className="bg-canvas w-full max-w-[420px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]">
         <div className="flex items-center justify-between mb-1">
           <h3 className="m-0 text-[16px] font-bold text-ink">파트 관리</h3>
-          <button onClick={onClose} aria-label="파트 관리 닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+          <button type="button" onClick={onClose} aria-label="파트 관리 닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
         <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} · 드래그하거나 ↑↓ 버튼으로 순서 변경</p>
 

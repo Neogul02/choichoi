@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchMonthlyPayroll, type PayrollRow } from '@/app/actions/payroll'
 import type { StaffRole } from '@/types/database'
 import { showMsg } from '@/lib/toast'
-import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal from './PayrollDetailModal'
 
@@ -23,8 +23,6 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const [paidIds, setPaidIds] = useState<Set<number>>(new Set())
   const [retireTarget, setRetireTarget] = useState<PayrollRow | null>(null)
   const [retiring, setRetiring] = useState(false)
-  // retireTarget 확인 팝업은 별도 컴포넌트가 아니라 인라인 JSX라 active 플래그로 조건부 잠금
-  useBodyScrollLock(retireTarget != null)
 
   const paidKey = cursor ? `payroll_paid_${cursor.y}-${cursor.m}` : null
   useEffect(() => {
@@ -240,36 +238,17 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
       )}
 
       {/* 지급 완료 체크 시 퇴사 전환 확인 팝업 — 취소해도 지급 완료 표시는 유지 */}
-      {retireTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-          onClick={e => { if (e.target === e.currentTarget && !retiring) setRetireTarget(null) }}
-        >
-          <div className="bg-canvas w-full max-w-[320px] rounded-xl shadow-level-2 border border-hairline p-5">
-            <h3 className="m-0 mb-1.5 text-[16px] font-bold text-ink">{retireTarget.name}님을 퇴사 상태로 변경하시겠습니까?</h3>
-            <p className="m-0 mb-5 text-[13px] text-ink-muted">
-              급여 지급 완료로 표시됩니다. 퇴사 처리하면 직원 목록 상태가 퇴사로 바뀌고 이후 스케줄 배정 대상에서 제외됩니다.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setRetireTarget(null)}
-                disabled={retiring}
-                className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-muted text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition-colors disabled:opacity-50"
-              >
-                지급 완료만
-              </button>
-              <button
-                onClick={handleRetire}
-                disabled={retiring}
-                className="flex-1 py-2.5 rounded-lg border-none bg-rose-500 text-white text-[13px] font-bold cursor-pointer hover:bg-rose-600 transition-colors disabled:opacity-50"
-              >
-                {retiring ? '처리 중...' : '퇴사 처리'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={retireTarget != null}
+        title={`${retireTarget?.name}님을 퇴사 상태로 변경하시겠습니까?`}
+        description="급여 지급 완료로 표시됩니다. 퇴사 처리하면 직원 목록 상태가 퇴사로 바뀌고 이후 스케줄 배정 대상에서 제외됩니다."
+        cancelLabel="지급 완료만"
+        confirmLabel="퇴사 처리"
+        danger
+        busy={retiring}
+        onConfirm={handleRetire}
+        onClose={() => setRetireTarget(null)}
+      />
 
       {detailTarget && cursor && (
         <PayrollDetailModal

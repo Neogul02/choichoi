@@ -188,40 +188,42 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
               {/* 새 메뉴 추가 폼 */}
               <div className="bg-canvas-soft rounded-xl p-4 mb-5">
                 <h3 className="mt-0 mb-3 text-base font-bold">새 메뉴 추가</h3>
-                <div className="flex gap-2 mb-2.5">
-                  <input
-                    type="text" value={addForm.name} placeholder="메뉴 이름"
-                    onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))}
-                    className="flex-1 px-3 py-2 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
-                  />
-                  <input
-                    type="number" value={addForm.price} placeholder={addForm.isDiscount ? '할인 금액' : '가격'} min="0" step="100"
-                    onChange={e => setAddForm(p => ({ ...p, price: e.target.value }))}
-                    className="w-28 px-3 py-2 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
-                  />
-                </div>
-                <label className="flex items-center gap-1.5 mb-3 text-xs font-semibold text-ink-muted cursor-pointer select-none">
-                  <input
-                    type="checkbox" checked={addForm.isDiscount}
-                    onChange={e => setAddForm(p => ({ ...p, isDiscount: e.target.checked }))}
-                    className="w-3.5 h-3.5 cursor-pointer"
-                  />
-                  할인 메뉴로 등록
-                </label>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex gap-1.5">
-                    {COLOR_PALETTE.map(c => (
-                      <button key={c.value} type="button"
-                        onClick={() => setAddForm(p => ({ ...p, color: c.value }))}
-                        className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-all ${addForm.color === c.value ? 'border-ink scale-110' : 'border-transparent'}`}
-                        style={{ backgroundColor: c.value }} aria-label={c.name} />
-                    ))}
+                <form onSubmit={e => { e.preventDefault(); handleAdd(); }}>
+                  <div className="flex gap-2 mb-2.5">
+                    <input
+                      type="text" value={addForm.name} placeholder="메뉴 이름"
+                      onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))}
+                      className="flex-1 px-3 py-2 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
+                    />
+                    <input
+                      type="number" value={addForm.price} placeholder={addForm.isDiscount ? '할인 금액' : '가격'} min="0" step="100"
+                      onChange={e => setAddForm(p => ({ ...p, price: e.target.value }))}
+                      className="w-28 px-3 py-2 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
+                    />
                   </div>
-                  <button onClick={handleAdd} disabled={isAdding}
-                    className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
-                    {isAdding ? '추가 중...' : '추가'}
-                  </button>
-                </div>
+                  <label className="flex items-center gap-1.5 mb-3 text-xs font-semibold text-ink-muted cursor-pointer select-none">
+                    <input
+                      type="checkbox" checked={addForm.isDiscount}
+                      onChange={e => setAddForm(p => ({ ...p, isDiscount: e.target.checked }))}
+                      className="w-3.5 h-3.5 cursor-pointer"
+                    />
+                    할인 메뉴로 등록
+                  </label>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex gap-1.5">
+                      {COLOR_PALETTE.map(c => (
+                        <button key={c.value} type="button"
+                          onClick={() => setAddForm(p => ({ ...p, color: c.value }))}
+                          className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-all ${addForm.color === c.value ? 'border-ink scale-110' : 'border-transparent'}`}
+                          style={{ backgroundColor: c.value }} aria-label={c.name} />
+                      ))}
+                    </div>
+                    <button type="submit" disabled={isAdding}
+                      className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
+                      {isAdding ? '추가 중...' : '추가'}
+                    </button>
+                  </div>
+                </form>
               </div>
 
               {/* 메뉴 목록 */}
@@ -248,7 +250,11 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                       >
                         {isEditing ? (
                           /* ── 인라인 편집 모드 ── */
-                          <div className="p-3">
+                          <form
+                            className="p-3"
+                            onSubmit={e => { e.preventDefault(); saveEdit(item.id); }}
+                            onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); cancelEdit(item.id); } }}
+                          >
                             <div className="flex gap-2 mb-2.5">
                               <input
                                 type="text" value={draft.name} autoFocus
@@ -281,17 +287,17 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                                 ))}
                               </div>
                               <div className="flex gap-1.5">
-                                <button onClick={() => cancelEdit(item.id)} disabled={isSaving}
+                                <button type="button" onClick={() => cancelEdit(item.id)} disabled={isSaving}
                                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-hairline bg-canvas text-ink-muted hover:bg-canvas-soft cursor-pointer disabled:opacity-50 transition-colors">
                                   취소
                                 </button>
-                                <button onClick={() => saveEdit(item.id)} disabled={isSaving}
+                                <button type="submit" disabled={isSaving}
                                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border-none bg-primary-700 text-white hover:bg-primary-800 cursor-pointer disabled:opacity-50 transition-colors">
                                   {isSaving ? '저장 중...' : '저장'}
                                 </button>
                               </div>
                             </div>
-                          </div>
+                          </form>
                         ) : (
                           /* ── 일반 표시 모드 ── */
                           <div className="flex items-center gap-3 px-3 py-2.5 cursor-grab active:cursor-grabbing select-none">

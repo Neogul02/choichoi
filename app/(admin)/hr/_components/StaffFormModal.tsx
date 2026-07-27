@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import type { StaffProfile, StaffStatus, StaffRole, PopupEvent, RosterShift, AvailabilityRange } from '@/types/database';
 import type { StaffProfileInput } from '@/app/actions/staff';
@@ -53,12 +54,13 @@ export default function StaffFormModal({
   const [isViewingCert, setIsViewingCert] = useState(false);
   const certInputRef = useRef<HTMLInputElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !showDeleteConfirm) onClose(); };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose, showDeleteConfirm]);
+  useModalKeyboard({
+    active: !showDeleteConfirm,
+    onClose,
+    containerRef: panelRef,
+  });
 
   useEffect(() => {
     if (staffRole === 'cashier' && popupId === null) { setUnitShifts([]); return; }
@@ -155,6 +157,7 @@ export default function StaffFormModal({
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[480px] max-h-[90vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]"
@@ -163,10 +166,10 @@ export default function StaffFormModal({
           <h3 className="m-0 text-[16px] font-bold text-ink">
             {staff ? '직원 정보 수정' : '직원 등록'}
           </h3>
-          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+          <button type="button" onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
 
-        <div className="flex flex-col gap-3.5">
+        <form onSubmit={e => { e.preventDefault(); handleSubmit(); }} className="flex flex-col gap-3.5">
           {/* 기본 정보 */}
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1">
@@ -397,12 +400,12 @@ export default function StaffFormModal({
               className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition disabled:opacity-60">
               취소
             </button>
-            <button type="button" onClick={handleSubmit} disabled={isSaving || !name.trim()}
+            <button type="submit" disabled={isSaving || !name.trim()}
               className="flex-1 py-2.5 rounded-lg border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed">
               {isSaving ? '저장 중...' : staff ? '저장' : '등록'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
 
       <ConfirmDialog

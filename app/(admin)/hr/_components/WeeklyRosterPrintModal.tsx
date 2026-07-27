@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePDF } from '@react-pdf/renderer'
 import { WeeklyRosterDocument } from './WeeklyRosterDocument'
@@ -9,6 +9,7 @@ import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { showMsg } from '@/lib/toast'
 import { toDateStr, addDays } from '@/lib/date'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 
 interface Props {
   onClose: () => void
@@ -61,12 +62,13 @@ export default function RosterPrintModal({ onClose }: Props) {
   const [fetched, setFetched] = useState(false)
   const [loading, setLoading] = useState(false)
   const [displayUrl, setDisplayUrl] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+  })
 
   const rangeLabel = formatRangeLabel(from, to)
   const roleLabel = staffRole === 'kitchen' ? '주방' : '캐셔'
@@ -131,6 +133,7 @@ export default function RosterPrintModal({ onClose }: Props) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[1600px] h-[95vh] rounded-xl shadow-level-2 border border-hairline flex flex-col overflow-hidden"
@@ -139,14 +142,17 @@ export default function RosterPrintModal({ onClose }: Props) {
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-hairline bg-canvas-soft shrink-0">
           <h3 className="m-0 text-[15px] font-bold text-ink">근무표 인쇄</h3>
-          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none">×</button>
+          <button type="button" onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none">×</button>
         </div>
 
         {/* 본문 — 모바일은 세로 스택, md 이상은 좌우 분할 */}
         <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
 
           {/* 좌측: 설정 */}
-          <div className="w-full md:w-[270px] shrink-0 md:overflow-y-auto p-4 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-hairline">
+          <form
+            onSubmit={e => { e.preventDefault(); handleLoad(); }}
+            className="w-full md:w-[270px] shrink-0 md:overflow-y-auto p-4 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-hairline"
+          >
 
             {/* 역할 선택 */}
             <div>
@@ -155,6 +161,7 @@ export default function RosterPrintModal({ onClose }: Props) {
                 {(['kitchen', 'cashier'] as const).map((role) => (
                   <button
                     key={role}
+                    type="button"
                     onClick={() => handleRoleChange(role)}
                     className={`flex-1 py-1.5 text-[12px] font-semibold border-none cursor-pointer transition ${staffRole === role ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}
                   >
@@ -199,6 +206,7 @@ export default function RosterPrintModal({ onClose }: Props) {
                 {([[-1, '저번 주'], [0, '이번 주'], [1, '다음 주']] as [number, string][]).map(([offset, label]) => (
                   <button
                     key={offset}
+                    type="button"
                     onClick={() => applyWeekPreset(offset)}
                     className="px-2.5 py-1 rounded-lg border border-hairline bg-canvas text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-canvas-soft transition"
                   >
@@ -210,7 +218,7 @@ export default function RosterPrintModal({ onClose }: Props) {
 
             {/* 불러오기 */}
             <button
-              onClick={handleLoad}
+              type="submit"
               disabled={loading || !isValidRange}
               className="w-full py-2 rounded-lg bg-primary-700 text-white text-[12px] font-bold border-none cursor-pointer hover:bg-primary-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
@@ -233,7 +241,7 @@ export default function RosterPrintModal({ onClose }: Props) {
               <p className="m-0">확정(재직중) 상태 근무자만 표시됩니다.</p>
               <p className="m-0 mt-1">실 출근/퇴근 칸은 수기 기입용 빈칸입니다.</p>
             </div>
-          </div>
+          </form>
 
           {/* 우측: PDF 미리보기 */}
           <div className="flex-1 min-w-0 min-h-[480px] md:min-h-0 bg-canvas-soft flex flex-col">
@@ -281,7 +289,7 @@ export default function RosterPrintModal({ onClose }: Props) {
                 PDF 다운로드
               </a>
             )}
-            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>
           </div>
         </div>
       </div>

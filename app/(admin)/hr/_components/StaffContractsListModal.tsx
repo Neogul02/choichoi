@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getWorkerContracts, deleteContract } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import { showMsg } from '@/lib/toast'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 interface Props {
@@ -20,6 +21,7 @@ export default function StaffContractsListModal({ staffId, name, onClose, onChan
   const [contracts, setContracts] = useState<ContractRecord[] | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ContractRecord | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const load = () => {
     setContracts(null)
@@ -28,11 +30,11 @@ export default function StaffContractsListModal({ staffId, name, onClose, onChan
 
   useEffect(load, [staffId])
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !deleteTarget) onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose, deleteTarget])
+  useModalKeyboard({
+    active: !deleteTarget,
+    onClose,
+    containerRef: panelRef,
+  })
 
   const handleDelete = (c: ContractRecord) => {
     setDeleteTarget(c)
@@ -61,6 +63,7 @@ export default function StaffContractsListModal({ staffId, name, onClose, onChan
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[520px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline [scrollbar-width:thin]"

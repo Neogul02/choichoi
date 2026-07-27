@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { fetchMenuItems } from '@/app/actions/menu';
 import { fetchManualMenuSales, saveManualMenuSales } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import type { MenuItem } from '@/types/database';
 
 interface Props {
@@ -22,6 +23,13 @@ export default function MenuSalesEditModal({ popupId, popupName, onClose, onSave
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+  });
 
   useEffect(() => {
     Promise.all([fetchMenuItems(), fetchManualMenuSales(popupId)]).then(([itemsRes, manualRes]) => {
@@ -73,17 +81,19 @@ export default function MenuSalesEditModal({ popupId, popupName, onClose, onSave
           exit={{ y: 40, opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           className="bg-canvas w-full sm:max-w-[420px] rounded-t-2xl sm:rounded-xl shadow-level-2 border border-hairline overflow-hidden max-h-[90dvh] flex flex-col pb-[env(safe-area-inset-bottom)] sm:pb-0"
+          ref={panelRef}
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-hairline shrink-0">
             <div>
               <p className="text-[11px] text-ink-faint font-medium mb-0.5">메뉴별 판매 수기 입력</p>
               <h3 className="m-0 text-[17px] font-bold text-ink">{popupName}</h3>
             </div>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-canvas-soft text-ink-faint transition-colors">
+            <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-canvas-soft text-ink-faint transition-colors">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
           </div>
 
+          <form onSubmit={e => { e.preventDefault(); handleSave(); }} className="contents">
           <div className="overflow-y-auto flex-1 px-4 py-4 flex flex-col gap-4">
             {loading ? (
               <p className="text-sm text-ink-faint py-6 text-center">불러오는 중...</p>
@@ -125,13 +135,14 @@ export default function MenuSalesEditModal({ popupId, popupName, onClose, onSave
             </div>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={onClose}
                 className="px-4 py-2.5 rounded-lg border border-hairline bg-canvas text-[13px] font-semibold text-ink-muted hover:bg-canvas-soft transition-colors cursor-pointer"
               >
                 취소
               </button>
               <button
-                onClick={handleSave}
+                type="submit"
                 disabled={saving || loading}
                 className="px-4 py-2.5 rounded-lg bg-primary-700 text-white text-[13px] font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 cursor-pointer"
               >
@@ -139,6 +150,7 @@ export default function MenuSalesEditModal({ popupId, popupName, onClose, onSave
               </button>
             </div>
           </div>
+          </form>
         </motion.div>
       </motion.div>
     </AnimatePresence>

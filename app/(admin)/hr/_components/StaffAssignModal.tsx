@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { fetchRosterShifts, bulkAddRosterAssignments } from '@/app/actions/roster'
 import type { RosterUnit } from '@/app/actions/roster'
 import type { StaffProfile, RosterShift } from '@/types/database'
@@ -37,12 +38,13 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
   const [selectedDays, setSelectedDays] = useState<boolean[]>([true, true, true, true, true, true, true])
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+  })
 
   useEffect(() => {
     fetchRosterShifts(unit).then(res => {
@@ -92,6 +94,7 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[420px] rounded-xl shadow-level-2 border border-hairline overflow-hidden"
@@ -101,10 +104,10 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
             <h3 className="m-0 text-[15px] font-bold text-ink">{staff.name}</h3>
             <p className="m-0 text-[12px] text-ink-muted">근무 일정 일괄 배정</p>
           </div>
-          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition w-8 h-8 flex items-center justify-center">×</button>
+          <button type="button" onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition w-8 h-8 flex items-center justify-center">×</button>
         </div>
 
-        <div className="p-5 flex flex-col gap-4">
+        <form onSubmit={e => { e.preventDefault(); handleSubmit(); }} className="p-5 flex flex-col gap-4">
           {/* 파트 선택 */}
           <div>
             <label className="block text-[11px] font-bold text-ink-muted uppercase tracking-wide mb-1.5">파트</label>
@@ -115,6 +118,7 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
                 {shifts.map(s => (
                   <button
                     key={s.id}
+                    type="button"
                     onClick={() => setShiftId(s.id)}
                     className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border transition cursor-pointer ${
                       shiftId === s.id
@@ -158,6 +162,7 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
               {DAY_LABELS.map((label, i) => (
                 <button
                   key={i}
+                  type="button"
                   onClick={() => toggleDay(i)}
                   className={`flex-1 py-1.5 rounded-lg text-[12px] font-bold border transition cursor-pointer ${
                     selectedDays[i]
@@ -198,20 +203,21 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
           {/* 버튼 */}
           <div className="flex gap-2">
             <button
-              onClick={handleSubmit}
+              type="submit"
               disabled={previewDates.length === 0 || isSubmitting}
               className="flex-1 py-2.5 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isSubmitting ? '배정 중...' : `${previewDates.length}일 배정하기`}
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl border border-hairline bg-transparent text-[13px] text-ink-muted cursor-pointer hover:bg-canvas-soft transition"
             >
               취소
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>,
     document.body,

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { createIngredient } from '@/app/actions/inventory';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
 
 interface Props {
   open: boolean;
@@ -38,12 +39,8 @@ const UNIT_PRESETS: Record<UnitType, { base: string; container: string }[]> = {
 export default function AddIngredientModal({ open, onClose, onSuccess }: Props) {
   useBodyScrollLock(open);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useModalKeyboard({ active: open, onClose, containerRef: panelRef });
 
   const [name, setName] = useState('');
   const [id, setId] = useState('');
@@ -108,6 +105,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
         >
           <motion.div
             key="modal"
+            ref={panelRef}
             initial={{ y: 48, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 48, opacity: 0 }}
@@ -120,10 +118,13 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
             {/* 헤더 */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
               <h2 className="text-[15px] font-extrabold text-ink">재고 종류 추가</h2>
-              <button onClick={onClose} aria-label="닫기" className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition">✕</button>
+              <button type="button" onClick={onClose} aria-label="닫기" className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition">✕</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] flex flex-col gap-4">
+            <form
+              onSubmit={(e) => { e.preventDefault(); handleSave(); }}
+              className="flex-1 overflow-y-auto px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] flex flex-col gap-4"
+            >
               {/* 이름 + ID */}
               <div className="flex gap-2">
                 <div className="flex-1">
@@ -151,7 +152,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                 <label className="text-[10px] font-bold text-ink-muted block mb-1.5">카테고리</label>
                 <div className="flex gap-1.5">
                   {CATEGORIES.map((c) => (
-                    <button key={c} onClick={() => setCategory(c)}
+                    <button key={c} type="button" onClick={() => setCategory(c)}
                       className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border-none transition ${
                         category === c ? 'bg-primary-700 text-white' : 'bg-[#f5f6f7] text-ink-muted hover:bg-primary-50'
                       }`}
@@ -165,7 +166,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                 <label className="text-[10px] font-bold text-ink-muted block mb-1.5">단위 타입</label>
                 <div className="flex gap-1.5 mb-2">
                   {(['count', 'weight'] as UnitType[]).map((t) => (
-                    <button key={t} onClick={() => {
+                    <button key={t} type="button" onClick={() => {
                       setUnitType(t);
                       const preset = UNIT_PRESETS[t][0];
                       setBaseUnit(preset.base);
@@ -181,6 +182,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                 <div className="flex gap-1.5 flex-wrap">
                   {UNIT_PRESETS[unitType].map((p) => (
                     <button key={`${p.base}-${p.container}`}
+                      type="button"
                       onClick={() => handleUnitPreset(p)}
                       className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
                         baseUnit === p.base && containerUnit === p.container
@@ -220,7 +222,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                 <label className="text-[10px] font-bold text-ink-muted block mb-1.5">색상</label>
                 <div className="flex gap-1.5 flex-wrap">
                   {PRESET_COLORS.map((c) => (
-                    <button key={c} onClick={() => setColor(c)}
+                    <button key={c} type="button" onClick={() => setColor(c)}
                       className={`w-7 h-7 rounded-full cursor-pointer border-2 transition ${
                         color === c ? 'border-primary-700 scale-110' : 'border-transparent hover:scale-105'
                       }`}
@@ -239,12 +241,12 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
               </div>
 
               <button
-                onClick={handleSave} disabled={saving}
+                type="submit" disabled={saving}
                 className="w-full bg-primary-700 hover:bg-primary-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-[13px] border-none"
               >
                 {saving ? '추가 중…' : '재고 종류 추가'}
               </button>
-            </div>
+            </form>
           </motion.div>
         </motion.div>
       )}

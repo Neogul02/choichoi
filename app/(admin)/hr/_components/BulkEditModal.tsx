@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { moveStaffAssignments, clearStaffAssignments, swapStaffAssignments } from '@/app/actions/roster';
 import type { RosterUnit, RosterUndoPayload } from '@/app/actions/roster';
@@ -52,12 +53,13 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
   const [swapTargetId, setSwapTargetId] = useState<number | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [pendingMode, setPendingMode] = useState<'move' | 'swap' | 'clear' | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !pendingMode) onClose(); };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose, pendingMode]);
+  useModalKeyboard({
+    active: !pendingMode,
+    onClose,
+    containerRef: panelRef,
+  });
 
   // 기간 내 배정 (기간이 뒤집히면 빈 목록)
   const inRange = useMemo(
@@ -246,17 +248,18 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[420px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]"
       >
         <div className="flex items-center justify-between mb-1">
           <h3 className="m-0 text-[16px] font-bold text-ink">일괄 편집</h3>
-          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
+          <button type="button" onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
         <p className="m-0 mb-4 text-[12px] text-ink-muted">{unitLabel} · 특정 근무자의 배정을 한 번에 옮기거나 해제합니다</p>
 
-        <div className="flex flex-col gap-3">
+        <form onSubmit={e => { e.preventDefault(); handleApply(); }} className="flex flex-col gap-3">
           {/* 기간 */}
           <div className="flex flex-col gap-1">
             <label className={labelCls}>기간</label>
@@ -417,7 +420,7 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
               취소
             </button>
             <button
-              type="button" onClick={handleApply} disabled={!canApply}
+              type="submit" disabled={!canApply}
               className={`flex-1 py-1.5 rounded-lg border-none text-white text-[12px] font-bold cursor-pointer transition disabled:opacity-60 disabled:cursor-not-allowed ${
                 mode === 'clear' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-primary-700 hover:bg-primary-800'
               }`}
@@ -425,7 +428,7 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
               {isBusy ? '적용 중...' : mode === 'move' ? '이동' : mode === 'swap' ? '교환' : '해제'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
 
       <ConfirmDialog

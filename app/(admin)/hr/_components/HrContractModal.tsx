@@ -9,6 +9,7 @@ import { fetchStaffAssignmentsInRange } from '@/app/actions/payroll'
 import { generateContract } from '@/app/actions/contracts'
 import { showMsg } from '@/lib/toast'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import SignaturePad from '@/components/SignaturePad'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
@@ -134,12 +135,13 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
   }, [contractData])
 
   const [saving, setSaving] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+  })
 
   const handleComplete = async () => {
     setSaving(true)
@@ -165,6 +167,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className="bg-canvas w-full max-w-[1100px] max-h-[95vh] rounded-xl shadow-level-2 border border-hairline flex flex-col overflow-hidden"
@@ -172,9 +175,10 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-hairline bg-canvas-soft shrink-0">
           <h3 className="m-0 text-[15px] font-bold text-ink">{staff.name} — 근로계약서</h3>
-          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none">×</button>
+          <button type="button" onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none">×</button>
         </div>
 
+        <form onSubmit={e => { e.preventDefault(); handleComplete() }} className="contents">
         {/* 본문: 좌측 폼 + 우측 미리보기 — 모바일은 세로 스택, md 이상은 좌우 분할 */}
         <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
           {/* 좌측: 입력 폼 */}
@@ -297,16 +301,17 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
           <div className="flex gap-2">
             {onComplete && (
               <button
-                onClick={handleComplete}
+                type="submit"
                 disabled={saving}
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-[12px] font-bold border-none cursor-pointer hover:bg-emerald-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {saving ? '저장 중...' : '✓ 작성완료'}
               </button>
             )}
-            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>
           </div>
         </div>
+        </form>
       </div>
     </div>,
     document.body,

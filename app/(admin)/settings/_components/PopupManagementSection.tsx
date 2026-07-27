@@ -153,13 +153,15 @@ export default function PopupManagementSection() {
       {/* 새 팝업 추가 폼 */}
       <div className="bg-canvas-soft rounded-xl p-4 mb-5">
         <h3 className="mt-0 mb-3 text-base font-bold">새 팝업 추가</h3>
-        {renderFormFields(addForm, updates => setAddForm(p => ({ ...p, ...updates })))}
-        <div className="flex justify-end mt-3">
-          <button onClick={handleAdd} disabled={isAdding}
-            className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
-            {isAdding ? '추가 중...' : '추가'}
-          </button>
-        </div>
+        <form onSubmit={e => { e.preventDefault(); handleAdd(); }}>
+          {renderFormFields(addForm, updates => setAddForm(p => ({ ...p, ...updates })))}
+          <div className="flex justify-end mt-3">
+            <button type="submit" disabled={isAdding}
+              className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
+              {isAdding ? '추가 중...' : '추가'}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* 팝업 목록 */}
@@ -181,19 +183,19 @@ export default function PopupManagementSection() {
               <li key={ev.id} className={`rounded-xl border border-hairline bg-canvas transition-all ${isEditing ? 'shadow-level-1' : ''}`}>
                 {isEditing ? (
                   /* ── 인라인 편집 모드 ── */
-                  <div className="p-3">
+                  <form className="p-3" onSubmit={e => { e.preventDefault(); saveEdit(ev.id); }}>
                     {renderFormFields(draft, updates => setInlineEdits(p => ({ ...p, [ev.id]: { ...p[ev.id], ...updates } })))}
                     <div className="flex justify-end gap-1.5 mt-3">
-                      <button onClick={() => cancelEdit(ev.id)} disabled={isSaving}
+                      <button type="button" onClick={() => cancelEdit(ev.id)} disabled={isSaving}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-hairline bg-canvas text-ink-muted hover:bg-canvas-soft cursor-pointer disabled:opacity-50 transition-colors">
                         취소
                       </button>
-                      <button onClick={() => saveEdit(ev.id)} disabled={isSaving}
+                      <button type="submit" disabled={isSaving}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold border-none bg-primary-700 text-white hover:bg-primary-800 cursor-pointer disabled:opacity-50 transition-colors">
                         {isSaving ? '저장 중...' : '저장'}
                       </button>
                     </div>
-                  </div>
+                  </form>
                 ) : (
                   /* ── 일반 표시 모드 ── */
                   <div className={`flex items-center gap-3 px-3 py-2.5 ${isActive ? '' : 'opacity-55'}`}>
