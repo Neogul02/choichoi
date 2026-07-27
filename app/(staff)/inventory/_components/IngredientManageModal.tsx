@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import type { Ingredient } from '@/types/database';
 import { updateIngredientSettings, setPhysicalInventory, deleteIngredientById } from '@/app/actions/inventory';
 import { totalQty } from '../_hooks/useInventory';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface Props {
   ingredient: Ingredient | null;
@@ -37,12 +39,8 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
     }
   }, [ingredient]);
 
-  useEffect(() => {
-    if (!ingredient) return undefined;
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [ingredient, onClose]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useModalKeyboard({ active: ingredient != null, onClose, containerRef: panelRef });
 
   if (!ingredient) return null;
 
@@ -119,6 +117,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
       >
         <motion.div
           key="modal"
+          ref={panelRef}
           initial={{ y: 48, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 48, opacity: 0 }}
@@ -137,6 +136,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
               </p>
             </div>
             <button
+              type="button"
               onClick={onClose}
               aria-label="닫기"
               className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition"
@@ -150,6 +150,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
             {(['adjust', 'settings'] as Tab[]).map((t) => (
               <button
                 key={t}
+                type="button"
                 onClick={() => setTab(t)}
                 className={`flex-1 py-1.5 rounded-lg text-[12px] font-bold cursor-pointer transition border-none ${
                   tab === t
@@ -164,7 +165,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
 
           <div className="px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             {tab === 'adjust' && (
-              <div className="flex flex-col gap-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleAdjust(); }} className="flex flex-col gap-4">
                 <p className="text-[11px] text-ink-faint">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다. 카드의 +/- 버튼으로도 빠르게 조정할 수 있습니다.</p>
                 <div className="flex gap-3">
                   <div className="flex-1">
@@ -207,17 +208,17 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                 </div>
 
                 <button
-                  onClick={handleAdjust}
+                  type="submit"
                   disabled={saving}
                   className="w-full bg-primary-700 hover:bg-primary-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-[13px] border-none"
                 >
                   {saving ? '저장 중…' : '재고 조정 확정'}
                 </button>
-              </div>
+              </form>
             )}
 
             {tab === 'settings' && (
-              <div className="flex flex-col gap-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleSettings(); }} className="flex flex-col gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
                     1{ingredient.container_unit}당 {ingredient.base_unit} 수
@@ -249,7 +250,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                 </div>
 
                 <button
-                  onClick={handleSettings}
+                  type="submit"
                   disabled={saving}
                   className="w-full bg-primary-700 hover:bg-primary-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer transition text-[13px] border-none"
                 >
@@ -257,41 +258,30 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                 </button>
 
                 <div className="border-t border-hairline pt-3">
-                  {!confirmDelete ? (
-                    <button
-                      onClick={() => setConfirmDelete(true)}
-                      className="w-full text-rose-500 text-[12px] font-bold py-2 rounded-xl cursor-pointer border border-rose-200 hover:bg-rose-50 transition"
-                    >
-                      이 재고 종류 삭제
-                    </button>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      <p className="text-[11px] text-ink-muted text-center">
-                        <span className="font-bold text-rose-500">{ingredient.name}</span>을(를) 삭제합니다. 복구 불가.
-                      </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setConfirmDelete(false)}
-                          className="flex-1 text-[12px] font-bold py-2 rounded-xl cursor-pointer border border-hairline hover:bg-[#f5f6f7] transition"
-                        >
-                          취소
-                        </button>
-                        <button
-                          onClick={handleDelete}
-                          disabled={saving}
-                          className="flex-1 text-[12px] font-bold py-2 rounded-xl cursor-pointer bg-rose-500 hover:bg-rose-600 text-white border-none disabled:opacity-50 transition"
-                        >
-                          {saving ? '삭제 중…' : '삭제 확인'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(true)}
+                    className="w-full text-rose-500 text-[12px] font-bold py-2 rounded-xl cursor-pointer border border-rose-200 hover:bg-rose-50 transition"
+                  >
+                    이 재고 종류 삭제
+                  </button>
                 </div>
-              </div>
+              </form>
             )}
           </div>
         </motion.div>
       </motion.div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`${ingredient.name}을(를) 삭제합니다`}
+        description="복구 불가."
+        confirmLabel="삭제"
+        danger
+        busy={saving}
+        onConfirm={handleDelete}
+        onClose={() => setConfirmDelete(false)}
+      />
     </AnimatePresence>
   );
 }

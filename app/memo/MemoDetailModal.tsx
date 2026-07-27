@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import type { Memo } from '@/types/database'
 import { parseChecklist, serializeChecklist } from './MemoPageClient'
@@ -39,12 +40,9 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && !confirmDeleteOpen) onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose, confirmDeleteOpen])
+  useModalKeyboard({ active: !confirmDeleteOpen, onClose, containerRef: panelRef })
 
   const getContent = () =>
     formData.type === 'checklist'
@@ -126,6 +124,7 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
       >
         <motion.div
           key="memo-modal-panel"
+          ref={panelRef}
           initial={{ scale: 0.92, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.92, opacity: 0, y: 20 }}
@@ -161,6 +160,7 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
             <div className="flex items-center gap-1">
               {!isCreate && onPin && (
                 <button
+                  type="button"
                   onClick={() => onPin(!memo!.is_pinned)}
                   title={memo!.is_pinned ? '고정 해제' : '고정'}
                   className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-base cursor-pointer ${memo!.is_pinned ? 'bg-amber-50 text-amber-500' : 'hover:bg-canvas-soft text-ink-faint'}`}
@@ -169,6 +169,7 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
                 </button>
               )}
               <button
+                type="button"
                 onClick={onClose}
                 aria-label="닫기"
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-canvas-soft text-ink-faint transition-colors cursor-pointer"
@@ -180,6 +181,7 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
             </div>
           </div>
 
+          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="contents">
           {/* Body */}
           <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-3">
             <input
@@ -274,6 +276,7 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
           <div className="px-5 py-3 border-t border-hairline flex items-center justify-between shrink-0">
             {!isCreate && onRemove ? (
               <button
+                type="button"
                 onClick={() => setConfirmDeleteOpen(true)}
                 disabled={deleting}
                 className="px-4 py-2 rounded-lg bg-rose-500 text-white text-[12px] font-semibold hover:bg-rose-600 transition-colors disabled:opacity-60 cursor-pointer"
@@ -284,13 +287,14 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
               <div />
             )}
             <button
-              onClick={handleSave}
+              type="submit"
               disabled={saving}
               className="px-4 py-2 rounded-lg bg-primary-700 text-white text-[12px] font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 cursor-pointer"
             >
               {saving ? (isCreate ? '추가 중...' : '저장 중...') : (isCreate ? '추가' : '저장')}
             </button>
           </div>
+          </form>
         </motion.div>
       </motion.div>
 

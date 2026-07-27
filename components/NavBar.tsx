@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePresence, type PresenceUser } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { withTimeout } from '@/lib/utils';
-import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import type { UserAppRole } from '@/types/database';
 
 function toAppRole(value: unknown): UserAppRole {
@@ -61,7 +60,6 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
-  useBodyScrollLock(showLogoutConfirm);
 
   const ownActiveCashiers = usePresence(activeCashiersProp !== undefined ? null : cashierName);
   const activeCashiers = activeCashiersProp ?? ownActiveCashiers;
@@ -313,49 +311,15 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         </div>
       </div>
 
-      {mounted && createPortal(
-        <AnimatePresence>
-          {showLogoutConfirm && (
-            <motion.div
-              key="logout-confirm-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-              onClick={(e) => { if (e.target === e.currentTarget) setShowLogoutConfirm(false); }}
-            >
-              <motion.div
-                key="logout-confirm-panel"
-                initial={{ y: 16, opacity: 0, scale: 0.97 }}
-                animate={{ y: 0, opacity: 1, scale: 1 }}
-                exit={{ y: 16, opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="bg-canvas w-full max-w-[320px] rounded-xl shadow-level-2 border border-hairline p-5"
-              >
-                <h3 className="m-0 mb-1.5 text-[16px] font-bold text-ink">로그아웃하시겠습니까?</h3>
-                <p className="m-0 mb-5 text-[13px] text-ink-muted">다시 로그인해야 이용할 수 있습니다.</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowLogoutConfirm(false)}
-                    className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition-colors"
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={confirmLogout}
-                    className="flex-1 py-2.5 rounded-lg border-none bg-rose-500 text-white text-[13px] font-bold cursor-pointer hover:bg-rose-600 transition-colors"
-                  >
-                    로그아웃
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="로그아웃하시겠습니까?"
+        description="다시 로그인해야 이용할 수 있습니다."
+        confirmLabel="로그아웃"
+        danger
+        onConfirm={confirmLogout}
+        onClose={() => setShowLogoutConfirm(false)}
+      />
   </>
   );
 }

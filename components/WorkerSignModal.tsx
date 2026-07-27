@@ -8,6 +8,7 @@ import type { ContractRecord } from '@/app/actions/contracts'
 import type { ContractData } from '@/components/ContractDocument'
 import { toast } from 'sonner'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), { ssr: false })
 
@@ -25,6 +26,8 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
   const [signatureBase64, setSignatureBase64] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalKeyboard({ active: true, onClose, containerRef: panelRef })
 
   // 모바일에서는 기본 폼 뷰, 데스크탑에서는 양쪽 모두 표시
   useEffect(() => {
@@ -93,7 +96,7 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-0 md:p-4">
 
       {/* 모바일은 전체 화면 — 주소창/키보드로 가용 높이가 줄어도 서명 버튼이 잘리지 않게 */}
-      <div className="bg-canvas rounded-none md:rounded-2xl shadow-xl w-full max-w-7xl h-full md:h-[90vh] flex flex-col overflow-hidden">
+      <div ref={panelRef} className="bg-canvas rounded-none md:rounded-2xl shadow-xl w-full max-w-7xl h-full md:h-[90vh] flex flex-col overflow-hidden">
 
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-hairline shrink-0">
@@ -128,7 +131,10 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
           </div>
 
           {/* 서명 폼 */}
-          <div className={`w-full md:w-[320px] shrink-0 overflow-y-auto p-5 space-y-5 ${showPreview ? 'hidden md:block' : 'block'}`}>
+          <form
+            onSubmit={e => { e.preventDefault(); handleSubmit() }}
+            className={`w-full md:w-[320px] shrink-0 overflow-y-auto p-5 space-y-5 ${showPreview ? 'hidden md:block' : 'block'}`}
+          >
 
             {/* 근로자 정보 확인 */}
             <div className="rounded-xl bg-canvas-soft border border-hairline p-3 space-y-1">
@@ -175,14 +181,13 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
 
             {/* 제출 버튼 */}
             <button
-              type="button"
-              onClick={handleSubmit}
+              type="submit"
               disabled={isSubmitting || !workerAddress.trim() || !signatureBase64}
               className="w-full py-2.5 rounded-xl border-none text-[13px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
             >
               {isSubmitting ? '처리 중...' : '서명 완료'}
             </button>
-          </div>
+          </form>
         </div>
       </div>
     </div>

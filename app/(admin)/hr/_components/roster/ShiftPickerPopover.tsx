@@ -1,7 +1,9 @@
 'use client';
 
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { RosterShift } from '@/types/database';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
 
 interface Props {
   dateStr: string;
@@ -14,10 +16,19 @@ interface Props {
 
 /** 드롭한 날짜에 활성 파트가 여러 개일 때 커서 위치에 뜨는 파트 선택 팝오버 */
 export default function ShiftPickerPopover({ dateStr, x, y, shifts, onPick, onClose }: Props) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+  });
+
   return createPortal(
     <>
       <div className="fixed inset-0 z-[49]" onClick={onClose} />
       <div
+        ref={panelRef}
         className="fixed z-50 bg-canvas border border-hairline rounded-xl shadow-level-2 p-2 min-w-[160px]"
         style={{ left: x + 8, top: y + 8 }}
       >

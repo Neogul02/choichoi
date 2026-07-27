@@ -1,11 +1,12 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getStaffById } from '@/app/actions/staff'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import type { StaffProfile } from '@/types/database'
 import type { ContractData } from '@/components/ContractDocument'
 
@@ -86,6 +87,8 @@ export default function PayrollDetailModal({
   staffId, name, phone, bankName, bankAccount, hourlyRate, basePay, totalHours, year, month, onClose,
 }: Props) {
   useBodyScrollLock()
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalKeyboard({ active: true, onClose, containerRef: panelRef })
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const copyText = (key: string, text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -99,12 +102,6 @@ export default function PayrollDetailModal({
   const [newAmount, setNewAmount] = useState('')
   const [copied, setCopied] = useState(false)
   const [contractData, setContractData] = useState<ContractData | null>(null)
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
 
   useEffect(() => {
     fetchStaffMonthlyDetail(staffId, year, month).then(res => {
@@ -187,6 +184,7 @@ export default function PayrollDetailModal({
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         className={`bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex flex-col md:flex-row overflow-hidden ${contractData ? 'max-w-[960px]' : 'max-w-[520px]'}`}

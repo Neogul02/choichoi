@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { fetchOrdersByDate } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
+import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import type { ManualSalesEntry, OrderRecordWithItems } from '@/types/api';
 
 interface Props {
@@ -33,6 +34,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const revenueRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const posRevenue = orders.reduce((s, o) => s + Number(o.total_price), 0);
 
@@ -43,9 +45,12 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
     });
   }, [date]);
 
-  useEffect(() => {
-    setTimeout(() => revenueRef.current?.focus(), 120);
-  }, []);
+  useModalKeyboard({
+    active: true,
+    onClose,
+    containerRef: panelRef,
+    initialFocusRef: revenueRef,
+  });
 
   const menuAgg = orders.reduce<Record<string, { name: string; qty: number; subtotal: number }>>((acc, order) => {
     for (const item of order.items) {
@@ -93,6 +98,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
           exit={{ y: 40, opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           className="bg-canvas w-full sm:max-w-[420px] rounded-t-2xl sm:rounded-xl shadow-level-2 border border-hairline overflow-hidden max-h-[90dvh] flex flex-col pb-[env(safe-area-inset-bottom)] sm:pb-0"
+          ref={panelRef}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-hairline shrink-0">
@@ -100,11 +106,12 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
               <p className="text-[11px] text-ink-faint font-medium mb-0.5">날짜별 매출</p>
               <h3 className="m-0 text-[17px] font-bold text-ink">{formatDateLabel(date)}</h3>
             </div>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-canvas-soft text-ink-faint transition-colors">
+            <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-canvas-soft text-ink-faint transition-colors">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
           </div>
 
+          <form onSubmit={e => { e.preventDefault(); handleSave(); }} className="contents">
           <div className="overflow-y-auto flex-1 px-4 py-4 flex flex-col gap-4">
             {/* POS 실매출 */}
             <section>
@@ -191,6 +198,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
           <div className="px-4 py-3 border-t border-hairline flex gap-2 shrink-0">
             {manualEntry && (
               <button
+                type="button"
                 onClick={handleDelete}
                 disabled={deleting}
                 className="px-3 py-2.5 rounded-lg border border-hairline text-[13px] font-semibold text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50 cursor-pointer"
@@ -199,19 +207,21 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
               </button>
             )}
             <button
+              type="button"
               onClick={onClose}
               className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas text-[13px] font-semibold text-ink-muted hover:bg-canvas-soft transition-colors cursor-pointer"
             >
               취소
             </button>
             <button
-              onClick={handleSave}
+              type="submit"
               disabled={saving}
               className="flex-1 py-2.5 rounded-lg bg-primary-700 text-white text-[13px] font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 cursor-pointer"
             >
               {saving ? '저장 중...' : '저장'}
             </button>
           </div>
+          </form>
         </motion.div>
       </motion.div>
     </AnimatePresence>
