@@ -37,7 +37,7 @@ const DEFAULT_SHIFTS = [
   { name: '오후', start_time: '15:00', end_time: '22:00', weekday_required: 2, weekend_required: 2, sort_order: 1 },
 ]
 
-/** 단위의 파트 목록 — 없으면 오전/오후 기본 파트를 생성해서 반환 */
+/** 단위의 파트 목록 — 조회는 순수 읽기다. 없으면 빈 배열을 반환하며, 기본 파트 생성은 팝업 생성 시점(createDefaultCashierShifts)에서만 이뤄진다 */
 export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<RosterShift[]>> {
   return wrap(async () => {
     const { data, error } = await applyUnitFilter(
@@ -47,14 +47,19 @@ export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<R
       .order('sort_order')
       .order('created_at')
     if (error) throw new Error(error.message)
-    if (data && data.length > 0) return data as RosterShift[]
+    return (data ?? []) as RosterShift[]
+  })
+}
 
-    const { data: created, error: createError } = await supabaseAdmin
+/** 새 팝업 생성 시 1회 호출 — 오전/오후 기본 파트를 그 팝업의 실제 운영 기간(active_from/to)에 맞춰 생성 */
+export async function createDefaultCashierShifts(popupId: number, startDate: string, endDate: string): Promise<ApiResponse<RosterShift[]>> {
+  return wrap(async () => {
+    const { data, error } = await supabaseAdmin
       .from('roster_shifts')
-      .insert(DEFAULT_SHIFTS.map(s => ({ ...s, staff_role: unit.staffRole, popup_id: unit.popupId })))
+      .insert(DEFAULT_SHIFTS.map(s => ({ ...s, staff_role: 'cashier' as const, popup_id: popupId, active_from: startDate, active_to: endDate })))
       .select('*')
-    if (createError) throw new Error(createError.message)
-    return (created ?? []) as RosterShift[]
+    if (error) throw new Error(error.message)
+    return (data ?? []) as RosterShift[]
   })
 }
 

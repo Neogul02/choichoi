@@ -63,12 +63,15 @@ export async function fetchRosterOverview(fromDate: string, toDate: string): Pro
     if (!staffRes.success || !staffRes.data) return { success: false, error: staffRes.error ?? '직원 목록을 불러올 수 없습니다.' }
     if (memosRes.error) return { success: false, error: memosRes.error.message }
 
-    const units: RosterUnitOverview[] = []
-    for (let i = 0; i < unitDefs.length; i++) {
+    // 팝업 하나의 조회 실패가 나머지 정상 팝업까지 화면에서 가리지 않도록 — 실패한 유닛은 빈 데이터로 대체하고 계속 진행
+    const units: RosterUnitOverview[] = unitDefs.map((def, i) => {
       const r = rangeResults[i]
-      if (!r.success || !r.data) return { success: false, error: r.error ?? `${unitDefs[i].label} 근무표를 불러올 수 없습니다.` }
-      units.push({ ...unitDefs[i], data: r.data })
-    }
+      if (!r.success || !r.data) {
+        console.error(`[fetchRosterOverview] ${def.label} 근무표 조회 실패: ${r.error}`)
+        return { ...def, data: { shifts: [], assignments: [], requirements: [] } }
+      }
+      return { ...def, data: r.data }
+    })
 
     return {
       success: true,
