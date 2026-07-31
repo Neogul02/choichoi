@@ -10,6 +10,7 @@ import {
   setPopupEventActive,
 } from '@/lib/supabase-admin';
 import { classifyStaffByPopupSchedule } from './staffPopups';
+import { createDefaultCashierShifts } from './roster';
 import type { ApiResponse, FetchEventsResponse } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
@@ -34,8 +35,12 @@ export async function createNewPopupEvent(name: string, startDate: string, endDa
   const parsed = PopupEventSchema.safeParse({ name, startDate, endDate });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   const res = await wrap(() => createPopupEvent(parsed.data.name, parsed.data.startDate, parsed.data.endDate));
-  // 기간 안에 이미 배정된 근무자가 있으면(드문 경우지만 과거 날짜로 소급 생성 등) 바로 팝업 소속으로 분류
-  if (res.success && res.data) await classifyStaffByPopupSchedule(res.data.id);
+  if (res.success && res.data) {
+    // 기간 안에 이미 배정된 근무자가 있으면(드문 경우지만 과거 날짜로 소급 생성 등) 바로 팝업 소속으로 분류
+    await classifyStaffByPopupSchedule(res.data.id);
+    // 오전/오후 기본 파트를 팝업 기간에 맞춰 미리 생성 — 읽을 때마다 자동생성하던 예전 방식은 삭제해도 되살아나는 문제가 있었다
+    await createDefaultCashierShifts(res.data.id, parsed.data.startDate, parsed.data.endDate);
+  }
   return res;
 }
 
