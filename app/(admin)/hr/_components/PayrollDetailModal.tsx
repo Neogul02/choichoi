@@ -4,48 +4,10 @@ import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
-import { getStaffById } from '@/app/actions/staff'
+import { getWorkerContracts } from '@/app/actions/contracts'
+import type { ContractRecord } from '@/app/actions/contracts'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
-import type { StaffProfile } from '@/types/database'
-import type { ContractData } from '@/components/ContractDocument'
-
-const DAY_CONTRACT: Record<number, string> = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' }
-
-function buildContractData(staff: StaffProfile): ContractData {
-  return {
-    employerName: '초이초이 - (히요리산도)',
-    employerAddress: '경기 동두천시 동두천로119 1층 102호',
-    employerRepresentative: '최진우',
-    employerPhone: '010-7633-2414',
-    workerName: staff.name,
-    workerPhone: staff.phone ?? undefined,
-    startDate: staff.available_ranges[0]?.from ?? '',
-    endDate: staff.available_ranges[0]?.to ?? undefined,
-    workplace: '경기 동두천시 동두천로119 1층 102호',
-    jobDescription: '팝업스토어 운영 (주문 접수, 결제, 재고 관리)',
-    workDays: staff.preferred_days.map(d => ({
-      day: DAY_CONTRACT[d] ?? '',
-      startTime: '10:30',
-      endTime: '18:00',
-      breakStart: '13:00',
-      breakEnd: '14:00',
-    })),
-    weeklyHolidayDay: '',
-    hourlyRate: staff.hourly_rate ?? 0,
-    hasBonus: false,
-    hasOtherAllowance: false,
-    overtimeRate: 50,
-    paymentDay: '25',
-    paymentDirect: false,
-    paymentTransfer: true,
-    insuranceEmployment: staff.wants_insurance,
-    insuranceIndustrial: staff.wants_insurance,
-    insurancePension: false,
-    insuranceHealth: false,
-    issueDate: new Date().toISOString().slice(0, 10),
-  }
-}
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
@@ -101,14 +63,18 @@ export default function PayrollDetailModal({
   const [newLabel, setNewLabel] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [copied, setCopied] = useState(false)
-  const [contractData, setContractData] = useState<ContractData | null>(null)
+  // 최근 계약서 — 서명 이미지를 포함한 실제 저장 데이터를 그대로 미리보기에 사용 (직원 정보로 새로 조립하지 않음)
+  const [latestContract, setLatestContract] = useState<ContractRecord | null>(null)
+  const [contractsLoaded, setContractsLoaded] = useState(false)
 
   useEffect(() => {
     fetchStaffMonthlyDetail(staffId, year, month).then(res => {
       setDetails(res.success && res.data ? res.data : [])
     })
-    getStaffById(staffId).then(res => {
-      if (res.success && res.data) setContractData(buildContractData(res.data))
+    setContractsLoaded(false)
+    getWorkerContracts(staffId).then(res => {
+      setLatestContract(res.success && res.data && res.data.length > 0 ? res.data[0] : null)
+      setContractsLoaded(true)
     })
   }, [staffId, year, month])
 
@@ -187,11 +153,11 @@ export default function PayrollDetailModal({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        className={`bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex flex-col md:flex-row overflow-hidden ${contractData ? 'max-w-[960px]' : 'max-w-[520px]'}`}
+        className="bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex flex-col md:flex-row overflow-hidden max-w-[960px]"
         style={{ maxHeight: '90vh' }}
       >
         {/* 좌측: 급여 세부내역 */}
-        <div className={`flex flex-col overflow-y-auto [scrollbar-width:thin] flex-1 min-w-0 ${contractData ? 'md:max-w-[520px]' : ''}`}>
+        <div className="flex flex-col overflow-y-auto [scrollbar-width:thin] flex-1 min-w-0 md:max-w-[520px]">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-canvas-soft sticky top-0 z-10">
           <div>
@@ -383,18 +349,35 @@ export default function PayrollDetailModal({
         </div>
         </div>{/* 좌측 컬럼 끝 */}
 
-        {/* 우측: 근로계약서 */}
-        {contractData && (
-          <div className="border-t md:border-t-0 md:border-l border-hairline flex flex-col w-full md:w-[420px] md:min-w-[420px] min-h-[420px] md:min-h-0">
-            <div className="px-4 py-4 border-b border-hairline bg-canvas-soft">
+        {/* 우측: 근로계약서 — 실제 저장된 계약서(서명 포함)를 그대로 보여준다 */}
+        <div className="border-t md:border-t-0 md:border-l border-hairline flex flex-col w-full md:w-[420px] md:min-w-[420px] min-h-[420px] md:min-h-0">
+          <div className="px-4 py-4 border-b border-hairline bg-canvas-soft flex items-center justify-between gap-2">
+            <div>
               <p className="m-0 text-[13px] font-bold text-ink">근로계약서</p>
               <p className="m-0 text-[11px] text-ink-muted mt-0.5">{name} · 최근 계약</p>
             </div>
-            <div className="flex-1 min-h-0">
-              <PDFPreviewPanel contractData={contractData} />
-            </div>
+            {latestContract && (
+              latestContract.worker_signed_at ? (
+                <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">서명완료</span>
+              ) : (
+                <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">서명대기</span>
+              )
+            )}
           </div>
-        )}
+          <div className="flex-1 min-h-0">
+            {!contractsLoaded ? (
+              <div className="flex items-center justify-center h-full text-ink-muted text-sm">계약서 로딩 중...</div>
+            ) : !latestContract ? (
+              <div className="flex items-center justify-center h-full text-ink-faint text-sm">작성된 근로계약서가 없습니다.</div>
+            ) : latestContract.contract_data ? (
+              <PDFPreviewPanel contractData={latestContract.contract_data} />
+            ) : latestContract.pdf_signed_url ? (
+              <iframe src={latestContract.pdf_signed_url} className="w-full h-full border-none" title="근로계약서" />
+            ) : (
+              <div className="flex items-center justify-center h-full text-ink-faint text-sm">미리보기를 불러올 수 없습니다.</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>,
     document.body,
