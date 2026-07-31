@@ -398,7 +398,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
       if (event.key === 'Escape') {
         event.preventDefault()
-        setResetConfirmOpen(true)
+        resetOrder()
         return
       }
 
