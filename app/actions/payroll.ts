@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
+import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { getAuthUser } from './_base'
 
 
@@ -35,7 +36,7 @@ export async function fetchStaffAssignmentsInRange(
   try {
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, roster_shifts(name, start_time, end_time)')
+      .select('work_date, start_time, end_time, roster_shifts(name, start_time, end_time)')
       .eq('staff_id', staffId)
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
@@ -52,8 +53,9 @@ export async function fetchStaffAssignmentsInRange(
         date: a.work_date,
         dayName: DAY_KO[d.getDay()],
         shiftName: shift?.name ?? '파트 미정',
-        startTime: shift?.start_time ?? '00:00',
-        endTime: shift?.end_time ?? '00:00',
+        // 근로계약서에 들어가는 시간 — 개별 수정된 근무 시간이 있으면 그 값이 실제 근무 조건이다
+        startTime: a.start_time ?? shift?.start_time ?? '00:00',
+        endTime: a.end_time ?? shift?.end_time ?? '00:00',
       }
     })
 
@@ -62,14 +64,6 @@ export async function fetchStaffAssignmentsInRange(
     return { success: false, error: String(err) }
   }
 }
-
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + (m ?? 0)
-}
-
-/** 급여 계산용 고정 휴게시간 — 파트별 설정과 무관하게 근무 1건당 1시간 차감 */
-const FIXED_BREAK_MINUTES = 60
 
 export interface StaffDayDetail {
   date: string
@@ -80,7 +74,7 @@ export interface StaffDayDetail {
   hours: number
   /** 실근무 분 (휴게 차감 전) */
   rawMinutes: number
-  /** 휴게 차감 분 — 근무일별로 오버라이드하지 않으면 기본 1시간(FIXED_BREAK_MINUTES) */
+  /** 휴게 차감 분 — 근무일별로 오버라이드하지 않으면 기본 1시간(DEFAULT_BREAK_MINUTES) */
   breakMinutes: number
   /** 유급 분 — 월 합계는 이 값을 합산 후 시간 환산해야 fetchMonthlyPayroll과 일치 */
   paidMinutes: number
@@ -128,17 +122,16 @@ export async function fetchStaffMonthlyDetail(
       const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
       const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
       const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
-      const rawMinutes = timeToMinutes(endTime) - timeToMinutes(startTime)
-      const breakMinutes = a.break_minutes ?? FIXED_BREAK_MINUTES
-      const paidMinutes = Math.max(0, rawMinutes - breakMinutes)
-      const hours = Math.round(paidMinutes / 60 * 10) / 10
+      const rawMinutes = shiftRawMinutes(startTime, endTime)
+      const breakMinutes = a.break_minutes ?? DEFAULT_BREAK_MINUTES
+      const paid = paidMinutes(startTime, endTime, a.break_minutes)
       return {
         date: a.work_date,
         shiftName: shift?.name ?? '파트 미정',
         startTime: startTime.slice(0, 5),
         endTime: endTime.slice(0, 5),
-        hours,
-        rawMinutes, breakMinutes, paidMinutes,
+        hours: minutesToHours(paid),
+        rawMinutes, breakMinutes, paidMinutes: paid,
         isCustomTime: a.start_time != null || a.end_time != null,
         isCustomBreak: a.break_minutes != null,
       }
@@ -188,8 +181,7 @@ export async function fetchMonthlyPayroll(
       if (!shift) continue
       const startStr: string = a.start_time ?? shift.start_time
       const endStr: string = a.end_time ?? shift.end_time
-      const rawMins = timeToMinutes(endStr) - timeToMinutes(startStr)
-      const paidMin = Math.max(0, rawMins - (a.break_minutes ?? FIXED_BREAK_MINUTES))
+      const paidMin = paidMinutes(startStr, endStr, a.break_minutes)
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
@@ -198,7 +190,7 @@ export async function fetchMonthlyPayroll(
     for (const [staffId, { days, minutes }] of totals) {
       const staff = staffMap.get(staffId)
       if (!staff) continue
-      const totalHours = Math.round((minutes / 60) * 10) / 10
+      const totalHours = minutesToHours(minutes)
       const totalPay = staff.hourly_rate != null ? Math.round(totalHours * staff.hourly_rate) : null
       rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: staff.bank_name ?? null, bankAccount: staff.bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
     }

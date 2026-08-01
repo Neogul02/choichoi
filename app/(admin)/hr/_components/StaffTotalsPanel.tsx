@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { RosterAssignment, RosterShift, StaffProfile } from '@/types/database';
-import { toMinutes } from '@/lib/staffing';
+import { paidMinutes, minutesToHours } from '@/lib/workhours';
 
 interface Props {
   staffList: StaffProfile[];
@@ -20,10 +20,7 @@ export default function StaffTotalsPanel({ staffList, shifts, assignments, isLoa
     for (const a of assignments) {
       const shift = shiftById.get(a.shift_id);
       if (!shift) continue;
-      let mins = toMinutes(a.end_time ?? shift.end_time) - toMinutes(a.start_time ?? shift.start_time);
-      if (mins < 0) mins += 24 * 60; // 자정 넘김
-      // 근무일별 휴게시간 오버라이드가 없으면 기본 1시간(payroll.ts의 FIXED_BREAK_MINUTES와 동일)
-      mins = Math.max(0, mins - (a.break_minutes ?? 60));
+      const mins = paidMinutes(a.start_time ?? shift.start_time, a.end_time ?? shift.end_time, a.break_minutes);
       let entry = acc.get(a.staff_id);
       if (!entry) { entry = { days: new Set(), minutes: 0 }; acc.set(a.staff_id, entry); }
       entry.days.add(a.work_date);
@@ -34,7 +31,7 @@ export default function StaffTotalsPanel({ staffList, shifts, assignments, isLoa
       ?? assignments.find(a => a.staff_id === id)?.staff_profiles?.name
       ?? `#${id}`;
     return [...acc.entries()]
-      .map(([id, e]) => ({ id, name: nameOf(id), days: e.days.size, hours: Math.round(e.minutes / 6) / 10 }))
+      .map(([id, e]) => ({ id, name: nameOf(id), days: e.days.size, hours: minutesToHours(e.minutes) }))
       .sort((a, b) => b.days - a.days || b.hours - a.hours || a.name.localeCompare(b.name, 'ko'));
   }, [assignments, shifts, staffList]);
 
