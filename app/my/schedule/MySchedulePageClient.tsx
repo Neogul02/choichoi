@@ -5,6 +5,7 @@ import NavBar from '@/components/NavBar'
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getMyRoster, getStaffRosterAsManager, type MyShift } from '@/app/actions/roster'
+import { minutesToHours } from '@/lib/workhours'
 import { formatBreakMinutes } from '@/lib/utils'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
@@ -15,7 +16,7 @@ function todayStr() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 function hhmm(t: string) { return t.slice(0, 5) }
-function minToH(min: number) { return Math.round(min / 60 * 10) / 10 }
+const minToH = minutesToHours
 function mdDay(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')
   return `${dateStr.slice(5)} (${DAY_NAMES[d.getDay()]})`
@@ -142,12 +143,13 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
   const goToday = () => { const now = new Date(); setCursor({ y: now.getFullYear(), m: now.getMonth() }) }
 
   const totalDays = new Set(details.map(d => d.date)).size
-  const totalHours = Math.round(details.reduce((sum, d) => sum + d.hours, 0) * 10) / 10
   const visibleShifts = showAll ? upcomingShifts : upcomingShifts.slice(0, 5)
 
-  // 예상 급여 계산식 — 관리자 급여정산 화면(fetchMonthlyPayroll/PayrollDetailModal)과 동일한 방식
+  // 예상 급여 계산식 — 관리자 급여정산(fetchMonthlyPayroll)과 동일하게 유급 "분"을 전부 합산한 뒤
+  // 마지막에 한 번만 시간으로 반올림한다. 일별 반올림값(hours)을 합치면 급여정산 금액과 어긋난다.
   const rawSum = details.reduce((s, d) => s + d.rawMinutes, 0)
   const breakSum = details.reduce((s, d) => s + d.breakMinutes, 0)
+  const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
   const estimatedPay = hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
 
   if (!loaded || !cursor) {

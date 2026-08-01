@@ -8,6 +8,7 @@ import { getWorkerContracts } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
+import { minutesToHours } from '@/lib/workhours'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
@@ -79,10 +80,10 @@ export default function PayrollDetailModal({
   // 총 유급시간·기본급은 이 모달이 직접 불러온 details(일별 상세)에서만 계산한다.
   // 목록(PayrollPanel)의 totalHours/totalPay는 react-query 캐시(staleTime 5분)를 타므로
   // 스케줄 화면에서 방금 휴게시간·시간을 수정한 직후엔 값이 어긋날 수 있어, prop으로 받지 않는다.
-  const minToH = (min: number) => Math.round(min / 60 * 10) / 10
+  const minToH = minutesToHours
   const rawSum = details?.reduce((s, d) => s + d.rawMinutes, 0) ?? 0
   const breakSum = details?.reduce((s, d) => s + d.breakMinutes, 0) ?? 0
-  const totalHours = details ? Math.round(details.reduce((s, d) => s + d.paidMinutes, 0) / 60 * 10) / 10 : 0
+  const totalHours = details ? minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0)) : 0
   const basePay = details != null && hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
 
   const adjustTotal = adjustments.reduce((s, a) => s + a.amount, 0)

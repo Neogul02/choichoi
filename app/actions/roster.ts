@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
 import { checkStaffAvailability, getWeekStart, toMinutes, MIN_REST_MINUTES } from '@/lib/staffing'
+import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, prevDate, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { getAuthUser, wrap } from './_base'
 
@@ -226,6 +227,10 @@ export async function updateRosterAssignmentBreak(
   breakMinutes: number | null,
 ): Promise<ApiResponse<RosterAssignment>> {
   return wrap(async () => {
+    // 급여에 직결되는 값 — 음수·소수·하루 초과 값이 들어오면 조용히 저장되지 않도록 차단
+    if (breakMinutes != null && (!Number.isInteger(breakMinutes) || breakMinutes < 0 || breakMinutes > 24 * 60)) {
+      throw new Error('휴게시간은 0~1440 사이의 분 단위 정수여야 합니다.')
+    }
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
       .update({ break_minutes: breakMinutes })
@@ -925,9 +930,6 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
   })
 }
 
-// 급여 계산용 고정 휴게시간 — 파트별 설정과 무관하게 근무 1건당 1시간 차감 (app/actions/payroll.ts와 동일한 규칙)
-const FIXED_BREAK_MINUTES = 60
-
 // 이번 달 1일 ~ 다음 달 말일 근무 배정을 조회 — 본인/관리자 조회 양쪽에서 공유
 async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | null): Promise<MyRosterData> {
   // KST 기준 이번 달 1일 ~ 다음 달 말일
@@ -948,18 +950,14 @@ async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | nul
     const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string } | null
     const start = a.start_time ?? shift?.start_time ?? '00:00'
     const end = a.end_time ?? shift?.end_time ?? '00:00'
-    let mins = toMinutes(end) - toMinutes(start)
-    if (mins < 0) mins += 24 * 60
-    const hours = Math.round((mins / 60) * 10) / 10
-    const breakMinutes = a.break_minutes ?? FIXED_BREAK_MINUTES
     return {
       work_date: a.work_date,
       shift_name: shift?.name ?? '근무',
       start_time: start,
       end_time: end,
-      hours,
-      breakMinutes,
-      netHours: Math.round((Math.max(0, mins - breakMinutes) / 60) * 10) / 10,
+      hours: minutesToHours(shiftRawMinutes(start, end)),
+      breakMinutes: a.break_minutes ?? DEFAULT_BREAK_MINUTES,
+      netHours: minutesToHours(paidMinutes(start, end, a.break_minutes)),
     }
   })
 
