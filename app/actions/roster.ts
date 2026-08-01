@@ -12,7 +12,7 @@ import { getAuthUser, wrap } from './_base'
 const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
 
 
-const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time, created_at, staff_profiles (id, name, phone, status)'
+const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time, break_minutes, created_at, staff_profiles (id, name, phone, status)'
 
 // staff_profiles 중첩 조인 select의 반환 타입이 제네릭 추론과 안 맞아 단언이 필요 — 한 곳에만 모아둔다
 const castAssignment = (row: unknown): RosterAssignment => row as RosterAssignment
@@ -212,6 +212,23 @@ export async function updateRosterAssignmentTime(
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
       .update({ start_time: startTime, end_time: endTime })
+      .eq('id', id)
+      .select(ASSIGNMENT_COLUMNS)
+      .single()
+    if (error) throw new Error(error.message)
+    return castAssignment(data)
+  })
+}
+
+// 근무일별 휴게시간 포함/미포함 오버라이드 — null이면 기본(고정 1시간)으로 되돌림
+export async function updateRosterAssignmentBreak(
+  id: number,
+  breakMinutes: number | null,
+): Promise<ApiResponse<RosterAssignment>> {
+  return wrap(async () => {
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .update({ break_minutes: breakMinutes })
       .eq('id', id)
       .select(ASSIGNMENT_COLUMNS)
       .single()
@@ -920,7 +937,7 @@ async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | nul
 
   const { data: assignData, error: assignError } = await supabaseAdmin
     .from('roster_assignments')
-    .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time)')
+    .select('work_date, start_time, end_time, break_minutes, roster_shifts (name, start_time, end_time)')
     .eq('staff_id', staffId)
     .gte('work_date', from)
     .lte('work_date', to)
@@ -934,7 +951,7 @@ async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | nul
     let mins = toMinutes(end) - toMinutes(start)
     if (mins < 0) mins += 24 * 60
     const hours = Math.round((mins / 60) * 10) / 10
-    const breakMinutes = FIXED_BREAK_MINUTES
+    const breakMinutes = a.break_minutes ?? FIXED_BREAK_MINUTES
     return {
       work_date: a.work_date,
       shift_name: shift?.name ?? '근무',

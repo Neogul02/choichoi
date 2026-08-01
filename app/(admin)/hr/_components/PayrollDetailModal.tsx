@@ -125,14 +125,14 @@ export default function PayrollDetailModal({
     }
     if (finalPay != null) lines.push('', `✅ 최종 지급액: ${finalPay.toLocaleString('ko-KR')}원`)
     if (formulaLines.length > 0) {
-      lines.push('', '[ 계산식 ]', ...formulaLines, '※ 휴게시간은 근무 1건당 1시간 고정 차감')
+      lines.push('', '[ 계산식 ]', ...formulaLines, '※ 휴게시간은 근무 1건당 기본 1시간 (근무일별 개별 조정 가능)')
     }
     if (details && details.length > 0) {
       lines.push('', '[ 근무 상세 ]')
       for (const d of details) {
         const extras = [
-          d.breakMinutes > 0 ? `휴게 ${minToH(d.breakMinutes)}h 차감` : '',
-          d.isCustomTime ? '개별 수정' : '',
+          d.breakMinutes > 0 ? `휴게 ${minToH(d.breakMinutes)}h 차감${d.isCustomBreak ? '(개별)' : ''}` : d.isCustomBreak ? '휴게 미포함(개별)' : '',
+          d.isCustomTime ? '시간 개별 수정' : '',
         ].filter(Boolean)
         lines.push(`${d.date} ${d.shiftName} ${d.startTime}~${d.endTime} = ${d.hours}h${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`)
       }
@@ -231,7 +231,9 @@ export default function PayrollDetailModal({
                         <td className={`px-2 py-2 text-center whitespace-nowrap ${d.isCustomTime ? 'text-primary-700 font-semibold' : 'text-ink-muted'}`} title={d.isCustomTime ? '파트 기본 시간이 아닌 개별 수정 시간' : undefined}>
                           {d.startTime}~{d.endTime}{d.isCustomTime && <span className="ml-0.5 align-super text-[9px]">*</span>}
                         </td>
-                        <td className="px-2 py-2 text-center text-ink-faint">{d.breakMinutes > 0 ? `−${minToH(d.breakMinutes)}h` : '—'}</td>
+                        <td className={`px-2 py-2 text-center ${d.isCustomBreak ? 'text-primary-700 font-semibold' : 'text-ink-faint'}`} title={d.isCustomBreak ? '기본 휴게시간이 아닌 이 근무일만 개별 조정된 값' : undefined}>
+                          {d.breakMinutes > 0 ? `−${minToH(d.breakMinutes)}h` : '없음'}{d.isCustomBreak && <span className="ml-0.5 align-super text-[9px]">*</span>}
+                        </td>
                         <td className="px-3 py-2 text-right font-semibold text-ink">{d.hours}h</td>
                       </tr>
                     ))}
@@ -245,8 +247,8 @@ export default function PayrollDetailModal({
                 </table>
               </div>
             )}
-            {details && details.some(d => d.isCustomTime) && (
-              <p className="m-0 mt-1.5 text-[10px] text-ink-faint"><span className="text-primary-700 font-semibold">*</span> 파트 기본 시간이 아닌 개별 수정된 시간</p>
+            {details && details.some(d => d.isCustomTime || d.isCustomBreak) && (
+              <p className="m-0 mt-1.5 text-[10px] text-ink-faint"><span className="text-primary-700 font-semibold">*</span> 기본값이 아닌 이 근무일만 개별 조정된 시간/휴게시간</p>
             )}
           </div>
 
@@ -335,7 +337,7 @@ export default function PayrollDetailModal({
               <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words">
                 {formulaText}
               </div>
-              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 1시간 고정 차감 · 유급시간은 0.1h 단위 반올림</p>
+              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 스케줄 화면에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
             </div>
           )}
 

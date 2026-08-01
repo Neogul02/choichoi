@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
-  updateRosterAssignmentTime, setShiftRequirement, clearShiftRequirement,
+  updateRosterAssignmentTime, updateRosterAssignmentBreak, setShiftRequirement, clearShiftRequirement,
 } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
 import type { RosterShift, RosterAssignment, StaffProfile } from '@/types/database';
@@ -99,6 +99,7 @@ export function useRosterRange({
       popup_id: unit.popupId,
       start_time: null,
       end_time: null,
+      break_minutes: null,
       created_at: new Date().toISOString(),
       staff_profiles: staff ? { id: staff.id, name: staff.name, phone: staff.phone, status: staff.status } : undefined,
     };
@@ -136,6 +137,19 @@ export function useRosterRange({
     }
   };
 
+  // 낙관적 휴게시간 오버라이드 — null(기본 1시간)과 특정 값(예: 0=미포함) 사이 토글, 실패 시 원복
+  const handleBreakChange = async (id: number, breakMinutes: number | null) => {
+    const prev = assignments.find(a => a.id === id);
+    setAssignments(p => p.map(a => a.id === id ? { ...a, break_minutes: breakMinutes } : a));
+    const r = await updateRosterAssignmentBreak(id, breakMinutes);
+    if (r.success && r.data) {
+      setAssignments(p => p.map(a => a.id === id ? r.data! : a));
+    } else {
+      if (prev) setAssignments(p => p.map(a => a.id === id ? prev : a));
+      showMsg(`오류: ${r.error}`);
+    }
+  };
+
   const handleRequirementChange = async (dateStr: string, shiftId: number, required: number) => {
     const r = await setShiftRequirement(dateStr, shiftId, required);
     if (r.success && r.data) setOverrides(p => ({ ...p, [`${dateStr}|${shiftId}`]: r.data!.required }));
@@ -154,6 +168,6 @@ export function useRosterRange({
     overrides,
     isLoading,
     loadRange,
-    handleAdd, handleRemove, handleTimeChange, handleRequirementChange, handleRequirementReset,
+    handleAdd, handleRemove, handleTimeChange, handleBreakChange, handleRequirementChange, handleRequirementReset,
   };
 }

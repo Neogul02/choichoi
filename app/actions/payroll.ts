@@ -80,12 +80,14 @@ export interface StaffDayDetail {
   hours: number
   /** 실근무 분 (휴게 차감 전) */
   rawMinutes: number
-  /** 휴게 차감 분 — 파트에 설정된 break_minutes (미설정 시 0) */
+  /** 휴게 차감 분 — 근무일별로 오버라이드하지 않으면 기본 1시간(FIXED_BREAK_MINUTES) */
   breakMinutes: number
   /** 유급 분 — 월 합계는 이 값을 합산 후 시간 환산해야 fetchMonthlyPayroll과 일치 */
   paidMinutes: number
   /** 파트 기본 시간이 아닌 개별 수정 시간인지 */
   isCustomTime: boolean
+  /** 기본 휴게시간(1시간)이 아닌 이 근무일만 개별 오버라이드된 값인지 */
+  isCustomBreak: boolean
 }
 
 export async function fetchStaffMonthlyDetail(
@@ -113,7 +115,7 @@ export async function fetchStaffMonthlyDetail(
 
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, shift_id, start_time, end_time, roster_shifts(name, start_time, end_time)')
+      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts(name, start_time, end_time)')
       .eq('staff_id', staffId)
       .gte('work_date', from)
       .lte('work_date', to)
@@ -127,7 +129,7 @@ export async function fetchStaffMonthlyDetail(
       const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
       const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
       const rawMinutes = timeToMinutes(endTime) - timeToMinutes(startTime)
-      const breakMinutes = FIXED_BREAK_MINUTES
+      const breakMinutes = a.break_minutes ?? FIXED_BREAK_MINUTES
       const paidMinutes = Math.max(0, rawMinutes - breakMinutes)
       const hours = Math.round(paidMinutes / 60 * 10) / 10
       return {
@@ -138,6 +140,7 @@ export async function fetchStaffMonthlyDetail(
         hours,
         rawMinutes, breakMinutes, paidMinutes,
         isCustomTime: a.start_time != null || a.end_time != null,
+        isCustomBreak: a.break_minutes != null,
       }
     })
 
@@ -161,7 +164,7 @@ export async function fetchMonthlyPayroll(
     const [assignRes, staffRes, shiftRes] = await Promise.all([
       supabaseAdmin
         .from('roster_assignments')
-        .select('staff_id, shift_id, start_time, end_time')
+        .select('staff_id, shift_id, start_time, end_time, break_minutes')
         .eq('staff_role', staffRole)
         .gte('work_date', from)
         .lte('work_date', to),
@@ -186,7 +189,7 @@ export async function fetchMonthlyPayroll(
       const startStr: string = a.start_time ?? shift.start_time
       const endStr: string = a.end_time ?? shift.end_time
       const rawMins = timeToMinutes(endStr) - timeToMinutes(startStr)
-      const paidMin = Math.max(0, rawMins - FIXED_BREAK_MINUTES)
+      const paidMin = Math.max(0, rawMins - (a.break_minutes ?? FIXED_BREAK_MINUTES))
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
