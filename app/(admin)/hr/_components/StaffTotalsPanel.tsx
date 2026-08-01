@@ -22,7 +22,8 @@ export default function StaffTotalsPanel({ staffList, shifts, assignments, isLoa
       if (!shift) continue;
       let mins = toMinutes(a.end_time ?? shift.end_time) - toMinutes(a.start_time ?? shift.start_time);
       if (mins < 0) mins += 24 * 60; // 자정 넘김
-      mins = Math.max(0, mins - shift.break_minutes);
+      // 근무일별 휴게시간 오버라이드가 없으면 기본 1시간(payroll.ts의 FIXED_BREAK_MINUTES와 동일)
+      mins = Math.max(0, mins - (a.break_minutes ?? 60));
       let entry = acc.get(a.staff_id);
       if (!entry) { entry = { days: new Set(), minutes: 0 }; acc.set(a.staff_id, entry); }
       entry.days.add(a.work_date);

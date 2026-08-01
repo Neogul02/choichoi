@@ -19,6 +19,8 @@ interface Props {
   onAdd: (d: string, shiftId: number, staffId: number) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
   onTimeChange: (id: number, start: string | null, end: string | null) => Promise<void>;
+  /** null이면 기본 휴게시간(1시간), 값이 있으면 이 근무일만 그 값으로 오버라이드(0=휴게 미포함) */
+  onBreakChange: (id: number, breakMinutes: number | null) => Promise<void>;
   onRequirementChange: (d: string, shiftId: number, required: number) => Promise<void>;
   onRequirementReset: (d: string, shiftId: number) => Promise<void>;
   onClose: () => void;
@@ -27,7 +29,7 @@ interface Props {
 /** 날짜 상세 패널 — 파트별 배정 조회/추가/삭제, 개별 시간 수정, 요구 인원 조정, 근무 안내 복사 */
 export default function DayPanel({
   dateStr, shifts, staffList, overrides, violations,
-  getAssigned, getRequired, getWeeklyDayCount, onAdd, onRemove, onTimeChange,
+  getAssigned, getRequired, getWeeklyDayCount, onAdd, onRemove, onTimeChange, onBreakChange,
   onRequirementChange, onRequirementReset, onClose,
 }: Props) {
   const day = dayOfWeek(dateStr);
@@ -218,6 +220,15 @@ export default function DayPanel({
                         className={`text-[10px] bg-transparent border-none cursor-pointer transition ${a.start_time ? 'text-primary-700 font-bold' : 'text-ink-faint hover:text-primary-700'}`}
                       >
                         {a.start_time ? `${a.start_time}~${a.end_time}` : '기본시간'}
+                      </button>
+                      <button
+                        onClick={() => onBreakChange(a.id, a.break_minutes == null ? 0 : null)}
+                        title="휴게시간 포함 여부 (클릭해서 전환)"
+                        className={`shrink-0 text-[10px] bg-transparent border-none cursor-pointer transition whitespace-nowrap ${
+                          a.break_minutes === 0 ? 'text-rose-500 font-bold' : a.break_minutes != null ? 'text-primary-700 font-bold' : 'text-ink-faint hover:text-primary-700'
+                        }`}
+                      >
+                        {a.break_minutes === 0 ? '휴게 미포함' : a.break_minutes != null ? `휴게 ${a.break_minutes}분` : '휴게 1h'}
                       </button>
                       <button
                         onClick={() => onRemove(a.id)}

@@ -108,6 +108,7 @@ export interface RosterAssignment {
   popup_id: number | null;
   start_time: string | null; // null이면 파트 기본 시간
   end_time: string | null;
+  break_minutes: number | null; // null이면 기본 휴게시간(1시간) 적용, 값이 있으면 이 근무일만 그 값으로 오버라이드
   created_at: string;
   staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'status'>;
 }

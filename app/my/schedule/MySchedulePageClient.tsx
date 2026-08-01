@@ -338,7 +338,9 @@ function EstimatedPaySection({ cursor, details, totalDays, totalHours, hourlyRat
                     <td className="px-3 py-2 font-semibold text-ink whitespace-nowrap">{mdDay(d.date)}</td>
                     <td className="px-2 py-2 text-ink-muted whitespace-nowrap">{d.shiftName}</td>
                     <td className="px-2 py-2 text-center whitespace-nowrap text-ink-muted">{d.startTime}~{d.endTime}</td>
-                    <td className="px-2 py-2 text-center text-ink-faint whitespace-nowrap">{d.breakMinutes > 0 ? `−${minToH(d.breakMinutes)}h` : '—'}</td>
+                    <td className={`px-2 py-2 text-center whitespace-nowrap ${d.isCustomBreak ? 'text-primary-700 font-semibold' : 'text-ink-faint'}`} title={d.isCustomBreak ? '기본 휴게시간이 아닌 이 근무일만 개별 조정된 값' : undefined}>
+                      {d.breakMinutes > 0 ? `−${minToH(d.breakMinutes)}h` : '없음'}{d.isCustomBreak && <span className="ml-0.5 align-super text-[9px]">*</span>}
+                    </td>
                     <td className="px-3 py-2 text-right font-semibold text-ink whitespace-nowrap">{d.hours}h</td>
                   </tr>
                 ))}
@@ -364,7 +366,7 @@ function EstimatedPaySection({ cursor, details, totalDays, totalHours, hourlyRat
           </div>
 
           <p className="m-0 mt-2 text-[11px] text-ink-faint">
-            ※ 휴게시간은 근무 1건당 1시간 고정 차감 · 유급시간은 0.1h 단위 반올림 · 실제 지급액은 수당·공제 등 조정 항목에 따라 달라질 수 있습니다
+            ※ 휴게시간은 근무 1건당 기본 1시간이며, 관리자가 근무일별로 개별 조정할 수 있습니다(<span className="text-primary-700 font-semibold">*</span> 표시) · 유급시간은 0.1h 단위 반올림 · 실제 지급액은 수당·공제 등 조정 항목에 따라 달라질 수 있습니다
           </p>
         </>
       )}

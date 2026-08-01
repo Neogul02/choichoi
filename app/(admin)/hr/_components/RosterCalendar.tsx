@@ -65,7 +65,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
   // 데이터(파트·배정·요구 인원) 로딩 + 단건 변경
   const {
     shifts, setShifts, assignments, setAssignments, overrides, isLoading, loadRange,
-    handleAdd, handleRemove, handleTimeChange, handleRequirementChange, handleRequirementReset,
+    handleAdd, handleRemove, handleTimeChange, handleBreakChange, handleRequirementChange, handleRequirementReset,
   } = useRosterRange({
     unit, staffList, cursor, viewMode, weekStart, loadFrom, loadTo,
     initialData, refreshSignal, onCursorChange: resetOnCursorChange,
@@ -417,6 +417,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           onAdd={handleAdd}
           onRemove={handleRemove}
           onTimeChange={handleTimeChange}
+          onBreakChange={handleBreakChange}
           onRequirementChange={handleRequirementChange}
           onRequirementReset={handleRequirementReset}
           onClose={() => setSelectedDate(null)}
