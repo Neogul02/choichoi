@@ -722,7 +722,6 @@ export interface MyShift {
 
 export interface MyRosterData {
   shifts: MyShift[] // 이번 달 1일 ~ 다음 달 말일
-  hourlyRate: number | null
 }
 
 /**
@@ -931,7 +930,8 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
 }
 
 // 이번 달 1일 ~ 다음 달 말일 근무 배정을 조회 — 본인/관리자 조회 양쪽에서 공유
-async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | null): Promise<MyRosterData> {
+// 시급·급여는 여기서 절대 내려보내지 않는다: 이 데이터는 근무자 본인 브라우저까지 가므로 급여 정보는 관리자 화면(payroll)에서만 조회
+async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
   // KST 기준 이번 달 1일 ~ 다음 달 말일
   const { y, m } = kstYearMonth()
   const from = ymdToDateStr(y, m, 1)
@@ -961,7 +961,7 @@ async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | nul
     }
   })
 
-  return { shifts, hourlyRate }
+  return { shifts }
 }
 
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
@@ -971,13 +971,13 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from('staff_profiles')
-      .select('id, hourly_rate')
+      .select('id')
       .eq('user_profile_id', user.id)
       .maybeSingle()
     if (staffError) throw new Error(staffError.message)
     if (!staff) return null
 
-    return fetchRosterDataForStaff(staff.id, staff.hourly_rate ?? null)
+    return fetchRosterDataForStaff(staff.id)
   })
 }
 
@@ -989,12 +989,12 @@ export async function getStaffRosterAsManager(staffId: number): Promise<ApiRespo
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from('staff_profiles')
-      .select('id, hourly_rate')
+      .select('id')
       .eq('id', staffId)
       .maybeSingle()
     if (staffError) throw new Error(staffError.message)
     if (!staff) return null
 
-    return fetchRosterDataForStaff(staff.id, staff.hourly_rate ?? null)
+    return fetchRosterDataForStaff(staff.id)
   })
 }
