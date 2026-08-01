@@ -908,6 +908,9 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
   })
 }
 
+// 급여 계산용 고정 휴게시간 — 파트별 설정과 무관하게 근무 1건당 1시간 차감 (app/actions/payroll.ts와 동일한 규칙)
+const FIXED_BREAK_MINUTES = 60
+
 // 이번 달 1일 ~ 다음 달 말일 근무 배정을 조회 — 본인/관리자 조회 양쪽에서 공유
 async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | null): Promise<MyRosterData> {
   // KST 기준 이번 달 1일 ~ 다음 달 말일
@@ -917,7 +920,7 @@ async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | nul
 
   const { data: assignData, error: assignError } = await supabaseAdmin
     .from('roster_assignments')
-    .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time, break_minutes)')
+    .select('work_date, start_time, end_time, roster_shifts (name, start_time, end_time)')
     .eq('staff_id', staffId)
     .gte('work_date', from)
     .lte('work_date', to)
@@ -925,13 +928,13 @@ async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | nul
   if (assignError) throw new Error(assignError.message)
 
   const shifts: MyShift[] = (assignData ?? []).map(a => {
-    const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string; break_minutes: number } | null
+    const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string } | null
     const start = a.start_time ?? shift?.start_time ?? '00:00'
     const end = a.end_time ?? shift?.end_time ?? '00:00'
     let mins = toMinutes(end) - toMinutes(start)
     if (mins < 0) mins += 24 * 60
     const hours = Math.round((mins / 60) * 10) / 10
-    const breakMinutes = shift?.break_minutes ?? 0
+    const breakMinutes = FIXED_BREAK_MINUTES
     return {
       work_date: a.work_date,
       shift_name: shift?.name ?? '근무',
@@ -939,7 +942,7 @@ async function fetchRosterDataForStaff(staffId: number, hourlyRate: number | nul
       end_time: end,
       hours,
       breakMinutes,
-      netHours: Math.round((hours - breakMinutes / 60) * 10) / 10,
+      netHours: Math.round((Math.max(0, mins - breakMinutes) / 60) * 10) / 10,
     }
   })
 
