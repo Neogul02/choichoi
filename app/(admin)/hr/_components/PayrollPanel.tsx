@@ -258,8 +258,6 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           bankName={detailTarget.bankName}
           bankAccount={detailTarget.bankAccount}
           hourlyRate={detailTarget.hourlyRate}
-          basePay={detailTarget.totalPay}
-          totalHours={detailTarget.totalHours}
           year={cursor.y}
           month={cursor.m}
           onClose={() => setDetailTarget(null)}

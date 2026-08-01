@@ -29,8 +29,6 @@ interface Props {
   bankName?: string | null
   bankAccount?: string | null
   hourlyRate: number | null
-  basePay: number | null
-  totalHours: number
   year: number
   month: number
   onClose: () => void
@@ -46,7 +44,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function PayrollDetailModal({
-  staffId, name, phone, bankName, bankAccount, hourlyRate, basePay, totalHours, year, month, onClose,
+  staffId, name, phone, bankName, bankAccount, hourlyRate, year, month, onClose,
 }: Props) {
   useBodyScrollLock()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -78,13 +76,18 @@ export default function PayrollDetailModal({
     })
   }, [staffId, year, month])
 
-  const adjustTotal = adjustments.reduce((s, a) => s + a.amount, 0)
-  const finalPay = basePay != null ? basePay + adjustTotal : null
-
-  // 계산식 — 일별 유급 분을 합산해 시간 환산 (fetchMonthlyPayroll과 동일한 방식)
+  // 총 유급시간·기본급은 이 모달이 직접 불러온 details(일별 상세)에서만 계산한다.
+  // 목록(PayrollPanel)의 totalHours/totalPay는 react-query 캐시(staleTime 5분)를 타므로
+  // 스케줄 화면에서 방금 휴게시간·시간을 수정한 직후엔 값이 어긋날 수 있어, prop으로 받지 않는다.
   const minToH = (min: number) => Math.round(min / 60 * 10) / 10
   const rawSum = details?.reduce((s, d) => s + d.rawMinutes, 0) ?? 0
   const breakSum = details?.reduce((s, d) => s + d.breakMinutes, 0) ?? 0
+  const totalHours = details ? Math.round(details.reduce((s, d) => s + d.paidMinutes, 0) / 60 * 10) / 10 : 0
+  const basePay = details != null && hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
+
+  const adjustTotal = adjustments.reduce((s, a) => s + a.amount, 0)
+  const finalPay = basePay != null ? basePay + adjustTotal : null
+
   const formulaLines: string[] = []
   if (details && details.length > 0) {
     formulaLines.push(`실근무 ${minToH(rawSum)}h − 휴게 ${minToH(breakSum)}h = 유급 ${totalHours}h`)
@@ -263,7 +266,9 @@ export default function PayrollDetailModal({
                   {hourlyRate != null && <span className="ml-1 text-ink-faint">({totalHours}h × {hourlyRate.toLocaleString('ko-KR')}원)</span>}
                 </span>
                 <span className="text-[13px] font-bold text-ink">
-                  {basePay != null ? `${basePay.toLocaleString('ko-KR')}원` : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}
+                  {details == null
+                    ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중...</span>
+                    : basePay != null ? `${basePay.toLocaleString('ko-KR')}원` : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}
                 </span>
               </div>
 
