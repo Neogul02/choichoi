@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import NavBar from '@/components/NavBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import WeekMatrix from '@/app/(admin)/hr/_components/WeekMatrix';
+import StaffTotalsPanel from '@/app/(admin)/hr/_components/StaffTotalsPanel';
 import { createRosterMemo, deleteRosterMemo, fetchRosterOverview } from '@/app/actions/roster-view';
 import type { RosterOverview, RosterUnitOverview } from '@/app/actions/roster-view';
 import { DAY_NAMES, findRosterViolations, getWeekStart, requiredFor, buildAssignMap } from '@/lib/staffing';
@@ -305,12 +306,60 @@ function DayDetailCard({ overview, dateStr, today }: {
   dateStr: string;
   today: string;
 }) {
+  const [copying, setCopying] = useState(false);
+
+  // 인사 탭(DayPanel)의 일간 복사와 같은 포맷에 파트(주방/팝업) 구분을 더한 전 유닛 근무 안내
+  const handleCopy = async () => {
+    setCopying(true);
+    try {
+      const lines: string[] = [`📋 ${fmtDate(dateStr)} 근무 안내`, ''];
+      let hasAny = false;
+      for (const u of overview.units) {
+        const unitLines: string[] = [];
+        for (const shift of u.data.shifts) {
+          const assigned = u.data.assignments.filter(a => a.work_date === dateStr && a.shift_id === shift.id);
+          if (assigned.length === 0) continue;
+          unitLines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
+          for (const a of assigned) {
+            const extras = [
+              a.start_time || a.end_time
+                ? `${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)}`
+                : '',
+              a.break_minutes === 0 ? '휴게 미포함' : '',
+            ].filter(Boolean);
+            unitLines.push(`· ${a.staff_profiles?.name ?? ''}${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`);
+          }
+        }
+        if (unitLines.length === 0) continue;
+        hasAny = true;
+        lines.push(`◾ ${u.label}`, ...unitLines, '');
+      }
+      await navigator.clipboard.writeText(
+        hasAny ? lines.join('\n').trimEnd() : `${lines[0]}\n\n배정된 근무자가 없습니다.`,
+      );
+      showMsg('클립보드에 복사됐습니다!');
+    } catch {
+      showMsg('복사 실패 — 브라우저 권한을 확인해주세요.');
+    } finally {
+      setCopying(false);
+    }
+  };
+
   return (
     <section className="bg-canvas rounded-2xl p-3 md:p-4 shadow-level-1 border border-hairline">
-      <h2 className="m-0 mb-2.5 text-[15px] font-extrabold">
-        {fmtDate(dateStr)} 근무 인원
-        {dateStr === today && <span className="ml-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-700 text-white align-middle">오늘</span>}
-      </h2>
+      <div className="flex items-center justify-between mb-2.5">
+        <h2 className="m-0 text-[15px] font-extrabold">
+          {fmtDate(dateStr)} 근무 인원
+          {dateStr === today && <span className="ml-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-700 text-white align-middle">오늘</span>}
+        </h2>
+        <button
+          onClick={handleCopy}
+          disabled={copying}
+          className="px-2.5 py-1 rounded-lg bg-canvas-soft border border-hairline text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition disabled:opacity-50"
+        >
+          {copying ? '복사 중...' : '복사'}
+        </button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
         {overview.units.map(u => {
           const overrides = Object.fromEntries(u.data.requirements.map(q => [`${q.work_date}|${q.shift_id}`, q.required]));
@@ -343,7 +392,10 @@ function DayDetailCard({ overview, dateStr, today }: {
                           assigned.map((a, i) => (
                             <span key={a.id} className="font-semibold whitespace-nowrap">
                               {a.staff_profiles?.name ?? `#${a.staff_id}`}
-                              {a.start_time && <span className="text-ink-faint font-normal"> {a.start_time.slice(0, 5)}</span>}
+                              {(a.start_time || a.end_time) && (
+                                <span className="text-ink-faint font-normal"> {(a.start_time ?? shift.start_time).slice(0, 5)}~{(a.end_time ?? shift.end_time).slice(0, 5)}</span>
+                              )}
+                              {a.break_minutes === 0 && <span className="text-amber-600 font-normal text-[11px]"> 휴게X</span>}
                               {i < assigned.length - 1 && <span className="text-ink-faint font-normal">, </span>}
                             </span>
                           ))
@@ -407,6 +459,8 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
         selectedDate={selectedDate}
         onDateClick={onDateClick}
       />
+      {/* 인원별 근무일·유급시간 합계 — 급여정산과 동일한 lib/workhours 기준이라 여기 시간 × 시급 = 예상 급여 */}
+      <StaffTotalsPanel staffList={unitStaff} shifts={data.shifts} assignments={data.assignments} isLoading={false} />
     </section>
   );
 }

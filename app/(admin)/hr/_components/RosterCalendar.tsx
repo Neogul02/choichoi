@@ -201,10 +201,13 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           if (assigned.length === 0) continue;
           dayLines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
           for (const a of assigned) {
-            const custom = a.start_time || a.end_time
-              ? ` (${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)})`
-              : '';
-            dayLines.push(`· ${a.staff_profiles?.name ?? ''}${custom}`);
+            const extras = [
+              a.start_time || a.end_time
+                ? `${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)}`
+                : '',
+              a.break_minutes === 0 ? '휴게 미포함' : '',
+            ].filter(Boolean);
+            dayLines.push(`· ${a.staff_profiles?.name ?? ''}${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`);
           }
         }
         if (dayLines.length === 0) continue;

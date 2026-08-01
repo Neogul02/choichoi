@@ -143,7 +143,11 @@ export default function WeekMatrix({
                         >
                           {reasons && '⚠️'}
                           {info?.shift.name ?? '?'}
-                          {a.start_time && <span className="ml-0.5 font-semibold opacity-70">{a.start_time.slice(0, 5)}</span>}
+                          {(a.start_time || a.end_time) && (
+                            <span className="ml-0.5 font-semibold opacity-70">
+                              {(a.start_time ?? info?.shift.start_time ?? '').slice(0, 5)}~{(a.end_time ?? info?.shift.end_time ?? '').slice(0, 5)}
+                            </span>
+                          )}
                         </span>
                       );
                     })}

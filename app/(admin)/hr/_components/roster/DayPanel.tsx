@@ -78,11 +78,14 @@ export default function DayPanel({
         hasAny = true;
         lines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
         for (const a of assigned) {
-          // 개별 수정 시간이 있으면 이름 옆에 표기 — 파트 기본 시간과 다르게 일하는 사람이 헷갈리지 않도록
-          const custom = a.start_time || a.end_time
-            ? ` (${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)})`
-            : '';
-          lines.push(`· ${a.staff_profiles?.name ?? ''}${custom}`);
+          // 개별 수정 시간·휴게 미포함은 이름 옆에 표기 — 파트 기본과 다르게 일하는 사람이 헷갈리지 않도록
+          const extras = [
+            a.start_time || a.end_time
+              ? `${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)}`
+              : '',
+            a.break_minutes === 0 ? '휴게 미포함' : '',
+          ].filter(Boolean);
+          lines.push(`· ${a.staff_profiles?.name ?? ''}${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`);
         }
         lines.push('');
       }
