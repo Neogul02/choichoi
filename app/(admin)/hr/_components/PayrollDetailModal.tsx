@@ -125,7 +125,7 @@ export default function PayrollDetailModal({
     }
     if (finalPay != null) lines.push('', `✅ 최종 지급액: ${finalPay.toLocaleString('ko-KR')}원`)
     if (formulaLines.length > 0) {
-      lines.push('', '[ 계산식 ]', ...formulaLines, '※ 휴게시간은 파트별 설정값을 따름')
+      lines.push('', '[ 계산식 ]', ...formulaLines, '※ 휴게시간은 근무 1건당 1시간 고정 차감')
     }
     if (details && details.length > 0) {
       lines.push('', '[ 근무 상세 ]')
@@ -335,7 +335,7 @@ export default function PayrollDetailModal({
               <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words">
                 {formulaText}
               </div>
-              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 파트별 설정값을 따름 · 유급시간은 0.1h 단위 반올림</p>
+              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 1시간 고정 차감 · 유급시간은 0.1h 단위 반올림</p>
             </div>
           )}
 

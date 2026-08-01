@@ -68,6 +68,9 @@ function timeToMinutes(t: string): number {
   return h * 60 + (m ?? 0)
 }
 
+/** 급여 계산용 고정 휴게시간 — 파트별 설정과 무관하게 근무 1건당 1시간 차감 */
+const FIXED_BREAK_MINUTES = 60
+
 export interface StaffDayDetail {
   date: string
   shiftName: string
@@ -110,7 +113,7 @@ export async function fetchStaffMonthlyDetail(
 
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, shift_id, start_time, end_time, roster_shifts(name, start_time, end_time, break_minutes)')
+      .select('work_date, shift_id, start_time, end_time, roster_shifts(name, start_time, end_time)')
       .eq('staff_id', staffId)
       .gte('work_date', from)
       .lte('work_date', to)
@@ -120,12 +123,12 @@ export async function fetchStaffMonthlyDetail(
 
     const details: StaffDayDetail[] = (data ?? []).map(a => {
       const shiftRaw = a.roster_shifts
-      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string; break_minutes: number } | null
+      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
       const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
       const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
       const rawMinutes = timeToMinutes(endTime) - timeToMinutes(startTime)
-      const breakMinutes = shift?.break_minutes ?? 0
-      const paidMinutes = rawMinutes - breakMinutes
+      const breakMinutes = FIXED_BREAK_MINUTES
+      const paidMinutes = Math.max(0, rawMinutes - breakMinutes)
       const hours = Math.round(paidMinutes / 60 * 10) / 10
       return {
         date: a.work_date,
@@ -168,7 +171,7 @@ export async function fetchMonthlyPayroll(
         .eq('staff_role', staffRole),
       supabaseAdmin
         .from('roster_shifts')
-        .select('id, start_time, end_time, break_minutes'),
+        .select('id, start_time, end_time'),
     ])
 
     if (assignRes.error) return { success: false, error: assignRes.error.message }
@@ -183,7 +186,7 @@ export async function fetchMonthlyPayroll(
       const startStr: string = a.start_time ?? shift.start_time
       const endStr: string = a.end_time ?? shift.end_time
       const rawMins = timeToMinutes(endStr) - timeToMinutes(startStr)
-      const paidMin = rawMins - (shift.break_minutes ?? 0)
+      const paidMin = Math.max(0, rawMins - FIXED_BREAK_MINUTES)
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }

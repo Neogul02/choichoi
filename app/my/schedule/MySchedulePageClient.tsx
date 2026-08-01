@@ -15,6 +15,11 @@ function todayStr() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 function hhmm(t: string) { return t.slice(0, 5) }
+function minToH(min: number) { return Math.round(min / 60 * 10) / 10 }
+function mdDay(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return `${dateStr.slice(5)} (${DAY_NAMES[d.getDay()]})`
+}
 function dayColor(day: number, fallback = 'text-ink-muted') {
   return day === 0 ? 'text-red-500' : day === 6 ? 'text-blue-500' : fallback
 }
@@ -30,6 +35,7 @@ export interface InitialSchedule {
   staffId: number | null
   staffName: string
   shifts: MyShift[]
+  hourlyRate: number | null
   details: StaffDayDetail[]
   cursor: { y: number; m: number }
 }
@@ -45,6 +51,7 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
   const [details, setDetails] = useState<StaffDayDetail[]>(initial?.details ?? [])
   const [isLoading, setIsLoading] = useState(false)
   const [allShifts, setAllShifts] = useState<MyShift[]>(initial?.shifts ?? [])
+  const [hourlyRate, setHourlyRate] = useState<number | null>(initial?.hourlyRate ?? null)
   // 프리페치된 첫 달은 상세 재조회를 건너뛴다
   const skipFirstDetailRef = useRef(initial != null && initial.staffId != null)
   const [showAll, setShowAll] = useState(false)
@@ -59,7 +66,10 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
 
   const loadRoster = useCallback(async (targetId: number, own: boolean) => {
     const res = own ? await getMyRoster() : await getStaffRosterAsManager(targetId)
-    if (res.success && res.data) setAllShifts(res.data.shifts)
+    if (res.success && res.data) {
+      setAllShifts(res.data.shifts)
+      setHourlyRate(res.data.hourlyRate)
+    }
   }, [])
 
   useEffect(() => {
@@ -74,6 +84,7 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
       }
       if (rosterRes.success && rosterRes.data) {
         setAllShifts(rosterRes.data.shifts)
+        setHourlyRate(rosterRes.data.hourlyRate)
       }
       setLoaded(true)
     })
@@ -120,6 +131,7 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
     const detailPromise = cursor ? fetchStaffMonthlyDetail(id, cursor.y, cursor.m) : Promise.resolve({ success: true as const, data: [] as StaffDayDetail[] })
     Promise.all([own ? getMyRoster() : getStaffRosterAsManager(id), detailPromise]).then(([rosterRes, detailRes]) => {
       setAllShifts(rosterRes.success && rosterRes.data ? rosterRes.data.shifts : [])
+      setHourlyRate(rosterRes.success && rosterRes.data ? rosterRes.data.hourlyRate : null)
       setDetails(detailRes.success && detailRes.data ? detailRes.data : [])
       setIsLoading(false)
     })
@@ -132,6 +144,11 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
   const totalDays = new Set(details.map(d => d.date)).size
   const totalHours = Math.round(details.reduce((sum, d) => sum + d.hours, 0) * 10) / 10
   const visibleShifts = showAll ? upcomingShifts : upcomingShifts.slice(0, 5)
+
+  // 예상 급여 계산식 — 관리자 급여정산 화면(fetchMonthlyPayroll/PayrollDetailModal)과 동일한 방식
+  const rawSum = details.reduce((s, d) => s + d.rawMinutes, 0)
+  const breakSum = details.reduce((s, d) => s + d.breakMinutes, 0)
+  const estimatedPay = hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
 
   if (!loaded || !cursor) {
     return (
@@ -262,9 +279,96 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
             )}
           </section>
 
+          {/* 예상 급여 */}
+          {!isLoading && (
+            <EstimatedPaySection
+              cursor={cursor}
+              details={details}
+              totalDays={totalDays}
+              totalHours={totalHours}
+              hourlyRate={hourlyRate}
+              estimatedPay={estimatedPay}
+              rawSum={rawSum}
+              breakSum={breakSum}
+            />
+          )}
+
         </div>
       </main>
     </>
+  )
+}
+
+// ── 예상 급여 ─────────────────────────────────────────────────────────────
+// 관리자 급여정산 화면(PayrollDetailModal)과 동일한 계산식·표 구성 — 근로자 본인이 직접 검산할 수 있도록 상세히 표시
+function EstimatedPaySection({ cursor, details, totalDays, totalHours, hourlyRate, estimatedPay, rawSum, breakSum }: {
+  cursor: { y: number; m: number }
+  details: StaffDayDetail[]
+  totalDays: number
+  totalHours: number
+  hourlyRate: number | null
+  estimatedPay: number | null
+  rawSum: number
+  breakSum: number
+}) {
+  return (
+    <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
+      <h2 className="m-0 mb-3 text-[16px] font-bold text-ink">{cursor.m + 1}월 예상 급여</h2>
+      {totalDays === 0 ? (
+        <p className="m-0 text-[14px] text-ink-muted">이달 근무 기록이 없습니다.</p>
+      ) : hourlyRate == null || estimatedPay == null ? (
+        <p className="m-0 text-[14px] text-ink-muted">시급이 아직 설정되지 않았습니다. 관리자에게 문의해 주세요.</p>
+      ) : (
+        <>
+          {/* 근무 상세 테이블 */}
+          <div className="rounded-lg border border-hairline overflow-x-auto mb-3">
+            <table className="w-full border-collapse text-[12px]">
+              <thead>
+                <tr className="bg-canvas-soft border-b border-hairline">
+                  <th className="text-left px-3 py-2 font-semibold text-ink-muted">날짜</th>
+                  <th className="text-left px-2 py-2 font-semibold text-ink-muted">파트</th>
+                  <th className="text-center px-2 py-2 font-semibold text-ink-muted">시간</th>
+                  <th className="text-center px-2 py-2 font-semibold text-ink-muted">휴게</th>
+                  <th className="text-right px-3 py-2 font-semibold text-ink-muted">유급</th>
+                </tr>
+              </thead>
+              <tbody>
+                {details.map((d, i) => (
+                  <tr key={i} className={i !== details.length - 1 ? 'border-b border-hairline' : ''}>
+                    <td className="px-3 py-2 font-semibold text-ink whitespace-nowrap">{mdDay(d.date)}</td>
+                    <td className="px-2 py-2 text-ink-muted whitespace-nowrap">{d.shiftName}</td>
+                    <td className="px-2 py-2 text-center whitespace-nowrap text-ink-muted">{d.startTime}~{d.endTime}</td>
+                    <td className="px-2 py-2 text-center text-ink-faint whitespace-nowrap">{d.breakMinutes > 0 ? `−${minToH(d.breakMinutes)}h` : '—'}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-ink whitespace-nowrap">{d.hours}h</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-hairline bg-canvas-soft">
+                  <td colSpan={2} className="px-3 py-2 text-[11px] font-semibold text-ink-muted whitespace-nowrap">합계</td>
+                  <td className="px-2 py-2 text-center text-[11px] text-ink-muted whitespace-nowrap">실근무 {minToH(rawSum)}h</td>
+                  <td className="px-2 py-2 text-center text-[11px] text-ink-muted whitespace-nowrap">−{minToH(breakSum)}h</td>
+                  <td className="px-3 py-2 text-right font-bold text-ink whitespace-nowrap">{totalHours}h</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* 계산식 */}
+          <div className="rounded-lg border border-hairline bg-canvas-soft px-3.5 py-3 font-mono text-[12px] text-ink leading-relaxed whitespace-pre-wrap break-words">
+            {`실근무 ${minToH(rawSum)}h − 휴게 ${minToH(breakSum)}h = 유급 ${totalHours}h\n유급 ${totalHours}h × 시급 ${hourlyRate.toLocaleString('ko-KR')}원 = 예상 급여 ${estimatedPay.toLocaleString('ko-KR')}원`}
+          </div>
+
+          {/* 예상 급여 합계 */}
+          <div className="flex justify-between items-center px-3.5 py-3 mt-2 rounded-lg bg-primary-50 border border-primary-100">
+            <span className="text-[13px] font-bold text-ink">예상 급여</span>
+            <span className="text-[18px] font-extrabold text-primary-700">{estimatedPay.toLocaleString('ko-KR')}원</span>
+          </div>
+
+          <p className="m-0 mt-2 text-[11px] text-ink-faint">
+            ※ 휴게시간은 근무 1건당 1시간 고정 차감 · 유급시간은 0.1h 단위 반올림 · 실제 지급액은 수당·공제 등 조정 항목에 따라 달라질 수 있습니다
+          </p>
+        </>
+      )}
+    </section>
   )
 }
 

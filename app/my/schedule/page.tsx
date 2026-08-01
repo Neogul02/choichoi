@@ -31,6 +31,7 @@ export default async function MySchedulePage() {
     staffId,
     staffName: profileRes.data?.name ?? '',
     shifts: rosterRes.success && rosterRes.data ? rosterRes.data.shifts : [],
+    hourlyRate: rosterRes.success && rosterRes.data ? rosterRes.data.hourlyRate : null,
     details: detailRes?.success && detailRes.data ? detailRes.data : [],
     cursor,
   }
