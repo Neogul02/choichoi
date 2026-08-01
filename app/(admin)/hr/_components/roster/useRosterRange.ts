@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { showMsg } from '@/lib/toast';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
@@ -41,6 +42,10 @@ export function useRosterRange({
   const initialDataConsumed = useRef(!initialData);
   // 낙관적 추가 행의 임시 id — 서버 id와 충돌하지 않게 음수 사용
   const tempIdRef = useRef(-1);
+  const queryClient = useQueryClient();
+  // 근무 추가/삭제/시간/휴게 변경은 급여 계산에 영향을 주므로, 급여정산 화면(react-query 캐시)이
+  // 오래된 값을 들고 있지 않도록 무효화한다 — 캐시가 살아있는 5분 안에 두 화면을 오가면 값이 어긋남
+  const invalidatePayroll = () => queryClient.invalidateQueries({ queryKey: ['payroll'] });
 
   const loadRange = async () => {
     if (!cursor) return;
@@ -107,6 +112,7 @@ export function useRosterRange({
     const r = await addRosterAssignment(unit, dateStr, shiftId, staffId);
     if (r.success && r.data) {
       setAssignments(p => p.map(a => a.id === tempId ? r.data! : a));
+      invalidatePayroll();
     } else {
       setAssignments(p => p.filter(a => a.id !== tempId));
       showMsg(`오류: ${r.error}`);
@@ -118,7 +124,9 @@ export function useRosterRange({
     const removed = assignments.find(a => a.id === id);
     setAssignments(p => p.filter(a => a.id !== id));
     const r = await removeRosterAssignment(id);
-    if (!r.success) {
+    if (r.success) {
+      invalidatePayroll();
+    } else {
       if (removed) setAssignments(p => [...p, removed]);
       showMsg(`오류: ${r.error}`);
     }
@@ -131,6 +139,7 @@ export function useRosterRange({
     const r = await updateRosterAssignmentTime(id, start, end);
     if (r.success && r.data) {
       setAssignments(p => p.map(a => a.id === id ? r.data! : a));
+      invalidatePayroll();
     } else {
       if (prev) setAssignments(p => p.map(a => a.id === id ? prev : a));
       showMsg(`오류: ${r.error}`);
@@ -144,6 +153,7 @@ export function useRosterRange({
     const r = await updateRosterAssignmentBreak(id, breakMinutes);
     if (r.success && r.data) {
       setAssignments(p => p.map(a => a.id === id ? r.data! : a));
+      invalidatePayroll();
     } else {
       if (prev) setAssignments(p => p.map(a => a.id === id ? prev : a));
       showMsg(`오류: ${r.error}`);
