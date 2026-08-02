@@ -55,12 +55,12 @@
 - [x] P1-6 서버 액션 인증 통일 — `_base.getAuthUser()`(getClaims 기반) 신설, workers·staff·roster의 `getUser()` 7곳 교체
 - [x] P2-8 stats 차트 섹션 3곳(recharts) `next/dynamic` 지연 로드
 - [ ] P2-7 번들 측정 — `@next/bundle-analyzer`는 Turbopack 빌드 미지원이라 보류 (next build --debug 또는 Turbopack 지원 도구 검토)
-- [ ] P2-9 POS·RosterCalendar 런타임 렉 — 실기기 프로파일 후 진행 (framer-motion 범위 축소, memo화, invalidate 디바운스)
+- [x] P2-9(부분) POS·RosterCalendar memo화 — 2026-08-02, 실기기 프로파일 도구 없이 코드 레벨 분석으로 대체. PosPageClient의 MenuCard, RosterCalendar의 MonthGrid+DayCell을 React.memo로 분리(연쇄된 콜백들도 useCallback 안정화). framer-motion 범위 축소·invalidate 디바운스는 미착수 — 실기기 프로파일 후 필요성 재평가 권장
 - [x] P2-10 `<img>` → `next/image`: 실제 DOM `<img>` 사용처 없음(주석뿐) — 조치 불필요
 - [x] P3-11 `vercel.json` `"regions": ["icn1"]` — Supabase가 ap-northeast-2(서울) 확인
 - [x] P3-12 `@vercel/speed-insights` 설치 + 루트 레이아웃 장착 (Vercel 대시보드에서 Speed Insights 활성화 필요)
 
 ### 남은 작업 메모
 - 배포 후 Vercel 대시보드에서 Speed Insights 활성화.
-- P2-9는 실기기(태블릿)에서 React DevTools Profiler로 병목 확인 후 착수.
+- P2-9: 코드 레벨 memo화(2026-08-02)는 완료. framer-motion 범위 축소·invalidate 디바운스는 실기기(태블릿) React DevTools Profiler로 실측 후 필요 여부 판단.
 - 로그인 화면(PasswordGate)의 `getSession` 전환으로 게이트가 낙관적이 된 만큼, 페이지 데이터 접근은 기존대로 미들웨어·서버 액션 검증에 의존한다.
