@@ -8,6 +8,7 @@ const COLOR = {
   delete:  0xed4245,
   reorder: 0x747f8d,
   order:   0xf2c94c,
+  error:   0x992d22,
 } as const;
 
 type EventType = keyof typeof COLOR;

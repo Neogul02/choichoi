@@ -67,6 +67,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [showNote, setShowNote] = useState(true)
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastPaymentIdRef = useRef(0)
   const prevTierLvRef = useRef(0)
   const activeCashiers = usePresence(cashierName)
 
@@ -346,7 +347,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
         if (lastPaymentTimerRef.current)
           clearTimeout(lastPaymentTimerRef.current)
-        setLastPayment({ amount: vars.totalPrice, id: Date.now() })
+        setLastPayment({ amount: vars.totalPrice, id: ++lastPaymentIdRef.current })
         lastPaymentTimerRef.current = setTimeout(
           () => setLastPayment(null),
           1200,
@@ -356,12 +357,21 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
         queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
       } else {
         if (context?.previousCounts) setCounts(context.previousCounts)
-        toast.error(result.error || '결제 오류가 발생했습니다')
+        toast.error(result.error || '결제 오류가 발생했습니다', {
+          id: 'checkout-error',
+          duration: 10000,
+          action: { label: '다시 시도', onClick: () => checkoutMutation.mutate(vars) },
+        })
       }
     },
-    onError: (_error, _vars, context) => {
+    onError: (_error, vars, context) => {
       if (context?.previousCounts) setCounts(context.previousCounts)
-      toast.error('네트워크 오류로 결제가 취소되었습니다')
+      const offline = !navigator.onLine
+      toast.error(offline ? '네트워크 연결이 끊겼습니다. 연결 확인 후 다시 시도해주세요.' : '네트워크 오류로 결제가 저장되지 않았습니다', {
+        id: 'checkout-error',
+        duration: 10000,
+        action: { label: '다시 시도', onClick: () => checkoutMutation.mutate(vars) },
+      })
     },
   })
 
