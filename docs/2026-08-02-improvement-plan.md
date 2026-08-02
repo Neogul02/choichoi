@@ -69,8 +69,18 @@
 - [x] P2-7 오류 수집 — `lib/error-report.ts`(5분 스로틀) + `wrap()` 자동 리포트 + `reportClientError` 서버 액션 + 공용 `ErrorScreen`(digest·오프라인 구분, error.tsx 5곳 통일). 실제 웹훅 전송 확인
 - [x] P2-8 POS 재시도 UX — 결제 실패 toast에 '다시 시도' 액션(10초 유지), 오프라인 구분 문구
 
+- [x] P3-9 백그라운드 복귀 공통 훅 — `hooks/useResumeRevalidate.ts`, providers에 전역 장착. 1분 이상 백그라운드 후 복귀·네트워크 회복 시 전체 invalidate (데스크탑 탭 전환은 기존대로 조용히). realtime 채널은 supabase 소켓 재연결 시 자동 rejoin이라 별도 처리 불필요
+
+### 추가 진행 (같은 날 오후) — 서버 액션 레이턴시 (P4)
+
+- [x] Discord 웹훅 블로킹 제거 — 로그인·주문 삭제·메뉴 CRUD 4곳·직원 관리 3곳·계약 서명이 웹훅 왕복(수백 ms)을 기다리며 응답하던 것을 `next/server after()`(응답 후 실행 보장)로 이동. 특히 로그인 알림은 서버 액션 직렬화 때문에 후속 액션까지 막고 있었음
+- [x] saveOrder 병렬화 — 매출 집계·재고 차감을 Promise.all로, 결제 응답에서 DB 왕복 1회 제거
+- [x] wrap() 오류 리포트도 after()로 — 응답 지연 없이 서버리스에서 전송 완료 보장
+- [x] proxy.ts 매처의 죽은 /devtools 항목 제거
+- 조사 후 보류: PDF·recharts 무거운 import는 이미 전부 dynamic 처리 확인, 미들웨어 매처는 이미 최소 범위, 서버 액션 N+1은 페이지네이션(필연) 1곳뿐, Turbopack은 라우트별 번들 크기를 출력하지 않아 번들 측정 계속 보류
+
 ### 남은 항목 (다음 세션)
 
-- [x] P3-9 백그라운드 복귀 공통 훅 — `hooks/useResumeRevalidate.ts`, providers에 전역 장착. 1분 이상 백그라운드 후 복귀·네트워크 회복 시 전체 invalidate (데스크톱 탭 전환은 기존대로 조용히). realtime 채널은 supabase 소켓 재연결 시 자동 rejoin이라 별도 처리 불필요
-- [ ] Leaked password protection — Supabase 대시보드 Auth 설정에서 토글 (사용자 직접)
+- ~~Leaked password protection~~ — Pro 플랜 전용이라 제외 (2026-08-02 사용자 확인)
 - [ ] roster.ts(1000줄)·supabase-admin.ts(929줄) 분해 — 별도 세션 권장
+- [ ] POS·RosterCalendar 실기기 프로파일 후 memo화 (1차 계획 이월)
