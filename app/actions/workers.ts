@@ -10,7 +10,7 @@ import { getAuthUser } from './_base'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
-const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role, total_revenue'
+const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role'
 
 export interface UserProfile {
   id: string
@@ -20,7 +20,6 @@ export interface UserProfile {
   bank_account: string | null
   health_cert_url: string | null
   worker_role: string
-  total_revenue: number
 }
 
 export async function getMyProfile(): Promise<ApiResponse<UserProfile>> {
