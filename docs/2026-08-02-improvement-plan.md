@@ -61,10 +61,16 @@
 
 ## 진행 상황 (2026-08-02)
 
-- [ ] P0-1 죽은 RPC 정리
-- [ ] P0-2 FK 인덱스 3건
-- [ ] P0-3 devtools 고아 페이지 (사용자 확인 대기)
-- [ ] P1-4 vitest 도입
-- [ ] P1-5 workhours 테스트
-- [ ] P2-7 오류 수집
-- [ ] P2-8 POS 재시도 UX
+- [x] P0-1 죽은 RPC 정리 — orders.ts 호출 제거, DB 함수 DROP, decrement_menu_stock revoke (advisor 함수 경고 5건 해소 확인)
+- [x] P0-2 FK 인덱스 3건 — 마이그레이션 `20260802021340`
+- [x] P0-3 devtools 고아 페이지 삭제 (사용자 확인 완료)
+- [x] P1-4 vitest 도입 — `yarn test`, 설정은 `vitest.config.ts`
+- [x] P1-5 workhours·staffing·date 테스트 45건 — 야간 보정, 휴게 차감, .X5 반올림 경계, 휴식·주최대 위반 검출
+- [x] P2-7 오류 수집 — `lib/error-report.ts`(5분 스로틀) + `wrap()` 자동 리포트 + `reportClientError` 서버 액션 + 공용 `ErrorScreen`(digest·오프라인 구분, error.tsx 5곳 통일). 실제 웹훅 전송 확인
+- [x] P2-8 POS 재시도 UX — 결제 실패 toast에 '다시 시도' 액션(10초 유지), 오프라인 구분 문구
+
+### 남은 항목 (다음 세션)
+
+- [ ] P3-9 백그라운드 복귀 공통 훅 (visibilitychange → invalidate + 채널 재구독)
+- [ ] Leaked password protection — Supabase 대시보드 Auth 설정에서 토글 (사용자 직접)
+- [ ] roster.ts(1000줄)·supabase-admin.ts(929줄) 분해 — 별도 세션 권장
