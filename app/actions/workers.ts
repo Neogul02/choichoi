@@ -383,21 +383,28 @@ export async function setUserRole(userId: string, role: UserAppRole): Promise<Ap
   }
 }
 
+/** user_profiles + auth 계정 삭제 공통 로직 — 실패 시 error.message, 성공 시 삭제된 계정 이름을 반환 */
+async function deleteUserAccountById(userId: string, fallbackName: string): Promise<{ error: string } | { name: string }> {
+  const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
+  const name = profile?.name ?? fallbackName
+
+  await supabaseAdmin.from('user_profiles').delete().eq('id', userId)
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+  if (error) return { error: error.message }
+  return { name }
+}
+
 export async function deleteMyAccount(): Promise<ApiResponse> {
   try {
     const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
-    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', user.id).maybeSingle()
-    const name = profile?.name ?? user.email ?? user.id
-
-    await supabaseAdmin.from('user_profiles').delete().eq('id', user.id)
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id)
-    if (error) return { success: false, error: error.message }
+    const result = await deleteUserAccountById(user.id, user.email ?? user.id)
+    if ('error' in result) return { success: false, error: result.error }
 
     after(async () => {
       const { notifyDiscord } = await import('@/lib/discord')
-      await notifyDiscord('delete', '🚪 직원 탈퇴', `**${name}** (${user.email}) 계정이 삭제되었습니다.`)
+      await notifyDiscord('delete', '🚪 직원 탈퇴', `**${result.name}** (${user.email}) 계정이 삭제되었습니다.`)
     })
 
     return { success: true }
@@ -413,16 +420,12 @@ export async function adminDeleteUserAccount(userId: string): Promise<ApiRespons
     if (!admin || admin.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     if (admin.id === userId) return { success: false, error: '본인 계정은 여기서 탈퇴할 수 없습니다.' }
 
-    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
-    const name = profile?.name ?? userId
-
-    await supabaseAdmin.from('user_profiles').delete().eq('id', userId)
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
-    if (error) return { success: false, error: error.message }
+    const result = await deleteUserAccountById(userId, userId)
+    if ('error' in result) return { success: false, error: result.error }
 
     after(async () => {
       const { notifyDiscord } = await import('@/lib/discord')
-      await notifyDiscord('delete', '🚫 관리자 강제 탈퇴', `**${name}** 계정이 관리자에 의해 삭제되었습니다.`)
+      await notifyDiscord('delete', '🚫 관리자 강제 탈퇴', `**${result.name}** 계정이 관리자에 의해 삭제되었습니다.`)
     })
 
     return { success: true }
