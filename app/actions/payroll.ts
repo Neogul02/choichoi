@@ -36,7 +36,7 @@ export async function fetchStaffAssignmentsInRange(
   try {
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, start_time, end_time, roster_shifts(name, start_time, end_time)')
+      .select('work_date, start_time, end_time, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')
       .eq('staff_id', staffId)
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
@@ -109,7 +109,7 @@ export async function fetchStaffMonthlyDetail(
 
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts(name, start_time, end_time)')
+      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')
       .eq('staff_id', staffId)
       .gte('work_date', from)
       .lte('work_date', to)

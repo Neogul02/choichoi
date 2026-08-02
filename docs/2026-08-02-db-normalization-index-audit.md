@@ -26,7 +26,17 @@
 
 **결론: 파생값(SUM)을 중복 저장하던 컬럼을 제거하고 실시간 계산으로 단일화한 것은 정규화상 올바른 방향.** RPC·호출 제거(오전) + 컬럼 제거 + `MyPageClient` fallback 정리(`stats?.totalRevenue ?? 0`)로 일원화 완료. 단, `20260802025809` 마이그레이션 파일의 주석("죽은 컬럼")은 적용 시점 문구라 이 문서로 정정한다.
 
-### 🚨 사고 기록 — 컬럼 DROP을 코드 배포보다 먼저 실행 (즉시 복구됨)
+### 🚨 사고 기록 2 — 복합 FK가 PostgREST 임베드 조인을 모호하게 만듦 (즉시 복구됨)
+
+`20260802025841`에서 추가한 복합 FK(`roster_assignments_unit_consistency_fkey`)는 기존 단일 FK(`roster_assignments_shift_id_fkey`)와 함께 `roster_assignments → roster_shifts` 사이에 **두 번째 관계 경로**를 만들었다. PostgREST(Supabase REST 계층)는 두 테이블 사이에 FK가 2개 이상이면 임베드 조인(`.select('...,roster_shifts(...)')`)이 어느 관계를 쓸지 판단하지 못하고 `PGRST201`("more than one relationship was found")로 실패한다.
+
+영향: `app/actions/payroll.ts`의 `fetchStaffAssignmentsInRange`(근로계약서 작성 시 배정된 근무 스케줄 — 사용자가 "계약서 쓸 때 근무 시간표가 안 뜬다"로 발견)와 `fetchStaffMonthlyDetail`(급여 상세 근무일별 내역) 두 곳이 전부 이 임베드를 쓰고 있어 조용히 빈 배열을 반환하고 있었다.
+
+조치: 두 쿼리를 PostgREST 힌트 문법으로 명시적 관계 지정 — `roster_shifts!roster_assignments_shift_id_fkey(...)`. 원래 쓰던 단일 FK 관계를 그대로 가리키므로 동작은 완전히 이전과 동일. `curl`로 REST 엔드포인트를 직접 호출해 수정 전 에러 재현 → 수정 후 정상 응답 확인.
+
+**교훈:** 같은 두 테이블 사이에 FK를 추가로 만들 때는, 그 테이블 쌍을 PostgREST 임베드로 조인하는 모든 쿼리를 먼저 grep하고 힌트 문법을 함께 추가해야 한다. 정합성 강제(복합 FK)는 유효한 개선이지만 임베드 조인 경로 확장이라는 부작용을 동반한다.
+
+### 🚨 사고 기록 1 — 컬럼 DROP을 코드 배포보다 먼저 실행 (즉시 복구됨)
 
 `20260802025809`의 DROP은 **배포된 프로덕션 코드가 여전히 `total_revenue`를 select하는 상태**에서 실행됐다. PostgREST는 존재하지 않는 컬럼 select에 에러를 반환하므로 `fetchAllUserProfiles`(HR 계정연결 목록)와 `getMyProfile`(/my)이 프로덕션에서 실패했고, 사용자가 "인사 > 계정연결이 안 돼 근로계약서를 못 쓴다"로 발견했다.
 
