@@ -281,8 +281,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
 
           {/* 티어 */}
           {profile && (() => {
-            // 누적 판매량은 주문 테이블에서 실시간 합산(getMyOrderStats)이 단일 기준 —
-            // 과거의 user_profiles.total_revenue 누적 컬럼은 드리프트가 있어 제거됨
+            // 누적 판매량은 주문 테이블 실시간 합산(getMyOrderStats)이 단일 기준
             const rev = stats?.totalRevenue ?? 0
             const { current, next } = getWorkerTier(rev)
             const progress = next
