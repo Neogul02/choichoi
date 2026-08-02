@@ -77,7 +77,7 @@
 ### 미착수 이월 (1차 계획에서)
 
 - P2-7 번들 측정 (Turbopack 미지원으로 보류 중)
-- P2-9 POS·RosterCalendar 실기기 프로파일 후 memo화
+- P2-9 POS·RosterCalendar 실기기 프로파일 후 memo화 — 2026-08-02 코드 레벨 memo화 완료(아래 진행 상황 참조), 실기기 프로파일은 미착수
 
 ## 진행 상황 (2026-07-20)
 
@@ -94,7 +94,7 @@
 - [x] P2-9 admin client 공용화 — `lib/supabase-admin-client.ts` 신설, 9개 파일 중복 `createClient` 제거
 - [x] P2-12 `workers.ts` 파일 상단에 역할 주석 추가 (레거시 테이블과 무관함을 명시)
 - [x] P2-11(부분) HR `PayrollPanel`·`ContractsPanel` react-query 전환 — 탭 재방문 캐시 히트
-- [ ] P2-10 `lib/supabase-admin.ts` 도메인 분해(46개 함수) — 보류. 클라이언트 공용화만으로 중복은 이미 제거됨, 46개 함수를 전부 도메인별 액션 파일로 옮기는 건 diff가 크고 실익 대비 회귀 위험이 높아 별도 세션에서 파일 단위로 신중히 진행 권장
+- [x] P2-10 `lib/supabase-admin.ts` 도메인 분해(46개 함수) — 2026-08-02 완료. 각 함수를 사용하는 도메인 액션 파일(orders·menu·stats·schedule·memos·pos-note·inventory)로 이관, 파일 삭제. 상세: `docs/2026-08-02-db-normalization-index-audit.md`, `docs/2026-08-02-improvement-plan.md` 커밋 이력 참조
 - [ ] P2-11(나머지) `useRosterRange` react-query 전환 — 보류. 낙관적 추가/삭제/시간수정/요구인원 오버라이드가 세밀하게 얽혀 있고 이미 서버 프리페치+낙관적 갱신으로 체감 지연이 낮아, 재작성 리스크가 이득보다 큼
 
 ### 검증
