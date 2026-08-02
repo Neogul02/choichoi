@@ -17,6 +17,17 @@ export const addDays = (s: string, n: number): string => {
 export const kstToday = (): string =>
   new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
 
+// KST 기준 하루의 UTC ISO 경계 — created_at은 timestamp without time zone(naive UTC) 컬럼이라
+// +09:00 오프셋 문자열을 그대로 보내면 PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다.
+// UTC로 직접 환산해 보낸다. orders·stats의 "당일" 범위 조회 전역 기준.
+export function getKSTDateBounds(kstDateStr?: string): { start: string; end: string } {
+  const d = kstDateStr ?? kstToday()
+  return {
+    start: new Date(`${d}T00:00:00+09:00`).toISOString(),
+    end: new Date(`${d}T23:59:59.999+09:00`).toISOString(),
+  }
+}
+
 // KST 기준 현재 (연, 0-기준 월) — "이번 달" 범위 계산의 공통 시작점
 export const kstYearMonth = (): { y: number; m: number } => {
   const [y, mo] = kstToday().split('-').map(Number)
