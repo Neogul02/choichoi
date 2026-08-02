@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, dayGroup, monthEndDateStr, kstToday, formatPhone } from './date'
+import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, dayGroup, monthEndDateStr, kstToday, getKSTDateBounds, formatPhone } from './date'
 
 describe('addDays / prevDate', () => {
   it('월 경계를 넘는다', () => {
@@ -56,6 +56,27 @@ describe('dayOfWeek / dayGroup', () => {
 describe('kstToday', () => {
   it('YYYY-MM-DD 형식을 반환한다', () => {
     expect(kstToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('getKSTDateBounds', () => {
+  it('KST 자정~23:59:59.999를 UTC ISO로 변환한다 (9시간 당겨짐)', () => {
+    const { start, end } = getKSTDateBounds('2026-08-02')
+    expect(start).toBe('2026-08-01T15:00:00.000Z')
+    expect(end).toBe('2026-08-02T14:59:59.999Z')
+  })
+
+  it('날짜 미지정 시 kstToday() 기준으로 계산한다', () => {
+    const today = kstToday()
+    const { start } = getKSTDateBounds()
+    const { start: explicit } = getKSTDateBounds(today)
+    expect(start).toBe(explicit)
+  })
+
+  it('자정 경계 근처 날짜에서도 하루 범위를 정확히 계산한다', () => {
+    const { start, end } = getKSTDateBounds('2026-01-01')
+    expect(start).toBe('2025-12-31T15:00:00.000Z')
+    expect(end).toBe('2026-01-01T14:59:59.999Z')
   })
 })
 

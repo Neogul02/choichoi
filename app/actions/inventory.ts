@@ -2,14 +2,7 @@
 
 import { z } from 'zod';
 import { wrap } from './_base';
-import {
-  getIngredients,
-  addRestock,
-  physicalInventory,
-  updateIngredientMeta,
-  addIngredient,
-  deleteIngredient,
-} from '@/lib/supabase-admin';
+import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import type {
   ApiResponse,
   FetchIngredientsResponse,
@@ -34,6 +27,110 @@ const RestockSchema = z.object({
   sealed: z.number().int('밀봉 수량은 정수여야 합니다'),
   opened: z.number().int('개봉 수량은 정수여야 합니다'),
 });
+
+async function getIngredients(): Promise<Ingredient[]> {
+  const { data, error } = await supabaseAdmin
+    .from('ingredients')
+    .select('*')
+    .order('sort_order', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as Ingredient[]
+}
+
+async function addRestock(
+  ingredient_id: string,
+  sealed_delta: number,
+  opened_delta: number,
+  note?: string,
+  created_by?: string,
+): Promise<void> {
+  const { error: evtErr } = await supabaseAdmin.from('restock_events').insert([
+    {
+      ingredient_id,
+      sealed_delta,
+      opened_delta,
+      note: note ?? null,
+      created_by: created_by ?? null,
+    },
+  ])
+  if (evtErr) throw evtErr
+
+  const { data: ing, error: fetchErr } = await supabaseAdmin
+    .from('ingredients')
+    .select('sealed_count, opened_remaining')
+    .eq('id', ingredient_id)
+    .single()
+  if (fetchErr) throw fetchErr
+
+  const { error: upErr } = await supabaseAdmin
+    .from('ingredients')
+    .update({
+      sealed_count: Math.max(0, (ing.sealed_count as number) + sealed_delta),
+      opened_remaining: Math.max(
+        0,
+        (ing.opened_remaining as number) + opened_delta,
+      ),
+    })
+    .eq('id', ingredient_id)
+  if (upErr) throw upErr
+}
+
+async function physicalInventory(id: string, sealed_count: number, opened_remaining: number): Promise<Ingredient> {
+  const { data, error } = await supabaseAdmin
+    .from('ingredients')
+    .update({ sealed_count, opened_remaining: Math.max(0, opened_remaining) })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as Ingredient
+}
+
+async function addIngredient(data: {
+  id: string
+  name: string
+  category: string
+  color: string
+  unit_type: 'count' | 'weight'
+  base_unit: string
+  container_unit: string
+  container_size: number
+  vendor?: string
+  sort_order?: number
+}): Promise<Ingredient> {
+  const { data: row, error } = await supabaseAdmin
+    .from('ingredients')
+    .insert([{ ...data, sort_order: data.sort_order ?? 0 }])
+    .select()
+    .single()
+  if (error) throw error
+  return row as Ingredient
+}
+
+async function deleteIngredient(id: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('ingredients')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+async function updateIngredientMeta(
+  id: string,
+  updates: {
+    container_size?: number
+    vendor?: string | null
+  },
+): Promise<Ingredient> {
+  const { data, error } = await supabaseAdmin
+    .from('ingredients')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as Ingredient
+}
 
 export async function fetchIngredients(): Promise<FetchIngredientsResponse> { return wrap(getIngredients); }
 

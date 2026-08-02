@@ -2,13 +2,7 @@
 
 import { z } from 'zod';
 import { wrap } from './_base';
-import {
-  getPopupEvents,
-  createPopupEvent,
-  deletePopupEvent,
-  updatePopupEvent,
-  setPopupEventActive,
-} from '@/lib/supabase-admin';
+import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import { classifyStaffByPopupSchedule } from './staffPopups';
 import { createDefaultCashierShifts } from './roster';
 import type { ApiResponse, FetchEventsResponse } from '@/types/api';
@@ -21,6 +15,58 @@ const PopupEventSchema = z.object({
 });
 
 // ── Popup Events ──────────────────────────────────────────────────────────────
+
+async function getPopupEvents(activeOnly = false): Promise<PopupEvent[]> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .select('*')
+    .order('start_date', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  const events = (data ?? []) as PopupEvent[]
+  // is_active 컬럼이 아직 없는 DB에서도 동작하도록 JS 측에서 필터 (undefined → 활성 취급)
+  return activeOnly ? events.filter(e => e.is_active !== false) : events
+}
+
+async function createPopupEvent(name: string, startDate: string, endDate: string): Promise<PopupEvent> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .insert([{ name, start_date: startDate, end_date: endDate }])
+    .select()
+    .single()
+  if (error) throw error
+  return data as PopupEvent
+}
+
+async function deletePopupEvent(id: number): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('popup_events')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+async function updatePopupEvent(id: number, name: string, startDate: string, endDate: string): Promise<PopupEvent> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .update({ name, start_date: startDate, end_date: endDate })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as PopupEvent
+}
+
+async function setPopupEventActive(id: number, isActive: boolean): Promise<PopupEvent> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .update({ is_active: isActive })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as PopupEvent
+}
 
 export async function fetchPopupEvents(): Promise<FetchEventsResponse> { return wrap(getPopupEvents); }
 
