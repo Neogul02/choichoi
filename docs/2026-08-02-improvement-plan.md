@@ -71,6 +71,6 @@
 
 ### 남은 항목 (다음 세션)
 
-- [ ] P3-9 백그라운드 복귀 공통 훅 (visibilitychange → invalidate + 채널 재구독)
+- [x] P3-9 백그라운드 복귀 공통 훅 — `hooks/useResumeRevalidate.ts`, providers에 전역 장착. 1분 이상 백그라운드 후 복귀·네트워크 회복 시 전체 invalidate (데스크톱 탭 전환은 기존대로 조용히). realtime 채널은 supabase 소켓 재연결 시 자동 rejoin이라 별도 처리 불필요
 - [ ] Leaked password protection — Supabase 대시보드 Auth 설정에서 토글 (사용자 직접)
 - [ ] roster.ts(1000줄)·supabase-admin.ts(929줄) 분해 — 별도 세션 권장
