@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { reportError } from '@/lib/error-report';
 import type { ApiResponse } from '@/types/api';
@@ -14,9 +15,9 @@ export async function wrap<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
     return { success: true, data: await fn() };
   } catch (e) {
     const message = extractErrorMessage(e);
-    // 어느 액션에서 났는지 스택 상단으로 식별 — 수집 실패가 응답을 막지 않게 fire-and-forget
+    // 어느 액션에서 났는지 스택 상단으로 식별 — 응답 후 전송(after)이라 응답을 막지 않고, 서버리스에서도 완료 보장
     const stack = e instanceof Error && e.stack ? e.stack.split('\n').slice(1, 4).join('\n') : null;
-    reportError('서버 액션 실패', message, stack ? [{ name: '위치', value: stack }] : undefined).catch(() => {});
+    after(() => reportError('서버 액션 실패', message, stack ? [{ name: '위치', value: stack }] : undefined).catch(() => {}));
     return { success: false, error: message };
   }
 }

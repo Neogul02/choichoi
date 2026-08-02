@@ -1,5 +1,7 @@
 'use server'
 
+import { after } from 'next/server'
+
 // 파일명은 레거시 workers 테이블(2026-07-20 삭제, 코드 참조 0건 확인 후 제거)에서 유래.
 // 실제로는 user_profiles 기반 계정 관리 액션 — staff_profiles(근무자 프로필)와는 별개.
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
@@ -347,8 +349,10 @@ export async function createWorkerAccount(
       }
     } catch { /* 자동 연결 실패는 가입을 막지 않는다 */ }
 
-    const { notifyDiscord } = await import('@/lib/discord')
-    await notifyDiscord('add', '👤 새 직원 가입', `**${input.name.trim()}** (${input.email.trim()})`)
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('add', '👤 새 직원 가입', `**${input.name.trim()}** (${input.email.trim()})`)
+    })
 
     return { success: true, data: { userId } }
   } catch (err) {
@@ -369,8 +373,10 @@ export async function setUserRole(userId: string, role: UserAppRole): Promise<Ap
     await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { role } })
 
     const label = role === 'admin' ? '관리자' : role === 'manager' ? '매니저' : '직원'
-    const { notifyDiscord } = await import('@/lib/discord')
-    await notifyDiscord('edit', `🔐 권한 변경`, `**${profile?.name ?? userId}** → ${label}`)
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('edit', `🔐 권한 변경`, `**${profile?.name ?? userId}** → ${label}`)
+    })
 
     return { success: true }
   } catch (err) {
@@ -390,8 +396,10 @@ export async function deleteMyAccount(): Promise<ApiResponse> {
     const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id)
     if (error) return { success: false, error: error.message }
 
-    const { notifyDiscord } = await import('@/lib/discord')
-    await notifyDiscord('delete', '🚪 직원 탈퇴', `**${name}** (${user.email}) 계정이 삭제되었습니다.`)
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('delete', '🚪 직원 탈퇴', `**${name}** (${user.email}) 계정이 삭제되었습니다.`)
+    })
 
     return { success: true }
   } catch (err) {

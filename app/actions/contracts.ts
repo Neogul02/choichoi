@@ -1,5 +1,7 @@
 'use server'
 
+import { after } from 'next/server'
+
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { wrap } from './_base'
 import { createClient } from '@supabase/supabase-js'
@@ -288,13 +290,15 @@ export async function signContract(
       worker_signed_at: new Date().toISOString(),
     }).eq('id', contractId)
 
-    const { notifyDiscord } = await import('@/lib/discord')
     const workerName = ownerRecord.name ?? '알 수 없음'
-    await notifyDiscord(
-      'add',
-      '✍️ 근로계약서 서명 완료',
-      `**${workerName}** 이(가) 근로계약서에 서명했습니다.\n근로기간: ${row.start_date}${row.end_date ? ` ~ ${row.end_date}` : '~'}`,
-    )
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord(
+        'add',
+        '✍️ 근로계약서 서명 완료',
+        `**${workerName}** 이(가) 근로계약서에 서명했습니다.\n근로기간: ${row.start_date}${row.end_date ? ` ~ ${row.end_date}` : '~'}`,
+      )
+    })
 
     return { url: finalSignedUrl ?? (row.pdf_url ?? '') }
   })
