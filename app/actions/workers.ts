@@ -406,6 +406,31 @@ export async function deleteMyAccount(): Promise<ApiResponse> {
   }
 }
 
+/** 관리자가 다른 직원 계정을 강제 탈퇴시킨다 — staff_profiles 연결은 ON DELETE SET NULL로 자동 해제(HR 기록은 유지) */
+export async function adminDeleteUserAccount(userId: string): Promise<ApiResponse> {
+  try {
+    const admin = await getAuthUser()
+    if (!admin || admin.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
+    if (admin.id === userId) return { success: false, error: '본인 계정은 여기서 탈퇴할 수 없습니다.' }
+
+    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
+    const name = profile?.name ?? userId
+
+    await supabaseAdmin.from('user_profiles').delete().eq('id', userId)
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+    if (error) return { success: false, error: error.message }
+
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('delete', '🚫 관리자 강제 탈퇴', `**${name}** 계정이 관리자에 의해 삭제되었습니다.`)
+    })
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function fetchAllUserProfiles(): Promise<ApiResponse<UserProfile[]>> {
   try {
     const { data, error } = await supabaseAdmin

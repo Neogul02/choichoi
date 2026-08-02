@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { fetchAllUserProfiles, setUserRole } from '@/app/actions/workers'
+import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount } from '@/app/actions/workers'
 import type { UserProfile } from '@/app/actions/workers'
 import type { UserAppRole } from '@/types/database'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import ConfirmDialog from '@/components/ConfirmDialog'
 
 const ROLE_OPTIONS: { value: UserAppRole; label: string }[] = [
   { value: 'admin', label: '관리자' },
@@ -23,6 +24,8 @@ export default function UserManagementSection() {
   const [query, setQuery] = useState('')
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     fetchAllUserProfiles().then(res => {
@@ -54,6 +57,20 @@ export default function UserManagementSection() {
       toast.success('권한이 변경됐습니다')
     } else {
       toast.error(`권한 변경 실패: ${res.error}`)
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    const res = await adminDeleteUserAccount(deleteTarget.id)
+    setIsDeleting(false)
+    if (res.success) {
+      setUsers(prev => prev.filter(u => u.id !== deleteTarget.id))
+      toast.success(`${deleteTarget.name} 님을 탈퇴시켰습니다`)
+      setDeleteTarget(null)
+    } else {
+      toast.error(`탈퇴 실패: ${res.error}`)
     }
   }
 
@@ -145,10 +162,33 @@ export default function UserManagementSection() {
                   </span>
                 )}
               </div>
+
+              {/* 탈퇴 */}
+              <div className="shrink-0">
+                <button
+                  onClick={() => setDeleteTarget(u)}
+                  disabled={isMe}
+                  title={isMe ? '본인 계정은 여기서 탈퇴할 수 없습니다' : '계정 강제 탈퇴'}
+                  className="text-[10px] font-semibold px-2 py-1 rounded-md border cursor-pointer transition-colors bg-canvas text-rose-500 border-rose-200 hover:bg-rose-50 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-canvas"
+                >
+                  탈퇴
+                </button>
+              </div>
             </div>
           )
         })}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={`"${deleteTarget?.name}" 님을 강제 탈퇴시키겠습니까?`}
+        description="계정이 즉시 삭제되며 복구할 수 없습니다. HR 근무 기록은 유지되지만 계정 연결은 해제됩니다."
+        confirmLabel="탈퇴시키기"
+        danger
+        busy={isDeleting}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setDeleteTarget(null)}
+      />
     </>
   )
 }
