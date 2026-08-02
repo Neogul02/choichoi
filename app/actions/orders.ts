@@ -66,14 +66,6 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
       ]);
     })().catch(() => {});
 
-    if (cashierName) {
-      try {
-        await supabaseAdmin.rpc('increment_worker_revenue', { p_name: cashierName, p_amount: totalPrice })
-      } catch (err) {
-        console.error('[saveOrder] revenue increment failed:', err)
-      }
-    }
-
     return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales };
   } catch (error) {
     const msg = extractErrorMessage(error);
