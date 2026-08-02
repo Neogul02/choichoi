@@ -62,7 +62,6 @@ export const config = {
     '/settings/:path*',
     '/inventory/:path*',
     '/roster/:path*',
-    '/devtools/:path*',
     '/hr/:path*',
   ],
 }

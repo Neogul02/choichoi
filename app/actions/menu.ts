@@ -1,5 +1,6 @@
 'use server';
 
+import { after } from 'next/server';
 import { z } from 'zod';
 import { wrap } from './_base';
 import { notifyDiscord } from '@/lib/discord';
@@ -28,7 +29,7 @@ export async function createNewMenuItem(name: string, price: number, color: stri
   const parsed = MenuItemSchema.safeParse({ name, price, color });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   const result = await wrap(() => addMenuItem(parsed.data.name, parsed.data.price, parsed.data.color));
-  if (result.success) await notifyDiscord('add', '🍞 메뉴 추가', `**${name}** — ₩${price.toLocaleString('ko-KR')}`);
+  if (result.success) after(() => notifyDiscord('add', '🍞 메뉴 추가', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
 
@@ -36,13 +37,13 @@ export async function editMenuItem(id: number, name: string, price: number, colo
   const parsed = MenuItemSchema.safeParse({ name, price, color });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   const result = await wrap(() => updateMenuItem(id, parsed.data.name, parsed.data.price, parsed.data.color));
-  if (result.success) await notifyDiscord('edit', '✏️ 메뉴 수정', `**${name}** — ₩${price.toLocaleString('ko-KR')}`);
+  if (result.success) after(() => notifyDiscord('edit', '✏️ 메뉴 수정', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
 
 export async function removeMenuItem(id: number): Promise<ApiResponse> {
   const result = await wrap(() => deleteMenuItem(id));
-  if (result.success) await notifyDiscord('delete', '🗑️ 메뉴 삭제', `ID: ${id}`);
+  if (result.success) after(() => notifyDiscord('delete', '🗑️ 메뉴 삭제', `ID: ${id}`));
   return result;
 }
 
@@ -59,6 +60,6 @@ export async function reorderMenuItems(orderedIds: number[]): Promise<ApiRespons
   const parsed = z.array(z.number().int().positive()).min(1).safeParse(orderedIds);
   if (!parsed.success) return { success: false, error: '올바르지 않은 메뉴 순서입니다' };
   const result = await wrap(() => updateMenuOrder(parsed.data));
-  if (result.success) await notifyDiscord('reorder', '↕️ 메뉴 순서 변경', `${orderedIds.length}개 메뉴 순서 조정`);
+  if (result.success) after(() => notifyDiscord('reorder', '↕️ 메뉴 순서 변경', `${orderedIds.length}개 메뉴 순서 조정`));
   return result;
 }

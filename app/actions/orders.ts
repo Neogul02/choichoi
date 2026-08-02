@@ -1,5 +1,6 @@
 'use server';
 
+import { after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { z } from 'zod';
 import { wrap, extractErrorMessage } from './_base';
@@ -42,29 +43,32 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
 
   try {
     const order = await createOrder(items, totalPrice, cashierName, popupId);
-    const sales = await getTodaysSales(popupId);
 
-    try {
-      // 할인 블록(음수 가격 메뉴)은 실물 재고가 없으므로 차감 대상에서 제외
-      const stockItems = items.filter((i) => i.price > 0).map((i) => ({ id: i.id, count: i.count }))
-      if (stockItems.length > 0) await decrementMenuStock(stockItems)
-    } catch (err) {
-      console.error('[saveOrder] 메뉴 재고 차감 실패:', err)
-    }
+    // 할인 블록(음수 가격 메뉴)은 실물 재고가 없으므로 차감 대상에서 제외.
+    // 재고 차감 실패는 주문을 막지 않으므로 매출 집계와 병렬 실행해 왕복 1회를 줄인다.
+    const stockItems = items.filter((i) => i.price > 0).map((i) => ({ id: i.id, count: i.count }))
+    const [sales] = await Promise.all([
+      getTodaysSales(popupId),
+      stockItems.length > 0
+        ? decrementMenuStock(stockItems).catch((err) => console.error('[saveOrder] 메뉴 재고 차감 실패:', err))
+        : Promise.resolve(),
+    ]);
 
-    // 주문 완료 알림 (fire-and-forget)
-    (async () => {
-      const popupName = popupId && popupId !== '0' ? await getPopupEventName(Number(popupId)) : null;
-      const { start, end } = getKSTDateBounds();
-      const menuToday = await getMenuSalesByPeriod(start, end, popupId);
-      const { notifyDiscord } = await import('@/lib/discord');
-      await notifyDiscord('order', '🧾 주문 완료', `**${popupName ?? '팝업 미지정'}**`, [
-        { name: '주문 내역', value: items.map((i) => `${i.name} x${i.count}`).join(', ') },
-        { name: '이번 주문 금액', value: `₩${totalPrice.toLocaleString('ko-KR')}`, inline: true },
-        { name: '금일 누적 매출', value: `₩${sales.totalRevenue.toLocaleString('ko-KR')} (${sales.totalOrders}건)`, inline: true },
-        { name: '금일 메뉴별 판매', value: menuToday.map((m) => `${m.name} ${m.totalQuantity}개`).join(', ') || '-' },
-      ]);
-    })().catch(() => {});
+    // 주문 완료 알림 — 응답 반환 후 실행 (서버리스에서도 완료가 보장됨)
+    after(async () => {
+      try {
+        const popupName = popupId && popupId !== '0' ? await getPopupEventName(Number(popupId)) : null;
+        const { start, end } = getKSTDateBounds();
+        const menuToday = await getMenuSalesByPeriod(start, end, popupId);
+        const { notifyDiscord } = await import('@/lib/discord');
+        await notifyDiscord('order', '🧾 주문 완료', `**${popupName ?? '팝업 미지정'}**`, [
+          { name: '주문 내역', value: items.map((i) => `${i.name} x${i.count}`).join(', ') },
+          { name: '이번 주문 금액', value: `₩${totalPrice.toLocaleString('ko-KR')}`, inline: true },
+          { name: '금일 누적 매출', value: `₩${sales.totalRevenue.toLocaleString('ko-KR')} (${sales.totalOrders}건)`, inline: true },
+          { name: '금일 메뉴별 판매', value: menuToday.map((m) => `${m.name} ${m.totalQuantity}개`).join(', ') || '-' },
+        ]);
+      } catch { /* 알림 실패는 무시 */ }
+    });
 
     return { success: true, orderId: order.id, dailyOrderNumber: sales.totalOrders, sales };
   } catch (error) {
@@ -85,9 +89,11 @@ export async function removeOrder(id: number): Promise<ApiResponse> {
     const { data: order } = await supabaseAdmin.from('orders').select('total_price, cashier_name').eq('id', id).maybeSingle()
     const result = await wrap(() => deleteOrder(id))
     if (result.success && order) {
-      const { notifyDiscord } = await import('@/lib/discord')
-      const price = Number(order.total_price).toLocaleString()
-      await notifyDiscord('delete', '🗑️ 주문 삭제', `주문 #${id} — ₩${price}${order.cashier_name ? ` (${order.cashier_name})` : ''}`)
+      after(async () => {
+        const { notifyDiscord } = await import('@/lib/discord')
+        const price = Number(order.total_price).toLocaleString()
+        await notifyDiscord('delete', '🗑️ 주문 삭제', `주문 #${id} — ₩${price}${order.cashier_name ? ` (${order.cashier_name})` : ''}`)
+      })
     }
     return result
   } catch {
