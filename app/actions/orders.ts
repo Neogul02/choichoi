@@ -65,7 +65,12 @@ async function createOrder(
     const { error: itemsError } = await supabaseAdmin
       .from('order_items')
       .insert(orderItems)
-    if (itemsError) throw itemsError
+    if (itemsError) {
+      // orders와 order_items 삽입이 한 트랜잭션이 아니라, 여기서 실패하면 항목 없는 유령 주문이
+      // 매출 집계에 남는다 — 실패로 보고하기 전에 방금 만든 주문 행을 정리한다 (best-effort)
+      await supabaseAdmin.from('orders').delete().eq('id', order.id)
+      throw itemsError
+    }
   }
 
   return order as Order

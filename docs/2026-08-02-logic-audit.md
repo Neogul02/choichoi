@@ -38,3 +38,18 @@
 
 ### 보류 (비즈니스 판단 필요 — 미수정)
 - 없음.
+
+## 3. POS 주문·재고 (`app/actions/orders.ts`)
+
+### 평가
+- **인증 모델 확인**: `orders.ts`·`menu.ts`·`memos.ts`·`inventory.ts`·`schedule.ts`·`pos-note.ts`·`stats.ts` 전부 `getAuthUser()` 호출이 없음 — POS/운영 도메인 전체가 동일한 패턴. `middleware`(`proxy.ts`)도 `/pos`·`/orders`를 보호 대상에 넣지 않음. HR/급여/계약 도메인(`staff.ts`·`payroll.ts`·`roster.ts`·`contracts.ts`·`workers.ts`)만 `getAuthUser()`를 씀. **결론: POS 도메인이 인증 체크가 없는 건 일관된 설계(클라이언트 PasswordGate + 팝업 쿠키로 게이트, 물리적 POS 단말 환경 가정)이지 개별 함수의 누락이 아님** — US-001의 `fetchMonthlyPayroll`과 다른 사례. 같은 파일 안에 이미 검증 패턴이 있었던 payroll과 달리, POS 도메인 전체에 그런 선례가 없어 "의도된 아키텍처"로 판단, 수정하지 않음.
+- **재고 RPC 원자성**: `decrement_menu_stock`은 `UPDATE menu_items SET stock = stock - x WHERE id = ...` 단일 SQL문 — Postgres 행 잠금으로 동시 결제 시에도 카운트가 유실되지 않음(레이스 없음). 확인 완료.
+
+### 🔴 발견 및 수정 — 주문 생성 실패 시 유령 주문 잔존 가능
+`createOrder`가 `orders` insert와 `order_items` insert를 별도 호출로 처리(트랜잭션 없음). `order_items` insert가 실패하면 `orders` 행은 이미 커밋된 상태로 남아 — 캐셔에게는 "결제 실패"로 보이지만 항목 없는 주문이 매출 집계(`getTodaysSales` 등)에 그대로 잡힘. 재시도 시 캐셔가 다시 결제하면 사실상 중복 매출이 될 수 있음.
+
+**조치**: `order_items` insert가 실패하면 방금 만든 `orders` 행을 즉시 삭제(best-effort)한 뒤 에러를 던지도록 수정 — 실패가 실제로 "아무 일도 없었던 것"이 되도록 정합성만 보정. 성공 경로·재고 차감·알림 로직은 전혀 변경하지 않음.
+
+### 보류 (비즈니스 판단 필요 — 미수정)
+- **재고 음수 허용**: `decrement_menu_stock`은 재고를 0 아래로 클램프하지 않음(`stock = stock - x`, 음수 가능). 동시 결제가 몰리면 화면에 "-1개" 같은 음수 재고가 표시될 수 있음. 오버셀을 허용하고 음수로 "초과 판매됨"을 알리는 의도적 설계일 수도, 0에서 막아야 할 버그일 수도 있어 판단 보류 — DB RPC 수정이 필요해 리스크도 있음. `inventory.ts`의 다른 재고(`sealed_count`/`opened_remaining`)는 `Math.max(0, ...)`로 클램프하는 것과 대조적이라는 점만 기록.
+- **`removeOrder`의 2단계 삭제**(`order_items` 삭제 → `orders` 삭제)도 트랜잭션 없음 — 두 번째 삭제가 실패하면 항목 없는 빈 주문이 남을 수 있음. 발생 가능성은 낮음(별도 테이블이 orders를 참조하는 FK 없음)이나, 완전한 해결은 RPC/트랜잭션 도입이 필요해 이번 범위에서는 관찰만 기록.
