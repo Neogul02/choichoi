@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { showMsg } from '@/lib/toast';
 import {
@@ -45,7 +45,10 @@ export function useRosterRange({
   const queryClient = useQueryClient();
   // 근무 추가/삭제/시간/휴게 변경은 급여 계산에 영향을 주므로, 급여정산 화면(react-query 캐시)이
   // 오래된 값을 들고 있지 않도록 무효화한다 — 캐시가 살아있는 5분 안에 두 화면을 오가면 값이 어긋남
-  const invalidatePayroll = () => queryClient.invalidateQueries({ queryKey: ['payroll'] });
+  const invalidatePayroll = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['payroll'] }),
+    [queryClient],
+  );
 
   const loadRange = async () => {
     if (!cursor) return;
@@ -92,7 +95,8 @@ export function useRosterRange({
   }, [cursor, unit, viewMode, weekStart]);
 
   // 낙관적 추가 — 임시 음수 id로 즉시 표시 후 서버 행으로 치환, 실패(중복 배정 등) 시 제거
-  const handleAdd = async (dateStr: string, shiftId: number, staffId: number) => {
+  // useCallback로 안정화 — MonthGrid에 이 함수(경유 핸들러)를 props로 내려 memo 경계를 두기 위함
+  const handleAdd = useCallback(async (dateStr: string, shiftId: number, staffId: number) => {
     const staff = staffList.find(s => s.id === staffId);
     const tempId = tempIdRef.current--;
     const optimistic: RosterAssignment = {
@@ -117,7 +121,7 @@ export function useRosterRange({
       setAssignments(p => p.filter(a => a.id !== tempId));
       showMsg(`오류: ${r.error}`);
     }
-  };
+  }, [staffList, unit, invalidatePayroll]);
 
   // 낙관적 삭제 — 즉시 제거 후 실패 시 원복
   const handleRemove = async (id: number) => {

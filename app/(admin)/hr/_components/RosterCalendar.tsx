@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { showMsg } from '@/lib/toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
@@ -88,7 +88,12 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
 
   const assignMap = useMemo(() => buildAssignMap(assignments), [assignments]);
 
-  const getAssigned = (dateStr: string, shiftId: number) => assignMap.get(`${dateStr}|${shiftId}`) ?? [];
+  // MonthGrid·WeekMatrix에 memo 경계를 두려면 이 함수들의 참조가 실제 데이터(assignMap·overrides)가
+  // 바뀔 때만 갱신돼야 한다 — 매 렌더 새 함수를 넘기면 선택 날짜 변경 등 무관한 상태 변화에도 그리드 전체가 다시 그려진다.
+  const getAssigned = useCallback(
+    (dateStr: string, shiftId: number) => assignMap.get(`${dateStr}|${shiftId}`) ?? [],
+    [assignMap],
+  );
 
   // 저장된 배정의 규칙 위반 — 배정 id → 사유 목록 (로드된 범위 기준 판정)
   const violations = useMemo(
@@ -101,7 +106,10 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     return set;
   }, [assignments, violations]);
 
-  const getRequired = (dateStr: string, shift: RosterShift): number => requiredFor(dateStr, shift, overrides);
+  const getRequired = useCallback(
+    (dateStr: string, shift: RosterShift): number => requiredFor(dateStr, shift, overrides),
+    [overrides],
+  );
 
   // 해당 날짜가 속한 주(일~토)에 이 직원이 근무하는 날 수 — 이달 데이터 기준 근사치, 서버 자동 배정은 정확히 검사함
   const getWeeklyDayCount = (staffId: number, dateStr: string): number => {
@@ -240,12 +248,13 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
   };
 
   // 직원 드롭 처리 — 활성 파트가 하나면 즉시 배정, 여럿이면 커서 위치에 파트 선택 팝오버
-  const handleDropStaff = (dateStr: string, staffId: number, x: number, y: number) => {
+  // useCallback로 안정화 — MonthGrid(memo) props가 매 렌더 새로 생성되면 memo가 무력화된다
+  const handleDropStaff = useCallback((dateStr: string, staffId: number, x: number, y: number) => {
     const active = shifts.filter(s => (!s.active_from || dateStr >= s.active_from) && (!s.active_to || dateStr <= s.active_to));
     if (active.length === 0) { showMsg('이 날짜에 활성화된 파트가 없습니다'); return; }
     if (active.length === 1) { handleAdd(dateStr, active[0].id, staffId); return; }
     setDropTarget({ dateStr, staffId, x, y });
-  };
+  }, [shifts, handleAdd]);
 
   if (!cursor) return <p className="text-ink-faint text-sm">불러오는 중...</p>;
 

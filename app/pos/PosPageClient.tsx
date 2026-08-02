@@ -3,7 +3,7 @@
 import NavBar from '@/components/NavBar'
 import { usePresence } from '@/hooks/usePresence'
 import SalesBanner from '@/components/SalesBanner'
-import { useCallback, useEffect, useRef, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
@@ -41,6 +41,104 @@ const cartItemVariants: Variants = {
   },
   exit: { opacity: 0, height: 0, transition: { duration: 0.15 } },
 }
+
+// 클릭 한 번마다 counts가 바뀌어 부모(PosPageClient) 전체가 리렌더된다 — memo화 없이는
+// 메뉴 20~40개 카드(framer-motion 포함) 전부가 매 클릭마다 다시 그려진다.
+// item(react-query 캐시 참조)·count(해당 항목만 변경)·onIncrease/onDecrease(useCallback로 안정)가
+// 모두 얕은 비교로 안정적이므로, 클릭한 카드만 리렌더되도록 memo 경계를 둔다.
+const MenuCard = memo(function MenuCard({
+  item, count, shortcutNumber, onIncrease, onDecrease,
+}: {
+  item: MenuItem
+  count: number
+  shortcutNumber: number
+  onIncrease: (id: number) => void
+  onDecrease: (id: number) => void
+}) {
+  const hasShortcut = shortcutNumber <= 9
+  const badgeStyle = getShortcutBadgeColors(item.color)
+  return (
+    <motion.article
+      whileTap={{ scale: 0.97 }}
+      onClick={() => onIncrease(item.id)}
+      className={`relative rounded-2xl p-3 md:p-3.5 transition-shadow duration-200 cursor-pointer ${
+        count > 0
+          ? 'shadow-none'
+          : 'bg-canvas shadow-level-1 hover:shadow-level-2'
+      }`}
+      style={
+        count > 0
+          ? {
+              backgroundColor: hexWithAlpha(item.color, 0.18),
+              boxShadow: `0 0 0 3px ${hexWithAlpha(item.color, 0.65)}`,
+            }
+          : {}
+      }
+    >
+      {hasShortcut && (
+        <strong
+          className="absolute top-2 right-2 md:right-2.5 min-w-[28px] h-[28px] px-2 rounded-full border border-black/15 text-base font-black leading-[28px] text-center z-10 shadow-[0_1px_4px_rgba(0,0,0,0.16)]"
+          style={badgeStyle}
+          aria-label={`${item.name} 단축키 ${shortcutNumber}번`}
+        >
+          {shortcutNumber}
+        </strong>
+      )}
+      <div className="w-full text-left mb-3">
+        <div className="flex items-center gap-2.5 mb-2">
+          <span
+            className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 border-2 border-black/10"
+            style={{ backgroundColor: item.color }}
+          />
+          <h2 className="m-0 text-sm md:text-base font-bold leading-snug">
+            {item.name}
+          </h2>
+        </div>
+        <p className="m-0 text-xl md:text-2xl font-extrabold text-ink-secondary">
+          {formatPrice(item.price)}원
+        </p>
+        <p className="m-0 h-4 text-[11px] font-normal text-ink-muted">
+          {item.stock !== null ? `${item.stock}개` : ' '}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDecrease(item.id)
+          }}
+          aria-label={`${item.name} 수량 감소`}
+        >
+          −
+        </button>
+        <motion.strong
+          key={count}
+          initial={{ scale: 1.25 }}
+          animate={{ scale: 1 }}
+          transition={{
+            type: 'spring',
+            stiffness: 320,
+            damping: 16,
+          }}
+          className={`flex-1 text-base md:text-lg font-bold text-center ${count > 0 ? 'text-primary-700' : 'text-ink-secondary'}`}
+        >
+          {count}개
+        </motion.strong>
+        <button
+          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+          onClick={(e) => {
+            e.stopPropagation()
+            onIncrease(item.id)
+          }}
+          aria-label={`${item.name} 수량 증가`}
+        >
+          +
+        </button>
+      </div>
+    </motion.article>
+  )
+})
 
 // 서버 컴포넌트(page.tsx)가 쿠키의 popupId로 프리페치한 초기 데이터 — 없으면 기존 클라이언트 조회로 폴백
 interface Props {
@@ -518,94 +616,16 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                 메뉴를 불러오는 중입니다...
               </p>
             ) : null}
-            {menuItems.map((item, index) => {
-              const count = counts[item.id] ?? 0
-              const shortcutNumber = index + 1
-              const hasShortcut = shortcutNumber <= 9
-              const badgeStyle = getShortcutBadgeColors(item.color)
-              return (
-                <motion.article
-                  key={item.id}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => increase(item.id)}
-                  className={`relative rounded-2xl p-3 md:p-3.5 transition-shadow duration-200 cursor-pointer ${
-                    count > 0
-                      ? 'shadow-none'
-                      : 'bg-canvas shadow-level-1 hover:shadow-level-2'
-                  }`}
-                  style={
-                    count > 0
-                      ? {
-                          backgroundColor: hexWithAlpha(item.color, 0.18),
-                          boxShadow: `0 0 0 3px ${hexWithAlpha(item.color, 0.65)}`,
-                        }
-                      : {}
-                  }
-                >
-                  {hasShortcut && (
-                    <strong
-                      className="absolute top-2 right-2 md:right-2.5 min-w-[28px] h-[28px] px-2 rounded-full border border-black/15 text-base font-black leading-[28px] text-center z-10 shadow-[0_1px_4px_rgba(0,0,0,0.16)]"
-                      style={badgeStyle}
-                      aria-label={`${item.name} 단축키 ${shortcutNumber}번`}
-                    >
-                      {shortcutNumber}
-                    </strong>
-                  )}
-                  <div className="w-full text-left mb-3">
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <span
-                        className="w-2.5 h-2.5 md:w-3 md:h-3 rounded-full shrink-0 border-2 border-black/10"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <h2 className="m-0 text-sm md:text-base font-bold leading-snug">
-                        {item.name}
-                      </h2>
-                    </div>
-                    <p className="m-0 text-xl md:text-2xl font-extrabold text-ink-secondary">
-                      {formatPrice(item.price)}원
-                    </p>
-                    <p className="m-0 h-4 text-[11px] font-normal text-ink-muted">
-                      {item.stock !== null ? `${item.stock}개` : ' '}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        decrease(item.id)
-                      }}
-                      aria-label={`${item.name} 수량 감소`}
-                    >
-                      −
-                    </button>
-                    <motion.strong
-                      key={count}
-                      initial={{ scale: 1.25 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 320,
-                        damping: 16,
-                      }}
-                      className={`flex-1 text-base md:text-lg font-bold text-center ${count > 0 ? 'text-primary-700' : 'text-ink-secondary'}`}
-                    >
-                      {count}개
-                    </motion.strong>
-                    <button
-                      className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        increase(item.id)
-                      }}
-                      aria-label={`${item.name} 수량 증가`}
-                    >
-                      +
-                    </button>
-                  </div>
-                </motion.article>
-              )
-            })}
+            {menuItems.map((item, index) => (
+              <MenuCard
+                key={item.id}
+                item={item}
+                count={counts[item.id] ?? 0}
+                shortcutNumber={index + 1}
+                onIncrease={increase}
+                onDecrease={decrease}
+              />
+            ))}
           </section>
 
           {/* 주문 상세 */}
