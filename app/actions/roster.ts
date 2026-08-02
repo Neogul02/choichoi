@@ -483,7 +483,7 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     const [staffRes, assignRes, reqRes] = await Promise.all([
       unit.popupId === null ? staffQuery.is('popup_id', null) : staffQuery.eq('popup_id', unit.popupId),
       applyUnitFilter(
-        supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id'),
+        supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id, start_time, end_time'),
         unit,
       )
         .gte('work_date', weekFrom)
@@ -524,8 +524,9 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
       weeklyCount.set(`${a.staff_id}|${getWeekStart(a.work_date)}`, (weeklyCount.get(`${a.staff_id}|${getWeekStart(a.work_date)}`) ?? 0) + 1)
       const grpKey = `${a.staff_id}|${dayGroup(a.work_date)}`
       groupLoad.set(grpKey, (groupLoad.get(grpKey) ?? 0) + 1)
+      // 실제 퇴근 시각 — 개별 시간 오버라이드가 있으면 그 값이 진짜 퇴근 시각이다 (findRosterViolations와 동일 규칙)
       const sh = shiftById.get(a.shift_id)
-      if (sh) staffEndByDate.set(`${a.work_date}|${a.staff_id}`, sh.end_time)
+      if (sh) staffEndByDate.set(`${a.work_date}|${a.staff_id}`, a.end_time ?? sh.end_time)
     }
 
     const dates: string[] = []
