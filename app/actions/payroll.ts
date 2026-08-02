@@ -1,12 +1,10 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { getAuthUser } from './_base'
-
 
 export interface PayrollRow {
   staffId: number
@@ -149,6 +147,9 @@ export async function fetchMonthlyPayroll(
   month: number, // 0-indexed
 ): Promise<ApiResponse<PayrollRow[]>> {
   try {
+    const user = await getAuthUser()
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return { success: false, error: '권한이 없습니다.' }
+
     const pad = (n: number) => String(n).padStart(2, '0')
     const from = `${year}-${pad(month + 1)}-01`
     const lastDay = new Date(year, month + 1, 0).getDate()
