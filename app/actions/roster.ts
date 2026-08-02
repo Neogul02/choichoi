@@ -1,23 +1,15 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { createClient } from '@supabase/supabase-js'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
-import { checkStaffAvailability, getWeekStart, toMinutes, MIN_REST_MINUTES } from '@/lib/staffing'
+import { getWeekStart } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
-import { parseDate, toDateStr, addDays, prevDate, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
+import { parseDate, toDateStr, addDays, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { getAuthUser, wrap } from './_base'
-
-// 시프트 이름 고정 우선순위: 오전 → 오후 → 기타
-const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
-
-
-const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time, break_minutes, created_at, staff_profiles (id, name, phone, status)'
-
-// staff_profiles 중첩 조인 select의 반환 타입이 제네릭 추론과 안 맞아 단언이 필요 — 한 곳에만 모아둔다
-const castAssignment = (row: unknown): RosterAssignment => row as RosterAssignment
-const castAssignments = (rows: unknown[] | null): RosterAssignment[] => (rows ?? []) as RosterAssignment[]
+import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments } from '@/lib/roster/query-helpers'
+import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
+import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'
 
 // 스케줄 단위(unit) = 주방 전체(popupId null) 또는 캐셔의 특정 팝업
 export interface RosterUnit {
@@ -25,18 +17,80 @@ export interface RosterUnit {
   popupId: number | null
 }
 
-// supabase 쿼리 빌더 제네릭을 그대로 제약하면 타입 추론이 폭발(TS2589)해서 내부만 느슨하게 처리
-interface UnitFilterable { eq(column: string, value: unknown): unknown; is(column: string, value: null): unknown }
-function applyUnitFilter<T>(query: T, unit: RosterUnit): T {
-  const q = (query as unknown as UnitFilterable).eq('staff_role', unit.staffRole) as UnitFilterable
-  const filtered = unit.popupId === null ? q.is('popup_id', null) : q.eq('popup_id', unit.popupId)
-  return filtered as T
+export interface RosterShiftInput {
+  name: string
+  start_time: string
+  end_time: string
+  weekday_required: number
+  weekend_required: number
+  active_from?: string | null
+  active_to?: string | null
+  break_minutes: number
 }
 
-const DEFAULT_SHIFTS = [
-  { name: '오전', start_time: '06:00', end_time: '15:00', weekday_required: 2, weekend_required: 2, sort_order: 0 },
-  { name: '오후', start_time: '15:00', end_time: '22:00', weekday_required: 2, weekend_required: 2, sort_order: 1 },
-]
+export interface RosterMonthData {
+  shifts: RosterShift[]
+  assignments: RosterAssignment[]
+  requirements: RosterShiftRequirement[]
+}
+
+// 되돌리기용 스냅샷 — 삭제 행 재삽입과 수정 행 원복에 필요한 최소 필드
+export interface RosterAssignmentSnapshot {
+  work_date: string
+  shift_id: number
+  staff_id: number
+  staff_role: StaffRole
+  popup_id: number | null
+  start_time: string | null
+  end_time: string | null
+}
+
+export interface RosterUndoPayload {
+  deleted: RosterAssignmentSnapshot[]
+  updated: { id: number; shift_id?: number; staff_id?: number; start_time?: string | null; end_time?: string | null }[]
+}
+
+export interface AutoFillLogEntry {
+  date: string
+  shiftName: string
+  names: string[]
+}
+
+export interface AutoFillResult {
+  added: number
+  holes: { date: string; shiftName: string; missing: number }[]
+  log: AutoFillLogEntry[]
+}
+
+export interface MyShift {
+  work_date: string
+  shift_name: string
+  start_time: string
+  end_time: string
+  hours: number
+  breakMinutes: number
+  netHours: number
+}
+
+export interface MyRosterData {
+  shifts: MyShift[] // 이번 달 1일 ~ 다음 달 말일
+}
+
+export interface DailyDigestShift {
+  shiftName: string
+  startTime: string
+  endTime: string
+  names: string[]
+}
+
+export interface WeeklyRosterEntry {
+  work_date: string
+  shift_name: string
+  name: string
+  phone: string | null
+  start_time: string
+  end_time: string
+}
 
 /** 단위의 파트 목록 — 조회는 순수 읽기다. 없으면 빈 배열을 반환하며, 기본 파트 생성은 팝업 생성 시점(createDefaultCashierShifts)에서만 이뤄진다 */
 export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<RosterShift[]>> {
@@ -75,17 +129,6 @@ export async function fetchAllRosterShifts(): Promise<ApiResponse<RosterShift[]>
     if (error) throw new Error(error.message)
     return (data ?? []) as RosterShift[]
   })
-}
-
-export interface RosterShiftInput {
-  name: string
-  start_time: string
-  end_time: string
-  weekday_required: number
-  weekend_required: number
-  active_from?: string | null
-  active_to?: string | null
-  break_minutes: number
 }
 
 export async function createRosterShift(unit: RosterUnit, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
@@ -133,12 +176,6 @@ export async function deleteRosterShift(id: number): Promise<ApiResponse> {
     const { error } = await supabaseAdmin.from('roster_shifts').delete().eq('id', id)
     if (error) throw new Error(error.message)
   })
-}
-
-export interface RosterMonthData {
-  shifts: RosterShift[]
-  assignments: RosterAssignment[]
-  requirements: RosterShiftRequirement[]
 }
 
 /** fromDate/toDate: YYYY-MM-DD (양끝 포함). 파트 목록 + 배정 + 날짜별 예외를 한 번에 */
@@ -241,24 +278,6 @@ export async function updateRosterAssignmentBreak(
     return castAssignment(data)
   })
 }
-
-// 되돌리기용 스냅샷 — 삭제 행 재삽입과 수정 행 원복에 필요한 최소 필드
-export interface RosterAssignmentSnapshot {
-  work_date: string
-  shift_id: number
-  staff_id: number
-  staff_role: StaffRole
-  popup_id: number | null
-  start_time: string | null
-  end_time: string | null
-}
-
-export interface RosterUndoPayload {
-  deleted: RosterAssignmentSnapshot[]
-  updated: { id: number; shift_id?: number; staff_id?: number; start_time?: string | null; end_time?: string | null }[]
-}
-
-const SNAPSHOT_COLUMNS = 'work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time'
 
 /** 파괴적 작업(초기화·일괄 해제·이동·교환) 되돌리기 — 삭제 행 재삽입 + 수정 행 원복 */
 export async function undoRosterChange(payload: RosterUndoPayload): Promise<ApiResponse<{ restored: number }>> {
@@ -443,167 +462,6 @@ export async function clearShiftRequirement(workDate: string, shiftId: number): 
   })
 }
 
-export interface AutoFillLogEntry {
-  date: string
-  shiftName: string
-  names: string[]
-}
-
-export interface AutoFillResult {
-  added: number
-  holes: { date: string; shiftName: string; missing: number }[]
-  log: AutoFillLogEntry[]
-}
-
-type InsertRow = { work_date: string; shift_id: number; staff_id: number; staff_role: StaffRole; popup_id: number | null }
-
-interface GreedyCtx {
-  dates: string[]
-  shifts: RosterShift[]
-  shiftById: Map<number, RosterShift>
-  getRequired: (dateStr: string, shift: RosterShift) => number
-  filledCount: Map<string, number>
-  assignedByDate: Map<string, Set<number>>
-  workload: Map<number, number>
-  weeklyCount: Map<string, number>
-  groupLoad: Map<string, number>
-  staffEndByDate: Map<string, string>
-  unit: RosterUnit
-}
-
-// 연속성 점수: 고립된 근무일(앞뒤 모두 비근무) 개수 — 낮을수록 좋음
-function scoreInserts(
-  newInserts: { work_date: string; staff_id: number }[],
-  existing: { work_date: string; staff_id: number }[],
-  fromDate: string,
-  toDate: string,
-): number {
-  const byStaff = new Map<number, Set<string>>()
-  for (const a of existing.filter(a => a.work_date >= fromDate && a.work_date <= toDate)) {
-    if (!byStaff.has(a.staff_id)) byStaff.set(a.staff_id, new Set())
-    byStaff.get(a.staff_id)!.add(a.work_date)
-  }
-  for (const ins of newInserts) {
-    if (!byStaff.has(ins.staff_id)) byStaff.set(ins.staff_id, new Set())
-    byStaff.get(ins.staff_id)!.add(ins.work_date)
-  }
-  let score = 0
-  for (const [, dateSet] of byStaff) {
-    const sorted = [...dateSet].sort()
-    for (let i = 0; i < sorted.length; i++) {
-      const prev = i > 0 ? sorted[i - 1] : null
-      const next = i < sorted.length - 1 ? sorted[i + 1] : null
-      const prevGap = prev ? Math.round((parseDate(sorted[i]).getTime() - parseDate(prev).getTime()) / 86400000) : 99
-      const nextGap = next ? Math.round((parseDate(next).getTime() - parseDate(sorted[i]).getTime()) / 86400000) : 99
-      if (prevGap > 1 && nextGap > 1) score++
-    }
-  }
-  return score
-}
-
-// 결정적 셔플 (LCG 시드)
-function shuffleStaff(arr: StaffProfile[], seed: number): StaffProfile[] {
-  const result = [...arr]
-  let s = (seed + 1) * 1664525 + 1013904223
-  for (let i = result.length - 1; i > 0; i--) {
-    s = (s * 1664525 + 1013904223) & 0x7fffffff
-    const j = Math.abs(s) % (i + 1)
-    ;[result[i], result[j]] = [result[j], result[i]]
-  }
-  return result
-}
-
-function runGreedy(staffList: StaffProfile[], ctx: GreedyCtx): { inserts: InsertRow[]; holes: AutoFillResult['holes']; log: AutoFillLogEntry[] } {
-  const { dates, shifts, shiftById, getRequired, unit } = ctx
-  // 후보별 독립 실행을 위해 가변 상태 복사
-  const fc = new Map(ctx.filledCount)
-  const abd = new Map([...ctx.assignedByDate].map(([k, v]) => [k, new Set(v)]))
-  const wl = new Map(ctx.workload)
-  const wc = new Map(ctx.weeklyCount)
-  const gl = new Map(ctx.groupLoad)
-  const sed = new Map(ctx.staffEndByDate)
-
-  const inserts: InsertRow[] = []
-  const holes: AutoFillResult['holes'] = []
-  const log: AutoFillLogEntry[] = []
-
-  for (const dateStr of dates) {
-    const dayAssigned = abd.get(dateStr) ?? new Set<number>()
-    const weekStart = getWeekStart(dateStr)
-    const prevAssigned = abd.get(prevDate(dateStr))
-    const day = dayOfWeek(dateStr)
-    const grp = dayGroup(dateStr)
-
-    const isAvailable = (s: StaffProfile, shiftId: number) => {
-      if (dayAssigned.has(s.id)) return false
-      if (s.max_days_per_week != null && (wc.get(`${s.id}|${weekStart}`) ?? 0) >= s.max_days_per_week) return false
-      if (s.available_ranges.length > 0 && !s.available_ranges.some(r => r.from <= dateStr && dateStr <= r.to)) return false
-      if (s.preferred_shift_ids.length > 0 && !s.preferred_shift_ids.includes(shiftId)) return false
-      const prevEnd = sed.get(`${prevDate(dateStr)}|${s.id}`)
-      const todayShift = shiftById.get(shiftId)
-      if (prevEnd && todayShift && toMinutes(todayShift.start_time) + 24 * 60 - toMinutes(prevEnd) < MIN_REST_MINUTES) return false
-      return true
-    }
-
-    // 가능 인원이 적은 파트 우선
-    const pendingShifts = shifts
-      .map(shift => {
-        if (shift.active_from && dateStr < shift.active_from) return null
-        if (shift.active_to && dateStr > shift.active_to) return null
-        const required = getRequired(dateStr, shift)
-        const filled = fc.get(`${dateStr}|${shift.id}`) ?? 0
-        if (filled >= required) return null
-        const eligibleCount = staffList.filter(s => isAvailable(s, shift.id)).length
-        return { shift, required, eligibleCount }
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null)
-      .sort((a, b) => a.eligibleCount - b.eligibleCount)
-
-    for (const { shift, required } of pendingShifts) {
-      let filled = fc.get(`${dateStr}|${shift.id}`) ?? 0
-
-      const eligible = staffList
-        .filter(s => isAvailable(s, shift.id))
-        .sort((a, b) => {
-          // 그룹 부하 ±1 버킷 안에서 스트릭 우선 → 연속 블록 형성
-          const aGrpBucket = Math.floor((gl.get(`${a.id}|${grp}`) ?? 0) / 2)
-          const bGrpBucket = Math.floor((gl.get(`${b.id}|${grp}`) ?? 0) / 2)
-          const aStreak = prevAssigned?.has(a.id) ? 0 : 1
-          const bStreak = prevAssigned?.has(b.id) ? 0 : 1
-          const aDayPref = a.preferred_days.length === 0 || a.preferred_days.includes(day) ? 0 : 1
-          const bDayPref = b.preferred_days.length === 0 || b.preferred_days.includes(day) ? 0 : 1
-          const aGroupLoad = gl.get(`${a.id}|${grp}`) ?? 0
-          const bGroupLoad = gl.get(`${b.id}|${grp}`) ?? 0
-          const aLoad = wl.get(a.id) ?? 0
-          const bLoad = wl.get(b.id) ?? 0
-          const aShiftPref = a.preferred_shift_ids.length === 0 || a.preferred_shift_ids.includes(shift.id) ? 0 : 1
-          const bShiftPref = b.preferred_shift_ids.length === 0 || b.preferred_shift_ids.includes(shift.id) ? 0 : 1
-          return aGrpBucket - bGrpBucket || aStreak - bStreak || aDayPref - bDayPref || aGroupLoad - bGroupLoad || aLoad - bLoad || aShiftPref - bShiftPref || a.id - b.id
-        })
-
-      const names: string[] = []
-      for (const s of eligible) {
-        if (filled >= required) break
-        inserts.push({ work_date: dateStr, shift_id: shift.id, staff_id: s.id, staff_role: unit.staffRole, popup_id: unit.popupId })
-        names.push(s.name)
-        filled++
-        dayAssigned.add(s.id)
-        wl.set(s.id, (wl.get(s.id) ?? 0) + 1)
-        wc.set(`${s.id}|${weekStart}`, (wc.get(`${s.id}|${weekStart}`) ?? 0) + 1)
-        const gk = `${s.id}|${grp}`
-        gl.set(gk, (gl.get(gk) ?? 0) + 1)
-        sed.set(`${dateStr}|${s.id}`, shift.end_time)
-      }
-      if (names.length > 0) log.push({ date: dateStr, shiftName: shift.name, names })
-      if (filled < required) holes.push({ date: dateStr, shiftName: shift.name, missing: required - filled })
-    }
-
-    abd.set(dateStr, dayAssigned)
-  }
-
-  return { inserts, holes, log }
-}
-
 /**
  * 빈 자리 자동 배정 (fromDate~toDate, 양끝 포함). 단위(주방/팝업)별로 독립 동작.
  * - 해당 단위의 확정(confirmed) 직원만 대상
@@ -710,24 +568,6 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
   })
 }
 
-export interface MyShift {
-  work_date: string
-  shift_name: string
-  start_time: string
-  end_time: string
-  hours: number
-  breakMinutes: number
-  netHours: number
-}
-
-export interface MyRosterData {
-  shifts: MyShift[] // 이번 달 1일 ~ 다음 달 말일
-}
-
-/**
- * 로그인한 근무자 본인의 확정 근무 일정.
- * staff_profiles.user_profile_id로 연결된 프로필이 없으면 data: null (섹션 숨김용).
- */
 export async function bulkAddRosterAssignments(
   unit: RosterUnit,
   shiftId: number,
@@ -810,13 +650,6 @@ export async function clearRosterRange(
   })
 }
 
-export interface DailyDigestShift {
-  shiftName: string
-  startTime: string
-  endTime: string
-  names: string[]
-}
-
 // 내일(KST) 배정 현황 — 디스코드 일일 근무 안내용
 export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; shifts: DailyDigestShift[] }> {
   const tomorrow = addDays(kstToday(), 1)
@@ -857,15 +690,6 @@ export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; 
     .map(([shiftName, g]) => ({ shiftName, startTime: g.startTime, endTime: g.endTime, names: g.names }))
 
   return { dateLabel, shifts }
-}
-
-export interface WeeklyRosterEntry {
-  work_date: string
-  shift_name: string
-  name: string
-  phone: string | null
-  start_time: string
-  end_time: string
 }
 
 export async function fetchWeeklyRosterForPrint(from: string, to: string, staffRole?: StaffRole): Promise<ApiResponse<WeeklyRosterEntry[]>> {
@@ -964,6 +788,10 @@ async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
   return { shifts }
 }
 
+/**
+ * 로그인한 근무자 본인의 확정 근무 일정.
+ * staff_profiles.user_profile_id로 연결된 프로필이 없으면 data: null (섹션 숨김용).
+ */
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   return wrap(async () => {
     const user = await getAuthUser()
