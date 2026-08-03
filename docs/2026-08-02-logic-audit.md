@@ -148,5 +148,7 @@ Next.js는 어떤 라우트가 정적 렌더링 가능한지 판별할 때, `coo
 
 **조치**: `_base.ts`에 `isNextInternalControlFlowError(e)`를 신설 — `e.digest`가 `DYNAMIC_SERVER_USAGE`·`NEXT_REDIRECT`(prefix)·`NEXT_NOT_FOUND`·`NEXT_HTTP_ERROR_FALLBACK`(prefix) 중 하나면 캐치하지 않고 그대로 재던짐(Next.js 렌더러가 처리하도록). `wrap()`과 `staff.ts`/`workers.ts`/`payroll.ts`의 모든 catch 블록(12+7+3곳)에 동일 가드 적용. **일반 애플리케이션 오류의 처리·응답 형식은 전혀 바뀌지 않음** — 오직 Next.js 자체 제어 신호만 통과시킨다. 부수적으로 `workers.ts`의 미사용 `createClient` import(4번째 동일 패턴)도 제거.
 
+**추가 확인**: `app/actions/*.ts` 전체를 `createClient` 미사용 여부·`catch(err)` 블록의 가드 유무 기준으로 재스캔한 결과 `roster-view.ts`가 동일한 두 문제를 갖고 있었음 — `/roster` 페이지도 `/inventory`·`/hr`와 동일하게 서버 컴포넌트에서 `fetchRosterOverview()`를 직접 호출하는 구조라 같은 근본 원인이 적용됨(다만 이쪽은 Discord 보고 없이 반환값으로 삼키는 형태). `extractErrorMessage` 기반 catch 3곳에 동일 가드 적용, 미사용 `createClient` import(5번째 동일 패턴) 제거. 스캔 결과 이 두 패턴은 이제 프로젝트 전체에서 완전히 제거됨(다른 `'use server'` 파일 없음 확인).
+
 ### 보류 (비즈니스 판단 필요 — 미수정)
 - 없음.
