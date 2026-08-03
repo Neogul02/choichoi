@@ -13,6 +13,7 @@
 | 4 | 인증·권한 전수 | 서버 액션 **68개**에서 role 검증 누락 — 페이지 미들웨어로는 보호 안 됨 | 🔴 보안(대형) |
 | 5 | 재고 입고(`addRestock`) | select→JS계산→update 2단계 방식이라 동시 입고 시 delta 유실 가능 — 원자적 RPC로 교체 | 🟡 버그(동시성) |
 | 6 | 계약서·셀프서비스·디스플레이 스팟체크 | 로직 결함 없음, `contracts.ts` 죽은 import만 정리 | ⚪ 정리 |
+| 7 | 서버 액션 오류 처리(`wrap`·staff/workers/payroll 원시 try/catch) | Next.js 내부 제어 흐름(`DYNAMIC_SERVER_USAGE`·`NEXT_REDIRECT`·`NEXT_NOT_FOUND`)을 진짜 오류로 오인해 Discord 오탐 발송 — digest 기반으로 재던지도록 수정 | 🔴 버그(회귀) |
 
 전부 기존 정상 동작(인증된 사용자의 반환값·계산 결과)은 바꾸지 않고, 누락된 방어·정합성 보정만 추가했다. 검증 기준·상세 근거는 각 절 참조.
 
@@ -134,3 +135,18 @@ managerPrefixes   = ['/inventory', '/roster']                     → role === '
 ### 보류 (비즈니스 판단 필요 — 미수정)
 - 없음.
 - `getStaffById`(`staff.ts`)는 현재 앱 어디서도 호출되지 않는 죽은 export. 그래도 서버 액션으로 계속 노출돼 있어 방어적으로 manager+admin 체크는 넣었음(공짜 방어). 삭제 여부는 이번 범위 밖.
+
+## 7. 서버 액션 오류 처리 — Next.js 내부 제어 흐름 오탐 (`app/actions/_base.ts`, `staff.ts`, `workers.ts`, `payroll.ts`)
+
+### 배경
+이번 패스에서 `/inventory`·`/hr` 관련 서버 액션에 `requireAdmin()`/`requireManagerOrAdmin()`(내부적으로 `cookies()` 사용)을 추가한 뒤, 실제 프로덕션 Discord 채널에 "서버 액션 실패" 알림이 다수 발생했다. 메시지: `Dynamic server usage: Route /inventory(또는 /hr) couldn't be rendered statically because it used cookies`.
+
+### 🔴 발견 및 수정 — 오탐(오류 아님)을 진짜 오류로 보고
+Next.js는 어떤 라우트가 정적 렌더링 가능한지 판별할 때, `cookies()` 등 동적 API가 호출되면 내부적으로 `DynamicServerError`(digest: `DYNAMIC_SERVER_USAGE`)를 던져 스스로 감지한다 — 이건 버그가 아니라 Next.js의 **정상적인 내부 제어 흐름**이다. `redirect()`/`notFound()`도 동일한 방식(digest: `NEXT_REDIRECT`/`NEXT_NOT_FOUND`)으로 동작한다.
+
+`/inventory`·`/hr`는 서버 컴포넌트(`page.tsx`)에서 `fetchIngredients()`·`fetchAllRosterShifts()` 등 서버 액션 함수를 빌드/데이터수집 시점에 직접 호출한다(HTTP 왕복 없는 in-process 호출 최적화, 코드 내 주석 "서버 컴포넌트에서 서버 액션 함수를 직접 호출하면..." 참조). 오늘 이 액션들에 `requireAdmin()`을 추가하기 전에는 `cookies()`를 전혀 건드리지 않아 이 신호가 발생하지 않았다. 추가 후, 빌드의 "정적 렌더링 가능한가" 판별 시도 중 `cookies()`에 도달해 `DynamicServerError`가 발생했고 — 이는 정상이며 실제로 빌드 결과 `/inventory`·`/hr` 모두 `ƒ`(Dynamic)로 올바르게 판별됐다 — 문제는 `app/actions/_base.ts`의 `wrap()`이 **모든 예외를 무조건 캐치**해 이 정상 신호까지 "서버 액션 실패"로 오인, Discord로 오탐 보고를 보낸 것이다. `staff.ts`·`workers.ts`·`payroll.ts`의 원시 `try/catch(err) { return { success:false, error:String(err) } }` 패턴도 동일한 결함을 갖고 있었다(다만 Discord 보고는 하지 않고 반환값으로 삼켜 정적 판별 신호 자체를 막는 형태) — `redirect()`/`notFound()`가 이 액션들 안에서 나중에 쓰인다면 그마저 정상 동작하지 않았을 잠재 결함.
+
+**조치**: `_base.ts`에 `isNextInternalControlFlowError(e)`를 신설 — `e.digest`가 `DYNAMIC_SERVER_USAGE`·`NEXT_REDIRECT`(prefix)·`NEXT_NOT_FOUND`·`NEXT_HTTP_ERROR_FALLBACK`(prefix) 중 하나면 캐치하지 않고 그대로 재던짐(Next.js 렌더러가 처리하도록). `wrap()`과 `staff.ts`/`workers.ts`/`payroll.ts`의 모든 catch 블록(12+7+3곳)에 동일 가드 적용. **일반 애플리케이션 오류의 처리·응답 형식은 전혀 바뀌지 않음** — 오직 Next.js 자체 제어 신호만 통과시킨다. 부수적으로 `workers.ts`의 미사용 `createClient` import(4번째 동일 패턴)도 제거.
+
+### 보류 (비즈니스 판단 필요 — 미수정)
+- 없음.

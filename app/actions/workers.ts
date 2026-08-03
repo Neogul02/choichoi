@@ -5,8 +5,7 @@ import { after } from 'next/server'
 // 파일명은 레거시 workers 테이블(2026-07-20 삭제, 코드 참조 0건 확인 후 제거)에서 유래.
 // 실제로는 user_profiles 기반 계정 관리 액션 — staff_profiles(근무자 프로필)와는 별개.
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { createClient } from '@supabase/supabase-js'
-import { getAuthUser } from './_base'
+import { getAuthUser, isNextInternalControlFlowError } from './_base'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
@@ -37,6 +36,7 @@ export async function getMyProfile(): Promise<ApiResponse<UserProfile>> {
     if (!data) return { success: false, error: '프로필 없음' }
     return { success: true, data: data as UserProfile }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -182,6 +182,7 @@ export async function getMyOrderStats(): Promise<ApiResponse<MyOrderStats>> {
       },
     }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -225,6 +226,7 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<ApiRes
 
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -245,6 +247,7 @@ export async function changeMyPassword(currentPassword: string, newPassword: str
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -269,6 +272,7 @@ export async function resolveLoginEmail(identifier: string): Promise<ApiResponse
 
     return { success: true, data: { email: userData.user.email } }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -355,6 +359,7 @@ export async function createWorkerAccount(
 
     return { success: true, data: { userId } }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -379,6 +384,7 @@ export async function setUserRole(userId: string, role: UserAppRole): Promise<Ap
 
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -409,6 +415,7 @@ export async function deleteMyAccount(): Promise<ApiResponse> {
 
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -430,6 +437,7 @@ export async function adminDeleteUserAccount(userId: string): Promise<ApiRespons
 
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -443,6 +451,7 @@ export async function fetchAllUserProfiles(): Promise<ApiResponse<UserProfile[]>
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as UserProfile[] }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }

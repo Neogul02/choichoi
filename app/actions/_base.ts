@@ -10,10 +10,24 @@ export function extractErrorMessage(error: unknown): string {
   return String(error);
 }
 
+// redirect()/notFound()/동적 API 감지(cookies() 등)는 throw로 구현된 Next.js 내부 제어 흐름이다 —
+// digest로 식별해 애플리케이션 오류로 오인하지 않고 그대로 다시 던져 Next.js 렌더러가 처리하게 한다.
+export function isNextInternalControlFlowError(e: unknown): boolean {
+  const digest = (e as { digest?: unknown } | null)?.digest;
+  if (typeof digest !== 'string') return false;
+  return (
+    digest === 'DYNAMIC_SERVER_USAGE' ||
+    digest.startsWith('NEXT_REDIRECT') ||
+    digest === 'NEXT_NOT_FOUND' ||
+    digest.startsWith('NEXT_HTTP_ERROR_FALLBACK')
+  );
+}
+
 export async function wrap<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
   try {
     return { success: true, data: await fn() };
   } catch (e) {
+    if (isNextInternalControlFlowError(e)) throw e;
     const message = extractErrorMessage(e);
     // 어느 액션에서 났는지 스택 상단으로 식별 — 응답 후 전송(after)이라 응답을 막지 않고, 서버리스에서도 완료 보장
     const stack = e instanceof Error && e.stack ? e.stack.split('\n').slice(1, 4).join('\n') : null;
