@@ -4,7 +4,6 @@ import { after } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { wrap, requireAdmin } from './_base'
-import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import React from 'react'
 import type { ApiResponse } from '@/types/api'

@@ -3,6 +3,19 @@
 > ralph 세션. 목표: 로직을 해치지 않는 선에서 도메인별 코드 품질 평가 + 안전한 개선 발굴·수정.
 > "안전한 개선" = 버그·보안 격차·중복·미검증 경계 등 명백한 결함. 의도된 비즈니스 로직 판단이 필요한 사안은 수정하지 않고 여기에만 기록.
 
+## 요약
+
+| # | 영역 | 발견 | 심각도 |
+|---|------|------|--------|
+| 1 | 급여·근무시간 | `fetchMonthlyPayroll` 인증 체크 누락 — 계좌번호·급여 무인증 노출 가능 | 🔴 보안 |
+| 2 | 로스터 자동배정 | 휴식시간 판정이 개별 연장근무 무시 — 9시간 휴식 규칙 사각지대 | 🔴 버그 |
+| 3 | POS 주문 | 주문 생성 부분 실패 시 유령 주문이 매출 집계에 잔존 | 🔴 버그 |
+| 4 | 인증·권한 전수 | 서버 액션 **68개**에서 role 검증 누락 — 페이지 미들웨어로는 보호 안 됨 | 🔴 보안(대형) |
+| 5 | 재고 입고(`addRestock`) | select→JS계산→update 2단계 방식이라 동시 입고 시 delta 유실 가능 — 원자적 RPC로 교체 | 🟡 버그(동시성) |
+| 6 | 계약서·셀프서비스·디스플레이 스팟체크 | 로직 결함 없음, `contracts.ts` 죽은 import만 정리 | ⚪ 정리 |
+
+전부 기존 정상 동작(인증된 사용자의 반환값·계산 결과)은 바꾸지 않고, 누락된 방어·정합성 보정만 추가했다. 검증 기준·상세 근거는 각 절 참조.
+
 ## 1. 급여·근무시간 계산 (`lib/workhours.ts`, `app/actions/payroll.ts`)
 
 ### 평가
@@ -95,4 +108,29 @@ managerPrefixes   = ['/inventory', '/roster']                     → role === '
 
 ### 보류 (비즈니스 판단 필요 — 미수정)
 - `fetchPopupEvents`(`schedule.ts`, 읽기 전용)는 `/hr`·`/settings`(admin)와 `roster-view.ts`(manager) 양쪽에서 쓰여 요구 role이 갈린다. 저민감(팝업 이름·날짜) 데이터라 관찰만 하고 손대지 않음 — 굳이 조인다면 manager+admin이 맞겠지만, 범위 확장 판단은 보류.
+
+## 5. 재고 관리 (`app/actions/inventory.ts`)
+
+### 평가
+- `physicalInventory`(실사 입력)는 절대값으로 덮어쓰는 단일 `UPDATE` 문이라 원자적 — 동시 실사는 "나중 값이 이긴다"는 의도된 semantics 그대로 안전.
+- `deduct_for_order` RPC(`20260521063801_create_deduct_for_order_rpc.sql`)는 이미 `for update of ig`로 행 잠금까지 거는 원자적 차감을 쓰고 있어, 주문 시 재고 차감 경로는 처음부터 정합성이 보장돼 있었음.
+- `addIngredient`·`deleteIngredient`·`updateIngredientMeta`는 단일 쿼리라 별도 위험 없음.
+
+### 🟡 발견 및 수정 — `addRestock`의 비원자적 델타 갱신 (동시성 버그)
+`addRestock`은 `restock_events` insert 후 **별도 SELECT로 현재 수량을 읽고, JS에서 델타를 더해 다시 UPDATE**하는 3단계 방식이었다. 같은 재료를 두 스태프가 거의 동시에 입고 처리하면(예: 바코드 스캔 연속 입력), 두 요청이 같은 SELECT 결과를 읽고 각자 계산한 값으로 순차 UPDATE — 나중 write가 앞선 write를 덮어써 한쪽 delta가 조용히 유실된다. 위 `deduct_for_order`(주문 차감)는 처음부터 DB 레벨 원자적 처리로 이 문제가 없었는데, `addRestock`(입고)만 이 패턴에서 벗어나 있던 비일관 지점.
+
+**조치**: `apply_restock(p_ingredient_id, p_sealed_delta, p_opened_delta, p_note, p_created_by)` RPC를 신설(`supabase/migrations/20260803022738_atomic_restock_rpc.sql`) — insert + 델타 반영 update를 단일 함수 트랜잭션으로 묶어 원자화. 기존 `decrement_menu_stock`과 동일하게 `security definer` + `public/anon/authenticated`로부터 `revoke execute`해 서버(service role)만 호출 가능하도록 제한. `addRestock` 본문을 `supabaseAdmin.rpc('apply_restock', ...)` 호출 한 줄로 교체. **입력·출력 semantics(델타 반영 후 0 미만 클램프)는 동일** — 오직 두 동시 요청 사이의 레이스 윈도우만 제거됐다.
+
+### 보류 (비즈니스 판단 필요 — 미수정)
+- 없음.
+
+## 6. 계약서 발급·서명, 스태프 셀프서비스, 고객 디스플레이 (스팟 체크)
+
+### 평가
+- **`contracts.ts`**: `generateContract`/`signContract` 모두 PDF 렌더링 → 업로드 → SHA-256 해시 저장 흐름이 일관됨. `signContract`는 `staff_profiles.user_profile_id`로 본인 소유를 확인한 뒤에만 서명을 허용하고, `worker_signed_at` 존재 시 재서명을 막는 것도 정상 동작. `getWorkerContracts`(admin 전용)는 이미 `requireAdmin()`으로 게이트됨(4절 US-004에서 처리) — PDF 서명 URL이 무인증으로 노출되던 원 문제는 해결됨. 미사용 `createClient` import는 `payroll.ts`와 동일한 패턴의 죽은 코드라 제거.
+- **`MySchedulePageClient.tsx`**: `ownStaffId`(고정)와 `viewingId`(현재 조회 대상)를 분리해 관리자가 타인 스케줄을 봐도 "내 스케줄" 전환이 꼬이지 않게 설계됨. `skipFirstDetailRef`로 `handlePickStaff`가 직접 상세를 조회한 직후 뒤따르는 `[cursor, viewingId]` effect의 중복 조회를 정확히 건너뜀. 총 근무시간도 분 단위 합산 후 1회 반올림으로 급여 계산과 동일 기준 사용. 안전한 개선 없음.
+- **`/display`(고객 디스플레이)**: Supabase Realtime broadcast(`cart_update`/`cart_reset`/`checkout_complete`) 구독 기반, 서버 뮤테이션 없이 순수 화면 반영 로직 — 결제/재고 등 정합성에 영향 없는 프레젠테이션 레이어. 안전한 개선 없음.
+
+### 보류 (비즈니스 판단 필요 — 미수정)
+- 없음.
 - `getStaffById`(`staff.ts`)는 현재 앱 어디서도 호출되지 않는 죽은 export. 그래도 서버 액션으로 계속 노출돼 있어 방어적으로 manager+admin 체크는 넣었음(공짜 방어). 삭제 여부는 이번 범위 밖.
