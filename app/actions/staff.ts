@@ -1,12 +1,10 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { createClient } from '@supabase/supabase-js'
 import { getAuthUser } from './_base'
 import { STAFF_COLUMNS } from '@/lib/staff-columns'
 import type { ApiResponse } from '@/types/api'
 import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
-
 
 export async function uploadHealthCert(staffId: number, file: FormData): Promise<ApiResponse<{ url: string }>> {
   try {

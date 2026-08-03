@@ -44,35 +44,14 @@ async function addRestock(
   note?: string,
   created_by?: string,
 ): Promise<void> {
-  const { error: evtErr } = await supabaseAdmin.from('restock_events').insert([
-    {
-      ingredient_id,
-      sealed_delta,
-      opened_delta,
-      note: note ?? null,
-      created_by: created_by ?? null,
-    },
-  ])
-  if (evtErr) throw evtErr
-
-  const { data: ing, error: fetchErr } = await supabaseAdmin
-    .from('ingredients')
-    .select('sealed_count, opened_remaining')
-    .eq('id', ingredient_id)
-    .single()
-  if (fetchErr) throw fetchErr
-
-  const { error: upErr } = await supabaseAdmin
-    .from('ingredients')
-    .update({
-      sealed_count: Math.max(0, (ing.sealed_count as number) + sealed_delta),
-      opened_remaining: Math.max(
-        0,
-        (ing.opened_remaining as number) + opened_delta,
-      ),
-    })
-    .eq('id', ingredient_id)
-  if (upErr) throw upErr
+  const { error } = await supabaseAdmin.rpc('apply_restock', {
+    p_ingredient_id: ingredient_id,
+    p_sealed_delta: sealed_delta,
+    p_opened_delta: opened_delta,
+    p_note: note ?? null,
+    p_created_by: created_by ?? null,
+  })
+  if (error) throw error
 }
 
 async function physicalInventory(id: string, sealed_count: number, opened_remaining: number): Promise<Ingredient> {
