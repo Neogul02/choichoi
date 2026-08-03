@@ -1,7 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { getAuthUser } from './_base'
+import { getAuthUser, isNextInternalControlFlowError } from './_base'
 import { STAFF_COLUMNS } from '@/lib/staff-columns'
 import type { ApiResponse } from '@/types/api'
 import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
@@ -30,6 +30,7 @@ export async function uploadHealthCert(staffId: number, file: FormData): Promise
     if (dbError) return { success: false, error: dbError.message }
     return { success: true, data: { url: signed.signedUrl } }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -44,6 +45,7 @@ export async function getHealthCertUrl(path: string): Promise<ApiResponse<{ url:
     if (!data?.signedUrl) return { success: false, error: 'URL 생성 실패' }
     return { success: true, data: { url: data.signedUrl } }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -88,6 +90,7 @@ export async function fetchStaffPickerList(): Promise<ApiResponse<StaffPickerIte
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as StaffPickerItem[] }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -103,6 +106,7 @@ export async function fetchStaffProfiles(): Promise<ApiResponse<StaffProfile[]>>
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as StaffProfile[] }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -116,6 +120,7 @@ export async function updateStaffOrder(updates: { id: number; sort_order: number
     ))
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -150,6 +155,7 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as StaffProfile }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -186,6 +192,7 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as StaffProfile }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -203,6 +210,7 @@ export async function updateStaffStatus(id: number, status: StaffStatus): Promis
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as StaffProfile }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -215,6 +223,7 @@ export async function deleteStaffProfile(id: number): Promise<ApiResponse> {
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -231,6 +240,7 @@ export async function getStaffById(staffId: number): Promise<ApiResponse<StaffPr
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as StaffProfile | null }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -247,6 +257,7 @@ export async function getMyStaffProfile(): Promise<ApiResponse<StaffProfile | nu
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as StaffProfile | null }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }

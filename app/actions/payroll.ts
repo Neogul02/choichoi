@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
-import { getAuthUser } from './_base'
+import { getAuthUser, isNextInternalControlFlowError } from './_base'
 
 export interface PayrollRow {
   staffId: number
@@ -59,6 +59,7 @@ export async function fetchStaffAssignmentsInRange(
 
     return { success: true, data: results }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -137,6 +138,7 @@ export async function fetchStaffMonthlyDetail(
 
     return { success: true, data: details }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
@@ -199,6 +201,7 @@ export async function fetchMonthlyPayroll(
     rows.sort((a, b) => b.totalHours - a.totalHours)
     return { success: true, data: rows }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
 }
