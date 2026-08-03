@@ -46,19 +46,6 @@ export async function bulkAssignStaffToPopup(staffIds: number[], popupId: number
   })
 }
 
-/** 배정 해제 — 오배정 정정용. staff_profiles 자체는 건드리지 않는다 */
-export async function unassignStaffFromPopup(staffId: number, popupId: number): Promise<ApiResponse> {
-  return wrap(async () => {
-    await requireAdmin()
-    const { error } = await supabaseAdmin
-      .from('staff_popup_assignments')
-      .delete()
-      .eq('staff_id', staffId)
-      .eq('popup_id', popupId)
-    if (error) throw new Error(error.message)
-  })
-}
-
 /**
  * 팝업 기간 기반 자동 분류 — 이 팝업에 배정된 캐셔(roster_assignments.popup_id로 직접 확정)와,
  * 팝업 기간 중 근무한 주방 직원(주방은 특정 팝업에 속하지 않으므로 popup_id가 항상 null이라

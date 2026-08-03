@@ -228,23 +228,6 @@ export async function deleteStaffProfile(id: number): Promise<ApiResponse> {
   }
 }
 
-export async function getStaffById(staffId: number): Promise<ApiResponse<StaffProfile | null>> {
-  try {
-    const user = await getAuthUser()
-    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return { success: false, error: '권한이 없습니다.' }
-    const { data, error } = await supabaseAdmin
-      .from('staff_profiles')
-      .select(STAFF_COLUMNS)
-      .eq('id', staffId)
-      .maybeSingle()
-    if (error) return { success: false, error: error.message }
-    return { success: true, data: data as StaffProfile | null }
-  } catch (err) {
-    if (isNextInternalControlFlowError(err)) throw err
-    return { success: false, error: String(err) }
-  }
-}
-
 export async function getMyStaffProfile(): Promise<ApiResponse<StaffProfile | null>> {
   try {
     const user = await getAuthUser()
