@@ -10,6 +10,8 @@ import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/
 
 export async function uploadHealthCert(staffId: number, file: FormData): Promise<ApiResponse<{ url: string }>> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     const f = file.get('file') as File | null
     if (!f) return { success: false, error: '파일이 없습니다.' }
     const ext = f.name.split('.').pop() ?? 'jpg'
@@ -36,6 +38,8 @@ export async function uploadHealthCert(staffId: number, file: FormData): Promise
 
 export async function getHealthCertUrl(path: string): Promise<ApiResponse<{ url: string }>> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     const { data } = await supabaseAdmin.storage
       .from('health-certs')
       .createSignedUrl(path, 60 * 60 * 2) // 2시간
@@ -92,6 +96,8 @@ export async function fetchStaffPickerList(): Promise<ApiResponse<StaffPickerIte
 
 export async function fetchStaffProfiles(): Promise<ApiResponse<StaffProfile[]>> {
   try {
+    const user = await getAuthUser()
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return { success: false, error: '권한이 없습니다.' }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .select(STAFF_COLUMNS)
@@ -105,6 +111,8 @@ export async function fetchStaffProfiles(): Promise<ApiResponse<StaffProfile[]>>
 
 export async function updateStaffOrder(updates: { id: number; sort_order: number }[]): Promise<ApiResponse> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     await Promise.all(updates.map(({ id, sort_order }) =>
       supabaseAdmin.from('staff_profiles').update({ sort_order }).eq('id', id)
     ))
@@ -116,6 +124,8 @@ export async function updateStaffOrder(updates: { id: number; sort_order: number
 
 export async function createStaffProfile(input: StaffProfileInput): Promise<ApiResponse<StaffProfile>> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .insert([{
@@ -148,6 +158,8 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
 
 export async function updateStaffProfile(id: number, input: StaffProfileInput): Promise<ApiResponse<StaffProfile>> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .update({
@@ -182,6 +194,8 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
 
 export async function updateStaffStatus(id: number, status: StaffStatus): Promise<ApiResponse<StaffProfile>> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .update({ status, updated_at: new Date().toISOString() })
@@ -197,6 +211,8 @@ export async function updateStaffStatus(id: number, status: StaffStatus): Promis
 
 export async function deleteStaffProfile(id: number): Promise<ApiResponse> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
     const { error } = await supabaseAdmin.from('staff_profiles').delete().eq('id', id)
     if (error) return { success: false, error: error.message }
     return { success: true }
@@ -207,6 +223,8 @@ export async function deleteStaffProfile(id: number): Promise<ApiResponse> {
 
 export async function getStaffById(staffId: number): Promise<ApiResponse<StaffProfile | null>> {
   try {
+    const user = await getAuthUser()
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return { success: false, error: '권한이 없습니다.' }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .select(STAFF_COLUMNS)

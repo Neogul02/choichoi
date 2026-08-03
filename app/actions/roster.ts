@@ -6,7 +6,7 @@ import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfil
 import { getWeekStart } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
-import { getAuthUser, wrap } from './_base'
+import { getAuthUser, wrap, requireAdmin } from './_base'
 import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments } from '@/lib/roster/query-helpers'
 import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
 import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'
@@ -95,6 +95,7 @@ export interface WeeklyRosterEntry {
 /** 단위의 파트 목록 — 조회는 순수 읽기다. 없으면 빈 배열을 반환하며, 기본 파트 생성은 팝업 생성 시점(createDefaultCashierShifts)에서만 이뤄진다 */
 export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<RosterShift[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await applyUnitFilter(
       supabaseAdmin.from('roster_shifts').select('*'),
       unit,
@@ -109,6 +110,7 @@ export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<R
 /** 새 팝업 생성 시 1회 호출 — 오전/오후 기본 파트를 그 팝업의 실제 운영 기간(active_from/to)에 맞춰 생성 */
 export async function createDefaultCashierShifts(popupId: number, startDate: string, endDate: string): Promise<ApiResponse<RosterShift[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('roster_shifts')
       .insert(DEFAULT_SHIFTS.map(s => ({ ...s, staff_role: 'cashier' as const, popup_id: popupId, active_from: startDate, active_to: endDate })))
@@ -121,6 +123,7 @@ export async function createDefaultCashierShifts(popupId: number, startDate: str
 /** 전체 파트 목록 (직원 카드의 선호 파트 이름 표시용) */
 export async function fetchAllRosterShifts(): Promise<ApiResponse<RosterShift[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('roster_shifts')
       .select('*')
@@ -133,6 +136,7 @@ export async function fetchAllRosterShifts(): Promise<ApiResponse<RosterShift[]>
 
 export async function createRosterShift(unit: RosterUnit, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
   return wrap(async () => {
+    await requireAdmin()
     if (!input.name.trim()) throw new Error('파트 이름을 입력하세요.')
     const { count } = await applyUnitFilter(
       supabaseAdmin.from('roster_shifts').select('*', { count: 'exact', head: true }),
@@ -150,6 +154,7 @@ export async function createRosterShift(unit: RosterUnit, input: RosterShiftInpu
 
 export async function updateRosterShift(id: number, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
   return wrap(async () => {
+    await requireAdmin()
     if (!input.name.trim()) throw new Error('파트 이름을 입력하세요.')
     const { data, error } = await supabaseAdmin
       .from('roster_shifts')
@@ -164,6 +169,7 @@ export async function updateRosterShift(id: number, input: RosterShiftInput): Pr
 
 export async function updateRosterShiftOrder(updates: { id: number; sort_order: number }[]): Promise<ApiResponse> {
   return wrap(async () => {
+    await requireAdmin()
     await Promise.all(
       updates.map(u => supabaseAdmin.from('roster_shifts').update({ sort_order: u.sort_order }).eq('id', u.id))
     )
@@ -173,6 +179,7 @@ export async function updateRosterShiftOrder(updates: { id: number; sort_order: 
 /** 파트 삭제 — 이 파트의 배정/날짜별 예외도 함께 삭제된다 */
 export async function deleteRosterShift(id: number): Promise<ApiResponse> {
   return wrap(async () => {
+    await requireAdmin()
     const { error } = await supabaseAdmin.from('roster_shifts').delete().eq('id', id)
     if (error) throw new Error(error.message)
   })
@@ -181,6 +188,7 @@ export async function deleteRosterShift(id: number): Promise<ApiResponse> {
 /** fromDate/toDate: YYYY-MM-DD (양끝 포함). 파트 목록 + 배정 + 날짜별 예외를 한 번에 */
 export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<RosterMonthData>> {
   return wrap(async () => {
+    await requireAdmin()
     // 배정 조회는 파트 목록과 독립이므로 병렬 실행 — 날짜별 요구 인원 예외만 파트 id에 의존
     const [shiftsRes, assignRes] = await Promise.all([
       fetchRosterShifts(unit),
@@ -221,6 +229,7 @@ export async function addRosterAssignment(
   staffId: number,
 ): Promise<ApiResponse<RosterAssignment>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
       .insert([{ work_date: workDate, shift_id: shiftId, staff_id: staffId, staff_role: unit.staffRole, popup_id: unit.popupId }])
@@ -236,6 +245,7 @@ export async function addRosterAssignment(
 
 export async function removeRosterAssignment(id: number): Promise<ApiResponse> {
   return wrap(async () => {
+    await requireAdmin()
     const { error } = await supabaseAdmin.from('roster_assignments').delete().eq('id', id)
     if (error) throw new Error(error.message)
   })
@@ -247,6 +257,7 @@ export async function updateRosterAssignmentTime(
   endTime: string | null,
 ): Promise<ApiResponse<RosterAssignment>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
       .update({ start_time: startTime, end_time: endTime })
@@ -264,6 +275,7 @@ export async function updateRosterAssignmentBreak(
   breakMinutes: number | null,
 ): Promise<ApiResponse<RosterAssignment>> {
   return wrap(async () => {
+    await requireAdmin()
     // 급여에 직결되는 값 — 음수·소수·하루 초과 값이 들어오면 조용히 저장되지 않도록 차단
     if (breakMinutes != null && (!Number.isInteger(breakMinutes) || breakMinutes < 0 || breakMinutes > 24 * 60)) {
       throw new Error('휴게시간은 0~1440 사이의 분 단위 정수여야 합니다.')
@@ -282,6 +294,7 @@ export async function updateRosterAssignmentBreak(
 /** 파괴적 작업(초기화·일괄 해제·이동·교환) 되돌리기 — 삭제 행 재삽입 + 수정 행 원복 */
 export async function undoRosterChange(payload: RosterUndoPayload): Promise<ApiResponse<{ restored: number }>> {
   return wrap(async () => {
+    await requireAdmin()
     let restored = 0
     if (payload.deleted.length > 0) {
       const { data, error } = await supabaseAdmin
@@ -315,6 +328,7 @@ export async function moveStaffAssignments(
   toDate: string,
 ): Promise<ApiResponse<{ moved: number; merged: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
+    await requireAdmin()
     if (fromShiftId === toShiftId) throw new Error('같은 파트로는 이동할 수 없습니다.')
     // 원본 배정과 대상 파트의 기존 배정을 함께 조회 — 같은 날 대상 파트에 이미 있으면 unique 충돌
     const { data, error } = await applyUnitFilter(
@@ -368,6 +382,7 @@ export async function clearStaffAssignments(
   shiftId: number | null,
 ): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
+    await requireAdmin()
     let q = applyUnitFilter(
       supabaseAdmin.from('roster_assignments').delete(),
       unit,
@@ -392,6 +407,7 @@ export async function swapStaffAssignments(
   toDate: string,
 ): Promise<ApiResponse<{ swapped: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
+    await requireAdmin()
     if (staffAId === staffBId) throw new Error('서로 다른 근무자를 선택하세요.')
     const { data, error } = await applyUnitFilter(
       supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id'),
@@ -440,6 +456,7 @@ export async function setShiftRequirement(
   required: number,
 ): Promise<ApiResponse<RosterShiftRequirement>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('roster_shift_requirements')
       .upsert([{ work_date: workDate, shift_id: shiftId, required }], { onConflict: 'work_date,shift_id' })
@@ -453,6 +470,7 @@ export async function setShiftRequirement(
 /** 날짜별 예외를 제거하고 파트 기본값으로 되돌린다 */
 export async function clearShiftRequirement(workDate: string, shiftId: number): Promise<ApiResponse> {
   return wrap(async () => {
+    await requireAdmin()
     const { error } = await supabaseAdmin
       .from('roster_shift_requirements')
       .delete()
@@ -472,6 +490,7 @@ export async function clearShiftRequirement(workDate: string, shiftId: number): 
  */
 export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<AutoFillResult>> {
   return wrap(async () => {
+    await requireAdmin()
     const shiftsRes = await fetchRosterShifts(unit)
     if (!shiftsRes.success || !shiftsRes.data) throw new Error(shiftsRes.error ?? '파트를 불러올 수 없습니다.')
     const shifts = shiftsRes.data
@@ -576,6 +595,7 @@ export async function bulkAddRosterAssignments(
   dates: string[],
 ): Promise<ApiResponse<{ added: number; skipped: number }>> {
   return wrap(async () => {
+    await requireAdmin()
     if (dates.length === 0) return { added: 0, skipped: 0 }
     const inserts = dates.map(date => ({
       work_date: date,
@@ -600,6 +620,7 @@ export async function copyPreviousWeek(
   weekStart: string, // 대상 주의 일요일 (YYYY-MM-DD)
 ): Promise<ApiResponse<{ added: number; skipped: number }>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await applyUnitFilter(
       supabaseAdmin.from('roster_assignments').select('work_date, shift_id, staff_id, start_time, end_time'),
       unit,
@@ -638,6 +659,7 @@ export async function clearRosterRange(
   toDate: string,
 ): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await applyUnitFilter(
       supabaseAdmin.from('roster_assignments').delete(),
       unit,
@@ -695,6 +717,7 @@ export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; 
 
 export async function fetchWeeklyRosterForPrint(from: string, to: string, staffRole?: StaffRole): Promise<ApiResponse<WeeklyRosterEntry[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const staffQuery = supabaseAdmin
       .from('staff_profiles')
       .select('id, name, phone, sort_order')

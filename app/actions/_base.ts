@@ -44,3 +44,17 @@ export async function getAuthUser(): Promise<{
     user_metadata: meta,
   };
 }
+
+/** admin 전용 액션의 첫 줄에서 호출 — 미인증/권한 없음이면 throw (wrap() 콜백 안에서 쓰면 표준 오류 응답으로 변환됨) */
+export async function requireAdmin() {
+  const user = await getAuthUser();
+  if (!user || user.role !== 'admin') throw new Error('권한이 없습니다.');
+  return user;
+}
+
+/** manager 이상(admin·manager) 전용 액션의 첫 줄에서 호출 */
+export async function requireManagerOrAdmin() {
+  const user = await getAuthUser();
+  if (!user || (user.role !== 'admin' && user.role !== 'manager')) throw new Error('권한이 없습니다.');
+  return user;
+}
