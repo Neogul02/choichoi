@@ -1,7 +1,6 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { RosterMemo, StaffProfile } from '@/types/database'
@@ -9,8 +8,7 @@ import { fetchRosterRange } from './roster'
 import type { RosterMonthData, RosterUnit } from './roster'
 import { fetchStaffProfiles } from './staff'
 import { fetchPopupEvents } from './schedule'
-import { extractErrorMessage } from './_base'
-
+import { extractErrorMessage, isNextInternalControlFlowError } from './_base'
 
 // 일정표는 매니저도 접근하는 화면이라 레이아웃 게이트만 믿지 않고 액션에서도 역할을 검사한다
 async function getManagerSession() {
@@ -82,6 +80,7 @@ export async function fetchRosterOverview(fromDate: string, toDate: string): Pro
       },
     }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: extractErrorMessage(err) }
   }
 }
@@ -111,6 +110,7 @@ export async function createRosterMemo(memoDate: string, content: string): Promi
     if (error) return { success: false, error: error.message }
     return { success: true, data: data as RosterMemo }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: extractErrorMessage(err) }
   }
 }
@@ -122,6 +122,7 @@ export async function deleteRosterMemo(id: number): Promise<ApiResponse> {
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: extractErrorMessage(err) }
   }
 }
