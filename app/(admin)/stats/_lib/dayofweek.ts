@@ -1,7 +1,9 @@
 import { HOURS } from './hourly';
+import { utcToKst } from '@/lib/date';
+import { DAY_NAMES } from '@/lib/staffing';
 
 // getDay()/getUTCDay() 인덱스(0=일 ~ 6=토)와 그대로 맞물리므로 순서를 바꾸면 안 됨
-export const DAYS = ['일', '월', '화', '수', '목', '금', '토'] as const;
+export const DAYS = DAY_NAMES;
 export type DayLabel = (typeof DAYS)[number];
 
 // 화면 표시용 순서(월→일). 인덱싱에는 DAYS를, 표시 순서에는 이걸 사용
@@ -41,10 +43,7 @@ export function buildDayHourMatrix(
   });
 
   for (const order of orders) {
-    const s = order.created_at.replace(' ', 'T');
-    const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
-    const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
-    const kst = new Date(utcMs + 9 * 3600 * 1000);
+    const kst = utcToKst(order.created_at);
     const dayLabel = DAYS[kst.getUTCDay()];
     const kstHour = kst.getUTCHours();
     if (matrix[dayLabel]?.[kstHour] !== undefined) {

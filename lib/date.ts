@@ -13,9 +13,27 @@ export const addDays = (s: string, n: number): string => {
   return toDateStr(d)
 }
 
+// 현재 시각을 KST로 이동한 Date — getUTC*() 메서드로 KST 벽시계 값을 읽는다
+export const kstNow = (): Date => new Date(Date.now() + 9 * 3600 * 1000)
+
 // KST 기준 오늘 날짜(YYYY-MM-DD) — 서버(UTC)/클라이언트 어디서든 동일
-export const kstToday = (): string =>
-  new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+export const kstToday = (): string => kstNow().toISOString().slice(0, 10)
+
+// Supabase timestamp 컬럼(created_at 등)은 공백 구분자·오프셋 없는 naive UTC로 올 때가 있어
+// Date 생성자가 로컬 타임존으로 잘못 해석하지 않도록 UTC임을 명시한 뒤 파싱한다.
+function parseTimestampAsUTC(timestamp: string): number {
+  const s = timestamp.replace(' ', 'T')
+  const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s)
+  return new Date(hasOffset ? s : s + 'Z').getTime()
+}
+
+// UTC 타임스탬프를 KST로 이동한 Date — getUTC*() 메서드로 KST 벽시계 값을 읽는다
+export const utcToKst = (timestamp: string): Date =>
+  new Date(parseTimestampAsUTC(timestamp) + 9 * 3600 * 1000)
+
+// UTC 타임스탬프 → KST 기준 YYYY-MM-DD
+export const utcToKstDateStr = (timestamp: string): string =>
+  utcToKst(timestamp).toISOString().slice(0, 10)
 
 // KST 기준 하루의 UTC ISO 경계 — created_at은 timestamp without time zone(naive UTC) 컬럼이라
 // +09:00 오프셋 문자열을 그대로 보내면 PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다.

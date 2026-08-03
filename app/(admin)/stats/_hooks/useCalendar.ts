@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { fetchMonthlySalesCalendar, fetchManualSalesForMonth, saveManualSales, removeManualSales } from '@/app/actions/stats';
+import { kstNow } from '@/lib/date';
 import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
 
 function getInitialMonth(): Date {
-  const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
-  return new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), 1);
+  const now = kstNow();
+  return new Date(now.getUTCFullYear(), now.getUTCMonth(), 1);
 }
 
 const EMPTY: CalendarSalesData = { byDate: {}, monthTotal: 0, totalOrders: 0, manualByDate: {} };

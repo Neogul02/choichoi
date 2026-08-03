@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import SectionHeader from './SectionHeader';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { utcToKst } from '@/lib/date';
 import type { OrderRecordWithItems } from '@/types/api';
 
 interface Props {
@@ -13,10 +14,7 @@ interface Props {
 }
 
 function formatKSTTime(isoString: string): string {
-  const s = isoString.replace(' ', 'T');
-  const hasOffset = s.endsWith('Z') || /[+-]\d{2}(?::\d{2})?$/.test(s);
-  const utcMs = new Date(hasOffset ? s : s + 'Z').getTime();
-  const kst = new Date(utcMs + 9 * 3600 * 1000);
+  const kst = utcToKst(isoString);
   return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}:${String(kst.getUTCSeconds()).padStart(2, '0')}`;
 }
 
