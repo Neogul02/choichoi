@@ -6,6 +6,7 @@ import { after } from 'next/server'
 // 실제로는 user_profiles 기반 계정 관리 액션 — staff_profiles(근무자 프로필)와는 별개.
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { getAuthUser, isNextInternalControlFlowError } from './_base'
+import { utcToKstDateStr } from '@/lib/date'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
@@ -131,9 +132,7 @@ export async function getMyOrderStats(): Promise<ApiResponse<MyOrderStats>> {
 
     for (const o of allOrders) {
       // KST 날짜 계산 (created_at은 timezone 없는 UTC timestamp)
-      const utcMs = Date.parse(o.created_at.includes('+') || o.created_at.endsWith('Z') ? o.created_at : o.created_at + 'Z')
-      const kst = new Date(utcMs + 9 * 60 * 60 * 1000)
-      const date = kst.toISOString().slice(0, 10)
+      const date = utcToKstDateStr(o.created_at)
 
       // popup_id 직접 사용 (없으면 날짜로 fallback)
       let bucketId: number = 0

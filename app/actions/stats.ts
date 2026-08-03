@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { wrap, requireAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
-import { getKSTDateBounds } from '@/lib/date';
+import { getKSTDateBounds, utcToKstDateStr } from '@/lib/date';
 import { getMenuSalesByPeriod } from './menu';
 import type {
   ApiResponse,
@@ -89,10 +89,7 @@ async function getDailySalesByPeriod(
 
   const dayMap: Record<string, { revenue: number; orderCount: number }> = {}
   for (const order of allOrders) {
-    const utcMs = new Date(order.created_at as string).getTime()
-    const kstDate = new Date(utcMs + 9 * 3600 * 1000)
-      .toISOString()
-      .split('T')[0]
+    const kstDate = utcToKstDateStr(order.created_at as string)
     if (!dayMap[kstDate]) dayMap[kstDate] = { revenue: 0, orderCount: 0 }
     dayMap[kstDate].revenue += parseFloat(String(order.total_price))
     dayMap[kstDate].orderCount += 1

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, dayGroup, monthEndDateStr, kstToday, getKSTDateBounds, formatPhone } from './date'
+import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, dayGroup, monthEndDateStr, kstToday, getKSTDateBounds, formatPhone, utcToKst, utcToKstDateStr } from './date'
 
 describe('addDays / prevDate', () => {
   it('월 경계를 넘는다', () => {
@@ -93,5 +93,28 @@ describe('formatPhone', () => {
   it('그 외 길이는 원본 그대로 반환한다', () => {
     expect(formatPhone('123')).toBe('123')
     expect(formatPhone('')).toBe('')
+  })
+})
+
+describe('utcToKst / utcToKstDateStr', () => {
+  it('Z가 붙은 표준 ISO 문자열을 9시간 이동한다', () => {
+    expect(utcToKst('2026-08-02T15:30:00Z').toISOString()).toBe('2026-08-03T00:30:00.000Z')
+  })
+
+  it('오프셋 없는 naive 문자열(Supabase timestamp)도 UTC로 간주해 이동한다', () => {
+    expect(utcToKst('2026-08-02T15:30:00').toISOString()).toBe('2026-08-03T00:30:00.000Z')
+  })
+
+  it('공백 구분 타임스탬프(T 대신 공백)도 처리한다', () => {
+    expect(utcToKst('2026-08-02 15:30:00').toISOString()).toBe('2026-08-03T00:30:00.000Z')
+  })
+
+  it('오프셋이 이미 있으면 그대로 존중한다', () => {
+    expect(utcToKst('2026-08-02T15:30:00+09:00').toISOString()).toBe('2026-08-02T15:30:00.000Z')
+  })
+
+  it('자정 부근 UTC 시각은 KST에서 날짜가 넘어간다', () => {
+    expect(utcToKstDateStr('2026-08-02T15:00:00Z')).toBe('2026-08-03')
+    expect(utcToKstDateStr('2026-08-02T14:59:59Z')).toBe('2026-08-02')
   })
 })

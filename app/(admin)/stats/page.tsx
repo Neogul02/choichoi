@@ -3,6 +3,7 @@ import { fetchTodaysSales, fetchTodaysOrdersWithItems } from '@/app/actions/orde
 import { fetchMenuSalesBreakdown, fetchMonthlySalesCalendar, fetchManualSalesForMonth } from '@/app/actions/stats';
 import { fetchPopupEvents } from '@/app/actions/schedule';
 import { getPeriodBounds } from './_lib/period';
+import { kstNow } from '@/lib/date';
 import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
 
 // 매출 데이터는 요청 시점 기준이어야 하므로 빌드 타임 프리렌더 금지
@@ -13,9 +14,9 @@ export const dynamic = 'force-dynamic';
 // 요청마다 proxy.ts의 인증 검사가 붙어 초기 로딩이 느렸다. (hr/page.tsx와 동일 패턴)
 async function getStatsBootstrap() {
   const { startISO, endISO } = getPeriodBounds('today');
-  const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
-  const y = kstNow.getUTCFullYear();
-  const m = kstNow.getUTCMonth() + 1;
+  const now = kstNow();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth() + 1;
 
   return Promise.all([
     fetchTodaysSales(),
