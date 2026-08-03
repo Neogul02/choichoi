@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
+import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import { getAuthUser, isNextInternalControlFlowError } from './_base'
 
 export interface PayrollRow {
@@ -42,7 +43,6 @@ export async function fetchStaffAssignmentsInRange(
 
     if (error) return { success: false, error: error.message }
 
-    const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
     const results: StaffWorkAssignment[] = (data ?? []).map(a => {
       const shiftRaw = a.roster_shifts
       const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null

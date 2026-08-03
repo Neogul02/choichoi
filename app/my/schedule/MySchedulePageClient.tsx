@@ -7,8 +7,7 @@ import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payr
 import { getMyRoster, getStaffRosterAsManager, type MyShift } from '@/app/actions/roster'
 import { minutesToHours } from '@/lib/workhours'
 import { formatBreakMinutes } from '@/lib/utils'
-
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
+import { DAY_NAMES } from '@/lib/staffing'
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 function todayStr() {

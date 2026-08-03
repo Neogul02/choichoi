@@ -7,8 +7,7 @@ import {
   fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent, togglePopupEventActive,
 } from '@/app/actions/schedule';
 import type { PopupEvent } from '@/types/database';
-
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
+import { DAY_NAMES } from '@/lib/staffing';
 
 type EventForm = { name: string; startDate: string; endDate: string };
 

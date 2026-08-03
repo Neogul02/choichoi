@@ -7,14 +7,13 @@ import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { fetchRosterShifts, bulkAddRosterAssignments } from '@/app/actions/roster'
 import type { RosterUnit } from '@/app/actions/roster'
 import type { StaffProfile, RosterShift } from '@/types/database'
+import { DAY_NAMES as DAY_LABELS } from '@/lib/staffing'
 
 interface Props {
   staff: StaffProfile
   onClose: () => void
   onAssigned: (count: number) => void
 }
-
-const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'] as const
 
 function pad(n: number) {
   return String(n).padStart(2, '0')

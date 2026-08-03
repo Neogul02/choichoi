@@ -64,10 +64,9 @@ export default function DayPanel({
   const handleCopy = async () => {
     setCopying(true);
     try {
-      const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
       const m = Number(dateStr.slice(5, 7));
       const dd = Number(dateStr.slice(8));
-      const dateLabel = `${m}월 ${dd}일(${DAYS[day]})`;
+      const dateLabel = `${m}월 ${dd}일(${DAY_NAMES[day]})`;
 
       const lines: string[] = [`📋 ${dateLabel} 근무 안내`, ''];
       let hasAny = false;

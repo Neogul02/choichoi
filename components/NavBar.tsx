@@ -8,6 +8,7 @@ import { usePresence, type PresenceUser } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { withTimeout } from '@/lib/utils';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { DAY_NAMES } from '@/lib/staffing';
 import type { UserAppRole } from '@/types/database';
 
 function toAppRole(value: unknown): UserAppRole {
@@ -42,8 +43,7 @@ function useTodayLabel(): string {
   const [label, setLabel] = useState('');
   useEffect(() => {
     const d = new Date();
-    const days = ['일', '월', '화', '수', '목', '금', '토'];
-    setLabel(`${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`);
+    setLabel(`${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES[d.getDay()]})`);
   }, []);
   return label;
 }

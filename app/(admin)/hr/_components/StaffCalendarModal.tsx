@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
+import { DAY_NAMES } from '@/lib/staffing'
 
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 const pad = (n: number) => String(n).padStart(2, '0')
 
 function CalendarGrid({ year, month, details }: { year: number; month: number; details: StaffDayDetail[] }) {
