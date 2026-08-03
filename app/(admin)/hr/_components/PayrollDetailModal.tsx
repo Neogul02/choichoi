@@ -9,6 +9,7 @@ import type { ContractRecord } from '@/app/actions/contracts'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { minutesToHours } from '@/lib/workhours'
+import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
@@ -36,8 +37,6 @@ interface Props {
 }
 
 let nextAdjId = 1
-
-const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')

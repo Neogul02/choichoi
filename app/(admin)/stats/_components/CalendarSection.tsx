@@ -6,6 +6,7 @@ import { getDayTierSwatch } from '../_lib/tierSwatch';
 import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
 import DayDetailModal from './DayDetailModal';
 import SectionHeader from './SectionHeader';
+import { DAY_NAMES } from '@/lib/staffing';
 
 const MATERIAL_COST_KEY = 'choichoi_material_cost';
 const OTHER_COST_KEY = 'choichoi_other_cost';
@@ -18,8 +19,6 @@ function formatDayRevenue(n: number): string {
   if (man < 10) return `${man.toFixed(1)}만`;
   return `${Math.round(man)}만`;
 }
-
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 interface Props {
   calendarSales: CalendarSalesData;

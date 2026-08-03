@@ -4,6 +4,7 @@ import { Document, Page, Text, View, Font, StyleSheet } from '@react-pdf/rendere
 import path from 'path'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { parseDate, formatPhone } from '@/lib/date'
+import { DAY_NAMES as DAY_KR } from '@/lib/staffing'
 
 Font.register({
   family: 'NotoSansKR',
@@ -37,8 +38,6 @@ const s = StyleSheet.create({
   footer: { position: 'absolute', bottom: 18, right: 30 },
   footerText: { fontSize: 7, color: '#aaa' },
 })
-
-const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
 
 function dayLabel(dateStr: string) {
   const d = parseDate(dateStr)

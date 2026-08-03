@@ -8,14 +8,13 @@ import { fetchWeeklyRosterForPrint } from '@/app/actions/roster'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { showMsg } from '@/lib/toast'
 import { toDateStr, addDays } from '@/lib/date'
+import { DAY_NAMES as DAY_KR } from '@/lib/staffing'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 
 interface Props {
   onClose: () => void
 }
-
-const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
 
 function getThisMonday(): string {
   const d = new Date()

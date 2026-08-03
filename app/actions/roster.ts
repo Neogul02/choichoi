@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
-import { getWeekStart } from '@/lib/staffing'
+import { getWeekStart, DAY_NAMES } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { getAuthUser, wrap, requireAdmin } from './_base'
@@ -676,7 +676,6 @@ export async function clearRosterRange(
 // 내일(KST) 배정 현황 — 디스코드 일일 근무 안내용
 export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; shifts: DailyDigestShift[] }> {
   const tomorrow = addDays(kstToday(), 1)
-  const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
   const d = parseDate(tomorrow)
   const dateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일(${DAY_NAMES[d.getDay()]})`
 

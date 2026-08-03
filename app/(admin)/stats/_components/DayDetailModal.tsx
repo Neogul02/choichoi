@@ -7,6 +7,7 @@ import { formatPrice } from '@/lib/utils';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import type { ManualSalesEntry, OrderRecordWithItems } from '@/types/api';
+import { DAY_NAMES } from '@/lib/staffing';
 
 interface Props {
   date: string;
@@ -20,8 +21,7 @@ interface Props {
 function formatDateLabel(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const day = new Date(y, m - 1, d).getDay();
-  const days = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${m}월 ${d}일 (${days[day]})`;
+  return `${m}월 ${d}일 (${DAY_NAMES[day]})`;
 }
 
 export default function DayDetailModal({ date, manualEntry, onSaved, onClose, saveDay, removeDay }: Props) {

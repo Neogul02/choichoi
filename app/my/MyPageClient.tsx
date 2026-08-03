@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { getWorkerTier } from '@/lib/tiers'
+import { DAY_NAMES } from '@/lib/staffing'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import NavBar from '@/components/NavBar'
 import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount } from '@/app/actions/workers'
@@ -20,8 +21,6 @@ const DailyRevenueChart = dynamic(() => import('./_components/DailyRevenueChart'
   ssr: false,
   loading: () => <div className='h-[180px] rounded-xl bg-canvas-soft animate-pulse' />,
 })
-
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 function todayStr() {
