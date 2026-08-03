@@ -3,7 +3,7 @@
 import { after } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { wrap } from './_base'
+import { wrap, requireAdmin } from './_base'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import React from 'react'
@@ -64,6 +64,7 @@ export async function generateContract(
   input: ContractInput,
 ): Promise<ApiResponse<{ url: string; contractId: string }>> {
   return wrap(async () => {
+    await requireAdmin()
     const admin = getAdminClient()
 
     const { data: staffRow } = await admin.from('staff_profiles').select('id').eq('id', input.workerId).maybeSingle()
@@ -171,6 +172,7 @@ export async function deleteContract(
   contractId: string,
 ): Promise<ApiResponse<void>> {
   return wrap(async () => {
+    await requireAdmin()
     const admin = getAdminClient()
 
     // storage 경로 조회
@@ -193,6 +195,7 @@ export async function deleteContract(
 
 export async function fetchContractedStaffIds(): Promise<ApiResponse<number[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const admin = getAdminClient()
     const { data, error } = await admin.from('contracts').select('worker_id')
     if (error) throw error
@@ -202,6 +205,7 @@ export async function fetchContractedStaffIds(): Promise<ApiResponse<number[]>> 
 
 export async function fetchAllContracts(): Promise<ApiResponse<ContractRecord[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const admin = getAdminClient()
     const { data, error } = await admin
       .from('contracts')
@@ -217,6 +221,7 @@ export async function getWorkerContracts(
   workerId: number,
 ): Promise<ApiResponse<ContractRecord[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const admin = getAdminClient()
     const { data, error } = await admin
       .from('contracts')

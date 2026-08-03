@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { wrap } from './_base';
+import { wrap, requireAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import { getKSTDateBounds } from '@/lib/date';
 import { getMenuSalesByPeriod } from './menu';
@@ -258,25 +258,41 @@ async function getOrdersByDate(kstDateStr: string, popupId?: string | number | n
   }))
 }
 
-export async function fetchMonthlySalesCalendar(year: number, month: number): Promise<FetchCalendarResponse> { return wrap(() => getMonthlySalesByDate(year, month)); }
-export async function fetchMenuSalesBreakdown(startISO: string, endISO: string, popupId?: string | null): Promise<FetchMenuSalesResponse> { return wrap(() => getMenuSalesByPeriod(startISO, endISO, popupId)); }
-export async function fetchDailySalesByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<FetchDailySalesResponse> { return wrap(() => getDailySalesByPeriod(startISO, endISO, popupId)); }
+export async function fetchMonthlySalesCalendar(year: number, month: number): Promise<FetchCalendarResponse> {
+  return wrap(async () => { await requireAdmin(); return getMonthlySalesByDate(year, month); });
+}
+export async function fetchMenuSalesBreakdown(startISO: string, endISO: string, popupId?: string | null): Promise<FetchMenuSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getMenuSalesByPeriod(startISO, endISO, popupId); });
+}
+export async function fetchDailySalesByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<FetchDailySalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getDailySalesByPeriod(startISO, endISO, popupId); });
+}
 
 export async function saveManualSales(saleDate: string, totalRevenue: number, totalOrders: number, note: string | null): Promise<ApiResponse> {
   const parsed = ManualSalesSchema.safeParse({ saleDate, totalRevenue, totalOrders, note });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => upsertDailySales(parsed.data.saleDate, parsed.data.totalRevenue, parsed.data.totalOrders, parsed.data.note));
+  return wrap(async () => { await requireAdmin(); return upsertDailySales(parsed.data.saleDate, parsed.data.totalRevenue, parsed.data.totalOrders, parsed.data.note); });
 }
 
-export async function fetchManualSalesForMonth(year: number, month: number): Promise<FetchManualSalesResponse> { return wrap(() => getDailySalesForMonth(year, month)); }
-export async function fetchManualSalesForRange(startDate: string, endDate: string): Promise<FetchManualSalesResponse> { return wrap(() => getDailySalesForRange(startDate, endDate)); }
-export async function removeManualSales(id: number): Promise<ApiResponse> { return wrap(() => deleteDailySales(id)); }
-export async function fetchOrdersByDate(date: string, popupId?: string | null): Promise<ApiResponse<OrderRecordWithItems[]>> { return wrap(() => getOrdersByDate(date, popupId)); }
+export async function fetchManualSalesForMonth(year: number, month: number): Promise<FetchManualSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getDailySalesForMonth(year, month); });
+}
+export async function fetchManualSalesForRange(startDate: string, endDate: string): Promise<FetchManualSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getDailySalesForRange(startDate, endDate); });
+}
+export async function removeManualSales(id: number): Promise<ApiResponse> {
+  return wrap(async () => { await requireAdmin(); return deleteDailySales(id); });
+}
+export async function fetchOrdersByDate(date: string, popupId?: string | null): Promise<ApiResponse<OrderRecordWithItems[]>> {
+  return wrap(async () => { await requireAdmin(); return getOrdersByDate(date, popupId); });
+}
 
-export async function fetchManualMenuSales(popupId: number): Promise<FetchMenuSalesResponse> { return wrap(() => getManualMenuSalesForPopup(popupId)); }
+export async function fetchManualMenuSales(popupId: number): Promise<FetchMenuSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getManualMenuSalesForPopup(popupId); });
+}
 
 export async function saveManualMenuSales(popupId: number, entries: Array<{ menuItemId: number; quantity: number }>): Promise<ApiResponse> {
   const parsed = ManualMenuSalesSchema.safeParse({ popupId, entries });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => upsertManualMenuSales(parsed.data.popupId, parsed.data.entries));
+  return wrap(async () => { await requireAdmin(); return upsertManualMenuSales(parsed.data.popupId, parsed.data.entries); });
 }

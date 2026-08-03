@@ -3,7 +3,7 @@
 import { after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { z } from 'zod';
-import { wrap, extractErrorMessage } from './_base';
+import { wrap, extractErrorMessage, requireAdmin } from './_base';
 import { getKSTDateBounds } from '@/lib/date';
 import { getMenuSalesByPeriod } from './menu';
 import type { OrderItemInput } from '@/lib/supabase';
@@ -329,7 +329,10 @@ export async function fetchTodaysSales(popupId?: string | null): Promise<FetchTo
 export async function fetchTodaysOrders(popupId?: string | null): Promise<FetchOrdersResponse> { return wrap(() => getTodaysOrderList(popupId)); }
 export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit, popupId)); }
 export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getPendingOrders(popupId)); }
-export async function fetchOrdersByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> { return wrap(() => getOrdersByPeriod(startISO, endISO, popupId)); }
+// /stats(admin 전용) 시간대별 매출 화면에서만 쓰는 조회 — 다른 orders.ts 함수와 달리 여기만 admin 게이트가 필요
+export async function fetchOrdersByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> {
+  return wrap(async () => { await requireAdmin(); return getOrdersByPeriod(startISO, endISO, popupId); });
+}
 export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(() => prepareOrder(id)); }
 export async function removeOrder(id: number): Promise<ApiResponse> {
   try {

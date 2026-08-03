@@ -1,7 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { wrap } from './_base'
+import { wrap, requireAdmin } from './_base'
 import { STAFF_COLUMNS } from '@/lib/staff-columns'
 import type { ApiResponse } from '@/types/api'
 import type { StaffPopupAssignment, StaffProfile } from '@/types/database'
@@ -9,6 +9,7 @@ import type { StaffPopupAssignment, StaffProfile } from '@/types/database'
 /** 전체 직원↔팝업 배정 매핑 — HR 부트스트랩에서 한 번에 프리페치, 클라이언트에서 Map으로 가공 */
 export async function fetchStaffPopupAssignments(): Promise<ApiResponse<StaffPopupAssignment[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('staff_popup_assignments')
       .select('id, staff_id, popup_id, created_at')
@@ -20,6 +21,7 @@ export async function fetchStaffPopupAssignments(): Promise<ApiResponse<StaffPop
 /** 단일 배정 — 팝업이 선택된 상태에서 신규 직원 등록 시 자동 호출. 이미 배정돼 있으면(ignoreDuplicates) 조용히 무시 */
 export async function assignStaffToPopup(staffId: number, popupId: number): Promise<ApiResponse<{ added: number }>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('staff_popup_assignments')
       .upsert([{ staff_id: staffId, popup_id: popupId }], { onConflict: 'staff_id,popup_id', ignoreDuplicates: true })
@@ -33,6 +35,7 @@ export async function assignStaffToPopup(staffId: number, popupId: number): Prom
 export async function bulkAssignStaffToPopup(staffIds: number[], popupId: number): Promise<ApiResponse<{ added: number; skipped: number }>> {
   if (staffIds.length === 0) return { success: true, data: { added: 0, skipped: 0 } }
   return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('staff_popup_assignments')
       .upsert(staffIds.map(staffId => ({ staff_id: staffId, popup_id: popupId })), { onConflict: 'staff_id,popup_id', ignoreDuplicates: true })
@@ -46,6 +49,7 @@ export async function bulkAssignStaffToPopup(staffIds: number[], popupId: number
 /** 배정 해제 — 오배정 정정용. staff_profiles 자체는 건드리지 않는다 */
 export async function unassignStaffFromPopup(staffId: number, popupId: number): Promise<ApiResponse> {
   return wrap(async () => {
+    await requireAdmin()
     const { error } = await supabaseAdmin
       .from('staff_popup_assignments')
       .delete()
@@ -63,6 +67,7 @@ export async function unassignStaffFromPopup(staffId: number, popupId: number): 
  */
 export async function classifyStaffByPopupSchedule(popupId: number): Promise<ApiResponse<{ added: number }>> {
   return wrap(async () => {
+    await requireAdmin()
     const { data: popup, error: popupError } = await supabaseAdmin
       .from('popup_events')
       .select('id, start_date, end_date')
@@ -96,6 +101,7 @@ export async function classifyStaffByPopupSchedule(popupId: number): Promise<Api
 /** "기존 근무자 추가" 후보 — 전체 직원 중 targetPopupId에 아직 배정되지 않은 사람 (다른 팝업 이력 여부는 무관) */
 export async function fetchImportCandidates(targetPopupId: number): Promise<ApiResponse<StaffProfile[]>> {
   return wrap(async () => {
+    await requireAdmin()
     const [targetRes, staffRes] = await Promise.all([
       supabaseAdmin.from('staff_popup_assignments').select('staff_id').eq('popup_id', targetPopupId),
       supabaseAdmin.from('staff_profiles').select(STAFF_COLUMNS).order('sort_order'),

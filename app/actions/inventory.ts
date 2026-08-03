@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { wrap } from './_base';
+import { wrap, requireManagerOrAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import type {
   ApiResponse,
@@ -132,25 +132,27 @@ async function updateIngredientMeta(
   return data as Ingredient
 }
 
-export async function fetchIngredients(): Promise<FetchIngredientsResponse> { return wrap(getIngredients); }
+export async function fetchIngredients(): Promise<FetchIngredientsResponse> {
+  return wrap(async () => { await requireManagerOrAdmin(); return getIngredients(); });
+}
 
 export async function restockIngredient(id: string, sealed: number, opened: number, note?: string, by?: string): Promise<ApiResponse> {
   const idParsed = UUID.safeParse(id);
   if (!idParsed.success) return { success: false, error: idParsed.error.issues[0].message };
   const parsed = RestockSchema.safeParse({ sealed, opened });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => addRestock(id, sealed, opened, note, by));
+  return wrap(async () => { await requireManagerOrAdmin(); return addRestock(id, sealed, opened, note, by); });
 }
 
 export async function setPhysicalInventory(id: string, sealed: number, opened: number): Promise<ApiResponse<Ingredient>> {
-  return wrap(() => physicalInventory(id, sealed, opened));
+  return wrap(async () => { await requireManagerOrAdmin(); return physicalInventory(id, sealed, opened); });
 }
 
 export async function updateIngredientSettings(
   id: string,
   updates: { container_size?: number; vendor?: string | null }
 ): Promise<ApiResponse<Ingredient>> {
-  return wrap(() => updateIngredientMeta(id, updates));
+  return wrap(async () => { await requireManagerOrAdmin(); return updateIngredientMeta(id, updates); });
 }
 
 export async function createIngredient(data: {
@@ -160,11 +162,11 @@ export async function createIngredient(data: {
 }): Promise<ApiResponse<Ingredient>> {
   const parsed = CreateIngredientSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => addIngredient(parsed.data));
+  return wrap(async () => { await requireManagerOrAdmin(); return addIngredient(parsed.data); });
 }
 
 export async function deleteIngredientById(id: string): Promise<ApiResponse> {
   const parsed = UUID.safeParse(id);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => deleteIngredient(id));
+  return wrap(async () => { await requireManagerOrAdmin(); return deleteIngredient(id); });
 }

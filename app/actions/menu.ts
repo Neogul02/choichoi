@@ -2,7 +2,7 @@
 
 import { after } from 'next/server';
 import { z } from 'zod';
-import { wrap } from './_base';
+import { wrap, requireAdmin } from './_base';
 import { notifyDiscord } from '@/lib/discord';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import type { ApiResponse, FetchMenuItemsResponse, MenuSalesItem } from '@/types/api';
@@ -146,13 +146,14 @@ export async function getMenuSalesByPeriod(
   )
 }
 
+// fetchMenuItems·updateMenuStock은 /pos(오픈 페이지)와 공유돼 인증 게이트를 두지 않는다 — 나머지는 /settings(admin 전용) 전용
 export async function fetchMenuItems(): Promise<FetchMenuItemsResponse> { return wrap(getMenuItems); }
-export async function getAllMenu(): Promise<FetchMenuItemsResponse> { return wrap(getAllMenuItems); }
+export async function getAllMenu(): Promise<FetchMenuItemsResponse> { return wrap(async () => { await requireAdmin(); return getAllMenuItems(); }); }
 
 export async function createNewMenuItem(name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> {
   const parsed = MenuItemSchema.safeParse({ name, price, color });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  const result = await wrap(() => addMenuItem(parsed.data.name, parsed.data.price, parsed.data.color));
+  const result = await wrap(async () => { await requireAdmin(); return addMenuItem(parsed.data.name, parsed.data.price, parsed.data.color); });
   if (result.success) after(() => notifyDiscord('add', '🍞 메뉴 추가', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
@@ -160,13 +161,13 @@ export async function createNewMenuItem(name: string, price: number, color: stri
 export async function editMenuItem(id: number, name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> {
   const parsed = MenuItemSchema.safeParse({ name, price, color });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  const result = await wrap(() => updateMenuItem(id, parsed.data.name, parsed.data.price, parsed.data.color));
+  const result = await wrap(async () => { await requireAdmin(); return updateMenuItem(id, parsed.data.name, parsed.data.price, parsed.data.color); });
   if (result.success) after(() => notifyDiscord('edit', '✏️ 메뉴 수정', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
 
 export async function removeMenuItem(id: number): Promise<ApiResponse> {
-  const result = await wrap(() => deleteMenuItem(id));
+  const result = await wrap(async () => { await requireAdmin(); return deleteMenuItem(id); });
   if (result.success) after(() => notifyDiscord('delete', '🗑️ 메뉴 삭제', `ID: ${id}`));
   return result;
 }
@@ -183,7 +184,7 @@ export async function updateMenuStock(id: number, stock: number | null): Promise
 export async function reorderMenuItems(orderedIds: number[]): Promise<ApiResponse> {
   const parsed = z.array(z.number().int().positive()).min(1).safeParse(orderedIds);
   if (!parsed.success) return { success: false, error: '올바르지 않은 메뉴 순서입니다' };
-  const result = await wrap(() => updateMenuOrder(parsed.data));
+  const result = await wrap(async () => { await requireAdmin(); return updateMenuOrder(parsed.data); });
   if (result.success) after(() => notifyDiscord('reorder', '↕️ 메뉴 순서 변경', `${orderedIds.length}개 메뉴 순서 조정`));
   return result;
 }
