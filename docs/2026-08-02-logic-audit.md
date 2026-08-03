@@ -120,7 +120,7 @@ managerPrefixes   = ['/inventory', '/roster']                     → role === '
 ### 🟡 발견 및 수정 — `addRestock`의 비원자적 델타 갱신 (동시성 버그)
 `addRestock`은 `restock_events` insert 후 **별도 SELECT로 현재 수량을 읽고, JS에서 델타를 더해 다시 UPDATE**하는 3단계 방식이었다. 같은 재료를 두 스태프가 거의 동시에 입고 처리하면(예: 바코드 스캔 연속 입력), 두 요청이 같은 SELECT 결과를 읽고 각자 계산한 값으로 순차 UPDATE — 나중 write가 앞선 write를 덮어써 한쪽 delta가 조용히 유실된다. 위 `deduct_for_order`(주문 차감)는 처음부터 DB 레벨 원자적 처리로 이 문제가 없었는데, `addRestock`(입고)만 이 패턴에서 벗어나 있던 비일관 지점.
 
-**조치**: `apply_restock(p_ingredient_id, p_sealed_delta, p_opened_delta, p_note, p_created_by)` RPC를 신설(`supabase/migrations/20260803022738_atomic_restock_rpc.sql`) — insert + 델타 반영 update를 단일 함수 트랜잭션으로 묶어 원자화. 기존 `decrement_menu_stock`과 동일하게 `security definer` + `public/anon/authenticated`로부터 `revoke execute`해 서버(service role)만 호출 가능하도록 제한. `addRestock` 본문을 `supabaseAdmin.rpc('apply_restock', ...)` 호출 한 줄로 교체. **입력·출력 semantics(델타 반영 후 0 미만 클램프)는 동일** — 오직 두 동시 요청 사이의 레이스 윈도우만 제거됐다.
+**조치**: `apply_restock(p_ingredient_id, p_sealed_delta, p_opened_delta, p_note, p_created_by)` RPC를 신설(`supabase/migrations/20260803022654_atomic_restock_rpc.sql`) — insert + 델타 반영 update를 단일 함수 트랜잭션으로 묶어 원자화. 기존 `decrement_menu_stock`과 동일하게 `security definer` + `public/anon/authenticated`로부터 `revoke execute`해 서버(service role)만 호출 가능하도록 제한. `addRestock` 본문을 `supabaseAdmin.rpc('apply_restock', ...)` 호출 한 줄로 교체. **입력·출력 semantics(델타 반영 후 0 미만 클램프)는 동일** — 오직 두 동시 요청 사이의 레이스 윈도우만 제거됐다.
 
 ### 보류 (비즈니스 판단 필요 — 미수정)
 - 없음.
