@@ -5,12 +5,14 @@ import { after } from 'next/server'
 // 파일명은 레거시 workers 테이블(2026-07-20 삭제, 코드 참조 0건 확인 후 제거)에서 유래.
 // 실제로는 user_profiles 기반 계정 관리 액션 — staff_profiles(근무자 프로필)와는 별개.
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { getAuthUser, isNextInternalControlFlowError } from './_base'
+import { getAuthUser, isNextInternalControlFlowError, requireAdmin } from './_base'
 import { utcToKstDateStr } from '@/lib/date'
+import { encryptResidentId, decryptResidentId } from '@/lib/pii-crypto'
+import { isValidResidentRegistrationNumber, maskResidentId } from '@/lib/resident-id'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
-const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role'
+const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role, resident_reg_no_masked'
 
 export interface UserProfile {
   id: string
@@ -20,6 +22,7 @@ export interface UserProfile {
   bank_account: string | null
   health_cert_url: string | null
   worker_role: string
+  resident_reg_no_masked: string | null
 }
 
 export async function getMyProfile(): Promise<ApiResponse<UserProfile>> {
@@ -284,6 +287,8 @@ export interface CreateWorkerAccountInput {
   phone: string
   bankName?: string
   bankAccount?: string
+  residentIdFront: string
+  residentIdBack: string
 }
 
 export async function createWorkerAccount(
@@ -294,6 +299,13 @@ export async function createWorkerAccount(
     const expected = process.env.SIGNUP_CODE
     if (!expected || input.inviteCode.trim() !== expected.trim()) {
       return { success: false, error: '초대 코드가 올바르지 않습니다.' }
+    }
+
+    // 1-1. 주민등록번호 형식·체크섬 검증 — 고용/산재보험 신고 목적, 오탈자로 인한 잘못된 신고 방지
+    const residentFront = input.residentIdFront.trim()
+    const residentBack = input.residentIdBack.trim()
+    if (!isValidResidentRegistrationNumber(residentFront, residentBack)) {
+      return { success: false, error: '주민등록번호가 올바르지 않습니다.' }
     }
 
     // 2. admin API로 유저 생성 (이메일 인증 메일 없음, rate limit 없음)
@@ -322,6 +334,8 @@ export async function createWorkerAccount(
       bank_name: input.bankName?.trim() || null,
       bank_account: input.bankAccount?.trim() || null,
       worker_role: 'user',
+      resident_reg_no_enc: encryptResidentId(`${residentFront}${residentBack}`),
+      resident_reg_no_masked: maskResidentId(residentFront, residentBack),
     }])
 
     if (profileError) {
@@ -449,6 +463,70 @@ export async function fetchAllUserProfiles(): Promise<ApiResponse<UserProfile[]>
       .order('name')
     if (error) return { success: false, error: error.message }
     return { success: true, data: (data ?? []) as UserProfile[] }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
+/** 관리자가 4대보험 신고 등 목적으로 특정 직원의 주민등록번호 전체를 열람 — 호출마다 Discord 감사 로그 발송(번호 원문은 절대 포함 안 함) */
+export async function getResidentIdForInsurance(userId: string): Promise<ApiResponse<{ residentId: string }>> {
+  try {
+    const admin = await requireAdmin()
+
+    const { data, error } = await supabaseAdmin
+      .from('user_profiles')
+      .select('name, resident_reg_no_enc')
+      .eq('id', userId)
+      .maybeSingle()
+    if (error) return { success: false, error: error.message }
+    if (!data?.resident_reg_no_enc) return { success: false, error: '등록된 주민등록번호가 없습니다.' }
+
+    const residentId = decryptResidentId(data.resident_reg_no_enc)
+
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('edit', '🔒 주민번호 조회', `**${admin.name ?? admin.email}** → **${data.name}**`)
+    })
+
+    return { success: true, data: { residentId } }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
+/** 기존 가입자가 /my 페이지에서 본인 주민등록번호를 소급 입력 — 이미 등록된 경우 재입력 불가(관리 화면에서만 정정) */
+export async function setMyResidentId(residentIdFront: string, residentIdBack: string): Promise<ApiResponse> {
+  try {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+
+    const front = residentIdFront.trim()
+    const back = residentIdBack.trim()
+    if (!isValidResidentRegistrationNumber(front, back)) {
+      return { success: false, error: '주민등록번호가 올바르지 않습니다.' }
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from('user_profiles')
+      .select('resident_reg_no_enc')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (existing?.resident_reg_no_enc) {
+      return { success: false, error: '이미 등록되어 있습니다. 정정이 필요하면 관리자에게 문의해주세요.' }
+    }
+
+    const { error } = await supabaseAdmin
+      .from('user_profiles')
+      .update({
+        resident_reg_no_enc: encryptResidentId(`${front}${back}`),
+        resident_reg_no_masked: maskResidentId(front, back),
+      })
+      .eq('id', user.id)
+    if (error) return { success: false, error: error.message }
+
+    return { success: true }
   } catch (err) {
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }

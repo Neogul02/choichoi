@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount } from '@/app/actions/workers'
+import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount, getResidentIdForInsurance } from '@/app/actions/workers'
 import type { UserProfile } from '@/app/actions/workers'
 import type { UserAppRole } from '@/types/database'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -26,6 +26,8 @@ export default function UserManagementSection() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [revealed, setRevealed] = useState<{ id: string; value: string } | null>(null)
+  const [revealingId, setRevealingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAllUserProfiles().then(res => {
@@ -57,6 +59,18 @@ export default function UserManagementSection() {
       toast.success('권한이 변경됐습니다')
     } else {
       toast.error(`권한 변경 실패: ${res.error}`)
+    }
+  }
+
+  async function handleReveal(u: UserProfile) {
+    if (revealed?.id === u.id) { setRevealed(null); return }
+    setRevealingId(u.id)
+    const res = await getResidentIdForInsurance(u.id)
+    setRevealingId(null)
+    if (res.success && res.data) {
+      setRevealed({ id: u.id, value: res.data.residentId })
+    } else {
+      toast.error(res.error ?? '조회 실패')
     }
   }
 
@@ -129,6 +143,24 @@ export default function UserManagementSection() {
                     ? `${u.bank_name} ${u.bank_account}`
                     : <span className="text-ink-faint">계좌 미등록</span>}
                 </span>
+              </div>
+
+              {/* 주민등록번호 */}
+              <div className="w-[150px] shrink-0 flex items-center gap-1.5">
+                <span className="text-[11px] text-ink-muted truncate font-mono">
+                  {revealed?.id === u.id
+                    ? revealed.value
+                    : u.resident_reg_no_masked ?? <span className="text-ink-faint font-sans">미등록</span>}
+                </span>
+                {u.resident_reg_no_masked && (
+                  <button
+                    onClick={() => handleReveal(u)}
+                    disabled={revealingId === u.id}
+                    className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-md border cursor-pointer transition-colors bg-canvas text-ink-faint border-hairline hover:bg-canvas-soft disabled:opacity-50"
+                  >
+                    {revealingId === u.id ? '…' : revealed?.id === u.id ? '닫기' : '보기'}
+                  </button>
+                )}
               </div>
 
               {/* 권한 선택 */}
