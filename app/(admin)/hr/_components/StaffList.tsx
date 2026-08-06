@@ -1,7 +1,16 @@
 'use client';
 
+import { toast } from 'sonner';
+import type { MouseEvent } from 'react';
 import type { StaffProfile, StaffStatus, PopupEvent } from '@/types/database';
+import { formatPhoneNumber } from '@/lib/utils';
 import { STATUS_LABELS, STATUS_COLORS } from './constants';
+
+function copyPhone(e: MouseEvent, phone: string) {
+  e.stopPropagation();
+  navigator.clipboard.writeText(formatPhoneNumber(phone));
+  toast.success('전화번호 복사됨');
+}
 
 interface RowProps {
   staff: StaffProfile;
@@ -44,7 +53,15 @@ export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRow
       </td>
       <td className="px-3 py-2.5">
         <div className="font-bold text-ink leading-tight">{staff.name}</div>
-        {staff.phone && <div className="text-[12px] text-ink-muted mt-0.5">{staff.phone}</div>}
+        {staff.phone && (
+          <div
+            onClick={e => copyPhone(e, staff.phone!)}
+            title="클릭해서 복사"
+            className="text-[12px] text-ink-muted mt-0.5 w-fit cursor-pointer hover:underline"
+          >
+            {formatPhoneNumber(staff.phone)}
+          </div>
+        )}
         {staff.staff_role === 'cashier' ? (
           <div className={`text-[11px] font-semibold mt-0.5 ${popup ? 'text-violet-600' : 'text-amber-600'}`}>
             {popup ? popup.name : '팝업 미배정'}
@@ -144,7 +161,15 @@ export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-bold text-ink text-[14px] leading-tight">{staff.name}</div>
-          {staff.phone && <div className="text-[12px] text-ink-muted mt-0.5">{staff.phone}</div>}
+          {staff.phone && (
+          <div
+            onClick={e => copyPhone(e, staff.phone!)}
+            title="클릭해서 복사"
+            className="text-[12px] text-ink-muted mt-0.5 w-fit cursor-pointer hover:underline"
+          >
+            {formatPhoneNumber(staff.phone)}
+          </div>
+        )}
           {staff.staff_role === 'cashier' ? (
             <div className={`text-[11px] font-semibold mt-0.5 ${popup ? 'text-violet-600' : 'text-amber-600'}`}>
               {popup ? popup.name : '팝업 미배정'}

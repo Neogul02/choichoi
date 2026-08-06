@@ -6,6 +6,7 @@ import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount, getResidentI
 import type { UserProfile } from '@/app/actions/workers'
 import type { UserAppRole } from '@/types/database'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { formatPhoneNumber } from '@/lib/utils'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 const ROLE_OPTIONS: { value: UserAppRole; label: string }[] = [
@@ -60,6 +61,11 @@ export default function UserManagementSection() {
     } else {
       toast.error(`권한 변경 실패: ${res.error}`)
     }
+  }
+
+  async function handleCopy(label: string, value: string) {
+    await navigator.clipboard.writeText(value)
+    toast.success(`${label} 복사됨`)
   }
 
   async function handleReveal(u: UserProfile) {
@@ -129,15 +135,29 @@ export default function UserManagementSection() {
 
               {/* 이름 */}
               <div className="w-[120px] shrink-0">
-                <span className="text-[13px] font-bold text-ink truncate">{u.name}</span>
+                <span
+                  onClick={() => handleCopy('이름', u.name)}
+                  title="클릭해서 복사"
+                  className="text-[13px] font-bold text-ink truncate cursor-pointer hover:underline"
+                >
+                  {u.name}
+                </span>
                 {isMe && <span className="ml-1.5 text-[10px] text-ink-faint">(나)</span>}
               </div>
 
               {/* 전화 + 계좌 */}
               <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                <span className="text-[11px] text-ink-muted truncate">
-                  {u.phone ?? <span className="text-ink-faint">전화 미등록</span>}
-                </span>
+                {u.phone ? (
+                  <span
+                    onClick={() => handleCopy('전화번호', formatPhoneNumber(u.phone!))}
+                    title="클릭해서 복사"
+                    className="text-[11px] text-ink-muted truncate cursor-pointer hover:underline w-fit"
+                  >
+                    {formatPhoneNumber(u.phone)}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-ink-faint truncate">전화 미등록</span>
+                )}
                 <span className="text-[11px] text-ink-muted truncate">
                   {u.bank_name && u.bank_account
                     ? `${u.bank_name} ${u.bank_account}`
@@ -147,11 +167,17 @@ export default function UserManagementSection() {
 
               {/* 주민등록번호 */}
               <div className="w-[150px] shrink-0 flex items-center gap-1.5">
-                <span className="text-[11px] text-ink-muted truncate font-mono">
-                  {revealed?.id === u.id
-                    ? revealed.value
-                    : u.resident_reg_no_masked ?? <span className="text-ink-faint font-sans">미등록</span>}
-                </span>
+                {(revealed?.id === u.id || u.resident_reg_no_masked) ? (
+                  <span
+                    onClick={() => handleCopy('주민등록번호', revealed?.id === u.id ? revealed.value : u.resident_reg_no_masked!)}
+                    title="클릭해서 복사"
+                    className="text-[11px] text-ink-muted truncate font-mono cursor-pointer hover:underline"
+                  >
+                    {revealed?.id === u.id ? revealed.value : u.resident_reg_no_masked}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-ink-faint font-sans">미등록</span>
+                )}
                 {u.resident_reg_no_masked && (
                   <button
                     onClick={() => handleReveal(u)}
