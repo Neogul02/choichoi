@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchActivePopupEvents } from '@/app/actions/schedule'
 import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
+import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
 import { notifyLoginEvent } from '@/app/actions/discord'
 import { withTimeout } from '@/lib/utils'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -56,6 +57,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [signupPhone, setSignupPhone] = useState('')
   const [signupBankName, setSignupBankName] = useState('')
   const [signupBankAccount, setSignupBankAccount] = useState('')
+  const [signupResidentFront, setSignupResidentFront] = useState('')
+  const [signupResidentBack, setSignupResidentBack] = useState('')
   const [signupHealthCert, setSignupHealthCert] = useState<File | null>(null)
   const [signupInviteCode, setSignupInviteCode] = useState('')
   const [signupConsent, setSignupConsent] = useState(false)
@@ -70,6 +73,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const signupPhoneRef = useRef<HTMLInputElement>(null)
   const signupBankNameRef = useRef<HTMLInputElement>(null)
   const signupBankAccountRef = useRef<HTMLInputElement>(null)
+  const signupResidentFrontRef = useRef<HTMLInputElement>(null)
+  const signupResidentBackRef = useRef<HTMLInputElement>(null)
   const signupInviteCodeRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -204,6 +209,12 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     if (!signupEmail.trim()) { setError('이메일을 입력해주세요.'); return }
     if (!signupPhone.trim()) { setError('전화번호를 입력해주세요. (초기 비밀번호로 사용됩니다)'); return }
     if (!signupInviteCode.trim()) { setError('초대 코드를 입력해주세요.'); return }
+    const residentFront = signupResidentFront.trim()
+    const residentBack = signupResidentBack.trim()
+    if (!isValidResidentRegistrationNumber(residentFront, residentBack)) {
+      setError('주민등록번호를 올바르게 입력해주세요. (고용·산재보험 신고에 필요합니다)')
+      return
+    }
     if (!signupConsent) { setError('개인정보 수집·이용에 동의해주세요.'); return }
 
     setError('')
@@ -221,6 +232,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       phone: signupPhone.trim(),
       bankName: signupBankName.trim() || undefined,
       bankAccount: signupBankAccount.trim() || undefined,
+      residentIdFront: residentFront,
+      residentIdBack: residentBack,
     })
 
     if (!result.success) {
@@ -259,7 +272,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       setInfo(`가입 완료! 초기 비밀번호는 전화번호(${password})입니다. 로그인해주세요.`)
       setView('login')
       setSignupName(''); setSignupEmail(''); setSignupPhone('')
-      setSignupBankName(''); setSignupBankAccount(''); setSignupHealthCert(null); setSignupInviteCode(''); setSignupConsent(false)
+      setSignupBankName(''); setSignupBankAccount(''); setSignupResidentFront(''); setSignupResidentBack('')
+      setSignupHealthCert(null); setSignupInviteCode(''); setSignupConsent(false)
       return
     }
 
@@ -353,8 +367,22 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                 placeholder='은행명 (선택)' />
               <input ref={signupBankAccountRef} type='text' className={inputClass} value={signupBankAccount}
                 onChange={(e) => setSignupBankAccount(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupInviteCodeRef.current?.focus() } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupResidentFrontRef.current?.focus() } }}
                 placeholder='계좌번호 (선택)' />
+
+              <div className='flex items-center gap-2 mb-3'>
+                <input ref={signupResidentFrontRef} type='text' inputMode='numeric' maxLength={6}
+                  className={`${inputClass} mb-0 text-center tracking-wider`} value={signupResidentFront}
+                  onChange={(e) => setSignupResidentFront(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupResidentBackRef.current?.focus() } }}
+                  placeholder='주민번호 앞자리 *' autoComplete='off' />
+                <span className='text-ink-faint'>-</span>
+                <input ref={signupResidentBackRef} type='password' inputMode='numeric' maxLength={7}
+                  className={`${inputClass} mb-0 text-center tracking-wider`} value={signupResidentBack}
+                  onChange={(e) => setSignupResidentBack(e.target.value.replace(/\D/g, '').slice(0, 7))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupInviteCodeRef.current?.focus() } }}
+                  placeholder='뒷자리 *' autoComplete='off' />
+              </div>
 
               <input ref={signupInviteCodeRef} type='text' className={inputClass} value={signupInviteCode}
                 onChange={(e) => setSignupInviteCode(e.target.value)} placeholder='초대 코드 *' autoComplete='off' />
@@ -379,8 +407,9 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                 </div>
                 {showPrivacyDetail && (
                   <div className='mt-2 text-[11px] text-ink-muted leading-relaxed border-t border-hairline pt-2 space-y-1'>
-                    <p className='m-0'><span className='font-semibold'>수집 항목:</span> 이름, 이메일, 전화번호, 계좌정보, 보건증 사본</p>
-                    <p className='m-0'><span className='font-semibold'>수집 목적:</span> 근무 일정 관리, 급여 지급, 위생 관리(보건증 확인)</p>
+                    <p className='m-0'><span className='font-semibold'>수집 항목:</span> 이름, 이메일, 전화번호, 계좌정보, 보건증 사본, 주민등록번호</p>
+                    <p className='m-0'><span className='font-semibold'>수집 목적:</span> 근무 일정 관리, 급여 지급, 위생 관리(보건증 확인), 고용보험·산재보험 신고(주민등록번호)</p>
+                    <p className='m-0'><span className='font-semibold'>주민등록번호 처리:</span> 4대보험 신고 목적으로만 사용하며 암호화하여 저장합니다. 관리자만 열람할 수 있고 열람 기록이 남습니다.</p>
                     <p className='m-0'><span className='font-semibold'>보유 기간:</span> 고용 관계 종료 후 1년</p>
                     <p className='m-0'><span className='font-semibold'>제3자 제공:</span> 없음</p>
                     <p className='m-0 text-[10px] text-ink-faint'>동의를 거부할 수 있으나, 거부 시 서비스 이용이 제한됩니다.</p>

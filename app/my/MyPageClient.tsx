@@ -7,7 +7,8 @@ import { getWorkerTier } from '@/lib/tiers'
 import { DAY_NAMES } from '@/lib/staffing'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import NavBar from '@/components/NavBar'
-import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount } from '@/app/actions/workers'
+import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount, setMyResidentId } from '@/app/actions/workers'
+import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
 import { getMyContracts } from '@/app/actions/contracts'
 import { getMyRoster, type MyShift } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
@@ -56,6 +57,10 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
   const [editHealthCert, setEditHealthCert] = useState<File | null>(null)
   const [isEditPending, startEditTransition] = useTransition()
   const editFileRef = useRef<HTMLInputElement>(null)
+
+  const [residentFront, setResidentFront] = useState('')
+  const [residentBack, setResidentBack] = useState('')
+  const [isResidentPending, startResidentTransition] = useTransition()
 
   const [isPwOpen, setIsPwOpen] = useState(false)
   const [currentPw, setCurrentPw] = useState('')
@@ -132,8 +137,29 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
     if (!profile.phone) items.push('전화번호')
     if (!profile.bank_name || !profile.bank_account) items.push('계좌')
     if (!profile.health_cert_url) items.push('보건증')
+    if (!profile.resident_reg_no_masked) items.push('주민등록번호')
     return items
   }, [profile])
+
+  const handleSaveResidentId = () => {
+    const front = residentFront.trim()
+    const back = residentBack.trim()
+    if (!isValidResidentRegistrationNumber(front, back)) {
+      toast.error('주민등록번호를 올바르게 입력해주세요.')
+      return
+    }
+    startResidentTransition(async () => {
+      const res = await setMyResidentId(front, back)
+      if (res.success) {
+        toast.success('주민등록번호가 등록됐습니다.')
+        setResidentFront(''); setResidentBack('')
+        const profileRes = await getMyProfile()
+        if (profileRes.success && profileRes.data) setProfile(profileRes.data)
+      } else {
+        toast.error(res.error ?? '등록 실패')
+      }
+    })
+  }
 
   const startEdit = () => {
     setEditName(profile?.name ?? authName ?? '')
@@ -417,6 +443,26 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                         ? <a href={profile.health_cert_url} target='_blank' rel='noopener noreferrer' className='text-primary-700 underline text-[14px]'>보기</a>
                         : '미등록'}
                     />
+                    {profile.resident_reg_no_masked ? (
+                      <InfoRow label='주민등록번호' value={profile.resident_reg_no_masked} />
+                    ) : (
+                      <div className='rounded-xl border border-hairline p-3 bg-canvas-soft space-y-2'>
+                        <p className='m-0 text-[13px] font-semibold text-ink'>주민등록번호 등록 (고용·산재보험 신고용)</p>
+                        <div className='flex items-center gap-2'>
+                          <input type='text' inputMode='numeric' maxLength={6} value={residentFront}
+                            onChange={(e) => setResidentFront(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder='앞자리' className={`${inputClass} text-center`} />
+                          <span className='text-ink-faint'>-</span>
+                          <input type='password' inputMode='numeric' maxLength={7} value={residentBack}
+                            onChange={(e) => setResidentBack(e.target.value.replace(/\D/g, '').slice(0, 7))}
+                            placeholder='뒷자리' className={`${inputClass} text-center`} />
+                        </div>
+                        <button type='button' onClick={handleSaveResidentId} disabled={isResidentPending}
+                          className='w-full border-none rounded-xl px-3 py-2 text-[13px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed'>
+                          {isResidentPending ? '등록 중...' : '등록'}
+                        </button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <p className='m-0 text-[13px] text-ink-muted'>직원 프로필이 연결되지 않았습니다.{isAdmin ? ' (관리자 계정)' : ''}</p>
