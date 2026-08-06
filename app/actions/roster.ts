@@ -681,7 +681,7 @@ export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; 
 
   const { data: assignData } = await supabaseAdmin
     .from('roster_assignments')
-    .select('start_time, end_time, roster_shifts (name, start_time, end_time, sort_order), staff_profiles (name)')
+    .select('start_time, end_time, roster_shifts!roster_assignments_shift_id_fkey (name, start_time, end_time, sort_order), staff_profiles (name)')
     .eq('work_date', tomorrow)
   if (!assignData?.length) return { dateLabel, shifts: [] }
 
@@ -733,7 +733,7 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
 
     const { data: assignData, error: assignError } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, start_time, end_time, staff_id, roster_shifts (name, start_time, end_time, sort_order)')
+      .select('work_date, start_time, end_time, staff_id, roster_shifts!roster_assignments_shift_id_fkey (name, start_time, end_time, sort_order)')
       .gte('work_date', from)
       .lte('work_date', to)
       .in('staff_id', staffArr.map(s => s.id))
@@ -786,7 +786,7 @@ async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
 
   const { data: assignData, error: assignError } = await supabaseAdmin
     .from('roster_assignments')
-    .select('work_date, start_time, end_time, break_minutes, roster_shifts (name, start_time, end_time)')
+    .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (name, start_time, end_time)')
     .eq('staff_id', staffId)
     .gte('work_date', from)
     .lte('work_date', to)
