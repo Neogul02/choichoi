@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchMonthlyPayroll, type PayrollRow } from '@/app/actions/payroll'
 import type { StaffRole } from '@/types/database'
 import { showMsg } from '@/lib/toast'
+import { formatPhoneNumber } from '@/lib/utils'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal from './PayrollDetailModal'
@@ -197,7 +198,15 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                     </td>
                     <td className="px-2 py-2.5">
                       <div className={`font-bold text-ink ${paid ? 'line-through' : ''}`}>{row.name}</div>
-                      {row.phone && <div className="text-[10px] text-ink-muted mt-0.5">{row.phone}</div>}
+                      {row.phone && (
+                        <div
+                          onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(formatPhoneNumber(row.phone!)); showMsg('전화번호 복사됨') }}
+                          title="클릭해서 복사"
+                          className="text-[10px] text-ink-muted mt-0.5 w-fit cursor-pointer hover:underline"
+                        >
+                          {formatPhoneNumber(row.phone)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-center text-ink">{row.days}일</td>
                     <td className="px-3 py-2.5 text-center text-ink font-semibold">{row.totalHours}h</td>
