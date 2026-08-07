@@ -10,6 +10,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // .next/** above only matches a top-level .next dir — nested build output under
+    // agent worktrees (.claude/worktrees/<id>/.next/**) slipped through and got linted
+    // as if it were source. Worktrees are separate git checkouts; never lint into them.
+    ".claude/worktrees/**",
   ]),
   {
     rules: {
