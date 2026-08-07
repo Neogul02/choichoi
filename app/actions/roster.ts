@@ -515,7 +515,12 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
 
     const weekFrom = getWeekStart(fromDate)
     const weekTo = addDays(getWeekStart(toDate), 6)
-    const staffQuery = supabaseAdmin.from('staff_profiles').select('*').eq('status', 'confirmed').eq('staff_role', unit.staffRole)
+    // 자동배정 알고리즘(lib/roster/autofill.ts)이 실제 쓰는 컬럼만 select — available_ranges(jsonb) 등 불필요한 컬럼 제외
+    const staffQuery = supabaseAdmin
+      .from('staff_profiles')
+      .select('id, name, max_days_per_week, preferred_shift_ids, preferred_days, available_ranges')
+      .eq('status', 'confirmed')
+      .eq('staff_role', unit.staffRole)
     const [staffRes, assignRes, reqRes] = await Promise.all([
       unit.popupId === null ? staffQuery.is('popup_id', null) : staffQuery.eq('popup_id', unit.popupId),
       applyUnitFilter(
