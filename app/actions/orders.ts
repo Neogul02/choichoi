@@ -3,7 +3,7 @@
 import { after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { z } from 'zod';
-import { wrap, extractErrorMessage, requireAdmin } from './_base';
+import { wrap, extractErrorMessage, requireAdmin, isNextInternalControlFlowError } from './_base';
 import { getKSTDateBounds } from '@/lib/date';
 import { getMenuSalesByPeriod } from './menu';
 import type { OrderItemInput } from '@/lib/supabase';
@@ -335,6 +335,14 @@ export async function fetchOrdersByPeriod(startISO: string, endISO: string, popu
 }
 export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(() => prepareOrder(id)); }
 export async function removeOrder(id: number): Promise<ApiResponse> {
+  // 별도 try/catch로 분리 — 아래 블록의 catch는 주문 조회 실패 시 "알림 없이 삭제만 진행"하는
+  // 의도된 fallback이라, 권한 검사를 같은 블록에 넣으면 미권한 요청도 그 fallback을 타고 삭제가 실행된다.
+  try {
+    await requireAdmin()
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: extractErrorMessage(err) }
+  }
   try {
     const { data: order } = await supabaseAdmin.from('orders').select('total_price, cashier_name').eq('id', id).maybeSingle()
     const result = await wrap(() => deleteOrder(id))

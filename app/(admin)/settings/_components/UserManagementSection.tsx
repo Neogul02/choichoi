@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount, getResidentIdForInsurance } from '@/app/actions/workers'
+import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount, getResidentIdForInsurance, resetWorkerPassword } from '@/app/actions/workers'
 import type { UserProfile } from '@/app/actions/workers'
 import type { UserAppRole } from '@/types/database'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -29,6 +29,8 @@ export default function UserManagementSection() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [revealed, setRevealed] = useState<{ id: string; value: string } | null>(null)
   const [revealingId, setRevealingId] = useState<string | null>(null)
+  const [resetTarget, setResetTarget] = useState<UserProfile | null>(null)
+  const [isResetting, setIsResetting] = useState(false)
 
   useEffect(() => {
     fetchAllUserProfiles().then(res => {
@@ -77,6 +79,19 @@ export default function UserManagementSection() {
       setRevealed({ id: u.id, value: res.data.residentId })
     } else {
       toast.error(res.error ?? '조회 실패')
+    }
+  }
+
+  async function handleResetConfirm() {
+    if (!resetTarget) return
+    setIsResetting(true)
+    const res = await resetWorkerPassword(resetTarget.id)
+    setIsResetting(false)
+    if (res.success) {
+      toast.success(`${resetTarget.name} 님의 비밀번호가 초기화됐습니다 (전화번호로 로그인 가능)`)
+      setResetTarget(null)
+    } else {
+      toast.error(`초기화 실패: ${res.error}`)
     }
   }
 
@@ -221,6 +236,18 @@ export default function UserManagementSection() {
                 )}
               </div>
 
+              {/* 비번 초기화 */}
+              <div className="shrink-0">
+                <button
+                  onClick={() => setResetTarget(u)}
+                  disabled={!u.phone}
+                  title={!u.phone ? '전화번호가 등록되어 있지 않아 초기화할 수 없습니다' : '비밀번호를 초기값(전화번호)으로 재설정'}
+                  className="text-[10px] font-semibold px-2 py-1 rounded-md border cursor-pointer transition-colors bg-canvas text-ink-muted border-hairline hover:bg-canvas-soft disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-canvas"
+                >
+                  비번 초기화
+                </button>
+              </div>
+
               {/* 탈퇴 */}
               <div className="shrink-0">
                 <button
@@ -236,6 +263,17 @@ export default function UserManagementSection() {
           )
         })}
       </div>
+
+      <ConfirmDialog
+        open={resetTarget !== null}
+        title={`"${resetTarget?.name}" 님의 비밀번호를 초기화할까요?`}
+        description={`비밀번호가 가입 시 초기값(전화번호: ${resetTarget?.phone ?? ''})으로 재설정됩니다.`}
+        confirmLabel="초기화"
+        danger
+        busy={isResetting}
+        onConfirm={handleResetConfirm}
+        onClose={() => setResetTarget(null)}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

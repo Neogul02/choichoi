@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { wrap } from './_base';
+import { wrap, requireAuth } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import type { ApiResponse } from '@/types/api';
 
@@ -43,5 +43,5 @@ export async function fetchPosNote(): Promise<ApiResponse<PosNote>> {
 export async function updatePosNote(content: string, updatedBy?: string): Promise<ApiResponse<PosNote>> {
   const parsed = SaveSchema.safeParse({ content });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => savePosNote(parsed.data.content, updatedBy));
+  return wrap(async () => { await requireAuth(); return savePosNote(parsed.data.content, updatedBy); });
 }

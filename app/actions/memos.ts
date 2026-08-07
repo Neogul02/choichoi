@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { wrap } from './_base';
+import { wrap, requireAuth } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import type { ApiResponse, FetchMemosResponse } from '@/types/api';
 import type { Memo } from '@/types/database';
@@ -71,17 +71,17 @@ export async function fetchAllMemos(): Promise<FetchMemosResponse> { return wrap
 export async function createNewMemo(title: string, content: string, color: string, type: 'note' | 'checklist' = 'note'): Promise<ApiResponse<Memo>> {
   const parsed = MemoSchema.safeParse({ title, content, color, type });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => createMemo(parsed.data.title, parsed.data.content, parsed.data.color, parsed.data.type));
+  return wrap(async () => { await requireAuth(); return createMemo(parsed.data.title, parsed.data.content, parsed.data.color, parsed.data.type); });
 }
 
 export async function editMemo(id: number, title: string, content: string, color: string, type: 'note' | 'checklist' = 'note'): Promise<ApiResponse<Memo>> {
   const parsed = MemoSchema.safeParse({ title, content, color, type });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => updateMemo(id, parsed.data.title, parsed.data.content, parsed.data.color, parsed.data.type));
+  return wrap(async () => { await requireAuth(); return updateMemo(id, parsed.data.title, parsed.data.content, parsed.data.color, parsed.data.type); });
 }
 
-export async function removeMemo(id: number): Promise<ApiResponse> { return wrap(() => deleteMemo(id)); }
+export async function removeMemo(id: number): Promise<ApiResponse> { return wrap(async () => { await requireAuth(); return deleteMemo(id); }); }
 
 export async function toggleMemoPinned(id: number, isPinned: boolean): Promise<ApiResponse<Memo>> {
-  return wrap(() => toggleMemoPin(id, isPinned));
+  return wrap(async () => { await requireAuth(); return toggleMemoPin(id, isPinned); });
 }

@@ -7,8 +7,8 @@ import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/action
 import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
 import type { StaffProfile, PopupEvent, StaffRole, RosterShift } from '@/types/database';
 import { DAY_NAMES, ROLE_LABELS } from './constants';
-import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap } from '@/lib/staffing';
-import { addDays } from '@/lib/date';
+import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap, pickOngoingPopup } from '@/lib/staffing';
+import { addDays, kstToday } from '@/lib/date';
 import { CalendarGridSkeleton, MatrixSkeleton } from '@/components/Skeleton';
 import { useRosterView } from './roster/useRosterView';
 import { useRosterRange } from './roster/useRosterRange';
@@ -50,7 +50,9 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     setUnit(prev => {
       // 이미 올바른 팝업이 선택된 경우 유지
       if (prev.staffRole === 'cashier' && prev.popupId !== null) return prev;
-      return { staffRole: 'cashier', popupId: popups[0].id };
+      // 기본값 = 오늘 날짜가 기간에 포함된(진행 중인) 팝업 — 없으면 목록 첫 번째로 fallback
+      const ongoing = pickOngoingPopup(popups, kstToday());
+      return { staffRole: 'cashier', popupId: (ongoing ?? popups[0]).id };
     });
   }, [roleFilter, popups]);
   // 뷰 상태(월 커서·월/주 토글·범위 필터·선택 날짜 + localStorage 동기화)

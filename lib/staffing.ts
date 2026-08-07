@@ -1,7 +1,15 @@
-import type { StaffProfile } from '@/types/database';
+import type { PopupEvent, StaffProfile } from '@/types/database';
 import { prevDate, dayOfWeek } from '@/lib/date';
 
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+/** 오늘 날짜(YYYY-MM-DD)가 기간(start_date~end_date) 안에 든 팝업 — 인사 탭 달력 기본 포커스용. 없으면 null. */
+export function pickOngoingPopup<T extends Pick<PopupEvent, 'start_date' | 'end_date'>>(
+  popups: T[],
+  todayStr: string,
+): T | null {
+  return popups.find(p => p.start_date <= todayStr && todayStr <= p.end_date) ?? null;
+}
 
 export interface ShiftRequirementSource {
   id: number;

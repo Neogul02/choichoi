@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { RosterMemo, StaffProfile } from '@/types/database'
-import { fetchRosterRange } from './roster'
+import { fetchRosterRangeForOverview } from './roster'
 import type { RosterMonthData, RosterUnit } from './roster'
 import { fetchStaffProfiles } from './staff'
 import { fetchPopupEvents } from './schedule'
@@ -56,7 +56,7 @@ export async function fetchRosterOverview(fromDate: string, toDate: string): Pro
         .lte('memo_date', toDate)
         .order('memo_date')
         .order('created_at'),
-      Promise.all(unitDefs.map(u => fetchRosterRange(u.unit, fromDate, toDate))),
+      Promise.all(unitDefs.map(u => fetchRosterRangeForOverview(u.unit, fromDate, toDate))),
     ])
     if (!staffRes.success || !staffRes.data) return { success: false, error: staffRes.error ?? '직원 목록을 불러올 수 없습니다.' }
     if (memosRes.error) return { success: false, error: memosRes.error.message }
