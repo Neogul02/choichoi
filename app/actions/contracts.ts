@@ -4,6 +4,7 @@ import { after } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { wrap, requireAdmin } from './_base'
+import { kstToday } from '@/lib/date'
 import { createHash } from 'crypto'
 import React from 'react'
 import type { ApiResponse } from '@/types/api'
@@ -112,7 +113,7 @@ export async function generateContract(
       insurancePension: false,
       insuranceHealth: false,
       employerSignatureBase64: input.signatureBase64,
-      issueDate: new Date().toISOString().slice(0, 10),
+      issueDate: kstToday(),
     }
 
     const element = React.createElement(ContractDocument, docProps) as React.ReactElement<React.ComponentProps<typeof Document>>
