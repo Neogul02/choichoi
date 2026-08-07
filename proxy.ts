@@ -34,6 +34,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // 재고탭 임시 블라인드 처리 (2026-08-07) — 직접 URL 접근도 차단. 재개 시 이 블록 삭제 +
+  // NavBar.tsx의 동일 주석 블록도 함께 되돌릴 것
+  if (request.nextUrl.pathname.startsWith('/inventory')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/pos'
+    return NextResponse.redirect(url)
+  }
+
   const role = (claims.user_metadata as { role?: string } | undefined)?.role
   const adminOnlyPrefixes = ['/settings', '/devtools', '/hr', '/stats']
   const managerPrefixes = ['/inventory', '/roster']

@@ -7,7 +7,8 @@ import { fetchAllRosterShifts, fetchRosterRange } from '@/app/actions/roster';
 import type { RosterUnit } from '@/app/actions/roster';
 import { fetchContractedStaffIds } from '@/app/actions/contracts';
 import { fetchStaffPopupAssignments } from '@/app/actions/staffPopups';
-import { kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date';
+import { kstYearMonth, kstToday, ymdToDateStr, monthEndDateStr } from '@/lib/date';
+import { pickOngoingPopup } from '@/lib/staffing';
 
 // 서버 컴포넌트에서 서버 액션 함수를 직접 호출하면 HTTP 왕복 없이 in-process로 병렬 실행된다.
 // 클라이언트 마운트 후 호출하던 기존 방식은 Next.js가 액션 POST를 직렬화하는 데다
@@ -19,8 +20,10 @@ async function getHrBootstrap() {
   const visiblePopups = popups.filter(p => p.is_active !== false);
 
   // RosterCalendar의 초기 상태와 동일한 단위·당월(KST)을 프리페치 — 단위·월이 어긋나면 클라이언트가 무시하고 직접 조회
+  // 캐셔 기본 팝업은 오늘 날짜가 기간에 포함된(진행 중인) 팝업 — 없으면 목록 첫 번째로 fallback
+  const ongoingPopup = pickOngoingPopup(visiblePopups, kstToday());
   const initialUnit: RosterUnit = visiblePopups.length > 0
-    ? { staffRole: 'cashier', popupId: visiblePopups[0].id }
+    ? { staffRole: 'cashier', popupId: (ongoingPopup ?? visiblePopups[0]).id }
     : { staffRole: 'kitchen', popupId: null };
   const { y, m } = kstYearMonth(); // m은 0-indexed — 클라이언트 cursor.m과 동일 기준
   const monthStart = ymdToDateStr(y, m, 1);
