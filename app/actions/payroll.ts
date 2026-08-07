@@ -33,6 +33,9 @@ export async function fetchStaffAssignmentsInRange(
   toDate: string,
 ): Promise<ApiResponse<StaffWorkAssignment[]>> {
   try {
+    const user = await getAuthUser()
+    if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
+
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
       .select('work_date, start_time, end_time, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')

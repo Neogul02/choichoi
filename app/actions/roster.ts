@@ -6,7 +6,7 @@ import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfil
 import { getWeekStart, DAY_NAMES } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
-import { getAuthUser, wrap, requireAdmin } from './_base'
+import { getAuthUser, wrap, requireAdmin, requireManagerOrAdmin } from './_base'
 import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments } from '@/lib/roster/query-helpers'
 import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
 import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'
@@ -92,18 +92,24 @@ export interface WeeklyRosterEntry {
   end_time: string
 }
 
+// 역할 검사 없는 내부 구현 — 반드시 requireAdmin()/requireManagerOrAdmin()으로 감싼 exported 함수를 통해서만 호출할 것.
+// 이 함수 자체를 export하면 role 검사 없는 새 서버 액션(공개 POST 엔드포인트)이 생기므로 절대 export 금지.
+async function fetchRosterShiftsUnchecked(unit: RosterUnit): Promise<RosterShift[]> {
+  const { data, error } = await applyUnitFilter(
+    supabaseAdmin.from('roster_shifts').select('*'),
+    unit,
+  )
+    .order('sort_order')
+    .order('created_at')
+  if (error) throw new Error(error.message)
+  return (data ?? []) as RosterShift[]
+}
+
 /** 단위의 파트 목록 — 조회는 순수 읽기다. 없으면 빈 배열을 반환하며, 기본 파트 생성은 팝업 생성 시점(createDefaultCashierShifts)에서만 이뤄진다 */
 export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<RosterShift[]>> {
   return wrap(async () => {
     await requireAdmin()
-    const { data, error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_shifts').select('*'),
-      unit,
-    )
-      .order('sort_order')
-      .order('created_at')
-    if (error) throw new Error(error.message)
-    return (data ?? []) as RosterShift[]
+    return fetchRosterShiftsUnchecked(unit)
   })
 }
 
@@ -185,40 +191,51 @@ export async function deleteRosterShift(id: number): Promise<ApiResponse> {
   })
 }
 
-/** fromDate/toDate: YYYY-MM-DD (양끝 포함). 파트 목록 + 배정 + 날짜별 예외를 한 번에 */
+// 역할 검사 없는 내부 구현 — 위 fetchRosterShiftsUnchecked와 동일한 이유로 export 금지.
+async function fetchRosterRangeUnchecked(unit: RosterUnit, fromDate: string, toDate: string): Promise<RosterMonthData> {
+  // 배정 조회는 파트 목록과 독립이므로 병렬 실행 — 날짜별 요구 인원 예외만 파트 id에 의존
+  const [shifts, assignRes] = await Promise.all([
+    fetchRosterShiftsUnchecked(unit),
+    applyUnitFilter(
+      supabaseAdmin.from('roster_assignments').select(ASSIGNMENT_COLUMNS),
+      unit,
+    )
+      .gte('work_date', fromDate)
+      .lte('work_date', toDate)
+      .order('work_date'),
+  ])
+  if (assignRes.error) throw new Error(assignRes.error.message)
+  const shiftIds = shifts.map(s => s.id)
+
+  const reqRes = shiftIds.length === 0
+    ? { data: [], error: null }
+    : await supabaseAdmin
+        .from('roster_shift_requirements')
+        .select('*')
+        .in('shift_id', shiftIds)
+        .gte('work_date', fromDate)
+        .lte('work_date', toDate)
+  if (reqRes.error) throw new Error(reqRes.error.message)
+  return {
+    shifts,
+    assignments: castAssignments(assignRes.data),
+    requirements: (reqRes.data ?? []) as RosterShiftRequirement[],
+  }
+}
+
+/** fromDate/toDate: YYYY-MM-DD (양끝 포함). 파트 목록 + 배정 + 날짜별 예외를 한 번에. 어드민 전용(HR 탭 편집 화면). */
 export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<RosterMonthData>> {
   return wrap(async () => {
     await requireAdmin()
-    // 배정 조회는 파트 목록과 독립이므로 병렬 실행 — 날짜별 요구 인원 예외만 파트 id에 의존
-    const [shiftsRes, assignRes] = await Promise.all([
-      fetchRosterShifts(unit),
-      applyUnitFilter(
-        supabaseAdmin.from('roster_assignments').select(ASSIGNMENT_COLUMNS),
-        unit,
-      )
-        .gte('work_date', fromDate)
-        .lte('work_date', toDate)
-        .order('work_date'),
-    ])
-    if (!shiftsRes.success || !shiftsRes.data) throw new Error(shiftsRes.error ?? '파트를 불러올 수 없습니다.')
-    if (assignRes.error) throw new Error(assignRes.error.message)
-    const shifts = shiftsRes.data
-    const shiftIds = shifts.map(s => s.id)
+    return fetchRosterRangeUnchecked(unit, fromDate, toDate)
+  })
+}
 
-    const reqRes = shiftIds.length === 0
-      ? { data: [], error: null }
-      : await supabaseAdmin
-          .from('roster_shift_requirements')
-          .select('*')
-          .in('shift_id', shiftIds)
-          .gte('work_date', fromDate)
-          .lte('work_date', toDate)
-    if (reqRes.error) throw new Error(reqRes.error.message)
-    return {
-      shifts,
-      assignments: castAssignments(assignRes.data),
-      requirements: (reqRes.data ?? []) as RosterShiftRequirement[],
-    }
+/** fetchRosterRange의 매니저 허용 버전 — roster-view.ts의 일정표(읽기 전용) 화면 전용. admin·manager 둘 다 허용. */
+export async function fetchRosterRangeForOverview(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<RosterMonthData>> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    return fetchRosterRangeUnchecked(unit, fromDate, toDate)
   })
 }
 
