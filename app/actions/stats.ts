@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { wrap, requireAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
-import { getKSTDateBounds, utcToKstDateStr } from '@/lib/date';
+import { getKSTDateBounds } from '@/lib/date';
 import { getMenuSalesByPeriod } from './menu';
 import type {
   ApiResponse,
@@ -62,42 +62,16 @@ async function getDailySalesByPeriod(
   endISO: string,
   popupId?: string | number | null,
 ): Promise<DailySalesItem[]> {
-  const PAGE_SIZE = 1000
-  const MAX_ROWS = 10000
-  const allOrders: Array<{ total_price: string | number; created_at: string }> = []
+  const { data, error } = await supabaseAdmin.rpc('get_orders_daily_totals', {
+    p_start: startISO,
+    p_end: endISO,
+    p_popup_id: popupId && popupId !== '0' ? Number(popupId) : null,
+  })
 
-  for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
-    let query = supabaseAdmin
-      .from('orders')
-      .select('total_price, created_at')
-      .gte('created_at', startISO)
-      .lte('created_at', endISO)
-      .order('created_at', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
+  if (error) throw error
 
-    if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
-
-    const { data, error } = await query
-
-    if (error) throw error
-    if (!data || data.length === 0) break
-    allOrders.push(...data)
-    if (data.length < PAGE_SIZE) break
-  }
-
-  if (allOrders.length === 0) return []
-
-  const dayMap: Record<string, { revenue: number; orderCount: number }> = {}
-  for (const order of allOrders) {
-    const kstDate = utcToKstDateStr(order.created_at as string)
-    if (!dayMap[kstDate]) dayMap[kstDate] = { revenue: 0, orderCount: 0 }
-    dayMap[kstDate].revenue += parseFloat(String(order.total_price))
-    dayMap[kstDate].orderCount += 1
-  }
-
-  return Object.entries(dayMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, { revenue, orderCount }]) => ({ date, revenue, orderCount }))
+  return ((data ?? []) as Array<{ sale_date: string; total_revenue: number; order_count: number }>)
+    .map(row => ({ date: row.sale_date, revenue: Number(row.total_revenue), orderCount: Number(row.order_count) }))
 }
 
 async function upsertDailySales(
