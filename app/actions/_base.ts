@@ -59,6 +59,13 @@ export async function getAuthUser(): Promise<{
   };
 }
 
+/** 로그인만 요구하는(역할 무관) 액션의 첫 줄에서 호출 — 미인증이면 throw (wrap() 콜백 안에서 쓰면 표준 오류 응답으로 변환됨) */
+export async function requireAuth() {
+  const user = await getAuthUser();
+  if (!user) throw new Error('로그인이 필요합니다.');
+  return user;
+}
+
 /** admin 전용 액션의 첫 줄에서 호출 — 미인증/권한 없음이면 throw (wrap() 콜백 안에서 쓰면 표준 오류 응답으로 변환됨) */
 export async function requireAdmin() {
   const user = await getAuthUser();

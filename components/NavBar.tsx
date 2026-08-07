@@ -30,7 +30,8 @@ const ALL_NAV_LINKS = [
   { href: '/stats', label: '통계', minRole: 'admin' },
   { href: '/roster', label: '일정표', minRole: 'manager' },
   { href: '/hr', label: '인사', minRole: 'admin' },
-  { href: '/inventory', label: '재고', minRole: 'manager' },
+  // 재고탭 임시 블라인드 처리 (2026-08-07) — 재개 시 이 줄 주석 해제 + proxy.ts의 동일 주석 블록도 함께 되돌릴 것
+  // { href: '/inventory', label: '재고', minRole: 'manager' },
   { href: '/memo', label: '메모', minRole: 'user' },
   { href: '/my/schedule', label: '스케줄', minRole: 'user' },
   { href: '/my', label: 'MY', minRole: 'user' },

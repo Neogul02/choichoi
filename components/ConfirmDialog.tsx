@@ -36,6 +36,7 @@ export default function ConfirmDialog({
     onClose: () => { if (!busy) onClose(); },
     containerRef: panelRef,
     initialFocusRef: danger ? cancelRef : confirmRef,
+    onConfirm: () => { if (!busy) onConfirm(); },
   });
 
   if (!mounted) return null;

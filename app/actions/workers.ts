@@ -5,7 +5,7 @@ import { after } from 'next/server'
 // 파일명은 레거시 workers 테이블(2026-07-20 삭제, 코드 참조 0건 확인 후 제거)에서 유래.
 // 실제로는 user_profiles 기반 계정 관리 액션 — staff_profiles(근무자 프로필)와는 별개.
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { getAuthUser, isNextInternalControlFlowError, requireAdmin } from './_base'
+import { getAuthUser, isNextInternalControlFlowError, requireAdmin, wrap } from './_base'
 import { utcToKstDateStr } from '@/lib/date'
 import { encryptResidentId, decryptResidentId } from '@/lib/pii-crypto'
 import { isValidResidentRegistrationNumber, maskResidentId } from '@/lib/resident-id'
@@ -378,28 +378,27 @@ export async function createWorkerAccount(
 }
 
 export async function setUserRole(userId: string, role: UserAppRole): Promise<ApiResponse> {
-  try {
+  return wrap(async () => {
+    await requireAdmin()
+
     const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
 
     const { error } = await supabaseAdmin
       .from('user_profiles')
       .update({ worker_role: role })
       .eq('id', userId)
-    if (error) return { success: false, error: error.message }
+    if (error) throw new Error(error.message)
 
-    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { role } })
+    // user_metadata를 통째로 덮어쓰면 name 등 기존 값이 사라지므로 현재 값을 먼저 읽어 spread
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId)
+    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { ...authUser?.user?.user_metadata, role } })
 
     const label = role === 'admin' ? '관리자' : role === 'manager' ? '매니저' : '직원'
     after(async () => {
       const { notifyDiscord } = await import('@/lib/discord')
       await notifyDiscord('edit', `🔐 권한 변경`, `**${profile?.name ?? userId}** → ${label}`)
     })
-
-    return { success: true }
-  } catch (err) {
-    if (isNextInternalControlFlowError(err)) throw err
-    return { success: false, error: String(err) }
-  }
+  })
 }
 
 /** user_profiles + auth 계정 삭제 공통 로직 — 실패 시 error.message, 성공 시 삭제된 계정 이름을 반환 */
@@ -455,18 +454,37 @@ export async function adminDeleteUserAccount(userId: string): Promise<ApiRespons
   }
 }
 
+/** 관리자가 직원 비밀번호를 가입 시 초기값(전화번호)으로 되돌린다 — 대시보드 수동 처리 대신 인사/설정 탭에서 처리 */
+export async function resetWorkerPassword(userId: string): Promise<ApiResponse<{ name: string }>> {
+  return wrap(async () => {
+    await requireAdmin()
+
+    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name, phone').eq('id', userId).maybeSingle()
+    if (!profile) throw new Error('사용자를 찾을 수 없습니다.')
+    if (!profile.phone) throw new Error('전화번호가 등록되어 있지 않아 초기화할 수 없습니다.')
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: profile.phone })
+    if (error) throw new Error(error.message)
+
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('edit', '🔑 비밀번호 초기화', `**${profile.name}** 님의 비밀번호가 초기값(전화번호)으로 재설정되었습니다.`)
+    })
+
+    return { name: profile.name }
+  })
+}
+
 export async function fetchAllUserProfiles(): Promise<ApiResponse<UserProfile[]>> {
-  try {
+  return wrap(async () => {
+    await requireAdmin()
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
       .select(USER_PROFILE_COLUMNS)
       .order('name')
-    if (error) return { success: false, error: error.message }
-    return { success: true, data: (data ?? []) as UserProfile[] }
-  } catch (err) {
-    if (isNextInternalControlFlowError(err)) throw err
-    return { success: false, error: String(err) }
-  }
+    if (error) throw new Error(error.message)
+    return (data ?? []) as UserProfile[]
+  })
 }
 
 /** 관리자가 4대보험 신고 등 목적으로 특정 직원의 주민등록번호 전체를 열람 — 호출마다 Discord 감사 로그 발송(번호 원문은 절대 포함 안 함) */
