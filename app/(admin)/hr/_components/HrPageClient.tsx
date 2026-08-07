@@ -28,9 +28,6 @@ import type { RoleFilter, StatusFilter } from './useStaffFilters';
 import { STATUS_LABELS, ROLE_LABELS } from './constants';
 import { useModal } from '@/lib/useModal';
 
-// NavBar와 동일한 로컬 상수 컨벤션 — password-gate.tsx에서 로그인 시 설정된 팝업을 편의상 기본값으로 사용
-const POPUP_ID_KEY = 'choichoi_popup_id';
-
 const HrContractModal = dynamic(() => import('./HrContractModal'), { ssr: false });
 const StaffContractsListModal = dynamic(() => import('./StaffContractsListModal'), { ssr: false });
 const StaffCalendarModal = dynamic(() => import('./StaffCalendarModal'), { ssr: false });
@@ -66,15 +63,9 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
   const [staffList, setStaffList] = useState<StaffProfile[]>(initialStaff);
   const [userProfiles] = useState<UserProfile[]>(initialUserProfiles);
 
-  // 팝업 필터 — 로그인 시 선택한 팝업이 있으면 편의상 기본값으로 미리 선택 (전체 보기로 언제든 전환 가능)
-  const [popupFilter, setPopupFilter] = useState<number | 'all'>(() => {
-    if (typeof window === 'undefined') return 'all';
-    try {
-      const raw = localStorage.getItem(POPUP_ID_KEY);
-      const id = raw ? Number(raw) : NaN;
-      return Number.isFinite(id) && initialPopups.some(p => p.id === id) ? id : 'all';
-    } catch { return 'all'; }
-  });
+  // 팝업 필터 — 인사 탭 진입 시 항상 전체 기준으로 시작 (로그인 시 선택한 팝업으로 미리 좁혀두면
+  // 다른 팝업 근무자가 안 보여 혼동을 준다는 피드백으로 편의 기본값 제거, 필요 시 직접 선택)
+  const [popupFilter, setPopupFilter] = useState<number | 'all'>('all');
   const [staffPopupAssignments, setStaffPopupAssignments] = useState<StaffPopupAssignment[]>(initialStaffPopupAssignments);
   const staffPopupMap = useMemo(() => {
     const map = new Map<number, Set<number>>();
