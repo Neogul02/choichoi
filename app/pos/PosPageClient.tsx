@@ -750,7 +750,13 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
           {showNote && <PosNoteWidget cashierName={cashierName} />}
 
           {/* 모바일 전용 sticky 결제 바 */}
-          <div className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3">
+          {/* iOS Safari에서 position:sticky 요소는 내부 텍스트만 바뀌면 스크롤 전까지 리페인트가
+              지연되는 버그가 있어(스크롤하면 정상 표시됨), translateZ(0)로 별도 컴포지팅 레이어를
+              강제 생성해 값이 바뀔 때마다 즉시 리페인트되게 한다. */}
+          <div
+            className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3"
+            style={{ transform: 'translateZ(0)', willChange: 'transform' }}
+          >
             <div className="absolute -top-6 inset-x-0 h-6 bg-gradient-to-t from-canvas-soft to-transparent pointer-events-none" />
             {/* pb: 아이폰 홈바(safe-area)와 결제 버튼 겹침 방지 */}
             <div className="px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft">
