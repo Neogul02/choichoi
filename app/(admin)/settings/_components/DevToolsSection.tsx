@@ -595,6 +595,24 @@ export default function DevToolsSection() {
       {/* 환경 정보 */}
       <div className="bg-canvas-soft rounded-xl p-4">
         <h3 className="m-0 mb-3 text-base font-bold">환경 정보</h3>
+        <div className="mb-3 px-3 py-2.5 bg-canvas border border-[#eeeeee] rounded-xl flex items-center justify-between gap-3">
+          <div>
+            <p className="m-0 text-[11px] font-bold text-ink-faint uppercase tracking-widest mb-1">최신 배포 시각</p>
+            <p className="m-0 font-mono text-sm font-bold text-ink">{formatBuildTime(process.env.NEXT_PUBLIC_BUILD_TIME)}</p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {process.env.NEXT_PUBLIC_APP_VERSION && (
+              <span className="font-mono text-[11px] px-2 py-1 rounded-md bg-green-50 text-green-700">
+                v{process.env.NEXT_PUBLIC_APP_VERSION}
+              </span>
+            )}
+            {process.env.NEXT_PUBLIC_GIT_SHA && (
+              <span className="font-mono text-[11px] px-2 py-1 rounded-md bg-[#f0f4ff] text-[#3949AB]">
+                {process.env.NEXT_PUBLIC_GIT_SHA.slice(0, 7)}
+              </span>
+            )}
+          </div>
+        </div>
         <ul className="m-0 p-0 list-none space-y-2">
           <EnvRow label="NEXT_PUBLIC_SUPABASE_URL" value={process.env.NEXT_PUBLIC_SUPABASE_URL} />
           <EnvRow label="NODE_ENV" value={process.env.NODE_ENV} />
@@ -621,6 +639,19 @@ function StatusDot({ status }: { status: 'pending' | 'ok' | 'err' }) {
   if (status === 'pending') return <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />;
   if (status === 'ok') return <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
   return <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />;
+}
+
+const BUILD_TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  dateStyle: 'medium',
+  timeStyle: 'medium',
+});
+
+function formatBuildTime(value: string | undefined): string {
+  if (!value) return '(미설정)';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '(미설정)';
+  return `${BUILD_TIME_FORMATTER.format(d)} (KST)`;
 }
 
 function EnvRow({ label, value }: { label: string; value: string | undefined }) {
