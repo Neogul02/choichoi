@@ -18,6 +18,7 @@ import type { StaffProfile, StaffStatus, StaffRole, RosterShift, PopupEvent, Sta
 import StaffFormModal from './StaffFormModal';
 import RosterCalendar from './RosterCalendar';
 import PayrollPanel from './PayrollPanel';
+import PayCalculatorPanel from './PayCalculatorPanel';
 import ContractsPanel from './ContractsPanel';
 import StaffAssignModal from './StaffAssignModal';
 import ImportStaffFromPopupModal from './ImportStaffFromPopupModal';
@@ -33,7 +34,7 @@ const StaffContractsListModal = dynamic(() => import('./StaffContractsListModal'
 const StaffCalendarModal = dynamic(() => import('./StaffCalendarModal'), { ssr: false });
 const WeeklyRosterPrintModal = dynamic(() => import('./WeeklyRosterPrintModal'), { ssr: false });
 
-type RightTab = 'roster' | 'payroll' | 'contracts';
+type RightTab = 'roster' | 'payroll' | 'calculator' | 'contracts';
 
 export interface InitialRoster {
   unit: RosterUnit;
@@ -450,7 +451,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             {/* 우측 탭 + 근무표 인쇄 */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 w-fit">
-                {([['roster', '스케줄 달력'], ['payroll', '급여 정산'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
+                {([['roster', '스케줄 달력'], ['payroll', '급여 정산'], ['calculator', '공제 계산기'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
                   <button
                     key={tab}
                     onClick={() => setRightTab(tab)}
@@ -485,7 +486,9 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       return false;
                     }}
                   />
-                : <ContractsPanel
+                : rightTab === 'calculator'
+                  ? <PayCalculatorPanel />
+                  : <ContractsPanel
                     staffList={staffList}
                     popups={initialPopups}
                     refreshSignal={contractsRefreshKey}
