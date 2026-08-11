@@ -32,6 +32,24 @@ const ManualMenuSalesSchema = z.object({
   })),
 });
 
+const ManualDailyMenuSalesSchema = z.object({
+  popupId: z.number().int().positive(),
+  saleDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)'),
+  entries: z.array(z.object({
+    menuItemId: z.number().int().positive(),
+    quantity: z.number().int().min(0, '판매 수량은 0 이상이어야 합니다'),
+  })),
+});
+
+const ManualHourlySalesSchema = z.object({
+  popupId: z.number().int().positive(),
+  entries: z.array(z.object({
+    hour: z.number().int().min(0).max(23),
+    totalRevenue: z.number().int().min(0, '매출은 0 이상이어야 합니다'),
+    totalOrders: z.number().int().min(0, '주문 수는 0 이상이어야 합니다'),
+  })),
+});
+
 async function getMonthlySalesByDate(year: number, month: number): Promise<CalendarSalesData> {
   const { data, error } = await supabaseAdmin.rpc('get_monthly_sales_by_date', {
     p_year: year,
@@ -179,6 +197,115 @@ async function upsertManualMenuSales(
   }
 }
 
+async function getManualDailyMenuSales(popupId: number, saleDate: string): Promise<import('@/types/api').ManualDailyMenuRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from('manual_daily_menu_sales')
+    .select('sale_date, menu_item_id, quantity')
+    .eq('popup_id', popupId)
+    .eq('sale_date', saleDate)
+  if (error) throw error
+  return ((data ?? []) as Array<{ sale_date: string; menu_item_id: number; quantity: number }>)
+    .map((row) => ({ saleDate: row.sale_date, menuItemId: row.menu_item_id, quantity: row.quantity }))
+}
+
+// 기간 내 날짜별 수기 입력을 메뉴 단위로 합산 — 실주문이 전혀 없던 메뉴도 누락 없이 포함하도록
+// menu_items를 조인해 이름/단가/색상까지 함께 반환한다 (applyMenuManualOverrides가 그대로 병합 가능한 형태)
+async function getManualDailyMenuSalesAggregate(popupId: number, startDate: string, endDate: string): Promise<MenuSalesItem[]> {
+  const { data, error } = await supabaseAdmin
+    .from('manual_daily_menu_sales')
+    .select('quantity, menu_items(id, name, price, color)')
+    .eq('popup_id', popupId)
+    .gte('sale_date', startDate)
+    .lte('sale_date', endDate)
+  if (error) throw error
+  type MenuItemRef = { id: number; name: string; price: number; color: string }
+  type Row = { quantity: number; menu_items: MenuItemRef | MenuItemRef[] | null }
+  const agg = new Map<number, MenuSalesItem>()
+  for (const row of (data ?? []) as unknown as Row[]) {
+    const item = Array.isArray(row.menu_items) ? row.menu_items[0] : row.menu_items
+    if (!item) continue
+    const qty = (agg.get(item.id)?.totalQuantity ?? 0) + row.quantity
+    const price = Number(item.price)
+    agg.set(item.id, { id: item.id, name: item.name, price, color: item.color, totalQuantity: qty, totalRevenue: qty * price })
+  }
+  return [...agg.values()]
+}
+
+async function upsertManualDailyMenuSales(
+  popupId: number,
+  saleDate: string,
+  entries: Array<{ menuItemId: number; quantity: number }>,
+): Promise<void> {
+  const toUpsert = entries.filter((e) => e.quantity > 0)
+  const toDelete = entries.filter((e) => e.quantity <= 0).map((e) => e.menuItemId)
+
+  if (toUpsert.length > 0) {
+    const { error } = await supabaseAdmin.from('manual_daily_menu_sales').upsert(
+      toUpsert.map((e) => ({
+        popup_id: popupId,
+        sale_date: saleDate,
+        menu_item_id: e.menuItemId,
+        quantity: e.quantity,
+        updated_at: new Date().toISOString(),
+      })),
+      { onConflict: 'popup_id,sale_date,menu_item_id' },
+    )
+    if (error) throw error
+  }
+
+  if (toDelete.length > 0) {
+    const { error } = await supabaseAdmin
+      .from('manual_daily_menu_sales')
+      .delete()
+      .eq('popup_id', popupId)
+      .eq('sale_date', saleDate)
+      .in('menu_item_id', toDelete)
+    if (error) throw error
+  }
+}
+
+async function getManualHourlySales(popupId: number): Promise<import('@/types/api').ManualHourlyEntry[]> {
+  const { data, error } = await supabaseAdmin
+    .from('manual_hourly_sales')
+    .select('hour, total_revenue, total_orders')
+    .eq('popup_id', popupId)
+    .order('hour', { ascending: true })
+  if (error) throw error
+  return ((data ?? []) as Array<{ hour: number; total_revenue: number; total_orders: number }>)
+    .map((row) => ({ hour: row.hour, totalRevenue: Number(row.total_revenue), totalOrders: row.total_orders }))
+}
+
+async function upsertManualHourlySales(
+  popupId: number,
+  entries: Array<{ hour: number; totalRevenue: number; totalOrders: number }>,
+): Promise<void> {
+  const toUpsert = entries.filter((e) => e.totalRevenue > 0 || e.totalOrders > 0)
+  const toDelete = entries.filter((e) => e.totalRevenue <= 0 && e.totalOrders <= 0).map((e) => e.hour)
+
+  if (toUpsert.length > 0) {
+    const { error } = await supabaseAdmin.from('manual_hourly_sales').upsert(
+      toUpsert.map((e) => ({
+        popup_id: popupId,
+        hour: e.hour,
+        total_revenue: e.totalRevenue,
+        total_orders: e.totalOrders,
+        updated_at: new Date().toISOString(),
+      })),
+      { onConflict: 'popup_id,hour' },
+    )
+    if (error) throw error
+  }
+
+  if (toDelete.length > 0) {
+    const { error } = await supabaseAdmin
+      .from('manual_hourly_sales')
+      .delete()
+      .eq('popup_id', popupId)
+      .in('hour', toDelete)
+    if (error) throw error
+  }
+}
+
 /** 특정 날짜(KST)의 주문 목록 — 단일 호출부(fetchOrdersByDate)라 비공개로 둔다 */
 async function getOrdersByDate(kstDateStr: string, popupId?: string | number | null): Promise<OrderRecordWithItems[]> {
   const { start, end } = getKSTDateBounds(kstDateStr)
@@ -266,4 +393,32 @@ export async function saveManualMenuSales(popupId: number, entries: Array<{ menu
   const parsed = ManualMenuSalesSchema.safeParse({ popupId, entries });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   return wrap(async () => { await requireAdmin(); return upsertManualMenuSales(parsed.data.popupId, parsed.data.entries); });
+}
+
+export async function fetchManualDailyMenuSales(popupId: number, saleDate: string): Promise<import('@/types/api').FetchManualDailyMenuSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getManualDailyMenuSales(popupId, saleDate); });
+}
+export async function fetchManualDailyMenuSalesForRange(popupId: number, startDate: string, endDate: string): Promise<FetchMenuSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getManualDailyMenuSalesAggregate(popupId, startDate, endDate); });
+}
+export async function saveManualDailyMenuSales(
+  popupId: number,
+  saleDate: string,
+  entries: Array<{ menuItemId: number; quantity: number }>,
+): Promise<ApiResponse> {
+  const parsed = ManualDailyMenuSalesSchema.safeParse({ popupId, saleDate, entries });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  return wrap(async () => { await requireAdmin(); return upsertManualDailyMenuSales(parsed.data.popupId, parsed.data.saleDate, parsed.data.entries); });
+}
+
+export async function fetchManualHourlySales(popupId: number): Promise<import('@/types/api').FetchManualHourlySalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getManualHourlySales(popupId); });
+}
+export async function saveManualHourlySales(
+  popupId: number,
+  entries: Array<{ hour: number; totalRevenue: number; totalOrders: number }>,
+): Promise<ApiResponse> {
+  const parsed = ManualHourlySalesSchema.safeParse({ popupId, entries });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  return wrap(async () => { await requireAdmin(); return upsertManualHourlySales(parsed.data.popupId, parsed.data.entries); });
 }

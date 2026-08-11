@@ -8,13 +8,15 @@ import {
 } from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
 import { buildDayHourMatrix, DAY_COLORS, DAYS, WEEKDAY_ORDER, weekendAccentColor, getDayOfWeekLabel } from '@/app/(admin)/stats/_lib/dayofweek';
-import { HOURS, buildHourlyData } from '@/app/(admin)/stats/_lib/hourly';
+import { HOURS, buildHourlyData, mergeManualHourlyData } from '@/app/(admin)/stats/_lib/hourly';
 import { kstToday } from '@/lib/date';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
-import type { MenuSalesItem, DailySalesItem } from '@/types/api';
+import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
+import type { PopupReportData, ReportChartType, ReportSection } from '@/components/PopupReportDocument';
 
-const MenuSalesEditModal = dynamic(() => import('./MenuSalesEditModal'), { ssr: false });
+const PopupManualEntryModal = dynamic(() => import('./PopupManualEntryModal'), { ssr: false });
+const PopupReportModal = dynamic(() => import('./PopupReportModal'), { ssr: false });
 
 type Metric = 'revenue' | 'orderCount';
 
@@ -80,17 +82,19 @@ interface Props {
   popupMenuBreakdown: MenuSalesItem[];
   popupDailySales: DailySalesItem[];
   popupRawOrders: Array<{ created_at: string; total_price: number }>;
+  manualHourlyEntries: ManualHourlyEntry[];
   isLoading: boolean;
   onSelectPopup: (id: number | null) => void;
   onRefresh: () => void;
 }
 
 export default function PopupStatsSection({
-  popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, isLoading, onSelectPopup, onRefresh,
+  popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, manualHourlyEntries, isLoading, onSelectPopup, onRefresh,
 }: Props) {
   const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
   const [metric, setMetric] = useState<Metric>('revenue');
-  const [showMenuSalesEdit, setShowMenuSalesEdit] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
   const popupTotalOrders = useMemo(() => popupDailySales.reduce((s, d) => s + d.orderCount, 0), [popupDailySales]);
@@ -172,8 +176,11 @@ export default function PopupStatsSection({
     }));
   }, [popupDailySales]);
 
-  const hourlyData = useMemo(() => buildHourlyData(popupRawOrders), [popupRawOrders]);
-  const hasHourlyData = useMemo(() => hourlyData.some((h) => h.orderCount > 0), [hourlyData]);
+  const hourlyData = useMemo(
+    () => mergeManualHourlyData(buildHourlyData(popupRawOrders), manualHourlyEntries.map((e) => ({ hour: e.hour, totalRevenue: e.totalRevenue, totalOrders: e.totalOrders }))),
+    [popupRawOrders, manualHourlyEntries]
+  );
+  const hasHourlyData = useMemo(() => hourlyData.some((h) => h.orderCount > 0 || h.revenue > 0), [hourlyData]);
 
   const menuShareData = useMemo(
     () => popupMenuBreakdown.filter((m) => m.totalRevenue > 0),
@@ -184,6 +191,47 @@ export default function PopupStatsSection({
   const popupMenuChartHeight = useMemo(() => Math.max(180, popupMenuBreakdown.length * 38), [popupMenuBreakdown.length]);
 
   const { matrix, activeDays } = useMemo(() => buildDayHourMatrix(popupRawOrders), [popupRawOrders]);
+
+  const reportData: PopupReportData | null = useMemo(() => {
+    if (!selectedPopup || !period) return null;
+    const toRow = (d: DailySalesItem | null) =>
+      d ? { date: d.date, dateLabel: formatDateLabel(d.date), day: getDayOfWeekLabel(d.date), revenue: d.revenue, orderCount: d.orderCount } : null;
+    return {
+      popupName: selectedPopup.name,
+      startDate: selectedPopup.start_date,
+      endDate: selectedPopup.end_date,
+      status: period.status,
+      totalDays: period.totalDays,
+      elapsedDays: period.elapsedDays,
+      remainingDays: period.remainingDays,
+      totalRevenue: popupTotalRevenue,
+      totalOrders: popupTotalOrders,
+      avgOrderValue: derived.avgOrderValue,
+      avgDailyRevenue: derived.avgDailyRevenue,
+      avgDailyOrders: derived.avgDailyOrders,
+      salesDays: derived.salesDays,
+      bestDay: toRow(derived.bestDay),
+      worstDay: toRow(derived.worstDay),
+      projectedTotal: derived.projectedTotal,
+      dailySales: dailyChartData.map((d) => ({ date: d.date, dateLabel: d.dateLabel, day: d.day, revenue: d.revenue, orderCount: d.orderCount })),
+      dayOfWeek: dayOfWeekData,
+      hourly: hourlyData,
+      menuBreakdown: [...popupMenuBreakdown].sort((a, b) => b.totalRevenue - a.totalRevenue),
+      generatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'long', timeStyle: 'short' }),
+      sections: (
+        [
+          { type: 'dailyBar', include: dailyChartData.length > 0 },
+          { type: 'cumulative', include: dailyChartData.length > 0 },
+          { type: 'dayOfWeek', include: dayOfWeekData.length > 0 },
+          { type: 'hourly', include: hourlyData.some((h) => h.orderCount > 0 || h.revenue > 0) },
+          { type: 'menuDonut', include: popupMenuBreakdown.some((m) => m.totalRevenue > 0) },
+          { type: 'dailyTable', include: true },
+        ] satisfies { type: ReportChartType; include: boolean }[]
+      )
+        .filter((o) => o.include)
+        .map((o) => ({ id: `chart-${o.type}`, kind: 'chart', chartType: o.type }) satisfies ReportSection),
+    };
+  }, [selectedPopup, period, popupTotalRevenue, popupTotalOrders, derived, dailyChartData, dayOfWeekData, hourlyData, popupMenuBreakdown]);
 
   const dayHourRows = useMemo(
     () =>
@@ -249,6 +297,15 @@ export default function PopupStatsSection({
                     <span>현재 운영 <b className="text-ink-secondary">{period.elapsedDays}일</b> / 총 {period.totalDays}일</span>
                     <span>{period.status === '종료' ? '운영 종료' : `잔여 ${period.remainingDays}일`}</span>
                   </div>
+                </div>
+
+                <div className="flex justify-end mb-3">
+                  <button
+                    onClick={() => setShowReportModal(true)}
+                    className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-primary-700 text-white border-none cursor-pointer hover:bg-primary-800 transition"
+                  >
+                    PDF 보고서 생성
+                  </button>
                 </div>
 
                 {/* 핵심 지표 */}
@@ -430,8 +487,8 @@ export default function PopupStatsSection({
 
                 {hasHourlyData && (
                   <ChartCard title="시간대별 매출 분포">
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={hourlyData} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={hourlyData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                         <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
                         <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
@@ -448,10 +505,12 @@ export default function PopupStatsSection({
                             );
                           }}
                         />
-                        <Bar dataKey="revenue" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="revenue" fill="#0ea5e9" radius={[4, 4, 0, 0]}>
+                          <LabelList dataKey="revenue" position="top" formatter={(v: number) => (v > 0 ? formatRevenueTick(v) : '')} style={{ fontSize: 10, fill: '#555' }} />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
-                    <p className="text-[10px] text-ink-faint mt-1 m-0">※ POS 주문 기준 (수기 입력 매출 제외)</p>
+                    <p className="text-[10px] text-ink-faint mt-1 m-0">※ POS 주문 + 시간대별 수기 입력 합산 기준</p>
                   </ChartCard>
                 )}
 
@@ -576,7 +635,7 @@ export default function PopupStatsSection({
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="m-0 text-sm font-bold text-ink-secondary">메뉴별 판매</h4>
                     <button
-                      onClick={() => setShowMenuSalesEdit(true)}
+                      onClick={() => setShowManualEntry(true)}
                       className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer"
                     >
                       수기 입력
@@ -608,13 +667,19 @@ export default function PopupStatsSection({
         </>
       )}
 
-      {showMenuSalesEdit && selectedPopup && (
-        <MenuSalesEditModal
+      {showManualEntry && selectedPopup && (
+        <PopupManualEntryModal
           popupId={selectedPopup.id}
           popupName={selectedPopup.name}
-          onClose={() => setShowMenuSalesEdit(false)}
-          onSaved={() => { setShowMenuSalesEdit(false); onRefresh(); }}
+          startDate={selectedPopup.start_date}
+          endDate={selectedPopup.end_date}
+          onClose={() => setShowManualEntry(false)}
+          onSaved={() => { setShowManualEntry(false); onRefresh(); }}
         />
+      )}
+
+      {showReportModal && reportData && (
+        <PopupReportModal data={reportData} onClose={() => setShowReportModal(false)} />
       )}
     </div>
   );

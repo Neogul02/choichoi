@@ -76,6 +76,26 @@ export interface ManualSalesEntry {
 
 export type FetchManualSalesResponse = ApiResponse<ManualSalesEntry[]>;
 
+// ── 팝업별 날짜별 메뉴 수기 입력 ─────────────────────────────────────────────────
+
+export interface ManualDailyMenuRow {
+  saleDate: string;
+  menuItemId: number;
+  quantity: number;
+}
+
+export type FetchManualDailyMenuSalesResponse = ApiResponse<ManualDailyMenuRow[]>;
+
+// ── 팝업별 시간대 수기 입력 ─────────────────────────────────────────────────────
+
+export interface ManualHourlyEntry {
+  hour: number;
+  totalRevenue: number;
+  totalOrders: number;
+}
+
+export type FetchManualHourlySalesResponse = ApiResponse<ManualHourlyEntry[]>;
+
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
 export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;
 export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;
