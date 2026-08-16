@@ -20,17 +20,27 @@ const shift = (over: Partial<Parameters<typeof requiredFor>[1]> = {}) => ({
 })
 
 describe('requiredFor', () => {
-  it('평일/주말 기본값을 구분한다', () => {
-    expect(requiredFor(MON, shift(), {})).toBe(2)
-    expect(requiredFor(SUN, shift(), {})).toBe(3)
-    expect(requiredFor(SAT, shift(), {})).toBe(3)
+  it('활성 기간이 설정된 파트는 평일/주말 기본값을 구분한다', () => {
+    const s = shift({ active_from: SUN, active_to: SAT })
+    expect(requiredFor(MON, s, {})).toBe(2)
+    expect(requiredFor(SUN, s, {})).toBe(3)
+    expect(requiredFor(SAT, s, {})).toBe(3)
+  })
+
+  it('활성 기간을 아예 설정하지 않은 파트(무제한)는 기본값을 자동 적용하지 않는다 — override 없으면 0', () => {
+    const s = shift() // active_from/active_to 모두 null
+    expect(requiredFor(MON, s, {})).toBe(0)
+    expect(requiredFor(SUN, s, {})).toBe(0)
+    // override로 특정 날짜만 수동 배정 가능
+    expect(requiredFor(MON, s, { [`${MON}|1`]: 2 })).toBe(2)
   })
 
   it('날짜별 예외(override)가 기본값보다 우선한다 (0도 유효)', () => {
-    expect(requiredFor(MON, shift(), { [`${MON}|1`]: 5 })).toBe(5)
-    expect(requiredFor(SUN, shift(), { [`${SUN}|1`]: 0 })).toBe(0)
+    const s = shift({ active_from: SUN, active_to: SAT })
+    expect(requiredFor(MON, s, { [`${MON}|1`]: 5 })).toBe(5)
+    expect(requiredFor(SUN, s, { [`${SUN}|1`]: 0 })).toBe(0)
     // 다른 파트의 예외는 무시
-    expect(requiredFor(MON, shift(), { [`${MON}|2`]: 5 })).toBe(2)
+    expect(requiredFor(MON, s, { [`${MON}|2`]: 5 })).toBe(2)
   })
 
   it('활성 기간 밖이면 0 — 경계일은 포함', () => {
