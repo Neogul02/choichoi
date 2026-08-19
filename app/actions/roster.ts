@@ -3,9 +3,9 @@
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
-import { getWeekStart, DAY_NAMES } from '@/lib/staffing'
+import { getWeekStart, DAY_NAMES, requiredFor } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
-import { parseDate, toDateStr, addDays, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
+import { parseDate, toDateStr, addDays, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { getAuthUser, wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
 import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments } from '@/lib/roster/query-helpers'
 import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
@@ -541,14 +541,10 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     if (reqRes.error) throw new Error(reqRes.error.message)
 
     const staff = (staffRes.data ?? []) as StaffProfile[]
-    const overrides = new Map((reqRes.data ?? []).map(q => [`${q.work_date}|${q.shift_id}`, q.required as number]))
+    const overrides = Object.fromEntries((reqRes.data ?? []).map(q => [`${q.work_date}|${q.shift_id}`, q.required as number]))
 
-    const getRequired = (dateStr: string, shift: RosterShift): number => {
-      const override = overrides.get(`${dateStr}|${shift.id}`)
-      if (override !== undefined) return override
-      const day = dayOfWeek(dateStr)
-      return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required
-    }
+    // 캘린더 화면(RosterCalendar)이 쓰는 requiredFor와 동일 규칙 — 기간 무제한 파트는 override 없는 날짜에 자동 배정하지 않는다
+    const getRequired = (dateStr: string, shift: RosterShift): number => requiredFor(dateStr, shift, overrides)
 
     const shiftById = new Map(shifts.map(s => [s.id, s]))
     const filledCount = new Map<string, number>()         // `${date}|${shift_id}` → 배정 수
