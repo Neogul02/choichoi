@@ -19,12 +19,17 @@ export interface ShiftRequirementSource {
   weekend_required: number;
 }
 
-/** 파트의 해당 날짜 요구 인원 — 활성 기간 밖이면 0, 날짜별 예외(overrides) 우선, 이후 주말/평일 기본값 */
+/**
+ * 파트의 해당 날짜 요구 인원 — 활성 기간 밖이면 0, 날짜별 예외(overrides) 우선.
+ * 활성 기간을 아예 설정하지 않은 파트(무제한)는 평일/주말 기본값을 전체 날짜에 자동 적용하지 않는다 —
+ * 그러면 기간 없는 파트가 모든 날짜에서 미충원(빨간색)으로 표시되므로, 날짜별 override로만 수동 배정한다.
+ */
 export function requiredFor(dateStr: string, shift: ShiftRequirementSource, overrides: Record<string, number>): number {
   if (shift.active_from && dateStr < shift.active_from) return 0;
   if (shift.active_to && dateStr > shift.active_to) return 0;
   const override = overrides[`${dateStr}|${shift.id}`];
   if (override !== undefined) return override;
+  if (!shift.active_from && !shift.active_to) return 0;
   const day = dayOfWeek(dateStr);
   return day === 0 || day === 6 ? shift.weekend_required : shift.weekday_required;
 }
