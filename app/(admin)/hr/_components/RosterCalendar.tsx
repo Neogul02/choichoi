@@ -5,6 +5,7 @@ import { showMsg } from '@/lib/toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
+import { ALL_POPUPS, isAllPopups } from '@/lib/roster/query-helpers';
 import type { StaffProfile, PopupEvent, StaffRole, RosterShift } from '@/types/database';
 import { DAY_NAMES, ROLE_LABELS } from './constants';
 import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap, pickOngoingPopup } from '@/lib/staffing';
@@ -81,10 +82,17 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
   const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
   const [confirmAction, setConfirmAction] = useState<'autofill' | 'copyPrevWeek' | 'clear' | null>(null);
 
-  // 현재 단위 소속 직원만 (주방 전체 / 해당 팝업 캐셔)
+  // 현재 단위 소속 직원만 (주방 전체 / 해당 팝업 캐셔 / 캐셔 전체 보기는 팝업 무관 전원)
   const unitStaff = useMemo(
-    () => staffList.filter(s => s.staff_role === unit.staffRole && (unit.staffRole === 'kitchen' || s.popup_id === unit.popupId)),
+    () => staffList.filter(s => s.staff_role === unit.staffRole && (unit.staffRole === 'kitchen' || isAllPopups(unit) || s.popup_id === unit.popupId)),
     [staffList, unit],
+  );
+
+  // 팝업 id → 이름 — 전체 보기에서 동명 파트(예: 여러 팝업의 "오전")를 구분해 표시하는 데 쓴다
+  const popupNameById = useMemo(() => new Map(popups.map(p => [p.id, p.name])), [popups]);
+  const getShiftLabel = useCallback(
+    (shift: RosterShift) => isAllPopups(unit) ? `${popupNameById.get(shift.popup_id ?? -1) ?? '?'} · ${shift.name}` : shift.name,
+    [unit, popupNameById],
   );
 
   const assignMap = useMemo(() => buildAssignMap(assignments), [assignments]);
@@ -243,7 +251,9 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
 
   const unitLabel = unit.staffRole === 'kitchen'
     ? ROLE_LABELS.kitchen
-    : (popups.find(p => p.id === unit.popupId)?.name ?? ROLE_LABELS.cashier);
+    : isAllPopups(unit)
+      ? '전체'
+      : (popups.find(p => p.id === unit.popupId)?.name ?? ROLE_LABELS.cashier);
 
   const prevWeekLabel = weekStart ? `${addDays(weekStart, -7)} ~ ${addDays(weekStart, -1)}` : '';
   const confirmDialogProps = (() => {
@@ -288,19 +298,32 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             {popups.length === 0 ? (
               <span className="text-[11px] text-ink-faint">팝업을 먼저 등록하면 여기에 나타납니다</span>
             ) : (
-              popups.map(popup => (
+              <>
                 <button
-                  key={popup.id}
-                  onClick={() => setUnit({ staffRole: 'cashier', popupId: popup.id })}
+                  onClick={() => setUnit({ staffRole: 'cashier', popupId: ALL_POPUPS })}
+                  title="모든 팝업의 배정을 한 번에 봅니다 (일괄 편집·자동 채우기·파트 관리는 팝업 선택 후 이용 가능)"
                   className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
-                    unit.popupId === popup.id
+                    isAllPopups(unit)
                       ? 'bg-primary-700 text-white border-primary-700'
                       : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
                   }`}
                 >
-                  {popup.name}
+                  전체
                 </button>
-              ))
+                {popups.map(popup => (
+                  <button
+                    key={popup.id}
+                    onClick={() => setUnit({ staffRole: 'cashier', popupId: popup.id })}
+                    className={`px-3 py-1.5 rounded-lg border text-[12px] font-bold cursor-pointer transition whitespace-nowrap ${
+                      unit.popupId === popup.id
+                        ? 'bg-primary-700 text-white border-primary-700'
+                        : 'bg-canvas text-ink-muted border-hairline hover:border-primary-400'
+                    }`}
+                  >
+                    {popup.name}
+                  </button>
+                ))}
+              </>
             )}
             <span className="ml-auto text-[11px] text-ink-faint">소속 인원 {unitStaff.length}명</span>
           </div>
@@ -320,6 +343,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           todayStr={todayStr}
           isLoading={isLoading}
           isAutoFilling={isAutoFilling}
+          disableUnitActions={isAllPopups(unit)}
           setCursor={setCursor}
           setWeekStart={setWeekStart}
           moveWeek={moveWeek}
@@ -374,6 +398,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             shifts={shifts}
             staffList={unitStaff}
             getAssigned={getAssigned}
+            getShiftLabel={getShiftLabel}
             violations={violations}
             selectedDate={selectedDate}
             onDateClick={ds => setSelectedDate(prev => (prev === ds ? null : ds))}
@@ -385,6 +410,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             selectedDate={selectedDate}
             shifts={shifts}
             getAssigned={getAssigned}
+            getShiftLabel={getShiftLabel}
             violationDates={violationDates}
             onSelectDate={setSelectedDate}
             onDropStaff={handleDropStaff}
@@ -405,6 +431,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           violations={violations}
           getAssigned={getAssigned}
           getRequired={getRequired}
+          getShiftLabel={getShiftLabel}
           getWeeklyDayCount={getWeeklyDayCount}
           onAdd={handleAdd}
           onRemove={handleRemove}
@@ -442,6 +469,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
         x={dropTarget.x}
         y={dropTarget.y}
         shifts={shifts}
+        getShiftLabel={getShiftLabel}
         onPick={shiftId => { handleAdd(dropTarget.dateStr, shiftId, dropTarget.staffId); setDropTarget(null); }}
         onClose={() => setDropTarget(null)}
       />
