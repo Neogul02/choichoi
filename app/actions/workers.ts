@@ -81,29 +81,36 @@ export async function getMyOrderStats(): Promise<ApiResponse<MyOrderStats>> {
     const cashierName = profile?.name ?? user.user_metadata?.name
     if (!cashierName) return { success: false, error: '프로필 없음' }
 
-    // 1000건 제한 우회: 페이지네이션으로 전체 로드
+    // 1000건 제한 우회: 페이지네이션으로 전체 로드. 팝업 목록은 주문 페이지네이션과 무관하므로 병렬 실행해 왕복을 줄인다.
     const PAGE = 1000
-    let allOrders: { id: number; total_price: number; payment_method: string | null; created_at: string; popup_id: number | null }[] = []
-    let fetchError: string | null = null
-    for (let page = 0; ; page++) {
-      const { data, error: err } = await supabaseAdmin
-        .from('orders')
-        .select('id, total_price, payment_method, created_at, popup_id')
-        .eq('cashier_name', cashierName)
-        .eq('payment_status', 'completed')
-        .order('created_at', { ascending: true })
-        .range(page * PAGE, (page + 1) * PAGE - 1)
-      if (err) { fetchError = err.message; break }
-      if (!data || data.length === 0) break
-      allOrders = allOrders.concat(data)
-      if (data.length < PAGE) break
+    async function loadAllOrders() {
+      let allOrders: { id: number; total_price: number; payment_method: string | null; created_at: string; popup_id: number | null }[] = []
+      for (let page = 0; ; page++) {
+        const { data, error: err } = await supabaseAdmin
+          .from('orders')
+          .select('id, total_price, payment_method, created_at, popup_id')
+          .eq('cashier_name', cashierName)
+          .eq('payment_status', 'completed')
+          .order('created_at', { ascending: true })
+          .range(page * PAGE, (page + 1) * PAGE - 1)
+        if (err) throw new Error(err.message)
+        if (!data || data.length === 0) break
+        allOrders = allOrders.concat(data)
+        if (data.length < PAGE) break
+      }
+      return allOrders
     }
-    if (fetchError) return { success: false, error: fetchError }
 
-    const { data: popups } = await supabaseAdmin
-      .from('popup_events')
-      .select('id, name, start_date, end_date')
-      .order('start_date', { ascending: true })
+    let allOrders: Awaited<ReturnType<typeof loadAllOrders>>
+    let popups: { id: number; name: string; start_date: string; end_date: string }[] | null
+    try {
+      [allOrders, { data: popups }] = await Promise.all([
+        loadAllOrders(),
+        supabaseAdmin.from('popup_events').select('id, name, start_date, end_date').order('start_date', { ascending: true }),
+      ])
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : String(e) }
+    }
 
     if (allOrders.length === 0) {
       return { success: true, data: { totalOrders: 0, totalRevenue: 0, byPopup: [] } }

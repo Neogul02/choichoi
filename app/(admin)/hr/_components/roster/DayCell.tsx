@@ -13,14 +13,13 @@ interface Props {
   hasViolation: boolean;
   shifts: RosterShift[];
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
-  getRequired: (dateStr: string, shift: RosterShift) => number;
   onSelectDate: (dateStr: string | null) => void;
   onDropStaff: (dateStr: string, staffId: number, x: number, y: number) => void;
 }
 
 /** 달력 셀 하나 — memo로 감싸 날짜 선택·팝오버 등 무관한 부모 상태 변화에 재렌더되지 않게 한다 */
 function DayCell({
-  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, getRequired, onSelectDate, onDropStaff,
+  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, onSelectDate, onDropStaff,
 }: Props) {
   // 드래그오버 강조는 순수 시각 상태라 셀 내부에서만 관리
   const [dragOver, setDragOver] = useState(false);
@@ -64,18 +63,14 @@ function DayCell({
         )}
       </span>
       {shifts.map(shift => {
-        const required = getRequired(dateStr, shift);
         const filled = getAssigned(dateStr, shift.id).length;
-        if (required === 0 && filled === 0) return null;
-        const full = filled >= required;
+        if (filled === 0) return null;
         return (
           <span
             key={shift.id}
-            className={`text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate ${
-              full ? 'bg-emerald-50 text-emerald-700' : filled === 0 ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-700'
-            }`}
+            className="text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate bg-canvas-soft text-ink-muted"
           >
-            {shift.name} {filled}/{required}
+            {shift.name} {filled}명
           </span>
         );
       })}

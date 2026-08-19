@@ -36,6 +36,8 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
     memo?.type === 'checklist' ? parseChecklist(memo.content) : [{ done: false, text: '' }],
   )
   const checklistRefs = useRef<(HTMLInputElement | null)[]>([])
+  // 연속 토글 시 먼저 보낸 요청이 나중에 응답으로 돌아와 최신 상태를 덮어쓰는 것을 방지
+  const checkToggleSeqRef = useRef(0)
   const [editingIdx, setEditingIdx] = useState<number | null>(isCreate ? 0 : null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -72,7 +74,9 @@ export default function MemoDetailModal({ memo, onClose, onSaved, onRemove, onPi
     const updated = checklistItems.map((item, i) => i === idx ? { ...item, done } : item)
     setChecklistItems(updated)
     const content = serializeChecklist(updated.filter((i) => i.text.trim()))
+    const seq = ++checkToggleSeqRef.current
     const res = await onSubmit(formData.title, content, formData.color, formData.type)
+    if (seq !== checkToggleSeqRef.current) return // 더 최신 토글이 진행 중 — 이 응답은 무시(먼저 보낸 요청이 늦게 와서 최신 상태를 덮어쓰는 것 방지)
     if (res.success && res.data) onSaved(res.data)
   }
 

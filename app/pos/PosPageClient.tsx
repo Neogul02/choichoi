@@ -612,9 +612,14 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                 </button>
               </p>
             ) : menuQuery.isLoading && menuItems.length === 0 ? (
-              <p className="m-0 text-ink-faint text-sm">
-                메뉴를 불러오는 중입니다...
-              </p>
+              <>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="rounded-2xl p-3 md:p-3.5 bg-canvas shadow-level-1 h-[92px] animate-pulse">
+                    <div className="h-4 w-3/5 bg-gray-100 rounded mb-2" />
+                    <div className="h-3 w-2/5 bg-gray-100 rounded" />
+                  </div>
+                ))}
+              </>
             ) : null}
             {menuItems.map((item, index) => (
               <MenuCard

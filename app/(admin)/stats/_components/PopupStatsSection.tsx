@@ -226,6 +226,7 @@ export default function PopupStatsSection({
           { type: 'hourly', include: hourlyData.some((h) => h.orderCount > 0 || h.revenue > 0) },
           { type: 'menuDonut', include: popupMenuBreakdown.some((m) => m.totalRevenue > 0) },
           { type: 'dailyTable', include: true },
+          { type: 'calendar', include: dailyChartData.length > 0 },
         ] satisfies { type: ReportChartType; include: boolean }[]
       )
         .filter((o) => o.include)
@@ -591,7 +592,7 @@ export default function PopupStatsSection({
 
                 {menuShareData.length > 0 && (
                   <ChartCard title="메뉴별 매출 비중">
-                    <ResponsiveContainer width="100%" height={220}>
+                    <ResponsiveContainer width="100%" height={200}>
                       <PieChart>
                         <Pie
                           data={menuShareData}
@@ -620,14 +621,21 @@ export default function PopupStatsSection({
                             );
                           }}
                         />
-                        <Legend
-                          formatter={(value: string) => <span style={{ fontSize: 11, color: '#555' }}>{value}</span>}
-                          iconType="circle"
-                          iconSize={8}
-                          wrapperStyle={{ paddingTop: 8 }}
-                        />
                       </PieChart>
                     </ResponsiveContainer>
+                    <div className="flex flex-col gap-1 mt-1">
+                      {menuShareData.map((item) => {
+                        const pct = menuShareTotal > 0 ? Math.round((item.totalRevenue / menuShareTotal) * 100) : 0;
+                        return (
+                          <div key={item.id} className="flex items-center gap-1.5 text-[11px]">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                            <span className="text-ink-secondary flex-1 truncate">{item.name}</span>
+                            <span className="text-ink-faint shrink-0">{item.totalQuantity}개</span>
+                            <span className="text-ink-secondary font-semibold shrink-0 tabular-nums">₩{item.totalRevenue.toLocaleString('ko-KR')} ({pct}%)</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </ChartCard>
                 )}
 

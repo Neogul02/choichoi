@@ -42,6 +42,7 @@ export default function PopupReportModal({ data, onClose }: Props) {
     hourly: data.hourly.some((h) => h.orderCount > 0 || h.revenue > 0),
     menuDonut: data.menuBreakdown.some((m) => m.totalRevenue > 0),
     dailyTable: true,
+    calendar: data.dailySales.length > 0,
   }
   const usedChartTypes = new Set(sections.filter((s) => s.kind === 'chart').map((s) => s.chartType))
   const addableChartTypes = (Object.keys(REPORT_CHART_LABELS) as ReportChartType[])

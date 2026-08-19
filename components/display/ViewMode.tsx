@@ -13,9 +13,11 @@ const listItemVariants: Variants = {
 interface Props {
   cartItems: CartItem[];
   cartTotalPrice: number;
+  /** realtime 채널이 아직 SUBSCRIBED 되지 않음 — "주문 없음"과 구분되는 별도 문구를 보여준다 */
+  connecting?: boolean;
 }
 
-export default function ViewMode({ cartItems, cartTotalPrice }: Props) {
+export default function ViewMode({ cartItems, cartTotalPrice, connecting }: Props) {
   const isEmpty = cartItems.length === 0;
 
   return (
@@ -37,8 +39,17 @@ export default function ViewMode({ cartItems, cartTotalPrice }: Props) {
             transition={{ duration: 0.25 }}
             className="text-center"
           >
-            <h2 className="text-5xl font-black text-ink mb-3 m-0">안녕하세요!</h2>
-            <p className="text-ink-faint text-2xl m-0">주문을 기다리고 있어요</p>
+            {connecting ? (
+              <>
+                <h2 className="text-5xl font-black text-ink mb-3 m-0">연결 중...</h2>
+                <p className="text-ink-faint text-2xl m-0">잠시만 기다려주세요</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-5xl font-black text-ink mb-3 m-0">안녕하세요!</h2>
+                <p className="text-ink-faint text-2xl m-0">주문을 기다리고 있어요</p>
+              </>
+            )}
           </motion.div>
         ) : (
           <motion.div

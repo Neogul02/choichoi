@@ -71,5 +71,7 @@ export const config = {
     '/inventory/:path*',
     '/roster/:path*',
     '/hr/:path*',
+    // 로그인만 필요한 개인 페이지 — 미인증 요청을 SSR 전에 걸러 서버 액션이 인증 오류로 실패하지 않게 한다
+    '/my/:path*',
   ],
 }

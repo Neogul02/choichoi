@@ -217,8 +217,20 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
     return (
       <>
         <NavBar />
-        <main className='min-h-screen flex items-center justify-center'>
-          <p className='text-ink-faint text-sm'>불러오는 중...</p>
+        <main className='min-h-screen p-4 pb-10'>
+          <div className='max-w-[560px] mx-auto space-y-4 animate-pulse'>
+            <div className='h-6 w-16 bg-gray-100 rounded' />
+            {/* 히어로 카드 */}
+            <div className='rounded-2xl bg-gray-100 h-[104px]' />
+            {/* 티어 카드 */}
+            <div className='rounded-2xl bg-gray-100 h-[96px]' />
+            {/* 판매 통계 카드 */}
+            <div className='rounded-2xl border border-hairline bg-canvas p-4 h-[140px]'>
+              <div className='h-4 w-24 bg-gray-100 rounded mb-3' />
+              <div className='h-3 w-full bg-gray-100 rounded mb-2' />
+              <div className='h-3 w-2/3 bg-gray-100 rounded' />
+            </div>
+          </div>
         </main>
       </>
     )

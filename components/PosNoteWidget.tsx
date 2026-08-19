@@ -54,6 +54,8 @@ function usePosNoteData(cashierName?: string | null) {
   const [meta, setMeta] = useState<{ updated_by: string | null; updated_at: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // 최초 로딩 중엔 content=''가 "메모 없음"과 구분되지 않아 캐셔가 빈 것으로 오해하고 타이핑을 시작할 수 있음
+  const [loading, setLoading] = useState(true);
   const isEditingRef = useRef(false);
   const contentRef = useRef('');
   const cashierNameRef = useRef(cashierName);
@@ -68,11 +70,13 @@ function usePosNoteData(cashierName?: string | null) {
       setContent(data.content);
       setDirty(false);
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchPosNote().then((res) => {
       if (res.success && res.data) applyRemote(res.data);
+      else setLoading(false); // 조회 실패해도 빈 입력은 계속 쓸 수 있어야 하므로 로딩 상태만 푼다
     });
 
     const channel = supabase
@@ -119,7 +123,7 @@ function usePosNoteData(cashierName?: string | null) {
       isEditingRef.current = false;
       if (autosaveTimerRef.current) save();
     },
-    meta, saving, dirty,
+    meta, saving, dirty, loading,
   };
 }
 
@@ -287,7 +291,8 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
             onFocus={() => { note.onFocus(); notifyEditing(true); }}
             onBlur={() => { note.onBlur(); notifyEditing(false); }}
             onChange={(e) => note.onChange(e.target.value)}
-            placeholder="예약, 공지 등을 적어두면 모든 POS 화면에서 볼 수 있어요 (자동 저장됩니다)"
+            placeholder={note.loading ? '불러오는 중...' : '예약, 공지 등을 적어두면 모든 POS 화면에서 볼 수 있어요 (자동 저장됩니다)'}
+            disabled={note.loading}
             rows={5}
             className="w-full flex-1 min-h-0 resize-none border border-hairline rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:border-primary-700 transition"
             style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
@@ -323,7 +328,8 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
         onFocus={() => { note.onFocus(); notifyEditing(true); }}
         onBlur={() => { note.onBlur(); notifyEditing(false); }}
         onChange={(e) => note.onChange(e.target.value)}
-        placeholder="예약, 공지 등을 적어두면 모든 POS 화면에서 볼 수 있어요 (자동 저장됩니다)"
+        placeholder={note.loading ? '불러오는 중...' : '예약, 공지 등을 적어두면 모든 POS 화면에서 볼 수 있어요 (자동 저장됩니다)'}
+        disabled={note.loading}
         rows={4}
         className="w-full resize-none border border-hairline rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:border-primary-700 transition"
         style={{ userSelect: 'text', WebkitUserSelect: 'text' }}

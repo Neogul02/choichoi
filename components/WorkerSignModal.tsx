@@ -53,26 +53,43 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
     issueDate: contract.issued_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
   }
 
-  // 미리보기용 debounced ContractData (600ms)
+  // 미리보기용 ContractData — 주소 타이핑(900ms)과 서명(SignaturePad가 획마다 자동 저장, 300ms)은
+  // 갱신 빈도가 달라 debounce를 분리한다. 서로 다른 effect가 최신 상대 값을 참조하도록 ref로 미러링.
   const [previewData, setPreviewData] = useState<ContractData>({
     ...baseData, workerName, workerPhone: workerPhone ?? baseData.workerPhone,
   })
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const workerAddressRef = useRef(workerAddress)
+  const signatureRef = useRef(signatureBase64)
+  useEffect(() => { workerAddressRef.current = workerAddress }, [workerAddress])
+  useEffect(() => { signatureRef.current = signatureBase64 }, [signatureBase64])
 
+  const buildPreviewData = (address: string, signature: string | null): ContractData => ({
+    ...baseData,
+    workerName,
+    workerPhone: workerPhone ?? baseData.workerPhone,
+    workerAddress: address || undefined,
+    workerSignatureBase64: signature ?? undefined,
+  })
+
+  const addressDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => {
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      setPreviewData({
-        ...baseData,
-        workerName,
-        workerPhone: workerPhone ?? baseData.workerPhone,
-        workerAddress: workerAddress || undefined,
-        workerSignatureBase64: signatureBase64 ?? undefined,
-      })
-    }, 600)
-    return () => clearTimeout(debounceRef.current)
+    clearTimeout(addressDebounceRef.current)
+    addressDebounceRef.current = setTimeout(() => {
+      setPreviewData(buildPreviewData(workerAddress, signatureRef.current))
+    }, 900)
+    return () => clearTimeout(addressDebounceRef.current)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workerAddress, signatureBase64])
+  }, [workerAddress])
+
+  const signatureDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => {
+    clearTimeout(signatureDebounceRef.current)
+    signatureDebounceRef.current = setTimeout(() => {
+      setPreviewData(buildPreviewData(workerAddressRef.current, signatureBase64))
+    }, 300)
+    return () => clearTimeout(signatureDebounceRef.current)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signatureBase64])
 
   const handleSubmit = async () => {
     if (!workerAddress.trim()) { toast.error('주소를 입력해주세요'); return }

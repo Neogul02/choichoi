@@ -3,7 +3,7 @@
 import { after } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
-import { wrap, requireAdmin } from './_base'
+import { wrap, requireAuth, requireAdmin } from './_base'
 import { kstToday } from '@/lib/date'
 import { createHash } from 'crypto'
 import React from 'react'
@@ -146,14 +146,11 @@ export async function generateContract(
 
 export async function getMyContracts(): Promise<ApiResponse<ContractRecord[]>> {
   return wrap(async () => {
-    const { createSupabaseServerClient } = await import('@/lib/supabase-server')
-    const supabase = await createSupabaseServerClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('로그인이 필요합니다')
+    const user = await requireAuth()
 
     const admin = getAdminClient()
 
-    const { data: staffRows } = await admin.from('staff_profiles').select('id').eq('user_profile_id', session.user.id)
+    const { data: staffRows } = await admin.from('staff_profiles').select('id').eq('user_profile_id', user.id)
     const staffIds = (staffRows ?? []).map(s => s.id)
     if (!staffIds.length) return []
 
@@ -162,6 +159,7 @@ export async function getMyContracts(): Promise<ApiResponse<ContractRecord[]>> {
       .select('*')
       .in('worker_id', staffIds)
       .order('issued_at', { ascending: false })
+      .limit(50) // 근무자 본인 계약서 — 정상 범위에서는 수 건이지만, attachSignedUrls가 건당 storage 왕복이라 방어적으로 상한을 둔다
 
     if (error) throw error
     return attachSignedUrls(admin, (data ?? []) as ContractRecord[])
@@ -193,13 +191,25 @@ export async function deleteContract(
   })
 }
 
-export async function fetchContractedStaffIds(): Promise<ApiResponse<number[]>> {
+export type ContractedPair = { workerId: number; popupId: number | null }
+
+// worker_id만으로는 "다른 팝업 계약을 이미 썼다"까지 완료로 잡힌다 — popup_id까지 짝으로 반환해
+// 현재 배정 팝업 기준으로 완료 여부를 판단하게 한다 (예: 팝업 이동 시 재계약 필요 케이스)
+export async function fetchContractedStaffIds(): Promise<ApiResponse<ContractedPair[]>> {
   return wrap(async () => {
     await requireAdmin()
     const admin = getAdminClient()
-    const { data, error } = await admin.from('contracts').select('worker_id')
+    const { data, error } = await admin.from('contracts').select('worker_id, popup_id')
     if (error) throw error
-    return Array.from(new Set((data ?? []).map(c => c.worker_id)))
+    const seen = new Set<string>()
+    const pairs: ContractedPair[] = []
+    for (const c of data ?? []) {
+      const key = `${c.worker_id}:${c.popup_id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      pairs.push({ workerId: c.worker_id, popupId: c.popup_id })
+    }
+    return pairs
   })
 }
 
@@ -239,10 +249,7 @@ export async function signContract(
   workerSignatureBase64: string,
 ): Promise<ApiResponse<{ url: string }>> {
   return wrap(async () => {
-    const { createSupabaseServerClient } = await import('@/lib/supabase-server')
-    const supabase = await createSupabaseServerClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) throw new Error('로그인이 필요합니다')
+    const user = await requireAuth()
 
     const admin = getAdminClient()
 
@@ -258,7 +265,7 @@ export async function signContract(
       .from('staff_profiles')
       .select('id, name')
       .eq('id', row.worker_id)
-      .eq('user_profile_id', session.user.id)
+      .eq('user_profile_id', user.id)
       .maybeSingle()
     if (ownerError) throw ownerError
     if (!ownerRecord) throw new Error('권한이 없습니다')

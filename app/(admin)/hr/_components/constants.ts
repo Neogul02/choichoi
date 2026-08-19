@@ -16,13 +16,11 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
 export const STATUS_LABELS: Record<StaffStatus, string> = {
   candidate: '후보',
   confirmed: '확정',
-  rejected: '불합격',
   inactive: '퇴사',
 };
 
 export const STATUS_COLORS: Record<StaffStatus, { bg: string; text: string; border: string }> = {
   candidate: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   confirmed: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  rejected: { bg: 'bg-rose-50', text: 'text-rose-500', border: 'border-rose-200' },
   inactive: { bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200' },
 };

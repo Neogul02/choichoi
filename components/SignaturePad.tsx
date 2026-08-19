@@ -11,6 +11,7 @@ export default function SignaturePad({ onSave, onClear }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const isDrawing = useRef(false)
   const [hasSig, setHasSig] = useState(false)
+  const [autoSaved, setAutoSaved] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -40,6 +41,7 @@ export default function SignaturePad({ onSave, onClear }: Props) {
   function startDraw(e: React.MouseEvent | React.TouchEvent) {
     e.preventDefault()
     isDrawing.current = true
+    setAutoSaved(false) // 새 획을 그리기 시작하면 직전 자동 저장은 낡은 상태가 됨
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
     const { x, y } = getPos(e)
@@ -60,7 +62,11 @@ export default function SignaturePad({ onSave, onClear }: Props) {
 
   function endDraw(e: React.MouseEvent | React.TouchEvent) {
     e.preventDefault()
+    const wasDrawing = isDrawing.current
     isDrawing.current = false
+    // 획을 그리자마자 자동 저장 — 별도로 "서명 저장" 버튼을 눌러야 하는 걸 잊고
+    // "서명 완료"를 눌러버리는 실수를 막는다. 버튼은 남겨두되 이미 저장된 상태를 보여준다.
+    if (wasDrawing) handleSave()
   }
 
   function handleClear() {
@@ -71,6 +77,7 @@ export default function SignaturePad({ onSave, onClear }: Props) {
     ctx.fillStyle = '#fff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     setHasSig(false)
+    setAutoSaved(false)
     onClear()
   }
 
@@ -78,6 +85,7 @@ export default function SignaturePad({ onSave, onClear }: Props) {
     const canvas = canvasRef.current
     if (!canvas) return
     onSave(canvas.toDataURL('image/png'))
+    setAutoSaved(true)
   }
 
   return (
@@ -110,9 +118,11 @@ export default function SignaturePad({ onSave, onClear }: Props) {
           type='button'
           onClick={handleSave}
           disabled={!hasSig}
-          className='px-4 py-1.5 rounded-lg border-none text-[12px] font-semibold bg-primary-700 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+          className={`px-4 py-1.5 rounded-lg border-none text-[12px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+            autoSaved ? 'bg-emerald-600 text-white' : 'bg-primary-700 text-white'
+          }`}
         >
-          서명 저장
+          {autoSaved ? '저장됨 ✓' : '서명 저장'}
         </button>
       </div>
     </div>

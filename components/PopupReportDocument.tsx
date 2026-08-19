@@ -2,12 +2,12 @@
 
 import {
   Document, Page, Text, View, StyleSheet, Font,
-  Svg, Rect, Circle, Line, Polyline, G,
+  Svg, Rect, Circle, Line, Polyline, Path, G,
 } from '@react-pdf/renderer'
 import path from 'path'
 import type React from 'react'
 import { formatPrice, formatRevenueTick } from '@/lib/utils'
-import { DAY_COLORS, weekendAccentColor } from '@/app/(admin)/stats/_lib/dayofweek'
+import { DAY_COLORS, DAYS, weekendAccentColor } from '@/app/(admin)/stats/_lib/dayofweek'
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek'
 
 function fontPath(file: string) {
@@ -55,10 +55,9 @@ function ChartLabel(props: {
   return <Text {...svgTextProps} />
 }
 
-// strokeDashoffset도 SVGPresentationAttributes 타입 선언에 빠져 있지만 런타임은 지원한다 (donut 세그먼트 회전용)
-function DonutSegment(props: { cx: number; cy: number; r: number; stroke: string; strokeWidth: number; strokeDasharray: string; strokeDashoffset: number }) {
-  const circleProps = { ...props, fill: 'none' } as unknown as React.ComponentProps<typeof Circle>
-  return <Circle {...circleProps} />
+function polarPoint(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
 }
 
 export interface PopupReportDailyRow {
@@ -90,7 +89,7 @@ export interface PopupReportDayOfWeekRow {
 }
 
 /** 보고서에 넣을 수 있는 차트 종류 — 각각 한 페이지를 채우는 독립 섹션이다 */
-export type ReportChartType = 'dailyBar' | 'cumulative' | 'dayOfWeek' | 'hourly' | 'menuDonut' | 'dailyTable'
+export type ReportChartType = 'dailyBar' | 'cumulative' | 'dayOfWeek' | 'hourly' | 'menuDonut' | 'dailyTable' | 'calendar'
 
 export const REPORT_CHART_LABELS: Record<ReportChartType, string> = {
   dailyBar: '일별 매출 추이',
@@ -99,6 +98,7 @@ export const REPORT_CHART_LABELS: Record<ReportChartType, string> = {
   hourly: '시간대별 매출 분포',
   menuDonut: '메뉴별 매출 비중',
   dailyTable: '일별 매출 상세표',
+  calendar: '날짜별 매출 프리뷰',
 }
 
 /** 사용자가 순서를 자유롭게 편집하는 보고서 본문 — 차트 섹션과 텍스트 블록을 섞어 배치할 수 있다 */
@@ -183,6 +183,13 @@ const s = StyleSheet.create({
   td: { padding: '8 6', fontSize: 10.5, textAlign: 'center', fontWeight: 400 },
 
   noteParagraph: { fontSize: 10.5, color: INK, lineHeight: 1.8, marginBottom: 12 },
+
+  calWeekHeader: { flexDirection: 'row', gap: 4, marginBottom: 4 },
+  calWeekHeaderCell: { flex: 1, textAlign: 'center', fontSize: 8, fontWeight: 700 },
+  calWeekRow: { flexDirection: 'row', gap: 4, marginBottom: 4 },
+  calCell: { flex: 1, minHeight: 38, borderRadius: 6, border: `1px solid ${BORDER}`, padding: 4, alignItems: 'center', justifyContent: 'center' },
+  calDayNum: { fontSize: 8.5, fontWeight: 700 },
+  calDayRevenue: { fontSize: 7.5, color: INK_MUTED, marginTop: 3, fontWeight: 500 },
 
   footer: { position: 'absolute', bottom: 22, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTop: `0.5px solid ${BORDER}` },
   footerBrand: { fontSize: 8.5, fontFamily: F, fontWeight: 700, color: BRAND },
@@ -294,37 +301,44 @@ function LineChart({
   )
 }
 
+// stroke-dasharray/dashoffset로 원호를 나누는 방식은 react-pdf의 SVG 백엔드에서 어긋나게 렌더되어
+// (세그먼트가 다 한쪽에 뭉쳐 보임) 각도를 직접 계산한 Path 원호(A 명령)로 그린다 — 훨씬 안정적이다
 function DonutChart({ data, size, thickness }: { data: { value: number; color: string }[]; size: number; thickness: number }) {
   const total = data.reduce((s2, d) => s2 + d.value, 0) || 1
   const r = (size - thickness) / 2
-  const circumference = 2 * Math.PI * r
   const cx = size / 2
   const cy = size / 2
-  // 이전 세그먼트까지의 누적 길이(prefix sum) — 각 세그먼트의 회전 시작점으로 쓰인다
-  const prefixLengths = data.reduce<number[]>((acc, d) => [...acc, (acc[acc.length - 1] ?? 0) + (d.value / total) * circumference], [])
+  const cumulative = data.reduce<number[]>((acc, d) => [...acc, (acc[acc.length - 1] ?? 0) + (d.value / total) * 360], [])
+
+  // 항목이 하나뿐이면(100%) 원호의 시작점=끝점이 되어 사라지므로 원 전체를 그대로 채운다
+  if (data.length === 1) {
+    return (
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cy} r={r} stroke={data[0].color} strokeWidth={thickness} fill="none" />
+      </Svg>
+    )
+  }
 
   return (
     <Svg width={size} height={size}>
-      <G transform={`rotate(-90, ${cx}, ${cy})`}>
-        <Circle cx={cx} cy={cy} r={r} stroke="#f1f2f1" strokeWidth={thickness} fill="none" />
-        {data.map((d, i) => {
-          const frac = d.value / total
-          const dash = frac * circumference
-          const strokeDashoffset = -(prefixLengths[i - 1] ?? 0)
-          return (
-            <DonutSegment
-              key={i}
-              cx={cx}
-              cy={cy}
-              r={r}
-              stroke={d.color}
-              strokeWidth={thickness}
-              strokeDasharray={`${Math.max(dash, 0.01)} ${Math.max(circumference - dash, 0.01)}`}
-              strokeDashoffset={strokeDashoffset}
-            />
-          )
-        })}
-      </G>
+      <Circle cx={cx} cy={cy} r={r} stroke="#f1f2f1" strokeWidth={thickness} fill="none" />
+      {data.map((d, i) => {
+        const startAngle = cumulative[i - 1] ?? 0
+        const endAngle = cumulative[i]
+        if (endAngle - startAngle <= 0.01) return null
+        const start = polarPoint(cx, cy, r, startAngle)
+        const end = polarPoint(cx, cy, r, endAngle)
+        const largeArc = endAngle - startAngle > 180 ? 1 : 0
+        return (
+          <Path
+            key={i}
+            d={`M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`}
+            stroke={d.color}
+            strokeWidth={thickness}
+            fill="none"
+          />
+        )
+      })}
     </Svg>
   )
 }
@@ -496,9 +510,9 @@ export function PopupReportDocument(p: PopupReportData) {
               if (donutData.length === 0) return null
               return (
                 <View style={s.card}>
-                  <CardHeader title="메뉴별 매출 비중" />
+                  <CardHeader title="메뉴별 매출 비중" right={`총 ${menuTotal > 0 ? formatPrice(menuTotal) : 0}원`} />
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
-                    <DonutChart data={donutData} size={compact ? 100 : 130} thickness={compact ? 16 : 20} />
+                    <DonutChart data={donutData} size={compact ? 110 : 140} thickness={compact ? 18 : 22} />
                     <View style={{ flex: 1 }}>
                       {p.menuBreakdown.filter((m) => m.totalRevenue > 0).map((m) => {
                         const pct = menuTotal > 0 ? Math.round((m.totalRevenue / menuTotal) * 100) : 0
@@ -506,7 +520,7 @@ export function PopupReportDocument(p: PopupReportData) {
                           <View key={m.id} style={s.legendRow}>
                             <View style={[s.legendDot, { backgroundColor: m.color }]} />
                             <Text style={s.legendName}>{m.name}</Text>
-                            <Text style={s.legendValue}><Won value={m.totalRevenue} /> ({pct}%)</Text>
+                            <Text style={s.legendValue}>{m.totalQuantity}개 · <Won value={m.totalRevenue} /> ({pct}%)</Text>
                           </View>
                         )
                       })}
@@ -545,6 +559,43 @@ export function PopupReportDocument(p: PopupReportData) {
                   )}
                 </View>
               )
+            case 'calendar': {
+              if (p.dailySales.length === 0) return null
+              const firstWeekday = new Date(`${p.dailySales[0].date}T00:00:00`).getDay()
+              type CalCell = { date: string; day: DayLabel; revenue: number } | null
+              const cells: CalCell[] = [
+                ...Array.from({ length: firstWeekday }, (): CalCell => null),
+                ...p.dailySales.map((d): CalCell => ({ date: d.date, day: d.day, revenue: d.revenue })),
+              ]
+              while (cells.length % 7 !== 0) cells.push(null)
+              const weeks: CalCell[][] = []
+              for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+
+              return (
+                <View style={s.card}>
+                  <CardHeader title="날짜별 매출 프리뷰" right={`${p.startDate} ~ ${p.endDate}`} />
+                  <View style={s.calWeekHeader}>
+                    {DAYS.map((label, i) => (
+                      <Text key={label} style={[s.calWeekHeaderCell, { color: i === 0 ? '#f43f5e' : i === 6 ? '#0ea5e9' : INK_MUTED }]}>{label}</Text>
+                    ))}
+                  </View>
+                  {weeks.map((week, wi) => (
+                    <View key={wi} style={s.calWeekRow}>
+                      {week.map((cell, ci) => (
+                        <View key={ci} style={[s.calCell, cell && cell.revenue > 0 ? { backgroundColor: ACCENT_TINT, border: '1px solid #c9ecdb' } : undefined]}>
+                          {cell && (
+                            <>
+                              <Text style={[s.calDayNum, { color: weekendAccentColor(cell.day, INK) }]}>{Number(cell.date.slice(-2))}</Text>
+                              <Text style={s.calDayRevenue}>{cell.revenue > 0 ? formatRevenueTick(cell.revenue) : '-'}</Text>
+                            </>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              )
+            }
             default:
               return null
           }

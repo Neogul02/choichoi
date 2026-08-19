@@ -92,16 +92,22 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
     })
   }, [cursor, viewingId])
 
-  // 앱 복귀/탭 전환 시 최신 스케줄로 갱신 — 관리자가 배정을 바꿔도 새로고침 없이 반영
+  // 앱 복귀/탭 전환 시 최신 스케줄로 갱신 — 관리자가 배정을 바꿔도 새로고침 없이 반영.
+  // 30초 이내 재포커스는 건너뛴다(문자 확인하러 잠깐 탭 전환했다 돌아오는 등 빈번한 재조회 방지) — 두 조회는 서로 무관하므로 Promise.all로 병렬 실행.
+  const lastFocusRefetchAtRef = useRef(0)
+  const FOCUS_REFETCH_MIN_INTERVAL_MS = 30_000
   useEffect(() => {
     const onFocus = () => {
       if (!viewingId) return
-      loadRoster(viewingId, isOwnView)
-      if (cursor) {
-        fetchStaffMonthlyDetail(viewingId, cursor.y, cursor.m).then(res => {
-          if (res.success && res.data) setDetails(res.data)
-        })
-      }
+      const now = Date.now()
+      if (now - lastFocusRefetchAtRef.current < FOCUS_REFETCH_MIN_INTERVAL_MS) return
+      lastFocusRefetchAtRef.current = now
+      Promise.all([
+        loadRoster(viewingId, isOwnView),
+        cursor ? fetchStaffMonthlyDetail(viewingId, cursor.y, cursor.m) : null,
+      ]).then(([, detailRes]) => {
+        if (detailRes && detailRes.success && detailRes.data) setDetails(detailRes.data)
+      })
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -261,6 +267,13 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
                   />
                 )}
               </>
+            )}
+            {isLoading && (
+              <div className="grid grid-cols-7 gap-1 animate-pulse">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div key={i} className="aspect-square rounded-lg bg-gray-100" />
+                ))}
+              </div>
             )}
           </section>
 
