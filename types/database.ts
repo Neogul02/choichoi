@@ -36,7 +36,7 @@ export interface AvailabilityRange {
   to: string;   // YYYY-MM-DD
 }
 
-export type StaffStatus = 'candidate' | 'confirmed' | 'rejected' | 'inactive';
+export type StaffStatus = 'candidate' | 'confirmed' | 'inactive';
 export type StaffRole = 'kitchen' | 'cashier';
 
 // 앱 권한 역할 — user_profiles.worker_role / auth user_metadata.role에 저장됨

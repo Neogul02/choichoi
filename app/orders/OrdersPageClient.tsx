@@ -25,6 +25,8 @@ interface Props {
 export default function OrdersPageClient({ initialPopupId, initialOrders }: Props) {
   const queryClient = useQueryClient();
   const [popupId, setPopupId] = useState(initialPopupId ?? '0');
+  // 확인 처리 중인 주문 id — 개별 카드만 비활성화되도록 mutation.isPending(전역) 대신 사용
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     // localStorage가 원본 — 쿠키(initialPopupId)와 다르면 localStorage 값으로 교정
@@ -59,15 +61,26 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
   const markPreparedMutation = useMutation<{ success: boolean; error?: string }, Error, number>({
     mutationFn: (orderId) => markOrderPrepared(orderId),
     onMutate: (orderId) => {
-      queryClient.setQueryData<OrderRecordWithItems[]>(['pending-orders'], (prev) =>
+      queryClient.setQueryData<OrderRecordWithItems[]>(['pending-orders', popupId], (prev) =>
         (prev ?? []).filter((o) => o.id !== orderId)
       );
     },
     onError: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-orders', popupId] });
       toast.error('처리 중 오류가 발생했습니다');
     },
   });
+
+  const handleConfirm = (orderId: number) => {
+    setPendingIds((prev) => new Set(prev).add(orderId));
+    markPreparedMutation.mutate(orderId, {
+      onSettled: () => setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      }),
+    });
+  };
 
   return (
     <>
@@ -163,8 +176,8 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
                     </ul>
                     <button
                       className="w-full py-2.5 rounded-lg border-none bg-emerald-500 text-white text-[13px] font-bold cursor-pointer transition-all duration-200 hover:bg-emerald-600 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => markPreparedMutation.mutate(order.id)}
-                      disabled={markPreparedMutation.isPending}
+                      onClick={() => handleConfirm(order.id)}
+                      disabled={pendingIds.has(order.id)}
                     >
                       확인
                     </button>

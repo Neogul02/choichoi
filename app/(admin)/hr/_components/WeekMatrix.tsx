@@ -11,7 +11,6 @@ interface Props {
   shifts: RosterShift[];
   staffList: StaffProfile[];
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
-  getRequired: (dateStr: string, shift: RosterShift) => number;
   /** 배정 id → 규칙 위반 사유 목록 */
   violations: Map<number, string[]>;
   selectedDate: string | null;
@@ -19,7 +18,7 @@ interface Props {
 }
 
 export default function WeekMatrix({
-  weekStart, todayStr, shifts, staffList, getAssigned, getRequired, violations, selectedDate, onDateClick,
+  weekStart, todayStr, shifts, staffList, getAssigned, violations, selectedDate, onDateClick,
 }: Props) {
   const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   // shift_id → { shift, 색상 인덱스 }
@@ -85,30 +84,6 @@ export default function WeekMatrix({
           );
         })}
         <div className="bg-canvas-soft px-1 py-1.5 text-center text-[10px] font-bold text-ink-muted flex items-center justify-center">일수</div>
-
-        {/* ── 충원 현황 행 ── */}
-        <div className="sticky left-0 z-10 bg-canvas px-2 py-1 text-[10px] font-semibold text-ink-faint flex items-center shadow-[1px_0_0_var(--color-hairline)]">충원</div>
-        {dates.map(dateStr => (
-          <div key={`fill-${dateStr}`} className="bg-canvas px-0.5 py-1 flex flex-col gap-0.5 items-stretch">
-            {shifts.map(shift => {
-              const required = getRequired(dateStr, shift);
-              const filled = getAssigned(dateStr, shift.id).length;
-              if (required === 0 && filled === 0) return null;
-              const full = filled >= required;
-              return (
-                <span
-                  key={shift.id}
-                  className={`text-[9px] font-bold rounded px-1 py-0.5 leading-none truncate text-center ${
-                    full ? 'bg-emerald-50 text-emerald-700' : filled === 0 ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-700'
-                  }`}
-                >
-                  {shift.name} {filled}/{required}
-                </span>
-              );
-            })}
-          </div>
-        ))}
-        <div className="bg-canvas" />
 
         {/* ── 근무자 행 ── */}
         {rows.map(row => {

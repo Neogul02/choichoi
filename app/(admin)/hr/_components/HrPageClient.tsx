@@ -12,7 +12,7 @@ import {
 import type { StaffProfileInput } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
 import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
-import { fetchContractedStaffIds } from '@/app/actions/contracts';
+import { fetchContractedStaffIds, type ContractedPair } from '@/app/actions/contracts';
 import { assignStaffToPopup, classifyStaffByPopupSchedule, fetchStaffPopupAssignments } from '@/app/actions/staffPopups';
 import type { StaffProfile, StaffStatus, StaffRole, RosterShift, PopupEvent, StaffPopupAssignment } from '@/types/database';
 import StaffFormModal from './StaffFormModal';
@@ -23,7 +23,6 @@ import ContractsPanel from './ContractsPanel';
 import StaffAssignModal from './StaffAssignModal';
 import ImportStaffFromPopupModal from './ImportStaffFromPopupModal';
 import { StaffRow, StaffCard } from './StaffList';
-import RejectionNoticeBox from './RejectionNoticeBox';
 import { useStaffFilters } from './useStaffFilters';
 import type { RoleFilter, StatusFilter } from './useStaffFilters';
 import { STATUS_LABELS, ROLE_LABELS } from './constants';
@@ -48,7 +47,7 @@ interface Props {
   initialUserProfiles: UserProfile[];
   initialPopups: PopupEvent[];
   initialShifts: RosterShift[];
-  initialContractedIds: number[];
+  initialContractedIds: ContractedPair[];
   initialStaffPopupAssignments: StaffPopupAssignment[];
   initialRoster: InitialRoster | null;
 }
@@ -104,11 +103,14 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
   const calendar = useModal<StaffProfile>();
   const rosterPrint = useModal();
 
-  // 계약서 작성완료 — 실제 contracts 테이블 존재 여부 기준
-  const [completedContracts, setCompletedContracts] = useState<Set<number>>(() => new Set(initialContractedIds));
+  // 계약서 작성완료 — worker_id뿐 아니라 popup_id까지 짝지어 판정 (팝업 이동 시 재계약 필요 케이스 반영)
+  const contractKey = (workerId: number, popupId: number | null) => `${workerId}:${popupId}`;
+  const [completedContracts, setCompletedContracts] = useState<Set<string>>(
+    () => new Set(initialContractedIds.map(p => contractKey(p.workerId, p.popupId))),
+  );
   const refreshContractedStaffIds = () => {
     fetchContractedStaffIds().then(res => {
-      if (res.success && res.data) setCompletedContracts(new Set(res.data));
+      if (res.success && res.data) setCompletedContracts(new Set(res.data.map(p => contractKey(p.workerId, p.popupId))));
     });
   };
   // 계약서 탭 재조회 트리거 — 작성·삭제 시 좌측 배지와 함께 갱신
@@ -335,7 +337,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             {/* 상태 필터 + 검색 */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <div className="flex flex-wrap rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
-                {(['all', 'candidate', 'confirmed', 'rejected', 'inactive'] as StatusFilter[]).map(f => (
+                {(['active', 'all', 'candidate', 'confirmed', 'inactive'] as StatusFilter[]).map(f => (
                   <button
                     key={f}
                     onClick={() => setStatusFilter(f)}
@@ -343,7 +345,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       statusFilter === f ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                     }`}
                   >
-                    {f === 'all' ? '전체' : STATUS_LABELS[f]}
+                    {f === 'active' ? '재직중' : f === 'all' ? '전체' : STATUS_LABELS[f]}
                     <span className={`ml-0.5 ${statusFilter === f ? 'opacity-70' : 'text-ink-faint'}`}>{statusCounts[f]}</span>
                   </button>
                 ))}
@@ -356,7 +358,6 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             </div>
 
             {/* 불합격 통지 폼 */}
-            {statusFilter === 'rejected' && <RejectionNoticeBox />}
 
             {/* 직원 테이블 */}
             <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
@@ -399,7 +400,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                           popup={initialPopups.find(p => p.id === staff.popup_id) ?? null}
                           onRowClick={() => { setEditingStaff(staff); form.open(); }}
                           onStatusChange={s => handleStatusChange(staff, s)}
-                          contractDone={completedContracts.has(staff.id)}
+                          contractDone={completedContracts.has(contractKey(staff.id, staff.popup_id))}
                           onContract={() => contract.open(staff)}
                           onContractsList={() => contractsList.open(staff)}
                           onAssign={() => assigning.open(staff)}
@@ -423,7 +424,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       staff={staff}
                       shiftNames={staff.preferred_shift_ids.map(id => allShifts.find(s => s.id === id)?.name).filter(Boolean).join(' · ')}
                       popup={initialPopups.find(p => p.id === staff.popup_id) ?? null}
-                      contractDone={completedContracts.has(staff.id)}
+                      contractDone={completedContracts.has(contractKey(staff.id, staff.popup_id))}
                       onRowClick={() => { setEditingStaff(staff); form.open(); }}
                       onStatusChange={s => handleStatusChange(staff, s)}
                       onContract={() => contract.open(staff)}
@@ -576,7 +577,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
         open={statusChangeTarget != null}
         title={`${statusChangeTarget?.staff.name}님의 상태를 '${statusChangeTarget ? STATUS_LABELS[statusChangeTarget.status] : ''}'로 변경할까요?`}
         confirmLabel="변경"
-        danger={statusChangeTarget?.status === 'inactive' || statusChangeTarget?.status === 'rejected'}
+        danger={statusChangeTarget?.status === 'inactive'}
         onConfirm={confirmStatusChange}
         onClose={() => setStatusChangeTarget(null)}
       />

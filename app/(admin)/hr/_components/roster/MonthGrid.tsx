@@ -11,10 +11,9 @@ interface Props {
   todayStr: string;
   selectedDate: string | null;
   shifts: RosterShift[];
+  getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
   /** 규칙 위반이 있는 날짜 집합 */
   violationDates: Set<string>;
-  getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
-  getRequired: (dateStr: string, shift: RosterShift) => number;
   onSelectDate: (dateStr: string | null) => void;
   /** 직원 드롭 — 활성 파트 판정과 배정은 부모가 처리 (파트가 여럿이면 팝오버) */
   onDropStaff: (dateStr: string, staffId: number, x: number, y: number) => void;
@@ -26,7 +25,7 @@ interface Props {
  * 그리드와 무관한 상태 변화가 35~42개 셀 전체를 다시 그리지 않도록 한다.
  */
 function MonthGrid({
-  gridDates, todayStr, selectedDate, shifts, violationDates, getAssigned, getRequired, onSelectDate, onDropStaff,
+  gridDates, todayStr, selectedDate, shifts, getAssigned, violationDates, onSelectDate, onDropStaff,
 }: Props) {
   return (
     <div className="grid grid-cols-7 gap-1">
@@ -49,7 +48,6 @@ function MonthGrid({
             hasViolation={violationDates.has(dateStr)}
             shifts={shifts}
             getAssigned={getAssigned}
-            getRequired={getRequired}
             onSelectDate={onSelectDate}
             onDropStaff={onDropStaff}
           />

@@ -87,6 +87,16 @@ export default function MenuStockModal({ open, menuItems, onClose, onSuccess }: 
                 <button type="button" onClick={onClose} aria-label="닫기" className="text-ink-faint hover:text-ink-muted text-xl leading-none cursor-pointer transition bg-transparent border-none">✕</button>
               </div>
 
+              <div className="px-5 pb-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setValues(Object.fromEntries(menuItems.map((m) => [m.id, ''])))}
+                  className="text-[11px] font-semibold text-ink-muted hover:text-primary-700 underline underline-offset-2 cursor-pointer bg-transparent border-none px-0 py-0"
+                >
+                  전체 추적 안 함으로 초기화
+                </button>
+              </div>
+
               <div className="flex-1 overflow-y-auto px-5 pb-2 divide-y divide-hairline">
                 {menuItems.map((item) => (
                   <div key={item.id} className="flex items-center gap-2 py-2.5">

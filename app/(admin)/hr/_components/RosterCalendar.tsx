@@ -22,7 +22,6 @@ import ShiftManageModal from './ShiftManageModal';
 import BulkEditModal from './BulkEditModal';
 import WeekMatrix from './WeekMatrix';
 import AutoFillLogPanel from './AutoFillLogPanel';
-import ShortagesPanel from './ShortagesPanel';
 import StaffTotalsPanel from './StaffTotalsPanel';
 
 interface Props {
@@ -130,24 +129,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     const dateSet = new Set(visibleDates.filter((d): d is string => d !== null));
     return assignments.filter(a => dateSet.has(a.work_date));
   }, [assignments, visibleDates]);
-
-  // 인원 부족 목록 (뷰 범위 적용)
-  const shortages = useMemo(() => {
-    const list: { date: string; shift: RosterShift; missing: number }[] = [];
-    for (const dateStr of visibleDates) {
-      if (!dateStr) continue;
-      if (viewMode === 'month' && rangeFrom && dateStr < rangeFrom) continue;
-      if (viewMode === 'month' && rangeTo && dateStr > rangeTo) continue;
-      for (const shift of shifts) {
-        const required = getRequired(dateStr, shift);
-        const filled = getAssigned(dateStr, shift.id).length;
-        if (filled < required) list.push({ date: dateStr, shift, missing: required - filled });
-      }
-    }
-    return list;
-    // getRequired는 shifts·overrides를 클로저로 캡처 — 이미 deps에 포함되어 있으므로 별도 등록 불필요
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleDates, assignMap, overrides, shifts, rangeFrom, rangeTo, viewMode]);
 
   const handleAutoFill = () => {
     if (!cursor) return;
@@ -393,7 +374,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             shifts={shifts}
             staffList={unitStaff}
             getAssigned={getAssigned}
-            getRequired={getRequired}
             violations={violations}
             selectedDate={selectedDate}
             onDateClick={ds => setSelectedDate(prev => (prev === ds ? null : ds))}
@@ -404,16 +384,14 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             todayStr={todayStr}
             selectedDate={selectedDate}
             shifts={shifts}
-            violationDates={violationDates}
             getAssigned={getAssigned}
-            getRequired={getRequired}
+            violationDates={violationDates}
             onSelectDate={setSelectedDate}
             onDropStaff={handleDropStaff}
           />
         )}
 
         {fillLog && <AutoFillLogPanel fillLog={fillLog} onClose={() => setFillLog(null)} onDateClick={setSelectedDate} />}
-        <ShortagesPanel shortages={shortages} isLoading={isLoading} onDateClick={setSelectedDate} />
         <StaffTotalsPanel staffList={unitStaff} shifts={shifts} assignments={visibleAssignments} isLoading={isLoading} />
       </div>
 

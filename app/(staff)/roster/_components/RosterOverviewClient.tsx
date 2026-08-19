@@ -7,10 +7,9 @@ import WeekMatrix from '@/app/(admin)/hr/_components/WeekMatrix';
 import StaffTotalsPanel from '@/app/(admin)/hr/_components/StaffTotalsPanel';
 import { createRosterMemo, deleteRosterMemo, fetchRosterOverview } from '@/app/actions/roster-view';
 import type { RosterOverview, RosterUnitOverview } from '@/app/actions/roster-view';
-import { DAY_NAMES, findRosterViolations, getWeekStart, requiredFor, buildAssignMap } from '@/lib/staffing';
+import { DAY_NAMES, findRosterViolations, getWeekStart, buildAssignMap } from '@/lib/staffing';
 import { addDays, dayOfWeek } from '@/lib/date';
 import { MatrixSkeleton } from '@/components/Skeleton';
-import type { RosterShift } from '@/types/database';
 import { showMsg } from '@/lib/toast';
 
 interface Props {
@@ -362,14 +361,12 @@ function DayDetailCard({ overview, dateStr, today }: {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
         {overview.units.map(u => {
-          const overrides = Object.fromEntries(u.data.requirements.map(q => [`${q.work_date}|${q.shift_id}`, q.required]));
           const rows = u.data.shifts
             .map(shift => ({
               shift,
-              required: requiredFor(dateStr, shift, overrides),
               assigned: u.data.assignments.filter(a => a.work_date === dateStr && a.shift_id === shift.id),
             }))
-            .filter(r => r.required > 0 || r.assigned.length > 0);
+            .filter(r => r.assigned.length > 0);
           return (
             <div key={u.key} className="rounded-xl border border-hairline bg-canvas-soft/40 p-2.5 min-w-0">
               <p className="m-0 mb-1.5 text-[13px] font-extrabold text-ink">{u.label}</p>
@@ -377,13 +374,10 @@ function DayDetailCard({ overview, dateStr, today }: {
                 <p className="m-0 text-[12px] text-ink-faint">근무 없음</p>
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  {rows.map(({ shift, required, assigned }) => (
+                  {rows.map(({ shift, assigned }) => (
                     <div key={shift.id} className="flex items-start gap-1.5">
-                      <span className={`shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded leading-tight ${
-                        assigned.length >= required ? 'bg-emerald-50 text-emerald-700'
-                          : assigned.length === 0 ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-700'
-                      }`}>
-                        {shift.name} {assigned.length}/{required}
+                      <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded leading-tight bg-canvas-soft text-ink-muted">
+                        {shift.name} {assigned.length}명
                       </span>
                       <span className="text-[12px] text-ink leading-snug min-w-0 break-keep">
                         {assigned.length === 0 ? (
@@ -432,18 +426,12 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
 
   const assignMap = useMemo(() => buildAssignMap(data.assignments), [data.assignments]);
 
-  const overrides = useMemo(
-    () => Object.fromEntries(data.requirements.map(q => [`${q.work_date}|${q.shift_id}`, q.required])),
-    [data.requirements],
-  );
-
   const violations = useMemo(
     () => findRosterViolations(data.assignments, data.shifts, unitStaff),
     [data.assignments, data.shifts, unitStaff],
   );
 
   const getAssigned = (dateStr: string, shiftId: number) => assignMap.get(`${dateStr}|${shiftId}`) ?? [];
-  const getRequired = (dateStr: string, shift: RosterShift) => requiredFor(dateStr, shift, overrides);
 
   return (
     <section className="bg-canvas rounded-2xl p-3 md:p-4 shadow-level-1 border border-hairline">
@@ -454,7 +442,6 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
         shifts={data.shifts}
         staffList={unitStaff}
         getAssigned={getAssigned}
-        getRequired={getRequired}
         violations={violations}
         selectedDate={selectedDate}
         onDateClick={onDateClick}

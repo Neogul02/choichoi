@@ -1326,3 +1326,123 @@ Using the user object as returned from supabase.auth.getSession() or from some s
   └─ ƒ fetchOrdersByDate("2026-07-18") in 29ms app/actions/stats.ts
  POST /stats 200 in 44ms (next.js: 4ms, proxy.ts: 3ms, application-code: 36ms)
   └─ ƒ fetchOrdersByDate("2026-07-18") in 29ms app/actions/stats.ts
+ POST /stats 200 in 99ms (next.js: 7ms, proxy.ts: 5ms, application-code: 86ms)
+  └─ ƒ fetchTodaysSales() in 74ms app/actions/orders.ts
+ POST /stats 200 in 50ms (next.js: 6ms, proxy.ts: 6ms, application-code: 37ms)
+  └─ ƒ fetchTodaysOrdersWithItems() in 29ms app/actions/orders.ts
+ POST /stats 200 in 1271ms (next.js: 5ms, proxy.ts: 890ms, application-code: 375ms)
+  └─ ƒ fetchTodaysSales() in 367ms app/actions/orders.ts
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ POST /stats 200 in 114ms (next.js: 26ms, proxy.ts: 13ms, application-code: 74ms)
+  └─ ƒ fetchTodaysOrdersWithItems() in 66ms app/actions/orders.ts
+ GET /stats 200 in 266ms (next.js: 5ms, proxy.ts: 4ms, application-code: 258ms)
+ POST /stats 200 in 389ms (next.js: 6ms, proxy.ts: 7ms, application-code: 376ms)
+  └─ ƒ fetchTodaysSales() in 368ms app/actions/orders.ts
+ POST /stats 200 in 111ms (next.js: 4ms, proxy.ts: 3ms, application-code: 104ms)
+  └─ ƒ fetchTodaysOrdersWithItems() in 98ms app/actions/orders.ts
+ POST /stats 200 in 829ms (next.js: 5ms, proxy.ts: 470ms, application-code: 354ms)
+  └─ ƒ fetchTodaysSales() in 347ms app/actions/orders.ts
+ POST /stats 200 in 83ms (next.js: 4ms, proxy.ts: 3ms, application-code: 76ms)
+  └─ ƒ fetchTodaysOrdersWithItems() in 68ms app/actions/orders.ts
+ POST /stats 200 in 683ms (next.js: 9ms, proxy.ts: 243ms, application-code: 430ms)
+  └─ ƒ fetchTodaysSales() in 417ms app/actions/orders.ts
+ POST /stats 200 in 85ms (next.js: 7ms, proxy.ts: 4ms, application-code: 74ms)
+  └─ ƒ fetchTodaysOrdersWithItems() in 61ms app/actions/orders.ts
+✓ Compiled in 54ms
+✓ Compiled in 92ms
+✓ Compiled in 59ms
+✓ Compiled in 54ms
+✓ Compiled in 65ms
+✓ Compiled in 48ms
+✓ Compiled in 60ms
+✓ Compiled in 41ms
+✓ Compiled in 48ms
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ POST /stats 200 in 76ms (next.js: 4ms, proxy.ts: 3ms, application-code: 68ms)
+  └─ ƒ fetchActivePopupEvents() in 62ms app/actions/schedule.ts
+ GET /stats 200 in 1163ms (next.js: 7ms, proxy.ts: 780ms, application-code: 376ms)
+ POST /stats 200 in 71ms (next.js: 7ms, proxy.ts: 3ms, application-code: 61ms)
+  └─ ƒ fetchMenuSalesBreakdown("2026-08-10T15:00:00.000Z", "2026-08-11T14:59:59.999Z") in 53ms app/actions/stats.ts
+ POST /stats 200 in 42ms (next.js: 4ms, proxy.ts: 3ms, application-code: 35ms)
+  └─ ƒ fetchMonthlySalesCalendar(2026, 8) in 29ms app/actions/stats.ts
+ POST /stats 200 in 55ms (next.js: 4ms, proxy.ts: 3ms, application-code: 48ms)
+  └─ ƒ fetchManualSalesForMonth(2026, 8) in 42ms app/actions/stats.ts
+ POST /stats 200 in 113ms (next.js: 5ms, proxy.ts: 4ms, application-code: 104ms)
+  └─ ƒ fetchMenuSalesBreakdown("2026-07-09T15:00:00.000Z", "2026-07-30T14:59:59.999Z", "17") in 96ms app/actions/stats.ts
+ POST /stats 200 in 66ms (next.js: 5ms, proxy.ts: 4ms, application-code: 57ms)
+  └─ ƒ fetchDailySalesByPeriod("2026-07-09T15:00:00.000Z", "2026-07-30T14:59:59.999Z", "17") in 49ms app/actions/stats.ts
+ POST /stats 200 in 73ms (next.js: 6ms, proxy.ts: 5ms, application-code: 62ms)
+  └─ ƒ fetchOrdersByPeriod("2026-07-09T15:00:00.000Z", "2026-07-30T14:59:59.999Z", "17") in 53ms app/actions/orders.ts
+ POST /stats 200 in 97ms (next.js: 6ms, proxy.ts: 4ms, application-code: 86ms)
+  └─ ƒ fetchManualSalesForRange("2026-07-10", "2026-07-30") in 79ms app/actions/stats.ts
+ POST /stats 200 in 73ms (next.js: 6ms, proxy.ts: 5ms, application-code: 62ms)
+  └─ ƒ fetchManualMenuSales(17) in 54ms app/actions/stats.ts
+ POST /stats 200 in 76ms (next.js: 4ms, proxy.ts: 3ms, application-code: 68ms)
+  └─ ƒ fetchManualDailyMenuSalesForRange(17, "2026-07-10", "2026-07-30") in 62ms app/actions/stats.ts
+ POST /stats 200 in 73ms (next.js: 4ms, proxy.ts: 3ms, application-code: 65ms)
+  └─ ƒ fetchManualHourlySales(17) in 60ms app/actions/stats.ts
+[browser] GoTrueClient@sb-itepgkguufdjazlnojoi-auth-token:1 (2.110.6) 2026-08-11T07:50:33.599Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key. (lib/supabase.ts:6:37)
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ POST /stats 200 in 211ms (next.js: 7ms, proxy.ts: 6ms, application-code: 198ms)
+  └─ ƒ fetchActivePopupEvents() in 185ms app/actions/schedule.ts
+ GET /stats 200 in 503ms (next.js: 5ms, proxy.ts: 5ms, application-code: 493ms)
+ POST /stats 200 in 53ms (next.js: 5ms, proxy.ts: 4ms, application-code: 44ms)
+  └─ ƒ fetchMenuSalesBreakdown("2026-08-10T15:00:00.000Z", "2026-08-11T14:59:59.999Z") in 36ms app/actions/stats.ts
+ POST /stats 200 in 54ms (next.js: 5ms, proxy.ts: 3ms, application-code: 46ms)
+  └─ ƒ fetchMonthlySalesCalendar(2026, 8) in 39ms app/actions/stats.ts
+ POST /stats 200 in 61ms (next.js: 4ms, proxy.ts: 3ms, application-code: 54ms)
+  └─ ƒ fetchManualSalesForMonth(2026, 8) in 47ms app/actions/stats.ts
+ POST /stats 200 in 136ms (next.js: 4ms, proxy.ts: 3ms, application-code: 129ms)
+  └─ ƒ fetchMenuSalesBreakdown("2026-07-09T15:00:00.000Z", "2026-07-30T14:59:59.999Z", "17") in 121ms app/actions/stats.ts
+ POST /stats 200 in 63ms (next.js: 5ms, proxy.ts: 5ms, application-code: 53ms)
+  └─ ƒ fetchDailySalesByPeriod("2026-07-09T15:00:00.000Z", "2026-07-30T14:59:59.999Z", "17") in 47ms app/actions/stats.ts
+ POST /stats 200 in 81ms (next.js: 4ms, proxy.ts: 3ms, application-code: 73ms)
+  └─ ƒ fetchOrdersByPeriod("2026-07-09T15:00:00.000Z", "2026-07-30T14:59:59.999Z", "17") in 68ms app/actions/orders.ts
+ POST /stats 200 in 57ms (next.js: 5ms, proxy.ts: 3ms, application-code: 49ms)
+  └─ ƒ fetchManualSalesForRange("2026-07-10", "2026-07-30") in 43ms app/actions/stats.ts
+ POST /stats 200 in 59ms (next.js: 4ms, proxy.ts: 3ms, application-code: 52ms)
+  └─ ƒ fetchManualMenuSales(17) in 46ms app/actions/stats.ts
+ POST /stats 200 in 62ms (next.js: 4ms, proxy.ts: 3ms, application-code: 55ms)
+  └─ ƒ fetchManualDailyMenuSalesForRange(17, "2026-07-10", "2026-07-30") in 49ms app/actions/stats.ts
+ POST /stats 200 in 53ms (next.js: 4ms, proxy.ts: 3ms, application-code: 46ms)
+  └─ ƒ fetchManualHourlySales(17) in 39ms app/actions/stats.ts
+[browser] GoTrueClient@sb-itepgkguufdjazlnojoi-auth-token:1 (2.110.6) 2026-08-11T07:51:59.767Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key. (lib/supabase.ts:6:37)
+✓ Compiled in 154ms
+ GET /pos 200 in 681ms (next.js: 210ms, application-code: 472ms)
+ POST /pos 200 in 75ms (next.js: 5ms, application-code: 70ms)
+  └─ ƒ fetchActivePopupEvents() in 61ms app/actions/schedule.ts
+ POST /pos 200 in 54ms (next.js: 4ms, application-code: 50ms)
+  └─ ƒ fetchPosNote() in 45ms app/actions/pos-note.ts
+ POST /pos 200 in 74ms (next.js: 4ms, application-code: 70ms)
+  └─ ƒ fetchPosNote() in 64ms app/actions/pos-note.ts
+[browser] GoTrueClient@sb-itepgkguufdjazlnojoi-auth-token:1 (2.110.6) 2026-08-11T09:37:58.242Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key. (lib/supabase.ts:6:37)
+[browser] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery. (app/pos/PosPageClient.tsx:370:8)
+[browser] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery. (app/pos/PosPageClient.tsx:370:8)
+ POST /stats 200 in 188ms (next.js: 9ms, proxy.ts: 111ms, application-code: 68ms)
+  └─ ƒ fetchTodaysSales() in 58ms app/actions/orders.ts
+ POST /stats 200 in 91ms (next.js: 7ms, proxy.ts: 5ms, application-code: 79ms)
+  └─ ƒ fetchTodaysOrdersWithItems() in 68ms app/actions/orders.ts
+Using the user object as returned from supabase.auth.getSession() or from some supabase.auth.onAuthStateChange() events could be insecure! This value comes directly from the storage medium (usually cookies on the server) and may not be authentic. Use supabase.auth.getUser() instead which authenticates the data by contacting the Supabase Auth server.
+ GET /stats 200 in 225ms (next.js: 5ms, proxy.ts: 3ms, application-code: 217ms)
+[browser] GoTrueClient@sb-itepgkguufdjazlnojoi-auth-token:1 (2.110.6) 2026-08-11T09:57:15.941Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key. (lib/supabase.ts:6:37)
+ POST /stats 200 in 55ms (next.js: 9ms, proxy.ts: 6ms, application-code: 40ms)
+  └─ ƒ fetchActivePopupEvents() in 29ms app/actions/schedule.ts
+ POST /stats 200 in 42ms (next.js: 4ms, proxy.ts: 3ms, application-code: 35ms)
+  └─ ƒ fetchMenuSalesBreakdown("2026-08-10T15:00:00.000Z", "2026-08-11T14:59:59.999Z") in 29ms app/actions/stats.ts
+ POST /stats 200 in 46ms (next.js: 5ms, proxy.ts: 3ms, application-code: 38ms)
+  └─ ƒ fetchMonthlySalesCalendar(2026, 8) in 32ms app/actions/stats.ts
+ POST /stats 200 in 45ms (next.js: 5ms, proxy.ts: 4ms, application-code: 37ms)
+  └─ ƒ fetchManualSalesForMonth(2026, 8) in 31ms app/actions/stats.ts
+ GET /pos 200 in 103ms (next.js: 4ms, application-code: 99ms)
+[browser] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery. (app/pos/PosPageClient.tsx:370:8)
+[browser] Realtime send() is automatically falling back to REST API. This behavior will be deprecated in the future. Please use httpSend() explicitly for REST delivery. (app/pos/PosPageClient.tsx:370:8)
+ POST /pos 200 in 35ms (next.js: 4ms, application-code: 31ms)
+  └─ ƒ fetchPosNote() in 24ms app/actions/pos-note.ts
+ POST /pos 200 in 32ms (next.js: 4ms, application-code: 28ms)
+  └─ ƒ fetchPosNote() in 21ms app/actions/pos-note.ts
+ POST /pos 200 in 965ms (next.js: 5ms, application-code: 959ms)
+  └─ ƒ fetchTodaysSales("20") in 951ms app/actions/orders.ts
+ POST /pos 200 in 72ms (next.js: 5ms, application-code: 67ms)
+  └─ ƒ fetchMenuItems() in 61ms app/actions/menu.ts
+ POST /pos 200 in 72ms (next.js: 4ms, application-code: 69ms)
+  └─ ƒ fetchTodaysOrdersWithItems(10, "20") in 62ms app/actions/orders.ts

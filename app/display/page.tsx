@@ -111,9 +111,12 @@ function DisplayContent({ popupId }: { popupId: string }) {
   const [displayState, setDisplayState] = useState<DisplayState>('idle');
   const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
   const [checkoutTotal, setCheckoutTotal] = useState(0);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const displayStateRef = useRef<DisplayState>('idle');
   const animTimerRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
 
   useEffect(() => {
     const saved = localStorage.getItem('display-nav-expanded');
@@ -132,47 +135,82 @@ function DisplayContent({ popupId }: { popupId: string }) {
   }, []);
 
   useEffect(() => {
-    const ch = supabase
-      .channel(`cart-display-${popupId}`)
-      .on('broadcast', { event: 'cart_update' }, ({ payload }) => {
-        if (displayStateRef.current !== 'idle') return;
-        const p = payload as { items: CartItem[]; totalPrice: number };
-        setCartItems(p.items ?? []);
-        setCartTotalPrice(p.totalPrice ?? 0);
-      })
-      .on('broadcast', { event: 'cart_reset' }, () => {
-        if (displayStateRef.current !== 'idle') return;
-        setLocalCounts({});
-        setCartItems([]);
-        setCartTotalPrice(0);
-      })
-      .on('broadcast', { event: 'checkout_complete' }, ({ payload }) => {
-        const { items, totalPrice: total } = payload as { items: CartItem[]; totalPrice: number };
-        animTimerRef.current.forEach(clearTimeout);
-        setCheckoutItems(items ?? []);
-        setCheckoutTotal(total ?? 0);
-        setLocalCounts({});
-        setCartItems([]);
-        setCartTotalPrice(0);
-        setMode('view');
-        displayStateRef.current = 'checkout';
-        setDisplayState('checkout');
-        const t1 = setTimeout(() => {
-          displayStateRef.current = 'thanks';
-          setDisplayState('thanks');
-          const t2 = setTimeout(() => {
-            displayStateRef.current = 'idle';
-            setDisplayState('idle');
-          }, 2500);
-          animTimerRef.current = [t2];
-        }, 5000);
-        animTimerRef.current = [t1];
+    let cancelled = false;
+    // 채널 세대 토큰 — supabase.removeChannel(ch)는 ch의 구독 콜백에 CLOSED를 동기적으로 다시 쏘는데,
+    // 그걸 그대로 처리하면 재연결이 재진입해 채널이 중복 생성된다. 아래 상태 콜백에서 세대로 걸러낸다.
+    const genRef = { current: 0 };
+
+    // 채널명은 POS 쪽 브로드캐스트 대상과 정확히 일치해야 하므로(cart-display-{popupId}) 재연결 시에도 바꾸지 않는다
+    const connect = () => {
+      if (cancelled) return;
+      const myGen = genRef.current;
+      const ch = supabase
+        .channel(`cart-display-${popupId}`)
+        .on('broadcast', { event: 'cart_update' }, ({ payload }) => {
+          if (displayStateRef.current !== 'idle') return;
+          const p = payload as { items: CartItem[]; totalPrice: number };
+          setCartItems(p.items ?? []);
+          setCartTotalPrice(p.totalPrice ?? 0);
+        })
+        .on('broadcast', { event: 'cart_reset' }, () => {
+          if (displayStateRef.current !== 'idle') return;
+          setLocalCounts({});
+          setCartItems([]);
+          setCartTotalPrice(0);
+        })
+        .on('broadcast', { event: 'checkout_complete' }, ({ payload }) => {
+          const { items, totalPrice: total } = payload as { items: CartItem[]; totalPrice: number };
+          animTimerRef.current.forEach(clearTimeout);
+          setCheckoutItems(items ?? []);
+          setCheckoutTotal(total ?? 0);
+          setLocalCounts({});
+          setCartItems([]);
+          setCartTotalPrice(0);
+          setMode('view');
+          displayStateRef.current = 'checkout';
+          setDisplayState('checkout');
+          const t1 = setTimeout(() => {
+            displayStateRef.current = 'thanks';
+            setDisplayState('thanks');
+            const t2 = setTimeout(() => {
+              displayStateRef.current = 'idle';
+              setDisplayState('idle');
+            }, 2500);
+            animTimerRef.current = [t2];
+          }, 5000);
+          animTimerRef.current = [t1];
+        });
+      ch.subscribe((status) => {
+        // 이 채널은 이미 폐기된 세대 — removeChannel이 동기적으로 쏘는 CLOSED가 여기로 다시 들어와도 완전히 무시
+        if (cancelled || myGen !== genRef.current) return;
+        if (status === 'SUBSCRIBED') {
+          reconnectAttemptRef.current = 0;
+          if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+          setConnectionStatus('connected');
+          ch.send({ type: 'broadcast', event: 'request_sync', payload: {} });
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setConnectionStatus('error');
+          // 지수 백오프로 재구독 — 매장 와이파이가 잠깐 끊겨도 화면이 영구히 멈춰있지 않게 한다
+          if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+          const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 15000);
+          reconnectAttemptRef.current += 1;
+          retryTimerRef.current = setTimeout(() => {
+            genRef.current += 1; // removeChannel의 동기 CLOSED가 이 채널(myGen)로 다시 들어오지 못하게 먼저 세대를 올린다
+            supabase.removeChannel(ch);
+            connect();
+          }, delay);
+        }
       });
-    ch.subscribe((status) => {
-      if (status === 'SUBSCRIBED') ch.send({ type: 'broadcast', event: 'request_sync', payload: {} });
-    });
-    channelRef.current = ch;
-    return () => { supabase.removeChannel(ch); };
+      channelRef.current = ch;
+    };
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
   }, [popupId]);
 
   useEffect(() => {
@@ -274,7 +312,7 @@ function DisplayContent({ popupId }: { popupId: string }) {
       <main className="flex-1 flex flex-col overflow-auto relative pb-24">
         <AnimatePresence mode="wait">
           {mode === 'view' ? (
-            <ViewMode cartItems={cartItems} cartTotalPrice={cartTotalPrice} />
+            <ViewMode cartItems={cartItems} cartTotalPrice={cartTotalPrice} connecting={connectionStatus !== 'connected'} />
           ) : mode === 'order' ? (
             <OrderMode
               menuItems={menuItems}
@@ -296,6 +334,12 @@ function DisplayContent({ popupId }: { popupId: string }) {
       </main>
 
       {mode !== 'screen' && <BottomBanner />}
+
+      {connectionStatus === 'error' && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-rose-600 text-white text-sm font-bold shadow-lg">
+          연결 끊김 — 재연결 중...
+        </div>
+      )}
     </div>
   );
 }

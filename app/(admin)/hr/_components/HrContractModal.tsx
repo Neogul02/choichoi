@@ -145,7 +145,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
 
   const handleComplete = async () => {
     setSaving(true)
-    const r = await generateContract({ workerId: staff.id, workerName: staff.name, startDate, hourlyRate: Number(hourlyRate), contractData })
+    const r = await generateContract({ workerId: staff.id, workerName: staff.name, popupId: staff.popup_id ?? undefined, startDate, hourlyRate: Number(hourlyRate), contractData })
     setSaving(false)
     if (r.success) {
       onComplete?.()

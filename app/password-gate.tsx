@@ -77,14 +77,21 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const signupResidentBackRef = useRef<HTMLInputElement>(null)
   const signupInviteCodeRef = useRef<HTMLInputElement>(null)
 
+  // PasswordGate는 라우트 전환에도 리마운트되지 않으므로(위 주석 참고) pathname을 deps에 넣어야
+  // "/"로 처음 들어왔다가 /pos로 클라이언트 사이드 이동한 경우에도 팝업 목록을 뒤늦게 가져올 수 있다.
+  // 한 번 성공하면 다시 부르지 않는다(hasFetchedPopupsRef) — /display, /는 로그인 폼 자체를 안 쓰므로 계속 건너뜀.
+  const hasFetchedPopupsRef = useRef(false)
   useEffect(() => {
+    if (hasFetchedPopupsRef.current) return
+    if (pathname === '/display' || pathname === '/') return
+    hasFetchedPopupsRef.current = true
     fetchActivePopupEvents().then((result) => {
       if (result.success && result.data) {
         setPopupEvents(result.data)
         if (result.data.length === 1) setSelectedPopupId(result.data[0].id)
       }
     })
-  }, [])
+  }, [pathname])
 
   // 분기 페이지의 "처음이라면? 회원가입" 링크(/pos?view=signup)로 들어왔을 때 바로 회원가입 화면을 띄움
   // useSearchParams 대신 window.location을 직접 읽어 전체 앱의 정적 렌더링에 영향을 주지 않는다.
@@ -127,11 +134,13 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const inputClass =
     'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas'
 
-  // 로그인 성공(비밀번호 로그인 또는 회원가입 직후 자동 로그인) 후 공통 후처리
+  // 로그인 성공(비밀번호 로그인 또는 회원가입 직후 자동 로그인) 후 공통 후처리.
+  // user_metadata.role 동기화(updateUser)는 화면 진입을 막지 않는다 — proxy.ts/서버 액션이 실제 권한 검사를
+  // 최종 담당하므로(CLAUDE.md 참고) 이 동기화가 한 박자 늦게 끝나도 안전하고, every-login 체감 지연만 늘어들 뿐이었다.
   const finishAuth = async (user: { id: string; user_metadata?: { name?: string } }, email: string) => {
     const supabase = createSupabaseBrowserClient()
 
-    // user_profiles에서 이름 + role 조회 → user_metadata 동기화
+    // user_profiles에서 이름 + role 조회 — localStorage 기록(캐셔 이름 등)에 필요하므로 이것만 기다린다
     const { data: profile } = await withTimeout(
       Promise.resolve(supabase.from('user_profiles').select('name, worker_role').eq('id', user.id).maybeSingle()),
       8000,
@@ -141,13 +150,10 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     const syncedRole =
       profile?.worker_role === 'admin' ? 'admin' :
       profile?.worker_role === 'manager' ? 'manager' : 'user'
-    await withTimeout(
-      supabase.auth.updateUser({
-        data: { role: syncedRole, name: profile?.name ?? user.user_metadata?.name },
-      }),
-      8000,
-      '권한 동기화',
-    )
+    // user_metadata.role 동기화는 백그라운드로 — 실패해도 로그인을 막지 않는다
+    supabase.auth.updateUser({
+      data: { role: syncedRole, name: profile?.name ?? user.user_metadata?.name },
+    }).catch(() => { /* 다음 로그인 시 재동기화됨 */ })
 
     const name = profile?.name ?? user.user_metadata?.name ?? ''
     const isKitchen = selectedPopupId === 'kitchen'

@@ -291,23 +291,26 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         </AnimatePresence>
         </div>
 
-        <div className="flex justify-center pt-1 cursor-pointer">
+        <div className="flex justify-center cursor-pointer">
+          {/* 시각적 크기(w-9 h-4)는 유지하되 탭 히트 영역은 padding으로 ~44x44px까지 확대 */}
           <button
             onClick={toggle}
             aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
-            className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline hover:bg-[#d0d0d0] transition-colors group cursor-pointer"
+            className="flex items-center justify-center w-11 h-11 group cursor-pointer bg-transparent border-none"
           >
-            <motion.svg
-              animate={{ rotate: collapsed ? 180 : 0 }}
-              transition={{ duration: 0.22, ease: 'easeInOut' }}
-              width="12"
-              height="6"
-              viewBox="0 0 12 6"
-              fill="none"
-              className="text-ink-faint group-hover:text-ink-muted transition-colors"
-            >
-              <path d="M1 5L6 1L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </motion.svg>
+            <span className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline group-hover:bg-[#d0d0d0] transition-colors">
+              <motion.svg
+                animate={{ rotate: collapsed ? 180 : 0 }}
+                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                width="12"
+                height="6"
+                viewBox="0 0 12 6"
+                fill="none"
+                className="text-ink-faint group-hover:text-ink-muted transition-colors"
+              >
+                <path d="M1 5L6 1L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </motion.svg>
+            </span>
           </button>
         </div>
       </div>

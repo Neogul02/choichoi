@@ -6,7 +6,7 @@ import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfil
 import { getWeekStart, DAY_NAMES } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayOfWeek, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
-import { getAuthUser, wrap, requireAdmin, requireManagerOrAdmin } from './_base'
+import { getAuthUser, wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
 import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments } from '@/lib/roster/query-helpers'
 import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
 import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'
@@ -839,8 +839,7 @@ async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
  */
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   return wrap(async () => {
-    const user = await getAuthUser()
-    if (!user) throw new Error('로그인이 필요합니다.')
+    const user = await requireAuth()
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from('staff_profiles')
@@ -857,8 +856,7 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
 // 관리자/매니저가 '스케줄' 탭에서 다른 직원의 근무표를 유저와 동일한 화면으로 조회 — 일정표(요약 테이블)와 별개로 개인 캘린더 뷰를 그대로 재사용
 export async function getStaffRosterAsManager(staffId: number): Promise<ApiResponse<MyRosterData | null>> {
   return wrap(async () => {
-    const user = await getAuthUser()
-    if (!user || (user.role !== 'admin' && user.role !== 'manager')) throw new Error('권한이 없습니다.')
+    await requireManagerOrAdmin()
 
     const { data: staff, error: staffError } = await supabaseAdmin
       .from('staff_profiles')

@@ -84,6 +84,9 @@ export default function EmojiPhysics({ items, active }: Props) {
   const particlesRef = useRef<Particle[]>([]);
   const rafRef = useRef<number | null>(null);
   const prevActiveRef = useRef(false);
+  // 파티클이 없을 때 requestAnimationFrame을 계속 도는 것을 막기 위해 루프 시작 함수를 ref로 노출 —
+  // 두 번째 effect(파티클 스폰)가 필요할 때만 다시 깨운다.
+  const startLoopRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -103,6 +106,11 @@ export default function EmojiPhysics({ items, active }: Props) {
 
         ctx.clearRect(0, 0, W, H);
         particlesRef.current = particlesRef.current.filter((p) => p.opacity > 0);
+        if (particlesRef.current.length === 0) {
+          // 화면은 이미 지워진 상태 — 다음 스폰 때 startLoopRef가 다시 깨운다
+          rafRef.current = null;
+          return;
+        }
         resolveCollisions(particlesRef.current);
 
         for (const p of particlesRef.current) {
@@ -153,7 +161,10 @@ export default function EmojiPhysics({ items, active }: Props) {
       };
       resize();
       window.addEventListener('resize', resize);
-      rafRef.current = requestAnimationFrame(runLoop);
+      startLoopRef.current = () => {
+        if (rafRef.current == null) rafRef.current = requestAnimationFrame(runLoop);
+      };
+      // 초기엔 파티클이 없으므로 루프를 미리 켜두지 않는다 — 첫 스폰 시 startLoopRef가 깨움
       cleanup = () => {
         window.removeEventListener('resize', resize);
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -173,6 +184,7 @@ export default function EmojiPhysics({ items, active }: Props) {
       const maxParticles = Math.round(35 * Math.max(1, Math.min(2.5, canvas.width / 420)));
       const next = [...particlesRef.current, ...spawnParticles(items, canvas.width, canvas.height)];
       particlesRef.current = next.length > maxParticles ? next.slice(next.length - maxParticles) : next;
+      startLoopRef.current();
     } else if (!active && wasActive) {
       particlesRef.current.forEach((p) => { p.fadingOut = true; });
     }

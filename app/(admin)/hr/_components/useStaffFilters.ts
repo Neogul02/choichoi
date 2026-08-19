@@ -3,19 +3,20 @@
 import { useMemo, useState } from 'react';
 import type { StaffProfile, StaffStatus, StaffRole, RosterShift } from '@/types/database';
 
-export type StatusFilter = StaffStatus | 'all';
+export type StatusFilter = StaffStatus | 'all' | 'active';
 export type StoreFilter = number | 'all' | 'none';
 export type RoleFilter = StaffRole | 'all';
 export type SortKey = 'name' | 'status' | 'shifts';
 export type SortDir = 'asc' | 'desc';
 
-const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 1, rejected: 2, inactive: 3 };
+const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 1, inactive: 2 };
 
 /** 직원 목록의 역할·팝업·상태·검색 필터와 컬럼 정렬 상태 + 필터링 결과를 관리하는 훅 */
 export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShift[]) {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  // 기본값은 재직중(후보+재직)만 — 퇴사·불합격 처리된 인원은 '전체'를 눌러야 보이게
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [search, setSearch] = useState('');
 
   // 컬럼 정렬
@@ -32,8 +33,9 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
   );
 
   const statusCounts = useMemo(() => {
-    const counts: Record<StatusFilter, number> = { all: roleStaff.length, candidate: 0, confirmed: 0, rejected: 0, inactive: 0 };
+    const counts: Record<StatusFilter, number> = { all: roleStaff.length, active: 0, candidate: 0, confirmed: 0, inactive: 0 };
     for (const s of roleStaff) counts[s.status]++;
+    counts.active = counts.candidate + counts.confirmed;
     return counts;
   }, [roleStaff]);
 
@@ -42,7 +44,7 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
       if (roleFilter === 'cashier' && storeFilter !== 'all') {
         if (storeFilter === 'none' ? s.popup_id !== null : s.popup_id !== storeFilter) return false;
       }
-      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (statusFilter === 'active' ? (s.status !== 'candidate' && s.status !== 'confirmed') : statusFilter !== 'all' && s.status !== statusFilter) return false;
       if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
       return true;
     });

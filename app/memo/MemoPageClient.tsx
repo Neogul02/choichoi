@@ -1,10 +1,11 @@
 'use client';
 
 import NavBar from '@/components/NavBar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { fetchAllMemos, createNewMemo, editMemo, removeMemo, toggleMemoPinned } from '@/app/actions/memos';
+import { supabase } from '@/lib/supabase';
 import MemoDetailModal from './MemoDetailModal';
 import type { Memo } from '@/types/database';
 
@@ -73,6 +74,17 @@ export default function MemoPageClient({ initialMemos }: { initialMemos: Memo[] 
     // 서버 프리페치 성공 시 초기 로딩·재조회 생략 (staleTime 5분은 전역 기본값)
     ...(initialMemos ? { initialData: initialMemos } : {}),
   });
+
+  // 다른 탭/기기에서 추가·수정·삭제·고정한 메모를 실시간 반영 — 마운트마다 랜덤 suffix로 채널명 충돌 방지
+  useEffect(() => {
+    const channel = supabase
+      .channel(`memos-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'memos' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['memos'] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const pinMutation = useMutation({
     mutationFn: async ({ id, isPinned }: { id: number; isPinned: boolean }) => {

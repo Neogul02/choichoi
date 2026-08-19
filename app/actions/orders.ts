@@ -321,7 +321,9 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
   } catch (error) {
     const msg = extractErrorMessage(error);
     console.error('[saveOrder] Critical failure:', msg);
-    return { success: false, error: msg };
+    // 원본 DB/Postgres 오류 문구는 캐셔에게 그대로 노출하지 않고 Discord로만 보고 — 응답은 막지 않는다
+    after(() => import('@/lib/error-report').then((m) => m.reportError('주문 저장 실패', msg)).catch(() => {}));
+    return { success: false, error: '결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' };
   }
 }
 

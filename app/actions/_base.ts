@@ -23,12 +23,30 @@ export function isNextInternalControlFlowError(e: unknown): boolean {
   );
 }
 
+// 인증·권한 실패는 애플리케이션 오류가 아니라 예상된 결과다(로그아웃 상태 접근, 세션 만료 등).
+// 이 표식이 붙은 오류는 wrap()이 Discord 알림 없이 그대로 실패 응답으로 변환한다.
+export class AuthError extends Error {
+  readonly expected = true;
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+// instanceof는 같은 모듈이 여러 서버 청크로 중복 번들되면 실패할 수 있어 expected 플래그도 함께 본다
+export function isExpectedError(e: unknown): boolean {
+  if (e instanceof AuthError) return true;
+  return typeof e === 'object' && e !== null && (e as { expected?: unknown }).expected === true;
+}
+
 export async function wrap<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
   try {
     return { success: true, data: await fn() };
   } catch (e) {
     if (isNextInternalControlFlowError(e)) throw e;
     const message = extractErrorMessage(e);
+    // 미인증·권한 없음은 정상 동작이므로 오류 알림을 보내지 않는다
+    if (isExpectedError(e)) return { success: false, error: message };
     // 어느 액션에서 났는지 스택 상단으로 식별 — 응답 후 전송(after)이라 응답을 막지 않고, 서버리스에서도 완료 보장
     const stack = e instanceof Error && e.stack ? e.stack.split('\n').slice(1, 4).join('\n') : null;
     after(() => reportError('서버 액션 실패', message, stack ? [{ name: '위치', value: stack }] : undefined).catch(() => {}));
@@ -62,20 +80,20 @@ export async function getAuthUser(): Promise<{
 /** 로그인만 요구하는(역할 무관) 액션의 첫 줄에서 호출 — 미인증이면 throw (wrap() 콜백 안에서 쓰면 표준 오류 응답으로 변환됨) */
 export async function requireAuth() {
   const user = await getAuthUser();
-  if (!user) throw new Error('로그인이 필요합니다.');
+  if (!user) throw new AuthError('로그인이 필요합니다.');
   return user;
 }
 
 /** admin 전용 액션의 첫 줄에서 호출 — 미인증/권한 없음이면 throw (wrap() 콜백 안에서 쓰면 표준 오류 응답으로 변환됨) */
 export async function requireAdmin() {
   const user = await getAuthUser();
-  if (!user || user.role !== 'admin') throw new Error('권한이 없습니다.');
+  if (!user || user.role !== 'admin') throw new AuthError('권한이 없습니다.');
   return user;
 }
 
 /** manager 이상(admin·manager) 전용 액션의 첫 줄에서 호출 */
 export async function requireManagerOrAdmin() {
   const user = await getAuthUser();
-  if (!user || (user.role !== 'admin' && user.role !== 'manager')) throw new Error('권한이 없습니다.');
+  if (!user || (user.role !== 'admin' && user.role !== 'manager')) throw new AuthError('권한이 없습니다.');
   return user;
 }
