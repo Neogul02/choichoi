@@ -442,6 +442,7 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
         shifts={data.shifts}
         staffList={unitStaff}
         getAssigned={getAssigned}
+        getShiftLabel={s => s.name}
         violations={violations}
         selectedDate={selectedDate}
         onDateClick={onDateClick}

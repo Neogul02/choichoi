@@ -13,13 +13,15 @@ interface Props {
   hasViolation: boolean;
   shifts: RosterShift[];
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
+  /** 캐셔 "전체" 보기에서 서로 다른 팝업의 동명 파트를 구분하기 위한 표시 이름 — 기본은 shift.name */
+  getShiftLabel: (shift: RosterShift) => string;
   onSelectDate: (dateStr: string | null) => void;
   onDropStaff: (dateStr: string, staffId: number, x: number, y: number) => void;
 }
 
 /** 달력 셀 하나 — memo로 감싸 날짜 선택·팝오버 등 무관한 부모 상태 변화에 재렌더되지 않게 한다 */
 function DayCell({
-  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, onSelectDate, onDropStaff,
+  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, getShiftLabel, onSelectDate, onDropStaff,
 }: Props) {
   // 드래그오버 강조는 순수 시각 상태라 셀 내부에서만 관리
   const [dragOver, setDragOver] = useState(false);
@@ -70,7 +72,7 @@ function DayCell({
             key={shift.id}
             className="text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate bg-canvas-soft text-ink-muted"
           >
-            {shift.name} {filled}명
+            {getShiftLabel(shift)} {filled}명
           </span>
         );
       })}

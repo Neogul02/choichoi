@@ -11,6 +11,8 @@ interface Props {
   todayStr: string;
   isLoading: boolean;
   isAutoFilling: boolean;
+  /** 캐셔 "전체" 보기 — 특정 팝업에 귀속되는 일괄/파트 편집 액션은 비활성화(단건 배정 추가/삭제는 계속 가능) */
+  disableUnitActions?: boolean;
   setCursor: Dispatch<SetStateAction<{ y: number; m: number } | null>>;
   setWeekStart: Dispatch<SetStateAction<string | null>>;
   moveWeek: (delta: number) => void;
@@ -26,10 +28,11 @@ interface Props {
 
 /** 달력 헤더 툴바 — 월/주 이동, 뷰 토글, 지난주 복사·자동 채우기 등 액션 버튼 */
 export default function CalendarToolbar({
-  viewMode, cursor, weekStart, weekEndStr, todayStr, isLoading, isAutoFilling,
+  viewMode, cursor, weekStart, weekEndStr, todayStr, isLoading, isAutoFilling, disableUnitActions,
   setCursor, setWeekStart, moveWeek, switchView, syncCursorToDate,
   onCopyPrevWeek, onCopyWeekText, onAutoFill, onClearRoster, onShowBulkEdit, onShowShiftManage,
 }: Props) {
+  const unitActionTitle = disableUnitActions ? '전체 보기에서는 사용할 수 없습니다 — 팝업을 선택하세요' : undefined;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
       <div className="flex items-center gap-2">
@@ -90,7 +93,8 @@ export default function CalendarToolbar({
           <>
             <button
               onClick={onCopyPrevWeek}
-              disabled={isLoading}
+              disabled={isLoading || disableUnitActions}
+              title={unitActionTitle}
               className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               지난주 복사
@@ -107,28 +111,33 @@ export default function CalendarToolbar({
         )}
         <button
           onClick={onAutoFill}
-          disabled={isAutoFilling || isLoading}
+          disabled={isAutoFilling || isLoading || disableUnitActions}
+          title={unitActionTitle}
           className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border-none bg-primary-700 text-white text-[11px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isAutoFilling ? '배정 중...' : '자동 채우기'}
         </button>
         <button
           onClick={onClearRoster}
-          disabled={isLoading}
+          disabled={isLoading || disableUnitActions}
+          title={unitActionTitle}
           className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[11px] font-bold cursor-pointer hover:bg-rose-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           초기화
         </button>
         <button
           onClick={onShowBulkEdit}
-          disabled={isLoading}
+          disabled={isLoading || disableUnitActions}
+          title={unitActionTitle}
           className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           일괄 편집
         </button>
         <button
           onClick={onShowShiftManage}
-          className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
+          disabled={disableUnitActions}
+          title={unitActionTitle}
+          className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           ⚙ 파트 관리
         </button>

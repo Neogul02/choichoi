@@ -11,6 +11,7 @@ interface Props {
   shifts: RosterShift[];
   staffList: StaffProfile[];
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
+  getShiftLabel: (shift: RosterShift) => string;
   /** 배정 id → 규칙 위반 사유 목록 */
   violations: Map<number, string[]>;
   selectedDate: string | null;
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export default function WeekMatrix({
-  weekStart, todayStr, shifts, staffList, getAssigned, violations, selectedDate, onDateClick,
+  weekStart, todayStr, shifts, staffList, getAssigned, getShiftLabel, violations, selectedDate, onDateClick,
 }: Props) {
   const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   // shift_id → { shift, 색상 인덱스 }
@@ -117,7 +118,7 @@ export default function WeekMatrix({
                           } ${shiftTextColor(info?.idx ?? 0)}`}
                         >
                           {reasons && '⚠️'}
-                          {info?.shift.name ?? '?'}
+                          {info ? getShiftLabel(info.shift) : '?'}
                           {(a.start_time || a.end_time) && (
                             <span className="ml-0.5 font-semibold opacity-70">
                               {(a.start_time ?? info?.shift.start_time ?? '').slice(0, 5)}~{(a.end_time ?? info?.shift.end_time ?? '').slice(0, 5)}

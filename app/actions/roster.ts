@@ -7,7 +7,7 @@ import { getWeekStart, DAY_NAMES, requiredFor } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { getAuthUser, wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
-import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments } from '@/lib/roster/query-helpers'
+import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups } from '@/lib/roster/query-helpers'
 import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
 import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'
 
@@ -143,6 +143,7 @@ export async function fetchAllRosterShifts(): Promise<ApiResponse<RosterShift[]>
 export async function createRosterShift(unit: RosterUnit, input: RosterShiftInput): Promise<ApiResponse<RosterShift>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 새 파트를 만들 수 없습니다. 팝업을 선택하세요.')
     if (!input.name.trim()) throw new Error('파트 이름을 입력하세요.')
     const { count } = await applyUnitFilter(
       supabaseAdmin.from('roster_shifts').select('*', { count: 'exact', head: true }),
@@ -247,9 +248,18 @@ export async function addRosterAssignment(
 ): Promise<ApiResponse<RosterAssignment>> {
   return wrap(async () => {
     await requireAdmin()
+    // popup_id는 unit이 아니라 실제 파트(shift)에서 가져온다 — 캐셔 달력 "전체" 보기(unit.popupId가 실제
+    // 팝업이 아닌 ALL_POPUPS 센티널)에서도 그 파트가 속한 진짜 팝업으로 정확히 저장되게 하기 위함.
+    // 일반 모드에서는 shift.popup_id === unit.popupId라 동작이 그대로다.
+    const { data: shift, error: shiftError } = await supabaseAdmin
+      .from('roster_shifts')
+      .select('popup_id')
+      .eq('id', shiftId)
+      .single()
+    if (shiftError || !shift) throw new Error('파트 정보를 찾을 수 없습니다.')
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .insert([{ work_date: workDate, shift_id: shiftId, staff_id: staffId, staff_role: unit.staffRole, popup_id: unit.popupId }])
+      .insert([{ work_date: workDate, shift_id: shiftId, staff_id: staffId, staff_role: unit.staffRole, popup_id: shift.popup_id }])
       .select(ASSIGNMENT_COLUMNS)
       .single()
     if (error) {
@@ -346,6 +356,7 @@ export async function moveStaffAssignments(
 ): Promise<ApiResponse<{ moved: number; merged: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 편집을 사용할 수 없습니다. 팝업을 선택하세요.')
     if (fromShiftId === toShiftId) throw new Error('같은 파트로는 이동할 수 없습니다.')
     // 원본 배정과 대상 파트의 기존 배정을 함께 조회 — 같은 날 대상 파트에 이미 있으면 unique 충돌
     const { data, error } = await applyUnitFilter(
@@ -400,6 +411,7 @@ export async function clearStaffAssignments(
 ): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 편집을 사용할 수 없습니다. 팝업을 선택하세요.')
     let q = applyUnitFilter(
       supabaseAdmin.from('roster_assignments').delete(),
       unit,
@@ -425,6 +437,7 @@ export async function swapStaffAssignments(
 ): Promise<ApiResponse<{ swapped: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 편집을 사용할 수 없습니다. 팝업을 선택하세요.')
     if (staffAId === staffBId) throw new Error('서로 다른 근무자를 선택하세요.')
     const { data, error } = await applyUnitFilter(
       supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id'),
@@ -508,6 +521,7 @@ export async function clearShiftRequirement(workDate: string, shiftId: number): 
 export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<AutoFillResult>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 자동 채우기를 사용할 수 없습니다. 팝업을 선택하세요.')
     const shiftsRes = await fetchRosterShifts(unit)
     if (!shiftsRes.success || !shiftsRes.data) throw new Error(shiftsRes.error ?? '파트를 불러올 수 없습니다.')
     const shifts = shiftsRes.data
@@ -614,6 +628,7 @@ export async function bulkAddRosterAssignments(
 ): Promise<ApiResponse<{ added: number; skipped: number }>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 배정을 사용할 수 없습니다. 팝업을 선택하세요.')
     if (dates.length === 0) return { added: 0, skipped: 0 }
     const inserts = dates.map(date => ({
       work_date: date,
@@ -639,6 +654,7 @@ export async function copyPreviousWeek(
 ): Promise<ApiResponse<{ added: number; skipped: number }>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 지난주 복사를 사용할 수 없습니다. 팝업을 선택하세요.')
     const { data, error } = await applyUnitFilter(
       supabaseAdmin.from('roster_assignments').select('work_date, shift_id, staff_id, start_time, end_time'),
       unit,
@@ -678,6 +694,7 @@ export async function clearRosterRange(
 ): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
   return wrap(async () => {
     await requireAdmin()
+    if (isAllPopups(unit)) throw new Error('전체 보기에서는 초기화를 사용할 수 없습니다. 팝업을 선택하세요.')
     const { data, error } = await applyUnitFilter(
       supabaseAdmin.from('roster_assignments').delete(),
       unit,

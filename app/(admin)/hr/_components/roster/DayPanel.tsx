@@ -15,6 +15,7 @@ interface Props {
   violations: Map<number, string[]>;
   getAssigned: (d: string, shiftId: number) => RosterAssignment[];
   getRequired: (d: string, s: RosterShift) => number;
+  getShiftLabel: (shift: RosterShift) => string;
   getWeeklyDayCount: (staffId: number, d: string) => number;
   onAdd: (d: string, shiftId: number, staffId: number) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
@@ -29,7 +30,7 @@ interface Props {
 /** 날짜 상세 패널 — 파트별 배정 조회/추가/삭제, 개별 시간 수정, 요구 인원 조정, 근무 안내 복사 */
 export default function DayPanel({
   dateStr, shifts, staffList, overrides, violations,
-  getAssigned, getRequired, getWeeklyDayCount, onAdd, onRemove, onTimeChange, onBreakChange,
+  getAssigned, getRequired, getShiftLabel, getWeeklyDayCount, onAdd, onRemove, onTimeChange, onBreakChange,
   onRequirementChange, onRequirementReset, onClose,
 }: Props) {
   const day = dayOfWeek(dateStr);
@@ -75,7 +76,7 @@ export default function DayPanel({
         const assigned = getAssigned(dateStr, shift.id);
         if (assigned.length === 0) continue;
         hasAny = true;
-        lines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
+        lines.push(`[${getShiftLabel(shift)}] ${shift.start_time}~${shift.end_time}`);
         for (const a of assigned) {
           // 개별 수정 시간·휴게 미포함은 이름 옆에 표기 — 파트 기본과 다르게 일하는 사람이 헷갈리지 않도록
           const extras = [
@@ -151,12 +152,12 @@ export default function DayPanel({
           <div key={shift.id} className="mb-3 last:mb-0">
             <div className="flex items-center justify-between mb-1.5">
               <span className={`text-[12px] font-extrabold ${shiftTextColor(shiftIdx)}`}>
-                {shift.name} <span className="text-ink-faint font-semibold">{shift.start_time}~{shift.end_time}</span>
+                {getShiftLabel(shift)} <span className="text-ink-faint font-semibold">{shift.start_time}~{shift.end_time}</span>
               </span>
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => onRequirementChange(dateStr, shift.id, Math.max(0, required - 1))}
-                  aria-label={`${shift.name} 필요 인원 줄이기`}
+                  aria-label={`${getShiftLabel(shift)} 필요 인원 줄이기`}
                   className="w-10 h-10 md:w-5 md:h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[14px] md:text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
                 >
                   −
@@ -166,7 +167,7 @@ export default function DayPanel({
                 </span>
                 <button
                   onClick={() => onRequirementChange(dateStr, shift.id, required + 1)}
-                  aria-label={`${shift.name} 필요 인원 늘리기`}
+                  aria-label={`${getShiftLabel(shift)} 필요 인원 늘리기`}
                   className="w-10 h-10 md:w-5 md:h-5 rounded bg-canvas-soft border border-hairline cursor-pointer text-[14px] md:text-[11px] font-bold text-ink-muted hover:border-primary-400 transition leading-none"
                 >
                   +

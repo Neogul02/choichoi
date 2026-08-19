@@ -10,12 +10,13 @@ interface Props {
   x: number;
   y: number;
   shifts: RosterShift[];
+  getShiftLabel: (shift: RosterShift) => string;
   onPick: (shiftId: number) => void;
   onClose: () => void;
 }
 
 /** 드롭한 날짜에 활성 파트가 여러 개일 때 커서 위치에 뜨는 파트 선택 팝오버 */
-export default function ShiftPickerPopover({ dateStr, x, y, shifts, onPick, onClose }: Props) {
+export default function ShiftPickerPopover({ dateStr, x, y, shifts, getShiftLabel, onPick, onClose }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useModalKeyboard({
@@ -41,7 +42,7 @@ export default function ShiftPickerPopover({ dateStr, x, y, shifts, onPick, onCl
               onClick={() => onPick(s.id)}
               className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] hover:bg-canvas-soft cursor-pointer bg-transparent border-none transition"
             >
-              {s.name} <span className="text-ink-faint text-[10px]">{s.start_time}~{s.end_time}</span>
+              {getShiftLabel(s)} <span className="text-ink-faint text-[10px]">{s.start_time}~{s.end_time}</span>
             </button>
           ))
         }
