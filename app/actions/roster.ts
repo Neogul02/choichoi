@@ -866,6 +866,83 @@ export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   })
 }
 
+export interface MyCumulativeHours {
+  totalHours: number
+  totalDays: number
+}
+
+async function fetchCumulativeWorkedHoursForUserProfileId(userProfileId: string): Promise<MyCumulativeHours> {
+  const { data: staffRows, error: staffError } = await supabaseAdmin
+    .from('staff_profiles')
+    .select('id')
+    .eq('user_profile_id', userProfileId)
+  if (staffError) throw new Error(staffError.message)
+
+  const staffIds = (staffRows ?? []).map(s => s.id)
+  if (staffIds.length === 0) return { totalHours: 0, totalDays: 0 }
+
+  const { data: assignData, error: assignError } = await supabaseAdmin
+    .from('roster_assignments')
+    .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time)')
+    .in('staff_id', staffIds)
+  if (assignError) throw new Error(assignError.message)
+
+  let totalMinutes = 0
+  const days = new Set<string>()
+  for (const a of assignData ?? []) {
+    const shift = a.roster_shifts as unknown as { start_time: string; end_time: string } | null
+    const start = a.start_time ?? shift?.start_time ?? '00:00'
+    const end = a.end_time ?? shift?.end_time ?? '00:00'
+    totalMinutes += paidMinutes(start, end, a.break_minutes)
+    days.add(a.work_date)
+  }
+
+  return { totalHours: minutesToHours(totalMinutes), totalDays: days.size }
+}
+
+/**
+ * 로그인한 근무자의 전체 기간 누적 유급 근무시간 — MY 페이지 근무시간 티어용.
+ * 한 사람이 여러 팝업에서 일하면 staff_profiles row가 팝업별로 나뉘므로,
+ * user_profile_id에 연결된 모든 row를 합산해야 근무시간이 누락되지 않는다.
+ */
+export async function getMyCumulativeWorkedHours(): Promise<ApiResponse<MyCumulativeHours>> {
+  return wrap(async () => {
+    const user = await requireAuth()
+    return fetchCumulativeWorkedHoursForUserProfileId(user.id)
+  })
+}
+
+/** 관리자가 MY 페이지에서 다른 근무자의 누적 근무시간을 조회 */
+export async function getCumulativeWorkedHoursAsAdmin(userId: string): Promise<ApiResponse<MyCumulativeHours>> {
+  return wrap(async () => {
+    await requireAdmin()
+    return fetchCumulativeWorkedHoursForUserProfileId(userId)
+  })
+}
+
+/**
+ * 관리자가 MY 페이지에서 다른 근무자의 다가오는 근무 일정을 조회 — user_profile_id에 연결된
+ * 모든 staff_profiles row(다중 팝업 근무자 포함)의 근무를 날짜순으로 합쳐 반환한다.
+ */
+export async function getRosterAsAdmin(userId: string): Promise<ApiResponse<MyRosterData>> {
+  return wrap(async () => {
+    await requireAdmin()
+
+    const { data: staffRows, error: staffError } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('id')
+      .eq('user_profile_id', userId)
+    if (staffError) throw new Error(staffError.message)
+
+    const staffIds = (staffRows ?? []).map(s => s.id)
+    if (staffIds.length === 0) return { shifts: [] }
+
+    const perStaff = await Promise.all(staffIds.map(id => fetchRosterDataForStaff(id)))
+    const shifts = perStaff.flatMap(r => r.shifts).sort((a, b) => a.work_date.localeCompare(b.work_date))
+    return { shifts }
+  })
+}
+
 // 관리자/매니저가 '스케줄' 탭에서 다른 직원의 근무표를 유저와 동일한 화면으로 조회 — 일정표(요약 테이블)와 별개로 개인 캘린더 뷰를 그대로 재사용
 export async function getStaffRosterAsManager(staffId: number): Promise<ApiResponse<MyRosterData | null>> {
   return wrap(async () => {

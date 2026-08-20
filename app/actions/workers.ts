@@ -67,6 +67,109 @@ export interface MyOrderStats {
   byPopup: PopupOrderStat[]
 }
 
+async function computeOrderStatsForCashierName(cashierName: string): Promise<MyOrderStats> {
+  // 1000건 제한 우회: 페이지네이션으로 전체 로드. 팝업 목록은 주문 페이지네이션과 무관하므로 병렬 실행해 왕복을 줄인다.
+  const PAGE = 1000
+  async function loadAllOrders() {
+    let allOrders: { id: number; total_price: number; payment_method: string | null; created_at: string; popup_id: number | null }[] = []
+    for (let page = 0; ; page++) {
+      const { data, error: err } = await supabaseAdmin
+        .from('orders')
+        .select('id, total_price, payment_method, created_at, popup_id')
+        .eq('cashier_name', cashierName)
+        .eq('payment_status', 'completed')
+        .order('created_at', { ascending: true })
+        .range(page * PAGE, (page + 1) * PAGE - 1)
+      if (err) throw new Error(err.message)
+      if (!data || data.length === 0) break
+      allOrders = allOrders.concat(data)
+      if (data.length < PAGE) break
+    }
+    return allOrders
+  }
+
+  const [allOrders, { data: popups }] = await Promise.all([
+    loadAllOrders(),
+    supabaseAdmin.from('popup_events').select('id, name, start_date, end_date').order('start_date', { ascending: true }),
+  ])
+
+  if (allOrders.length === 0) {
+    return { totalOrders: 0, totalRevenue: 0, byPopup: [] }
+  }
+
+  // 팝업별 버킷 초기화
+  const popupBuckets = new Map<number, PopupOrderStat>()
+  for (const p of (popups ?? [])) {
+    popupBuckets.set(p.id, {
+      popupId: p.id,
+      popupName: p.name,
+      orders: 0,
+      revenue: 0,
+      daily: [],
+      byPaymentMethod: {},
+    })
+  }
+  // 미분류용 버킷
+  const unclassified: PopupOrderStat = {
+    popupId: 0,
+    popupName: '미분류',
+    orders: 0,
+    revenue: 0,
+    daily: [],
+    byPaymentMethod: {},
+  }
+
+  const byDate = new Map<number, Record<string, DailyOrderStat>>()
+
+  for (const o of allOrders) {
+    // KST 날짜 계산 (created_at은 timezone 없는 UTC timestamp)
+    const date = utcToKstDateStr(o.created_at)
+
+    // popup_id 직접 사용 (없으면 날짜로 fallback)
+    let bucketId: number = 0
+    if (o.popup_id) {
+      bucketId = o.popup_id
+    } else {
+      const popup = (popups ?? []).find((p) => date >= p.start_date && date <= p.end_date)
+      bucketId = popup?.id ?? 0
+    }
+
+    const bucket = bucketId !== 0 ? popupBuckets.get(bucketId) : undefined
+    const target = bucket ?? unclassified
+
+    target.orders++
+    target.revenue += o.total_price
+
+    const m = o.payment_method ?? '기타'
+    if (!target.byPaymentMethod[m]) target.byPaymentMethod[m] = { orders: 0, revenue: 0 }
+    target.byPaymentMethod[m].orders++
+    target.byPaymentMethod[m].revenue += o.total_price
+
+    if (!byDate.has(bucketId)) byDate.set(bucketId, {})
+    const dateMap = byDate.get(bucketId)!
+    if (!dateMap[date]) dateMap[date] = { date, orders: 0, revenue: 0 }
+    dateMap[date].orders++
+    dateMap[date].revenue += o.total_price
+  }
+
+  // daily 배열 합치기
+  for (const [bucketId, dateMap] of byDate) {
+    const bucket = bucketId === 0 ? unclassified : popupBuckets.get(bucketId)
+    if (bucket) bucket.daily = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date))
+  }
+
+  const byPopup = [
+    ...[...popupBuckets.values()].filter((b) => b.orders > 0),
+    ...(unclassified.orders > 0 ? [unclassified] : []),
+  ]
+
+  return {
+    totalOrders: allOrders.length,
+    totalRevenue: allOrders.reduce((s, o) => s + o.total_price, 0),
+    byPopup,
+  }
+}
+
 export async function getMyOrderStats(): Promise<ApiResponse<MyOrderStats>> {
   try {
     const user = await getAuthUser()
@@ -81,119 +184,48 @@ export async function getMyOrderStats(): Promise<ApiResponse<MyOrderStats>> {
     const cashierName = profile?.name ?? user.user_metadata?.name
     if (!cashierName) return { success: false, error: '프로필 없음' }
 
-    // 1000건 제한 우회: 페이지네이션으로 전체 로드. 팝업 목록은 주문 페이지네이션과 무관하므로 병렬 실행해 왕복을 줄인다.
-    const PAGE = 1000
-    async function loadAllOrders() {
-      let allOrders: { id: number; total_price: number; payment_method: string | null; created_at: string; popup_id: number | null }[] = []
-      for (let page = 0; ; page++) {
-        const { data, error: err } = await supabaseAdmin
-          .from('orders')
-          .select('id, total_price, payment_method, created_at, popup_id')
-          .eq('cashier_name', cashierName)
-          .eq('payment_status', 'completed')
-          .order('created_at', { ascending: true })
-          .range(page * PAGE, (page + 1) * PAGE - 1)
-        if (err) throw new Error(err.message)
-        if (!data || data.length === 0) break
-        allOrders = allOrders.concat(data)
-        if (data.length < PAGE) break
-      }
-      return allOrders
-    }
-
-    let allOrders: Awaited<ReturnType<typeof loadAllOrders>>
-    let popups: { id: number; name: string; start_date: string; end_date: string }[] | null
-    try {
-      [allOrders, { data: popups }] = await Promise.all([
-        loadAllOrders(),
-        supabaseAdmin.from('popup_events').select('id, name, start_date, end_date').order('start_date', { ascending: true }),
-      ])
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : String(e) }
-    }
-
-    if (allOrders.length === 0) {
-      return { success: true, data: { totalOrders: 0, totalRevenue: 0, byPopup: [] } }
-    }
-
-    // 팝업별 버킷 초기화
-    const popupBuckets = new Map<number, PopupOrderStat>()
-    for (const p of (popups ?? [])) {
-      popupBuckets.set(p.id, {
-        popupId: p.id,
-        popupName: p.name,
-        orders: 0,
-        revenue: 0,
-        daily: [],
-        byPaymentMethod: {},
-      })
-    }
-    // 미분류용 버킷
-    const unclassified: PopupOrderStat = {
-      popupId: 0,
-      popupName: '미분류',
-      orders: 0,
-      revenue: 0,
-      daily: [],
-      byPaymentMethod: {},
-    }
-
-    const byDate = new Map<number, Record<string, DailyOrderStat>>()
-
-    for (const o of allOrders) {
-      // KST 날짜 계산 (created_at은 timezone 없는 UTC timestamp)
-      const date = utcToKstDateStr(o.created_at)
-
-      // popup_id 직접 사용 (없으면 날짜로 fallback)
-      let bucketId: number = 0
-      if (o.popup_id) {
-        bucketId = o.popup_id
-      } else {
-        const popup = (popups ?? []).find((p) => date >= p.start_date && date <= p.end_date)
-        bucketId = popup?.id ?? 0
-      }
-
-      const bucket = bucketId !== 0 ? popupBuckets.get(bucketId) : undefined
-      const target = bucket ?? unclassified
-
-      target.orders++
-      target.revenue += o.total_price
-
-      const m = o.payment_method ?? '기타'
-      if (!target.byPaymentMethod[m]) target.byPaymentMethod[m] = { orders: 0, revenue: 0 }
-      target.byPaymentMethod[m].orders++
-      target.byPaymentMethod[m].revenue += o.total_price
-
-      if (!byDate.has(bucketId)) byDate.set(bucketId, {})
-      const dateMap = byDate.get(bucketId)!
-      if (!dateMap[date]) dateMap[date] = { date, orders: 0, revenue: 0 }
-      dateMap[date].orders++
-      dateMap[date].revenue += o.total_price
-    }
-
-    // daily 배열 합치기
-    for (const [bucketId, dateMap] of byDate) {
-      const bucket = bucketId === 0 ? unclassified : popupBuckets.get(bucketId)
-      if (bucket) bucket.daily = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date))
-    }
-
-    const byPopup = [
-      ...[...popupBuckets.values()].filter((b) => b.orders > 0),
-      ...(unclassified.orders > 0 ? [unclassified] : []),
-    ]
-
-    return {
-      success: true,
-      data: {
-        totalOrders: allOrders.length,
-        totalRevenue: allOrders.reduce((s, o) => s + o.total_price, 0),
-        byPopup,
-      },
-    }
+    const data = await computeOrderStatsForCashierName(cashierName)
+    return { success: true, data }
   } catch (err) {
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
+}
+
+/** 관리자가 MY 페이지에서 다른 근무자의 판매 통계를 조회 */
+export async function getOrderStatsAsAdmin(userId: string): Promise<ApiResponse<MyOrderStats>> {
+  try {
+    const admin = await getAuthUser()
+    if (!admin || admin.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
+
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('name')
+      .eq('id', userId)
+      .maybeSingle()
+    if (!profile?.name) return { success: false, error: '프로필 없음' }
+
+    const data = await computeOrderStatsForCashierName(profile.name)
+    return { success: true, data }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
+/** 관리자가 MY 페이지에서 다른 근무자의 프로필을 조회 */
+export async function getUserProfileAsAdmin(userId: string): Promise<ApiResponse<UserProfile>> {
+  return wrap(async () => {
+    await requireAdmin()
+    const { data, error } = await supabaseAdmin
+      .from('user_profiles')
+      .select(USER_PROFILE_COLUMNS)
+      .eq('id', userId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('프로필 없음')
+    return data as UserProfile
+  })
 }
 
 export interface UpdateProfileInput {

@@ -7,10 +7,13 @@ import { getWorkerTier } from '@/lib/tiers'
 import { DAY_NAMES } from '@/lib/staffing'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import NavBar from '@/components/NavBar'
-import { getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount, setMyResidentId } from '@/app/actions/workers'
+import {
+  getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount, setMyResidentId,
+  getUserProfileAsAdmin, getOrderStatsAsAdmin, fetchAllUserProfiles,
+} from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
-import { getMyContracts } from '@/app/actions/contracts'
-import { getMyRoster, type MyShift } from '@/app/actions/roster'
+import { getMyContracts, getContractsAsAdmin } from '@/app/actions/contracts'
+import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, type MyShift } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
@@ -36,6 +39,7 @@ export interface InitialMyData {
   stats: MyOrderStats | null
   contracts: ContractRecord[]
   shifts: MyShift[] | null
+  cumulativeHours: number | null
 }
 
 export default function MyPageClient({ initial }: { initial: InitialMyData | null }) {
@@ -44,9 +48,20 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
   const [authEmail, setAuthEmail] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(initial?.profile?.worker_role === 'admin')
   const [stats, setStats] = useState<MyOrderStats | null>(initial?.stats ?? null)
-  const [activePopupIdx, setActivePopupIdx] = useState(() => Math.max(0, (initial?.stats?.byPopup.length ?? 1) - 1))
+  // 0번 탭은 팝업이 2개 이상일 때 자동으로 붙는 "전체" 합산 탭 — 기본 선택
+  const [activePopupIdx, setActivePopupIdx] = useState(0)
   const [loading, setLoading] = useState(initial == null)
   const [myShifts, setMyShifts] = useState<MyShift[] | null>(initial?.shifts ?? null)
+  const [workedHours, setWorkedHours] = useState<number>(initial?.cumulativeHours ?? 0)
+
+  // 관리자가 다른 근무자의 MY 페이지를 조회하는 기능 — 스케줄 탭의 직원 선택기와 동일한 패턴.
+  // ownUserId(로그인 계정)와 viewingUserId(현재 화면에 보이는 대상)를 분리한다.
+  const [ownUserId, setOwnUserId] = useState<string | null>(null)
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null)
+  const [viewingUserName, setViewingUserName] = useState<string | null>(null)
+  const [userPicker, setUserPicker] = useState<UserProfile[] | null>(null)
+  const [isSwitchingUser, setIsSwitchingUser] = useState(false)
+  const isOwnView = viewingUserId == null || viewingUserId === ownUserId
 
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -84,15 +99,18 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       if (user) {
         setAuthName(user.user_metadata?.name ?? null)
         setAuthEmail(user.email ?? null)
+        setOwnUserId(user.id)
+        setViewingUserId(user.id)
         // 프리페치된 profile.worker_role이 우선 — 없을 때만 메타데이터로 판정
         if (initial?.profile == null) setIsAdmin(user.user_metadata?.role === 'admin')
       }
       if (initial != null) return // 서버 프리페치 성공 시 마운트 조회 생략
-      const [profileRes, statsRes, contractsRes, rosterRes] = await Promise.all([
+      const [profileRes, statsRes, contractsRes, rosterRes, hoursRes] = await Promise.all([
         getMyProfile(),
         getMyOrderStats(),
         getMyContracts(),
         getMyRoster(),
+        getMyCumulativeWorkedHours(),
       ])
       if (profileRes.success && profileRes.data) {
         setProfile(profileRes.data)
@@ -100,7 +118,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       }
       if (statsRes.success && statsRes.data) {
         setStats(statsRes.data)
-        setActivePopupIdx(Math.max(0, (statsRes.data.byPopup.length ?? 1) - 1))
+        setActivePopupIdx(0)
       }
       if (contractsRes.success && contractsRes.data) {
         setContracts(contractsRes.data)
@@ -108,11 +126,42 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       if (rosterRes.success && rosterRes.data) {
         setMyShifts(rosterRes.data.shifts)
       }
+      if (hoursRes.success && hoursRes.data) {
+        setWorkedHours(hoursRes.data.totalHours)
+      }
       setLoading(false)
     }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 관리자 확정 시 직원 선택기 목록을 조회 — 일반 근무자는 호출조차 하지 않는다
+  useEffect(() => {
+    if (!isAdmin) return
+    fetchAllUserProfiles().then(res => {
+      if (res.success && res.data) setUserPicker(res.data)
+    })
+  }, [isAdmin])
+
+  const handlePickUser = (userId: string, name: string) => {
+    if (userId === viewingUserId) return
+    setViewingUserId(userId)
+    setViewingUserName(name)
+    setIsSwitchingUser(true)
+    const own = userId === ownUserId
+    const load = own
+      ? Promise.all([getMyProfile(), getMyOrderStats(), getMyContracts(), getMyRoster(), getMyCumulativeWorkedHours()])
+      : Promise.all([getUserProfileAsAdmin(userId), getOrderStatsAsAdmin(userId), getContractsAsAdmin(userId), getRosterAsAdmin(userId), getCumulativeWorkedHoursAsAdmin(userId)])
+    load.then(([profileRes, statsRes, contractsRes, rosterRes, hoursRes]) => {
+      setProfile(profileRes.success ? profileRes.data ?? null : null)
+      setStats(statsRes.success ? statsRes.data ?? null : null)
+      setActivePopupIdx(0)
+      setContracts(contractsRes.success && contractsRes.data ? contractsRes.data : [])
+      setMyShifts(rosterRes.success && rosterRes.data ? rosterRes.data.shifts : [])
+      setWorkedHours(hoursRes.success && hoursRes.data ? hoursRes.data.totalHours : 0)
+      setIsSwitchingUser(false)
+    })
+  }
 
   const today = todayStr()
   const nextShift = useMemo(
@@ -140,6 +189,24 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
     if (!profile.resident_reg_no_masked) items.push('주민등록번호')
     return items
   }, [profile])
+
+  // 팝업이 2개 이상이면 일자별로 합산한 "전체" 탭을 맨 앞에 붙인다
+  const allPopupStat: PopupOrderStat | null = useMemo(() => {
+    if (!stats || stats.byPopup.length < 2) return null
+    const dailyMap = new Map<string, { orders: number; revenue: number }>()
+    for (const p of stats.byPopup) {
+      for (const d of p.daily) {
+        const cur = dailyMap.get(d.date) ?? { orders: 0, revenue: 0 }
+        cur.orders += d.orders
+        cur.revenue += d.revenue
+        dailyMap.set(d.date, cur)
+      }
+    }
+    const daily = [...dailyMap.entries()]
+      .map(([date, v]) => ({ date, orders: v.orders, revenue: v.revenue }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    return { popupId: -1, popupName: '전체', orders: stats.totalOrders, revenue: stats.totalRevenue, daily, byPaymentMethod: {} }
+  }, [stats])
 
   const handleSaveResidentId = () => {
     const front = residentFront.trim()
@@ -218,7 +285,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       <>
         <NavBar />
         <main className='min-h-screen p-4 pb-10'>
-          <div className='max-w-[560px] mx-auto space-y-4 animate-pulse'>
+          <div className='max-w-[560px] lg:max-w-[900px] mx-auto space-y-4 animate-pulse'>
             <div className='h-6 w-16 bg-gray-100 rounded' />
             {/* 히어로 카드 */}
             <div className='rounded-2xl bg-gray-100 h-[104px]' />
@@ -236,27 +303,43 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
     )
   }
 
-  const displayName = profile?.name ?? authName ?? '—'
-  const displayEmail = authEmail ?? '—'
+  const displayName = profile?.name ?? (isOwnView ? authName : viewingUserName) ?? '—'
+  // authEmail은 로그인 계정 본인의 이메일 — 다른 근무자 조회 중에는 보여줄 이메일이 없다
+  const displayEmail = isOwnView ? (authEmail ?? '—') : null
   const inputClass =
     'w-full border border-hairline rounded-xl px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 bg-canvas'
-
-  const activePopup: PopupOrderStat | undefined = stats?.byPopup[activePopupIdx]
+  const popupTabs: PopupOrderStat[] = allPopupStat ? [allPopupStat, ...(stats?.byPopup ?? [])] : (stats?.byPopup ?? [])
+  const activePopup: PopupOrderStat | undefined = popupTabs[activePopupIdx]
 
   return (
     <>
       <NavBar />
       <main className='min-h-screen p-4 pb-10'>
-        <div className='max-w-[560px] mx-auto space-y-4'>
+        <div className='max-w-[560px] lg:max-w-[900px] mx-auto space-y-4 lg:space-y-5'>
 
-          <h1 className='m-0 text-[19px] font-extrabold text-ink'>MY</h1>
+          <h1 className='m-0 text-heading-2 text-ink'>MY</h1>
+
+          {/* 직원 선택기 (관리자 전용) — 다른 근무자의 MY 페이지를 조회 */}
+          {isAdmin && userPicker && userPicker.length > 0 && (
+            <UserPicker users={userPicker} ownUserId={ownUserId} viewingUserId={viewingUserId} disabled={isSwitchingUser} onPick={handlePickUser} />
+          )}
+
+          {!isOwnView && (
+            <div className='rounded-xl border border-primary-200 bg-primary-50 px-3.5 py-2.5 flex items-center justify-between gap-3'>
+              <p className='m-0 text-[13px] font-bold text-primary-700'>{viewingUserName ?? displayName}님의 정보를 조회 중입니다 (읽기 전용)</p>
+              <button type='button' onClick={() => ownUserId && handlePickUser(ownUserId, authName ?? '나')}
+                className='shrink-0 text-[12px] font-bold text-primary-700 bg-transparent border-none cursor-pointer underline'>
+                내 정보로 돌아가기
+              </button>
+            </div>
+          )}
 
           {/* 서명 대기 계약서 알림 */}
-          {unsignedContracts.length > 0 && (
+          {isOwnView && unsignedContracts.length > 0 && (
             <div className='rounded-2xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-3'>
               <div className='flex-1 min-w-0'>
                 <p className='m-0 text-[14px] font-bold text-amber-800'>서명 대기 중인 근로계약서 {unsignedContracts.length}건</p>
-                <p className='m-0 mt-0.5 text-[12px] text-amber-700'>계약서를 확인하고 전자서명을 완료해 주세요.</p>
+                <p className='m-0 mt-0.5 text-caption text-amber-700'>계약서를 확인하고 전자서명을 완료해 주세요.</p>
               </div>
               <button
                 type='button'
@@ -281,59 +364,65 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                     <span className='text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/15'>관리자</span>
                   )}
                 </div>
-                <p className='m-0 mt-0.5 text-[13px] opacity-70 truncate'>{displayEmail}</p>
+                {displayEmail && <p className='m-0 mt-0.5 text-[13px] opacity-70 truncate'>{displayEmail}</p>}
               </div>
             </div>
           </div>
 
-          {/* 다음 근무 미리보기 → 근무 일정 바로가기 */}
-          {myShifts !== null && (
-            <Link
-              href='/my/schedule'
-              className='block rounded-2xl bg-canvas border border-hairline shadow-level-1 p-4 no-underline hover:border-primary-200 transition'
-            >
-              <div className='flex items-center gap-3'>
+          {/* 데스크톱에서는 다음 근무 + 티어를 나란히 배치 — 모바일은 그대로 세로 스택 */}
+          <div className='space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:items-stretch'>
+
+          {/* 다음 근무 미리보기 → 근무 일정 바로가기 (다른 근무자 조회 중에는 본인 스케줄 탭으로 링크하지 않음) */}
+          {myShifts !== null && (() => {
+            const body = (
+              <div className='flex items-center gap-3 h-full'>
                 <div className='flex-1 min-w-0'>
-                  <p className='m-0 text-[12px] font-bold text-ink-muted'>다음 근무</p>
+                  <p className='m-0 text-caption font-bold text-ink-muted'>다음 근무</p>
                   {nextShift ? (() => {
                     const d = new Date(nextShift.work_date + 'T00:00:00')
                     return (
-                      <p className='m-0 mt-1 text-[16px] font-extrabold text-ink'>
+                      <p className='m-0 mt-1 text-title text-ink'>
                         {d.getMonth() + 1}월 {d.getDate()}일 ({DAY_NAMES[d.getDay()]}) {hhmm(nextShift.start_time)} ~ {hhmm(nextShift.end_time)}
                       </p>
                     )
                   })() : (
-                    <p className='m-0 mt-1 text-[15px] font-bold text-ink-muted'>예정된 근무가 없습니다</p>
+                    <p className='m-0 mt-1 text-body-sm font-bold text-ink-muted'>예정된 근무가 없습니다</p>
                   )}
                   {monthSummary && monthSummary.days > 0 && (
-                    <p className='m-0 mt-1 text-[13px] text-ink-muted'>
+                    <p className='m-0 mt-1 text-caption text-ink-muted'>
                       이번 달 근무 <span className='font-bold text-primary-700'>{monthSummary.days}일</span> · <span className='font-bold text-primary-700'>{monthSummary.hours}시간</span>
                     </p>
                   )}
                 </div>
-                <span className='shrink-0 text-[13px] font-bold text-primary-700'>일정 보기 ›</span>
+                {isOwnView && <span className='shrink-0 text-caption font-bold text-primary-700'>일정 보기 ›</span>}
               </div>
-            </Link>
-          )}
+            )
+            return isOwnView ? (
+              <Link href='/my/schedule' className='block rounded-2xl bg-canvas border border-hairline shadow-level-1 p-4 no-underline hover:border-primary-200 hover:shadow-level-2 transition h-full'>
+                {body}
+              </Link>
+            ) : (
+              <div className='rounded-2xl bg-canvas border border-hairline shadow-level-1 p-4 h-full'>{body}</div>
+            )
+          })()}
 
           {/* 티어 */}
           {profile && (() => {
-            // 누적 판매량은 주문 테이블 실시간 합산(getMyOrderStats)이 단일 기준
-            const rev = stats?.totalRevenue ?? 0
-            const { current, next } = getWorkerTier(rev)
+            // 근무자 티어는 누적 유급 근무시간 기준 — 주방/캐셔 모두 공평하게 쌓인다(getMyCumulativeWorkedHours)
+            const { current, next } = getWorkerTier(workedHours)
             const progress = next
-              ? Math.min(100, ((rev - current.threshold) / (next.threshold - current.threshold)) * 100)
+              ? Math.min(100, ((workedHours - current.threshold) / (next.threshold - current.threshold)) * 100)
               : 100
             return (
-              <section className='rounded-2xl p-5 shadow-level-1 overflow-hidden' style={{ background: current.bg, boxShadow: current.shadow }}>
+              <section className='rounded-2xl p-5 shadow-level-1 overflow-hidden h-full flex flex-col justify-center' style={{ background: current.bg, boxShadow: current.shadow }}>
                 <div className='flex items-center justify-between mb-3'>
                   <div>
-                    <p className='m-0 text-[12px] font-semibold mb-0.5' style={{ color: current.mute }}>내 판매 티어</p>
-                    <p className='m-0 text-[24px] font-black' style={{ color: current.labelText }}>{current.name}</p>
+                    <p className='m-0 text-caption font-semibold mb-0.5' style={{ color: current.mute }}>내 근무 티어</p>
+                    <p className='m-0 text-[26px] font-black leading-none' style={{ color: current.labelText }}>{current.name}</p>
                   </div>
                   <div className='text-right'>
-                    <p className='m-0 text-[12px]' style={{ color: current.mute }}>누적 판매량</p>
-                    <p className='m-0 text-[18px] font-bold' style={{ color: current.accent }}>{formatPrice(rev)}</p>
+                    <p className='m-0 text-caption' style={{ color: current.mute }}>누적 근무시간</p>
+                    <p className='m-0 text-[19px] font-bold' style={{ color: current.accent }}>{workedHours}시간</p>
                   </div>
                 </div>
                 {next && (
@@ -341,8 +430,8 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                     <div className='w-full rounded-full h-2 mb-1.5' style={{ background: 'rgba(255,255,255,0.2)' }}>
                       <div className='h-2 rounded-full transition-all' style={{ width: `${progress}%`, background: current.accent }} />
                     </div>
-                    <p className='m-0 text-[12px]' style={{ color: current.mute }}>
-                      다음 티어 {next.ko}까지 {formatPrice(next.threshold - rev)} 남음
+                    <p className='m-0 text-caption' style={{ color: current.mute }}>
+                      다음 티어 {next.ko}까지 {Math.round((next.threshold - workedHours) * 10) / 10}시간 남음
                     </p>
                   </>
                 )}
@@ -350,31 +439,33 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             )
           })()}
 
+          </div>
+
           {/* 판매 통계 */}
           {stats && (
-            <section className='bg-canvas border border-hairline rounded-2xl p-4 shadow-level-1'>
+            <section className='bg-canvas border border-hairline rounded-2xl p-4 lg:p-5 shadow-level-1'>
               <div className='flex items-center justify-between mb-3'>
-                <h2 className='m-0 text-[16px] font-bold text-ink'>내 판매 통계</h2>
+                <h2 className='m-0 text-title text-ink'>내 판매 통계</h2>
                 {stats.totalOrders > 0 && (
-                  <span className='text-[12px] text-ink-muted'>
+                  <span className='text-caption text-ink-muted'>
                     전체 {stats.totalOrders}건 · {formatPrice(stats.totalRevenue)}
                   </span>
                 )}
               </div>
 
               {stats.totalOrders === 0 ? (
-                <p className='m-0 text-ink-muted text-[14px]'>아직 처리한 주문이 없습니다.</p>
+                <p className='m-0 text-ink-muted text-body-sm'>아직 처리한 주문이 없습니다.</p>
               ) : (
                 <>
-                  {/* 팝업 탭 */}
-                  {stats.byPopup.length > 1 && (
+                  {/* 팝업 탭 (전체 합산 탭 포함) */}
+                  {popupTabs.length > 1 && (
                     <div className='flex gap-1.5 mb-4 flex-wrap'>
-                      {stats.byPopup.map((p, i) => (
+                      {popupTabs.map((p, i) => (
                         <button
                           key={p.popupId}
                           type='button'
                           onClick={() => setActivePopupIdx(i)}
-                          className={`text-[13px] px-3 py-1.5 rounded-xl border transition-all cursor-pointer font-semibold ${
+                          className={`text-caption px-3 py-1.5 rounded-xl border transition-all cursor-pointer font-semibold ${
                             activePopupIdx === i
                               ? 'bg-primary-700 text-white border-primary-700'
                               : 'bg-canvas-soft text-ink-muted border-hairline hover:border-primary-300 hover:text-primary-700'
@@ -395,8 +486,8 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
           {/* 내 정보 */}
           <section className='bg-canvas border border-hairline rounded-2xl p-4 shadow-level-1'>
             <div className='flex items-center justify-between mb-3'>
-              <h2 className='m-0 text-[16px] font-bold text-ink'>내 정보</h2>
-              {!isEditing && (
+              <h2 className='m-0 text-title text-ink'>내 정보</h2>
+              {isOwnView && !isEditing && (
                 <button type='button' onClick={startEdit}
                   className='text-[13px] px-3 py-1.5 rounded-xl border border-hairline text-ink-muted hover:text-primary-700 hover:border-primary-300 transition-colors bg-transparent cursor-pointer font-semibold'>
                   수정
@@ -404,7 +495,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
               )}
             </div>
 
-            {isEditing ? (
+            {isOwnView && isEditing ? (
               <div className='space-y-2.5'>
                 <input type='text' value={editName} onChange={(e) => setEditName(e.target.value)} placeholder='이름' className={inputClass} />
                 <input type='email' value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder='이메일' className={inputClass} />
@@ -438,27 +529,37 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                     </p>
                   </div>
                 )}
-                <InfoRow label='이름' value={displayName} />
-                <InfoRow label='이메일' value={displayEmail} />
-                {profile ? (
+                {!profile ? (
                   <>
-                    <InfoRow label='전화번호' value={profile.phone ?? '미등록'} />
-                    <InfoRow
-                      label='계좌'
-                      value={profile.bank_name && profile.bank_account
-                        ? `${profile.bank_name} ${profile.bank_account}`
-                        : profile.bank_account ?? '미등록'}
-                    />
-                    <InfoRow
-                      label='보건증'
-                      value={profile.health_cert_url
-                        ? <a href={profile.health_cert_url} target='_blank' rel='noopener noreferrer' className='text-primary-700 underline text-[14px]'>보기</a>
-                        : '미등록'}
-                    />
-                    {profile.resident_reg_no_masked ? (
-                      <InfoRow label='주민등록번호' value={profile.resident_reg_no_masked} />
-                    ) : (
-                      <div className='rounded-xl border border-hairline p-3 bg-canvas-soft space-y-2'>
+                    <InfoRow label='이름' value={displayName} />
+                    {displayEmail && <InfoRow label='이메일' value={displayEmail} />}
+                    <p className='m-0 text-[13px] text-ink-muted'>직원 프로필이 연결되지 않았습니다.{isOwnView && isAdmin ? ' (관리자 계정)' : ''}</p>
+                  </>
+                ) : (
+                  <>
+                    {/* 데스크톱에서는 항목 나열을 2열로 배치해 넓은 화면을 활용 */}
+                    <div className='space-y-2.5 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-2.5'>
+                      <InfoRow label='이름' value={displayName} />
+                      {displayEmail && <InfoRow label='이메일' value={displayEmail} />}
+                      <InfoRow label='전화번호' value={profile.phone ?? '미등록'} />
+                      <InfoRow
+                        label='계좌'
+                        value={profile.bank_name && profile.bank_account
+                          ? `${profile.bank_name} ${profile.bank_account}`
+                          : profile.bank_account ?? '미등록'}
+                      />
+                      <InfoRow
+                        label='보건증'
+                        value={profile.health_cert_url
+                          ? <a href={profile.health_cert_url} target='_blank' rel='noopener noreferrer' className='text-primary-700 underline text-[14px]'>보기</a>
+                          : '미등록'}
+                      />
+                      {(profile.resident_reg_no_masked || !isOwnView) && (
+                        <InfoRow label='주민등록번호' value={profile.resident_reg_no_masked ?? '미등록'} />
+                      )}
+                    </div>
+                    {!profile.resident_reg_no_masked && isOwnView && (
+                      <div className='rounded-xl border border-hairline p-3 bg-canvas-soft space-y-2 lg:max-w-[360px]'>
                         <p className='m-0 text-[13px] font-semibold text-ink'>주민등록번호 등록 (고용·산재보험 신고용)</p>
                         <div className='flex items-center gap-2'>
                           <input type='text' inputMode='numeric' maxLength={6} value={residentFront}
@@ -476,8 +577,6 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                       </div>
                     )}
                   </>
-                ) : (
-                  <p className='m-0 text-[13px] text-ink-muted'>직원 프로필이 연결되지 않았습니다.{isAdmin ? ' (관리자 계정)' : ''}</p>
                 )}
               </div>
             )}
@@ -485,7 +584,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
 
           {/* 내 근로계약서 */}
           <section className='bg-canvas border border-hairline rounded-2xl p-4 shadow-level-1'>
-            <h2 className='m-0 mb-3 text-[16px] font-bold text-ink'>
+            <h2 className='m-0 mb-3 text-title text-ink'>
               내 근로계약서
               {contracts.length > 0 && (
                 <span className='ml-1.5 text-[13px] font-semibold text-ink-faint'>{contracts.length}건</span>
@@ -532,7 +631,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                           PDF
                         </a>
                       )}
-                      {!c.worker_signed_at && (
+                      {isOwnView && !c.worker_signed_at && (
                         <button
                           type='button'
                           onClick={() => setSigningContract(c)}
@@ -548,10 +647,11 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             )}
           </section>
 
-          {/* 비밀번호 변경 */}
+          {/* 비밀번호 변경 (본인 조회 시에만) */}
+          {isOwnView && (
           <section className='bg-canvas border border-hairline rounded-2xl p-4 shadow-level-1'>
             <div className='flex items-center justify-between'>
-              <h2 className='m-0 text-[16px] font-bold text-ink'>비밀번호 변경</h2>
+              <h2 className='m-0 text-title text-ink'>비밀번호 변경</h2>
               {!isPwOpen && (
                 <button type='button' onClick={() => setIsPwOpen(true)}
                   className='text-[13px] px-3 py-1.5 rounded-xl border border-hairline text-ink-muted hover:text-primary-700 hover:border-primary-300 transition-colors bg-transparent cursor-pointer font-semibold'>
@@ -583,8 +683,10 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
               </div>
             )}
           </section>
+          )}
 
-          {/* 계정 탈퇴 — 맨 아래 작은 링크, 누르면 확인 폼 펼침 */}
+          {/* 계정 탈퇴 — 맨 아래 작은 링크, 누르면 확인 폼 펼침 (본인 조회 시에만) */}
+          {isOwnView && (
           <div className='pt-4'>
             {!showDelete ? (
               <div className='text-center'>
@@ -620,8 +722,9 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
               </div>
             )}
           </div>
+          )}
 
-          {/* 근로계약서 서명 모달 */}
+          {/* 근로계약서 서명 모달 (본인 조회 시에만 상태 세팅됨) */}
           {signingContract && (
             <WorkerSignModal
               contract={signingContract}
@@ -642,53 +745,78 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
 }
 
 function PopupStats({ popup }: { popup: PopupOrderStat }) {
+  const [metric, setMetric] = useState<'revenue' | 'orders'>('revenue')
+  const avgRevenue = popup.daily.length > 0 ? Math.round(popup.revenue / popup.daily.length) : 0
+
   return (
     <div>
       {/* 요약 카드 */}
-      <div className='grid grid-cols-2 gap-3 mb-4'>
-        <div className='bg-canvas-soft rounded-xl p-4'>
-          <p className='m-0 text-[12px] text-ink-muted mb-1'>총 주문</p>
-          <p className='m-0 text-[22px] font-black text-ink'>
+      <div className='grid grid-cols-3 gap-2.5 lg:gap-3 mb-4'>
+        <div className='bg-canvas-soft rounded-xl p-3.5 lg:p-4'>
+          <p className='m-0 text-[11px] text-ink-muted mb-1'>총 주문</p>
+          <p className='m-0 text-[19px] lg:text-[22px] font-black text-ink leading-tight'>
             {popup.orders.toLocaleString()}
-            <span className='text-[13px] font-normal text-ink-muted ml-1'>건</span>
+            <span className='text-[12px] font-normal text-ink-muted ml-0.5'>건</span>
           </p>
         </div>
-        <div className='bg-canvas-soft rounded-xl p-4'>
-          <p className='m-0 text-[12px] text-ink-muted mb-1'>총 매출</p>
-          <p className='m-0 text-[22px] font-black text-ink'>{formatPrice(popup.revenue)}</p>
+        <div className='bg-canvas-soft rounded-xl p-3.5 lg:p-4'>
+          <p className='m-0 text-[11px] text-ink-muted mb-1'>총 매출</p>
+          <p className='m-0 text-[19px] lg:text-[22px] font-black text-ink leading-tight'>{formatPrice(popup.revenue)}</p>
+        </div>
+        <div className='bg-canvas-soft rounded-xl p-3.5 lg:p-4'>
+          <p className='m-0 text-[11px] text-ink-muted mb-1'>일평균 매출</p>
+          <p className='m-0 text-[19px] lg:text-[22px] font-black text-ink leading-tight'>{formatPrice(avgRevenue)}</p>
         </div>
       </div>
 
-      {/* 일별 매출 차트 */}
-      {popup.daily.length > 1 && (
-        <div className='mb-4'>
-          <p className='m-0 text-[13px] text-ink-muted mb-3'>일별 매출</p>
-          <DailyRevenueChart daily={popup.daily} formatPrice={formatPrice} />
-        </div>
-      )}
+      <div className='lg:grid lg:grid-cols-[1fr_300px] lg:gap-5 lg:items-start'>
+        {/* 일별 차트 — 매출/주문 토글 */}
+        {popup.daily.length > 1 && (
+          <div className='mb-4 lg:mb-0'>
+            <div className='flex items-center justify-between mb-3'>
+              <p className='m-0 text-caption text-ink-muted'>일별 추이</p>
+              <div className='flex gap-1 rounded-lg bg-canvas-soft p-0.5'>
+                {(['revenue', 'orders'] as const).map(m => (
+                  <button
+                    key={m}
+                    type='button'
+                    onClick={() => setMetric(m)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold cursor-pointer transition-colors ${
+                      metric === m ? 'bg-canvas text-primary-700 shadow-level-1' : 'bg-transparent text-ink-faint hover:text-ink-muted'
+                    }`}
+                  >
+                    {m === 'revenue' ? '매출' : '주문'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <DailyRevenueChart daily={popup.daily} formatPrice={formatPrice} metric={metric} height={220} />
+          </div>
+        )}
 
-      {/* 일별 표 */}
-      <div>
-        <p className='m-0 text-[13px] text-ink-muted mb-2'>일별 상세</p>
-        <div className='overflow-hidden rounded-xl border border-hairline'>
-          <table className='w-full text-[13px]'>
-            <thead>
-              <tr className='bg-canvas-soft border-b border-hairline'>
-                <th className='text-left px-3 py-2 text-ink-muted font-medium'>날짜</th>
-                <th className='text-right px-3 py-2 text-ink-muted font-medium'>주문</th>
-                <th className='text-right px-3 py-2 text-ink-muted font-medium'>매출</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...popup.daily].reverse().map((row, i) => (
-                <tr key={row.date} className={i % 2 === 0 ? '' : 'bg-canvas-soft/50'}>
-                  <td className='px-3 py-2 text-ink'>{row.date}</td>
-                  <td className='px-3 py-2 text-right text-ink-muted'>{row.orders}건</td>
-                  <td className='px-3 py-2 text-right font-medium text-ink'>{formatPrice(row.revenue)}</td>
+        {/* 일별 표 */}
+        <div>
+          <p className='m-0 text-caption text-ink-muted mb-2'>일별 상세</p>
+          <div className='overflow-hidden rounded-xl border border-hairline lg:max-h-[260px] lg:overflow-y-auto'>
+            <table className='w-full text-caption'>
+              <thead className='lg:sticky lg:top-0'>
+                <tr className='bg-canvas-soft border-b border-hairline'>
+                  <th className='text-left px-3 py-2 text-ink-muted font-medium'>날짜</th>
+                  <th className='text-right px-3 py-2 text-ink-muted font-medium'>주문</th>
+                  <th className='text-right px-3 py-2 text-ink-muted font-medium'>매출</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[...popup.daily].reverse().map((row, i) => (
+                  <tr key={row.date} className={i % 2 === 0 ? '' : 'bg-canvas-soft/50'}>
+                    <td className='px-3 py-2 text-ink'>{row.date}</td>
+                    <td className='px-3 py-2 text-right text-ink-muted'>{row.orders}건</td>
+                    <td className='px-3 py-2 text-right font-medium text-ink'>{formatPrice(row.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -698,8 +826,40 @@ function PopupStats({ popup }: { popup: PopupOrderStat }) {
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className='flex items-center gap-3'>
-      <span className='text-[13px] text-ink-muted w-16 shrink-0'>{label}</span>
+      <span className='text-[13px] text-ink-muted w-24 shrink-0 whitespace-nowrap'>{label}</span>
       <span className='text-[14px] text-ink'>{value}</span>
     </div>
+  )
+}
+
+// ── 직원 선택기 (관리자 전용) — /my/schedule의 StaffPicker와 동일한 패턴 ──────────
+
+function UserPicker({ users, ownUserId, viewingUserId, disabled, onPick }: {
+  users: UserProfile[]
+  ownUserId: string | null
+  viewingUserId: string | null
+  disabled: boolean
+  onPick: (id: string, name: string) => void
+}) {
+  const ownName = ownUserId != null ? users.find(u => u.id === ownUserId)?.name ?? null : null
+  const others = users.filter(u => u.id !== ownUserId)
+
+  return (
+    <section className='bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4'>
+      <label className='block mb-2 text-[13px] font-bold text-ink-muted'>직원 선택 (관리자 전용)</label>
+      <select
+        value={viewingUserId ?? ''}
+        disabled={disabled}
+        onChange={e => {
+          const id = e.target.value
+          const picked = users.find(u => u.id === id)
+          onPick(id, picked?.name ?? (id === ownUserId ? (ownName ?? '나') : ''))
+        }}
+        className='w-full border border-hairline rounded-xl px-3 py-2.5 text-[14px] font-semibold bg-canvas-soft text-ink outline-none focus:border-primary-700 disabled:opacity-60'
+      >
+        {ownUserId != null && <option value={ownUserId}>내 정보{ownName ? ` (${ownName})` : ''}</option>}
+        {others.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+      </select>
+    </section>
   )
 }

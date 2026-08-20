@@ -41,17 +41,20 @@ export const TIERS: Tier[] = [
     labelText: '#fde68a', mute: 'rgba(255,255,255,0.92)' },
 ];
 
-export const WORKER_TIER_THRESHOLDS = [0, 500_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000]
-export const WORKER_TIERS = TIERS.map((t, i) => ({ ...t, threshold: WORKER_TIER_THRESHOLDS[i] }))
+// 누적 유급 근무시간(시간 단위) 기준 — 주방/캐셔 모두 roster_assignments로 공평하게 쌓인다.
+// 실사용 분포를 보고 조정할 값이므로 이 배열만 바꾸면 됨.
+export const WORKER_TIER_HOUR_THRESHOLDS = [0, 40, 100, 250, 500, 1000, 2000]
+export const WORKER_TIERS = TIERS.map((t, i) => ({ ...t, threshold: WORKER_TIER_HOUR_THRESHOLDS[i] }))
 
 const TIER_DOT_COLORS   = ['#cd7f32','#a8b1bd','#f59e0b','#2dd4bf','#60a5fa','#a78bfa','#fbbf24']
 const TIER_BG_COLORS    = ['#f4d4b020','#f3f4f620','#fef3c720','#ccfbf120','#dbeafe20','#ede9fe20','#fde68a20']
 const TIER_BORDER_COLORS= ['#cd7f3260','#a8b1bd60','#f59e0b60','#2dd4bf60','#60a5fa60','#a78bfa60','#fbbf2460']
 
-export function getWorkerTier(revenue: number) {
+// 근무자 티어 — 누적 유급 근무시간(hours) 기준. 매장 매출 티어는 getTier() 참고(별개).
+export function getWorkerTier(hours: number) {
   let idx = 0
-  for (let i = 0; i < WORKER_TIER_THRESHOLDS.length; i++) {
-    if (revenue >= WORKER_TIER_THRESHOLDS[i]) idx = i
+  for (let i = 0; i < WORKER_TIER_HOUR_THRESHOLDS.length; i++) {
+    if (hours >= WORKER_TIER_HOUR_THRESHOLDS[i]) idx = i
   }
   return {
     current: WORKER_TIERS[idx],
