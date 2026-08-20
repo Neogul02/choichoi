@@ -160,7 +160,7 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
           <NavBar />
           <main className="min-h-screen p-4 pb-10">
             <div className="max-w-[560px] mx-auto space-y-4">
-              <h1 className="m-0 text-[19px] font-extrabold text-ink">직원 스케줄 조회</h1>
+              <h1 className="m-0 text-heading-2 text-ink">직원 스케줄 조회</h1>
               <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
               <p className="m-0 text-[14px] text-ink-muted">조회할 직원을 선택하세요.</p>
             </div>
@@ -185,35 +185,39 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
     <>
       <NavBar />
       <main className="min-h-screen p-4 pb-10">
-        <div className="max-w-[560px] mx-auto space-y-4">
+        <div className="max-w-[560px] lg:max-w-[1040px] mx-auto space-y-4 lg:space-y-5">
 
-          <h1 className="m-0 text-[19px] font-extrabold text-ink">{staffName}님의 근무 일정</h1>
+          <h1 className="m-0 text-heading-2 text-ink">{staffName}님의 근무 일정</h1>
 
           {canPickStaff && (
             <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
           )}
+
+          {/* 데스크톱에서는 다음 근무+예정 근무를 좌측 컬럼, 월 달력을 우측 컬럼에 나란히 배치 */}
+          <div className="space-y-4 lg:space-y-5 lg:grid lg:grid-cols-[380px_1fr] lg:gap-5 lg:items-start">
+          <div className="space-y-4 lg:space-y-5">
 
           {/* 다음 근무 히어로 카드 */}
           {nextShift ? (
             <NextShiftCard shift={nextShift} today={today} />
           ) : (
             <div className="rounded-2xl bg-primary-700 text-white p-5">
-              <p className="m-0 text-[12px] font-bold opacity-70">다음 근무</p>
-              <p className="m-0 mt-1.5 text-[17px] font-bold">예정된 근무가 없습니다</p>
-              <p className="m-0 mt-1 text-[13px] opacity-70">새 스케줄이 배정되면 여기에 표시됩니다.</p>
+              <p className="m-0 text-caption font-bold opacity-70">다음 근무</p>
+              <p className="m-0 mt-1.5 text-title">예정된 근무가 없습니다</p>
+              <p className="m-0 mt-1 text-caption opacity-70">새 스케줄이 배정되면 여기에 표시됩니다.</p>
             </div>
           )}
 
           {/* 예정 근무 리스트 */}
           <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
-            <h2 className="m-0 mb-3 text-[16px] font-bold text-ink">
+            <h2 className="m-0 mb-3 text-title text-ink">
               예정 근무
               {upcomingShifts.length > 0 && (
-                <span className="ml-1.5 text-[13px] font-semibold text-ink-faint">{upcomingShifts.length}건</span>
+                <span className="ml-1.5 text-caption font-semibold text-ink-faint">{upcomingShifts.length}건</span>
               )}
             </h2>
             {upcomingShifts.length === 0 ? (
-              <p className="m-0 text-[14px] text-ink-muted">예정된 근무가 없습니다.</p>
+              <p className="m-0 text-body-sm text-ink-muted">예정된 근무가 없습니다.</p>
             ) : (
               <>
                 <div className="flex flex-col">
@@ -224,7 +228,7 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
                 {upcomingShifts.length > 5 && (
                   <button
                     onClick={() => setShowAll(v => !v)}
-                    className="w-full mt-3 py-2.5 rounded-xl border border-hairline bg-transparent text-[13px] text-ink-muted font-semibold cursor-pointer hover:bg-canvas-soft transition-colors"
+                    className="w-full mt-3 py-2.5 rounded-xl border border-hairline bg-transparent text-caption text-ink-muted font-semibold cursor-pointer hover:bg-canvas-soft transition-colors"
                   >
                     {showAll ? '접기' : `${upcomingShifts.length - 5}개 더 보기`}
                   </button>
@@ -233,17 +237,19 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
             )}
           </section>
 
+          </div>
+
           {/* 월 달력 */}
-          <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
+          <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4 lg:p-5">
             <div className="flex items-center justify-between mb-1">
-              <h2 className="m-0 text-[16px] font-bold text-ink">{cursor.y}년 {cursor.m + 1}월</h2>
+              <h2 className="m-0 text-title text-ink">{cursor.y}년 {cursor.m + 1}월</h2>
               <div className="flex items-center gap-1.5">
                 <button onClick={prevMonth} aria-label="이전 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">‹</button>
-                <button onClick={goToday} className="px-3 h-9 rounded-xl bg-canvas-soft border border-hairline text-[13px] font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">이번달</button>
+                <button onClick={goToday} className="px-3 h-9 rounded-xl bg-canvas-soft border border-hairline text-caption font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">이번달</button>
                 <button onClick={nextMonth} aria-label="다음 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">›</button>
               </div>
             </div>
-            <p className="m-0 mb-3 text-[13px] text-ink-muted">
+            <p className="m-0 mb-3 text-caption text-ink-muted">
               {isLoading ? '불러오는 중...' : totalDays === 0 ? '이달 배정된 근무가 없습니다' : (
                 <>근무 <span className="font-bold text-primary-700">{totalDays}일</span> · 총 <span className="font-bold text-primary-700">{totalHours}시간</span></>
               )}
@@ -276,6 +282,8 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
               </div>
             )}
           </section>
+
+          </div>
 
         </div>
       </main>
@@ -434,25 +442,25 @@ function WorkerCalendar({ year, month, details, today, selectedDate, onSelectDat
           const dow = i % 7
           const inner = (
             <>
-              <span className={`text-[13px] font-bold leading-none ${
+              <span className={`text-[13px] lg:text-[14px] font-bold leading-none ${
                 isWork ? 'text-primary-700' : dayColor(dow, 'text-ink-muted')
               }`}>{day}</span>
               {isWork && (
                 <>
-                  <span className="text-[10px] font-bold text-primary-700 bg-primary-100 rounded px-1 py-0.5 leading-tight truncate">
+                  <span className="text-[10px] lg:text-[11px] font-bold text-primary-700 bg-primary-100 rounded px-1 py-0.5 leading-tight truncate">
                     {dayShifts[0].shiftName}
                   </span>
-                  <span className="text-[11px] font-semibold text-primary-600 mt-auto leading-tight">
+                  <span className="text-[11px] lg:text-[12px] font-semibold text-primary-600 mt-auto leading-tight">
                     {hhmm(dayShifts[0].startTime)}
                   </span>
                   {dayShifts.length > 1 && (
-                    <span className="text-[10px] text-primary-600 leading-tight">+{dayShifts.length - 1}</span>
+                    <span className="text-[10px] lg:text-[11px] text-primary-600 leading-tight">+{dayShifts.length - 1}</span>
                   )}
                 </>
               )}
             </>
           )
-          const baseCls = `rounded-xl p-1.5 min-h-[64px] flex flex-col gap-0.5 items-stretch text-left ${
+          const baseCls = `rounded-xl p-1.5 lg:p-2 min-h-[64px] lg:min-h-[78px] flex flex-col gap-0.5 items-stretch text-left ${
             isWork ? 'bg-primary-50 border border-primary-200' : 'bg-canvas-soft/50 border border-transparent'
           } ${isToday ? 'ring-2 ring-primary-600 ring-offset-1' : ''} ${isSelected ? 'border-primary-700 bg-primary-100' : ''}`
           return isWork ? (
@@ -464,7 +472,7 @@ function WorkerCalendar({ year, month, details, today, selectedDate, onSelectDat
           )
         })}
       </div>
-      <p className="m-0 mt-2 text-[11px] text-ink-faint text-center">근무일을 누르면 상세 시간이 표시됩니다</p>
+      <p className="m-0 mt-2 text-caption text-ink-faint text-center">근무일을 누르면 상세 시간이 표시됩니다</p>
     </div>
   )
 }

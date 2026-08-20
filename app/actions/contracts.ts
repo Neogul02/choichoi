@@ -144,25 +144,37 @@ export async function generateContract(
   })
 }
 
+async function fetchContractsForUserProfileId(
+  admin: ReturnType<typeof getAdminClient>,
+  userProfileId: string,
+): Promise<ContractRecord[]> {
+  const { data: staffRows } = await admin.from('staff_profiles').select('id').eq('user_profile_id', userProfileId)
+  const staffIds = (staffRows ?? []).map(s => s.id)
+  if (!staffIds.length) return []
+
+  const { data, error } = await admin
+    .from('contracts')
+    .select('*')
+    .in('worker_id', staffIds)
+    .order('issued_at', { ascending: false })
+    .limit(50) // 근무자 본인 계약서 — 정상 범위에서는 수 건이지만, attachSignedUrls가 건당 storage 왕복이라 방어적으로 상한을 둔다
+
+  if (error) throw error
+  return attachSignedUrls(admin, (data ?? []) as ContractRecord[])
+}
+
 export async function getMyContracts(): Promise<ApiResponse<ContractRecord[]>> {
   return wrap(async () => {
     const user = await requireAuth()
+    return fetchContractsForUserProfileId(getAdminClient(), user.id)
+  })
+}
 
-    const admin = getAdminClient()
-
-    const { data: staffRows } = await admin.from('staff_profiles').select('id').eq('user_profile_id', user.id)
-    const staffIds = (staffRows ?? []).map(s => s.id)
-    if (!staffIds.length) return []
-
-    const { data, error } = await admin
-      .from('contracts')
-      .select('*')
-      .in('worker_id', staffIds)
-      .order('issued_at', { ascending: false })
-      .limit(50) // 근무자 본인 계약서 — 정상 범위에서는 수 건이지만, attachSignedUrls가 건당 storage 왕복이라 방어적으로 상한을 둔다
-
-    if (error) throw error
-    return attachSignedUrls(admin, (data ?? []) as ContractRecord[])
+/** 관리자가 MY 페이지에서 다른 근무자의 계약서 목록을 조회 — HR 탭 목록과 별개로 개인별 상세 조회용 */
+export async function getContractsAsAdmin(userId: string): Promise<ApiResponse<ContractRecord[]>> {
+  return wrap(async () => {
+    await requireAdmin()
+    return fetchContractsForUserProfileId(getAdminClient(), userId)
   })
 }
 
