@@ -3,8 +3,9 @@
 import { Document, Page, Text, View, Font, StyleSheet } from '@react-pdf/renderer'
 import path from 'path'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
-import { parseDate, formatPhone } from '@/lib/date'
+import { parseDate } from '@/lib/date'
 import { DAY_NAMES as DAY_KR } from '@/lib/staffing'
+import { formatPhoneNumber } from '@/lib/utils'
 
 Font.register({
   family: 'NotoSansKR',
@@ -85,7 +86,7 @@ export function WeeklyRosterDocument({ weekLabel, entries }: { weekLabel: string
                   <Text style={s.cTime}> </Text>
                   <Text style={s.cTime}>{e.end_time}</Text>
                   <Text style={s.cTime}> </Text>
-                  <Text style={s.cPhone}>{formatPhone(e.phone ?? '')}</Text>
+                  <Text style={s.cPhone}>{formatPhoneNumber(e.phone ?? '')}</Text>
                   <View style={s.cSign}>
                     <Text style={s.signLabel}>사인:</Text>
                   </View>

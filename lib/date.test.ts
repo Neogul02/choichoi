@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, dayGroup, monthEndDateStr, kstToday, getKSTDateBounds, formatPhone, utcToKst, utcToKstDateStr } from './date'
+import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, dayGroup, monthEndDateStr, kstToday, getKSTDateBounds, utcToKst, utcToKstDateStr } from './date'
 
 describe('addDays / prevDate', () => {
   it('월 경계를 넘는다', () => {
@@ -77,22 +77,6 @@ describe('getKSTDateBounds', () => {
     const { start, end } = getKSTDateBounds('2026-01-01')
     expect(start).toBe('2025-12-31T15:00:00.000Z')
     expect(end).toBe('2026-01-01T14:59:59.999Z')
-  })
-})
-
-describe('formatPhone', () => {
-  it('11자리·10자리 번호를 하이픈 포맷한다', () => {
-    expect(formatPhone('01012345678')).toBe('010-1234-5678')
-    expect(formatPhone('0212345678')).toBe('021-234-5678')
-  })
-
-  it('이미 포맷된 입력도 숫자만 추출해 재포맷한다', () => {
-    expect(formatPhone('010-1234-5678')).toBe('010-1234-5678')
-  })
-
-  it('그 외 길이는 원본 그대로 반환한다', () => {
-    expect(formatPhone('123')).toBe('123')
-    expect(formatPhone('')).toBe('')
   })
 })
 
