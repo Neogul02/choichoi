@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchActivePopupEvents } from '@/app/actions/schedule'
 import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
+import { formatPhoneInput, isValidKoreanPhone } from '@/lib/phone'
 import { notifyLoginEvent } from '@/app/actions/discord'
 import { withTimeout } from '@/lib/utils'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -214,6 +215,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     if (!signupName.trim()) { setError('이름을 입력해주세요.'); return }
     if (!signupEmail.trim()) { setError('이메일을 입력해주세요.'); return }
     if (!signupPhone.trim()) { setError('전화번호를 입력해주세요. (초기 비밀번호로 사용됩니다)'); return }
+    if (!isValidKoreanPhone(signupPhone)) { setError('전화번호 자리수를 확인해주세요. (예: 010-1234-5678)'); return }
     if (!signupInviteCode.trim()) { setError('초대 코드를 입력해주세요.'); return }
     const residentFront = signupResidentFront.trim()
     const residentBack = signupResidentBack.trim()
@@ -364,9 +366,9 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupPhoneRef.current?.focus() } }}
                 placeholder='이메일 *' autoComplete='email' />
               <input ref={signupPhoneRef} type='tel' className={inputClass} value={signupPhone}
-                onChange={(e) => setSignupPhone(e.target.value)}
+                onChange={(e) => setSignupPhone(formatPhoneInput(e.target.value))}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupBankNameRef.current?.focus() } }}
-                placeholder='전화번호 * (초기 비밀번호)' autoComplete='tel' />
+                placeholder='전화번호 * (초기 비밀번호)' autoComplete='tel' maxLength={13} />
               <input ref={signupBankNameRef} type='text' className={inputClass} value={signupBankName}
                 onChange={(e) => setSignupBankName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupBankAccountRef.current?.focus() } }}

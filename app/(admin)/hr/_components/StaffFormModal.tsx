@@ -10,6 +10,7 @@ import type { StaffProfileInput } from '@/app/actions/staff';
 import { uploadHealthCert, getHealthCertUrl } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
 import { fetchRosterShifts } from '@/app/actions/roster';
+import { formatPhoneInput } from '@/lib/phone';
 import { STATUS_LABELS, DAY_NAMES, ROLE_LABELS } from './constants';
 
 interface Props {
@@ -30,7 +31,7 @@ export default function StaffFormModal({
 }: Props) {
   useBodyScrollLock();
   const [name, setName] = useState(staff?.name ?? '');
-  const [phone, setPhone] = useState(staff?.phone ?? '');
+  const [phone, setPhone] = useState(staff?.phone ? formatPhoneInput(staff.phone) : '');
   const [bankName, setBankName] = useState(staff?.bank_name ?? '');
   const [bankAccount, setBankAccount] = useState(staff?.bank_account ?? '');
   const [staffRole, setStaffRole] = useState<StaffRole>(staff?.staff_role ?? defaultRole ?? 'cashier');
@@ -81,7 +82,7 @@ export default function StaffFormModal({
     const p = userProfiles.find(u => u.id === id);
     if (!p) return;
     setName(p.name);
-    if (p.phone) setPhone(p.phone);
+    if (p.phone) setPhone(formatPhoneInput(p.phone));
     if (p.bank_name) setBankName(p.bank_name);
     if (p.bank_account) setBankAccount(p.bank_account);
   };
@@ -178,7 +179,7 @@ export default function StaffFormModal({
             </div>
             <div className="flex flex-col gap-1">
               <label className={labelCls}>전화번호</label>
-              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" className={inputCls} />
+              <input type="tel" value={phone} onChange={e => setPhone(formatPhoneInput(e.target.value))} placeholder="010-0000-0000" className={inputCls} maxLength={13} />
             </div>
             <div className="flex flex-col gap-1">
               <label className={labelCls}>은행명</label>

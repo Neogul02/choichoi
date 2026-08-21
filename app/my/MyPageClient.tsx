@@ -12,6 +12,7 @@ import {
   getUserProfileAsAdmin, getOrderStatsAsAdmin, fetchAllUserProfiles,
 } from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
+import { formatPhoneInput } from '@/lib/phone'
 import { getMyContracts, getContractsAsAdmin } from '@/app/actions/contracts'
 import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, type MyShift } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
@@ -231,7 +232,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
   const startEdit = () => {
     setEditName(profile?.name ?? authName ?? '')
     setEditEmail(authEmail ?? '')
-    setEditPhone(profile?.phone ?? '')
+    setEditPhone(profile?.phone ? formatPhoneInput(profile.phone) : '')
     setEditBankName(profile?.bank_name ?? '')
     setEditBankAccount(profile?.bank_account ?? '')
     setEditHealthCert(null)
@@ -499,7 +500,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
               <div className='space-y-2.5'>
                 <input type='text' value={editName} onChange={(e) => setEditName(e.target.value)} placeholder='이름' className={inputClass} />
                 <input type='email' value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder='이메일' className={inputClass} />
-                <input type='tel' value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder='전화번호' className={inputClass} />
+                <input type='tel' value={editPhone} onChange={(e) => setEditPhone(formatPhoneInput(e.target.value))} placeholder='전화번호' className={inputClass} maxLength={13} />
                 <input type='text' value={editBankName} onChange={(e) => setEditBankName(e.target.value)} placeholder='은행명' className={inputClass} />
                 <input type='text' value={editBankAccount} onChange={(e) => setEditBankAccount(e.target.value)} placeholder='계좌번호' className={inputClass} />
                 <button type='button' onClick={() => editFileRef.current?.click()}

@@ -11,6 +11,7 @@ import { showMsg } from '@/lib/toast'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import SignaturePad from '@/components/SignaturePad'
+import { formatPhoneInput } from '@/lib/phone'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
@@ -36,7 +37,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
   const [employerPhone, setEmployerPhone] = useState('010-7633-2414')
 
   // 근로자 정보
-  const [workerPhone, setWorkerPhone] = useState(staff.phone ?? '')
+  const [workerPhone, setWorkerPhone] = useState(staff.phone ? formatPhoneInput(staff.phone) : '')
   const [workerAddress, setWorkerAddress] = useState('')
 
   // 계약 기간 — 기본값: 오늘부터 3개월 (스케줄 배정 기간 기준)
@@ -191,7 +192,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
                 <div><label className={labelCls}>상호명</label><input value={employerName} onChange={e => setEmployerName(e.target.value)} className={inputCls} /></div>
                 <div><label className={labelCls}>대표자</label><input value={employerRepresentative} onChange={e => setEmployerRepresentative(e.target.value)} className={inputCls} /></div>
                 <div className="col-span-2"><label className={labelCls}>주소</label><input value={employerAddress} onChange={e => setEmployerAddress(e.target.value)} className={inputCls} /></div>
-                <div><label className={labelCls}>전화</label><input value={employerPhone} onChange={e => setEmployerPhone(e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>전화</label><input value={employerPhone} onChange={e => setEmployerPhone(formatPhoneInput(e.target.value))} className={inputCls} maxLength={13} /></div>
               </div>
             </div>
 
@@ -200,7 +201,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
               <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">근로자</p>
               <div className="grid grid-cols-2 gap-1.5">
                 <div><label className={labelCls}>이름</label><input value={staff.name} readOnly className={`${inputCls} bg-canvas-soft`} /></div>
-                <div><label className={labelCls}>연락처</label><input value={workerPhone} onChange={e => setWorkerPhone(e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>연락처</label><input value={workerPhone} onChange={e => setWorkerPhone(formatPhoneInput(e.target.value))} className={inputCls} maxLength={13} /></div>
                 <div className="col-span-2"><label className={labelCls}>주소</label><input value={workerAddress} onChange={e => setWorkerAddress(e.target.value)} placeholder="(선택)" className={inputCls} /></div>
               </div>
             </div>

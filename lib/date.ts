@@ -64,10 +64,3 @@ export const dayOfWeek = (s: string): number => parseDate(s).getDay()
 
 // 목금토(4,5,6)='A', 일월화수(0,1,2,3)='B'
 export const dayGroup = (s: string): 'A' | 'B' => (dayOfWeek(s) >= 4 ? 'A' : 'B')
-
-export const formatPhone = (p: string): string => {
-  const d = p.replace(/\D/g, '')
-  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
-  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`
-  return p
-}
