@@ -291,12 +291,24 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         </AnimatePresence>
         </div>
 
-        <div className="flex justify-center cursor-pointer">
+        <div className="flex items-center justify-between px-3 h-8">
+          {/* 접힌 상태에서도 항상 보이는 로그인 정보 — 모바일에서 내가 누구로/어느 팝업으로 로그인 중인지 확인용 */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            {mounted && cashierName && (
+              <span className="text-[11px] font-bold text-ink-muted truncate">{cashierName}</span>
+            )}
+            {mounted && popupName && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
+                {popupName}
+              </span>
+            )}
+          </div>
+
           {/* 시각적 크기(w-9 h-4)는 유지하되 탭 히트 영역은 padding으로 ~44x44px까지 확대 */}
           <button
             onClick={toggle}
             aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
-            className="flex items-center justify-center w-11 h-11 group cursor-pointer bg-transparent border-none"
+            className="flex items-center justify-center w-11 h-11 shrink-0 group cursor-pointer bg-transparent border-none"
           >
             <span className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline group-hover:bg-[#d0d0d0] transition-colors">
               <motion.svg

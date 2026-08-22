@@ -927,20 +927,26 @@ export interface WorkerTierRankingRow {
   hours: number
 }
 
+export interface WorkerTierRankingByRole {
+  kitchen: WorkerTierRankingRow[]
+  cashier: WorkerTierRankingRow[]
+}
+
 /**
- * MY 페이지 근무 티어 랭킹 — 퇴사자 포함 전체 근무자의 누적 유급 근무시간 순위
+ * MY 페이지 근무 티어 랭킹 — 퇴사자 포함 전체 근무자의 누적 유급 근무시간 순위, 주방/캐셔 부문 분리
  * (status 무관 — 후보/불합격은 근무 기록이 없어 어차피 0시간으로 걸러짐).
- * 한 사람이 여러 팝업(staff_profiles row)에서 일해도 user_profile_id 기준으로 합산한다.
+ * 한 사람이 여러 팝업(staff_profiles row)에서 같은 부문으로 뛰면 user_profile_id 기준으로 합산한다.
+ * 부문을 바꿔 뛴 사람(주방+캐셔 row가 다 있는 경우)은 두 랭킹 모두에 각자 시간으로 등장한다.
  */
-export async function getWorkerTierRanking(): Promise<ApiResponse<WorkerTierRankingRow[]>> {
+export async function getWorkerTierRanking(): Promise<ApiResponse<WorkerTierRankingByRole>> {
   return wrap(async () => {
     await requireAuth()
 
     const { data: staffRows, error: staffError } = await supabaseAdmin
       .from('staff_profiles')
-      .select('id, name, user_profile_id')
+      .select('id, name, user_profile_id, staff_role')
     if (staffError) throw new Error(staffError.message)
-    if (!staffRows || staffRows.length === 0) return []
+    if (!staffRows || staffRows.length === 0) return { kitchen: [], cashier: [] }
 
     const staffIds = staffRows.map(s => s.id)
     // 아직 근무하지 않은 미래 배정까지 잡히면 티어가 미리 올라가버린다 — 오늘까지만 합산
@@ -959,19 +965,25 @@ export async function getWorkerTierRanking(): Promise<ApiResponse<WorkerTierRank
       minutesByStaffId.set(a.staff_id, (minutesByStaffId.get(a.staff_id) ?? 0) + paidMinutes(start, end, a.break_minutes))
     }
 
-    // 여러 팝업에서 뛰는 사람은 user_profile_id로, 계정이 없는 후보는 staff_id로 묶는다
-    const groups = new Map<string, { name: string; minutes: number }>()
-    for (const s of staffRows) {
-      const key = s.user_profile_id ?? `staff:${s.id}`
-      const minutes = minutesByStaffId.get(s.id) ?? 0
-      const existing = groups.get(key)
-      if (existing) existing.minutes += minutes
-      else groups.set(key, { name: s.name, minutes })
+    const buildRanking = (role: 'kitchen' | 'cashier'): WorkerTierRankingRow[] => {
+      // 여러 팝업에서 뛰는 사람은 user_profile_id로, 계정이 없는 후보는 staff_id로 묶는다
+      const groups = new Map<string, { name: string; minutes: number }>()
+      for (const s of staffRows) {
+        if (s.staff_role !== role) continue
+        const key = s.user_profile_id ?? `staff:${s.id}`
+        const minutes = minutesByStaffId.get(s.id) ?? 0
+        const existing = groups.get(key)
+        if (existing) existing.minutes += minutes
+        else groups.set(key, { name: s.name, minutes })
+      }
+
+      return Array.from(groups.values())
+        .map(g => ({ name: g.name, hours: minutesToHours(g.minutes) }))
+        .filter(g => g.hours > 0)
+        .sort((a, b) => b.hours - a.hours)
     }
 
-    return Array.from(groups.values())
-      .map(g => ({ name: g.name, hours: minutesToHours(g.minutes) }))
-      .sort((a, b) => b.hours - a.hours)
+    return { kitchen: buildRanking('kitchen'), cashier: buildRanking('cashier') }
   })
 }
 

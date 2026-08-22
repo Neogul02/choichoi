@@ -14,7 +14,7 @@ import {
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
 import { formatPhoneInput } from '@/lib/phone'
 import { getMyContracts, getContractsAsAdmin } from '@/app/actions/contracts'
-import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, getWorkerTierRanking, type MyShift, type WorkerTierRankingRow } from '@/app/actions/roster'
+import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, getWorkerTierRanking, type MyShift, type WorkerTierRankingRow, type WorkerTierRankingByRole } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
@@ -118,7 +118,8 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
 
   const [contracts, setContracts] = useState<ContractRecord[]>(initial?.contracts ?? [])
   const [signingContract, setSigningContract] = useState<ContractRecord | null>(null)
-  const [tierRanking, setTierRanking] = useState<WorkerTierRankingRow[]>([])
+  const [tierRanking, setTierRanking] = useState<WorkerTierRankingByRole>({ kitchen: [], cashier: [] })
+  const [rankingTab, setRankingTab] = useState<'cashier' | 'kitchen'>('cashier')
   const [showAllRanking, setShowAllRanking] = useState(false)
 
   // 근무 티어 랭킹 — 조회 대상과 무관한 전체 순위라 프리페치 여부와 별개로 한 번만 불러온다
@@ -436,7 +437,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                   </div>
                   <div className='text-right'>
                     <p className='m-0 text-caption' style={{ color: current.mute }}>누적 근무시간</p>
-                    <p className='m-0 text-[19px] font-bold' style={{ color: current.accent }}>{workedHours}시간</p>
+                    <p className='m-0 text-[19px] font-bold' style={{ color: current.accent }}>{workedHours}h</p>
                   </div>
                 </div>
                 {next && (
@@ -445,7 +446,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                       <div className='h-2 rounded-full transition-all' style={{ width: `${progress}%`, background: current.accent }} />
                     </div>
                     <p className='m-0 text-caption' style={{ color: current.mute }}>
-                      다음 티어 {next.ko}까지 {Math.round((next.threshold - workedHours) * 10) / 10}시간 남음
+                      다음 티어 {next.ko}까지 {Math.round((next.threshold - workedHours) * 10) / 10}h 남음
                     </p>
                   </>
                 )}
@@ -471,7 +472,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                   )}
                   {monthSummary && monthSummary.days > 0 && (
                     <p className='m-0 mt-1 text-caption text-ink-muted'>
-                      이번 달 근무 <span className='font-bold text-primary-700'>{monthSummary.days}일</span> · <span className='font-bold text-primary-700'>{monthSummary.hours}시간</span>
+                      이번 달 근무 <span className='font-bold text-primary-700'>{monthSummary.days}일</span> · <span className='font-bold text-primary-700'>{monthSummary.hours}h</span>
                     </p>
                   )}
                 </div>
@@ -487,52 +488,77 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             )
           })()}
 
-          {/* 근무 티어 랭킹 — 전체 근무자, 이름 마스킹 + 왕관 아이콘 + 누적 근무시간 */}
-          {tierRanking.length > 0 && (
-            <section className='bg-canvas border border-hairline rounded-2xl p-4 lg:p-5 shadow-level-1'>
-              <h2 className='m-0 mb-3 text-title text-ink'>근무 티어 랭킹</h2>
-              <div className='overflow-x-auto'>
-                <table className='w-full text-body-sm border-collapse'>
-                  <thead>
-                    <tr className='border-b border-hairline'>
-                      <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted w-8'>#</th>
-                      <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted'>이름</th>
-                      <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted'>티어</th>
-                      <th className='text-right py-1.5 font-semibold text-ink-muted'>누적 근무시간</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(showAllRanking ? tierRanking : tierRanking.slice(0, 5)).map((row, i) => {
-                      const { current, dot } = getWorkerTier(row.hours)
-                      const isMe = row.name === displayName
-                      return (
-                        <tr key={`${row.name}-${i}`} className={`border-b border-hairline last:border-b-0 ${isMe ? 'bg-primary-50' : ''}`}>
-                          <td className='py-1.5 pr-2 text-ink-muted'>{i + 1}</td>
-                          <td className='py-1.5 pr-2 font-semibold text-ink'>{maskMiddleName(row.name)}{isMe && ' (나)'}</td>
-                          <td className='py-1.5 pr-2'>
-                            <div className='flex items-center gap-1.5'>
-                              <TierCrown color={dot} />
-                              <span className='text-[11px] font-black tracking-wide' style={{ color: dot }}>{current.name}</span>
-                            </div>
-                          </td>
-                          <td className='py-1.5 text-right font-bold text-ink'>{row.hours}시간</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {tierRanking.length > 5 && (
-                <button
-                  type='button'
-                  onClick={() => setShowAllRanking(v => !v)}
-                  className='w-full mt-2 py-2 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-soft/70 transition'
-                >
-                  {showAllRanking ? '접기' : `더보기 (전체 ${tierRanking.length}명)`}
-                </button>
-              )}
-            </section>
-          )}
+          {/* 근무 티어 랭킹 — 주방/캐셔 부문 분리, 이름 마스킹 + 왕관 아이콘 + 누적 근무시간 */}
+          {(tierRanking.cashier.length > 0 || tierRanking.kitchen.length > 0) && (() => {
+            const activeRanking = tierRanking[rankingTab]
+            return (
+              <section className='bg-canvas border border-hairline rounded-2xl p-4 lg:p-5 shadow-level-1'>
+                <div className='flex items-center justify-between mb-3'>
+                  <h2 className='m-0 text-title text-ink'>근무 티어 랭킹</h2>
+                  <div className='flex gap-1 rounded-lg bg-canvas-soft p-0.5'>
+                    {(['cashier', 'kitchen'] as const).map(tab => (
+                      <button
+                        key={tab}
+                        type='button'
+                        onClick={() => { setRankingTab(tab); setShowAllRanking(false) }}
+                        className={`px-3 py-1 rounded-md text-[12px] font-bold cursor-pointer transition ${
+                          rankingTab === tab ? 'bg-canvas text-ink shadow-level-1' : 'text-ink-muted'
+                        }`}
+                      >
+                        {tab === 'cashier' ? '캐셔' : '주방'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {activeRanking.length === 0 ? (
+                  <p className='m-0 py-4 text-center text-body-sm text-ink-muted'>아직 근무 기록이 없어요.</p>
+                ) : (
+                  <>
+                    <div className='overflow-x-auto'>
+                      <table className='w-full text-body-sm border-collapse'>
+                        <thead>
+                          <tr className='border-b border-hairline'>
+                            <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted w-8'>#</th>
+                            <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted'>이름</th>
+                            <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted'>티어</th>
+                            <th className='text-right py-1.5 font-semibold text-ink-muted'>누적 근무시간</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(showAllRanking ? activeRanking : activeRanking.slice(0, 5)).map((row, i) => {
+                            const { current, dot } = getWorkerTier(row.hours)
+                            const isMe = row.name === displayName
+                            return (
+                              <tr key={`${row.name}-${i}`} className={`border-b border-hairline last:border-b-0 ${isMe ? 'bg-primary-50' : ''}`}>
+                                <td className='py-1.5 pr-2 text-ink-muted'>{i + 1}</td>
+                                <td className='py-1.5 pr-2 font-semibold text-ink'>{maskMiddleName(row.name)}{isMe && ' (나)'}</td>
+                                <td className='py-1.5 pr-2'>
+                                  <div className='flex items-center gap-1.5'>
+                                    <TierCrown color={dot} />
+                                    <span className='text-[11px] font-black tracking-wide' style={{ color: dot }}>{current.name}</span>
+                                  </div>
+                                </td>
+                                <td className='py-1.5 text-right font-bold text-ink'>{row.hours}h</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {activeRanking.length > 5 && (
+                      <button
+                        type='button'
+                        onClick={() => setShowAllRanking(v => !v)}
+                        className='w-full mt-2 py-2 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-soft/70 transition'
+                      >
+                        {showAllRanking ? '접기' : `더보기 (전체 ${activeRanking.length}명)`}
+                      </button>
+                    )}
+                  </>
+                )}
+              </section>
+            )
+          })()}
 
           {/* 판매 통계 */}
           {stats && stats.totalOrders > 0 && (
