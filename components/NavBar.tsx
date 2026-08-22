@@ -1,26 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePresence, type PresenceUser } from '@/hooks/usePresence';
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { withTimeout } from '@/lib/utils';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { DAY_NAMES } from '@/lib/staffing';
 import type { UserAppRole } from '@/types/database';
+import { CASHIER_NAME_KEY, POPUP_NAME_KEY, APP_ROLE_KEY, clearChoichoiStorage } from '@/lib/storage-keys';
 
 function toAppRole(value: unknown): UserAppRole {
   return value === 'admin' ? 'admin' : value === 'manager' ? 'manager' : 'user';
 }
 
 const NAV_COLLAPSED_KEY = 'choichoi_nav_collapsed';
-const CASHIER_NAME_KEY = 'choichoi_cashier_name';
-const POPUP_ID_KEY = 'choichoi_popup_id';
-const POPUP_NAME_KEY = 'choichoi_popup_name';
-const WORKER_ROLE_KEY = 'choichoi_worker_role';
-const APP_ROLE_KEY = 'choichoi_app_role';
 // user_profiles 이름 재조회를 브라우저 세션당 1회로 제한 — NavBar는 모든 페이지에서 마운트되므로
 // 매 이동마다 SELECT가 나가던 것을 캐시 우선으로 바꾼다
 const PROFILE_SYNCED_KEY = 'choichoi_profile_synced';
@@ -40,24 +35,12 @@ const ALL_NAV_LINKS = [
 
 const ROLE_RANK: Record<UserAppRole, number> = { user: 0, manager: 1, admin: 2 };
 
-function useTodayLabel(): string {
-  const [label, setLabel] = useState('');
-  useEffect(() => {
-    const d = new Date();
-    setLabel(`${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES[d.getDay()]})`);
-  }, []);
-  return label;
-}
-
 export default function NavBar({ activeCashiers: activeCashiersProp }: { activeCashiers?: PresenceUser[] } = {}) {
   const pathname = usePathname();
-  const router = useRouter();
-  const todayLabel = useTodayLabel();
   const [collapsed, setCollapsed] = useState(false);
   const [role, setRole] = useState<UserAppRole>('user');
   const [cashierName, setCashierName] = useState<string | null>(null);
   const [popupName, setPopupName] = useState<string | null>(null);
-  const [popupId, setPopupId] = useState('0');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -70,7 +53,6 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       setCollapsed(localStorage.getItem(NAV_COLLAPSED_KEY) === 'true');
       setCashierName(localStorage.getItem(CASHIER_NAME_KEY));
       setPopupName(localStorage.getItem(POPUP_NAME_KEY));
-      setPopupId(localStorage.getItem(POPUP_ID_KEY) ?? '0');
       // 마지막으로 확인된 역할을 즉시 적용 — 아래 세션 조회가 실패해도 관리자 탭이 사라지지 않는다
       const cachedRole = localStorage.getItem(APP_ROLE_KEY);
       if (cachedRole === 'admin' || cachedRole === 'manager') setRole(cachedRole);
@@ -147,16 +129,8 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   };
 
   const confirmLogout = () => {
-    try {
-      localStorage.removeItem(CASHIER_NAME_KEY);
-      localStorage.removeItem(POPUP_ID_KEY);
-      localStorage.removeItem(POPUP_NAME_KEY);
-      localStorage.removeItem(WORKER_ROLE_KEY);
-      localStorage.removeItem(APP_ROLE_KEY);
-      sessionStorage.removeItem(PROFILE_SYNCED_KEY);
-      // 서버 프리페치용 팝업 쿠키도 함께 제거 (password-gate에서 저장)
-      document.cookie = `${POPUP_ID_KEY}=; path=/; max-age=0`;
-    } catch { /* ignore */ }
+    clearChoichoiStorage();
+    try { sessionStorage.removeItem(PROFILE_SYNCED_KEY); } catch { /* ignore */ }
     // signOut 응답을 기다리지 않고 즉시 이동한다 — 호출이 멈추거나 느려도
     // /pos에 머무는 일 없이 항상 역할 선택 화면(/)으로 보낸다.
     try {

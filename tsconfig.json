@@ -11,6 +11,8 @@
     "skipLibCheck": true,
     "strict": false,
     "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true,
     "incremental": true,
     "module": "esnext",

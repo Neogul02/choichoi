@@ -28,8 +28,8 @@ import {
   hexWithAlpha,
 } from '@/lib/utils'
 import { getTier } from '@/lib/tiers'
+import { CASHIER_NAME_KEY, POPUP_ID_KEY } from '@/lib/storage-keys'
 
-const CASHIER_NAME_KEY = 'choichoi_cashier_name'
 const POS_NOTE_VISIBLE_KEY = 'choichoi_pos_note_visible'
 
 const cartItemVariants: Variants = {
@@ -172,7 +172,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   useEffect(() => {
     setCashierName(localStorage.getItem(CASHIER_NAME_KEY))
     // localStorage가 원본 — 쿠키(initialPopupId)와 다르면 localStorage 값으로 교정
-    setPopupId(localStorage.getItem('choichoi_popup_id') ?? '0')
+    setPopupId(localStorage.getItem(POPUP_ID_KEY) ?? '0')
     const savedVisible = localStorage.getItem(POS_NOTE_VISIBLE_KEY)
     if (savedVisible !== null) setShowNote(savedVisible === '1')
   }, [])

@@ -11,33 +11,12 @@ import { notifyLoginEvent } from '@/app/actions/discord'
 import { withTimeout } from '@/lib/utils'
 import LoadingScreen from '@/components/LoadingScreen'
 import type { PopupEvent } from '@/types/database'
-
-export const CASHIER_NAME_KEY = 'choichoi_cashier_name'
-export const POPUP_ID_KEY = 'choichoi_popup_id'
-export const POPUP_NAME_KEY = 'choichoi_popup_name'
-export const WORKER_ROLE_KEY = 'choichoi_worker_role'
-export const APP_ROLE_KEY = 'choichoi_app_role'
+import {
+  CASHIER_NAME_KEY, POPUP_ID_KEY, POPUP_NAME_KEY, WORKER_ROLE_KEY, APP_ROLE_KEY,
+  setPopupIdCookie, clearChoichoiStorage,
+} from '@/lib/storage-keys'
 
 type View = 'login' | 'signup'
-
-// popupId는 쿠키에도 병행 저장 — 서버 컴포넌트(pos·orders)가 요청 시점에 팝업을 알고 프리페치할 수 있게 함
-export function setPopupIdCookie(popupId: string) {
-  try { document.cookie = `${POPUP_ID_KEY}=${popupId}; path=/; max-age=31536000; samesite=lax` } catch { /* ignore */ }
-}
-export function clearPopupIdCookie() {
-  try { document.cookie = `${POPUP_ID_KEY}=; path=/; max-age=0` } catch { /* ignore */ }
-}
-
-function clearStorage() {
-  try {
-    localStorage.removeItem(CASHIER_NAME_KEY)
-    localStorage.removeItem(POPUP_ID_KEY)
-    localStorage.removeItem(POPUP_NAME_KEY)
-    localStorage.removeItem(WORKER_ROLE_KEY)
-    localStorage.removeItem(APP_ROLE_KEY)
-  } catch { /* ignore */ }
-  clearPopupIdCookie()
-}
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -123,7 +102,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     checkAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') setIsAuthed(false)
+      if (event === 'SIGNED_OUT') { clearChoichoiStorage(); setIsAuthed(false) }
     })
 
     return () => subscription.unsubscribe()
