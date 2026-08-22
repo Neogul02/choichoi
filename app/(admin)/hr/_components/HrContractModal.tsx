@@ -89,10 +89,10 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
       d.setMonth(d.getMonth() + 3)
       toDate = d.toISOString().slice(0, 10)
     }
-    fetchStaffAssignmentsInRange(staff.id, startDate, toDate).then(res => {
+    fetchStaffAssignmentsInRange(staff.id, startDate, toDate, staff.popup_id).then(res => {
       setSpecificWorkDates(res.success && res.data ? res.data : [])
     })
-  }, [staff.id, startDate, endDate])
+  }, [staff.id, staff.popup_id, startDate, endDate])
 
   const contractData: ContractData = useMemo(() => ({
     employerName, employerAddress, employerRepresentative, employerPhone,
