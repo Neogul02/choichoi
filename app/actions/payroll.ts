@@ -31,18 +31,23 @@ export async function fetchStaffAssignmentsInRange(
   staffId: number,
   fromDate: string,
   toDate: string,
+  popupId?: number | null,
 ): Promise<ApiResponse<StaffWorkAssignment[]>> {
   try {
     const user = await getAuthUser()
     if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('roster_assignments')
       .select('work_date, start_time, end_time, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')
       .eq('staff_id', staffId)
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
-      .order('work_date', { ascending: true })
+    // popup_id가 있으면 그 팝업 근무만 — 캐셔가 겸직으로 다른 팝업 로스터에도 배정된 경우
+    // (staff_profiles.popup_id는 단일값이라 한 row가 여러 팝업 스케줄을 가질 수 있음, CLAUDE.md 참고)
+    // 계약서에 다른 팝업 스케줄이 섞여 들어가는 것을 막는다.
+    if (popupId != null) query = query.eq('popup_id', popupId)
+    const { data, error } = await query.order('work_date', { ascending: true })
 
     if (error) return { success: false, error: error.message }
 
