@@ -64,7 +64,6 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
   // 임금
   const [hourlyRate, setHourlyRate] = useState(staff.hourly_rate?.toString() ?? '10030')
   const [paymentDay, setPaymentDay] = useState('25')
-  const [paymentTransfer, setPaymentTransfer] = useState(true)
 
   // 사회보험
   const [insuranceEmployment, setInsuranceEmployment] = useState(staff.wants_insurance)
@@ -112,7 +111,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
     overtimeRate: 50,
     paymentDay,
     paymentDirect: false,
-    paymentTransfer,
+    paymentTransfer: true,
     insuranceEmployment, insuranceIndustrial, insurancePension, insuranceHealth,
     specialTerms: specialTerms || undefined,
     issueDate: today(),
@@ -122,7 +121,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
     staff.name, workerPhone, workerAddress,
     startDate, endDate, workplace, jobDescription,
     breakStart, breakEnd, weeklyHolidayDay,
-    hourlyRate, paymentDay, paymentTransfer,
+    hourlyRate, paymentDay,
     insuranceEmployment, insuranceIndustrial, insurancePension, insuranceHealth,
     specialTerms, specificWorkDates, signatureBase64,
   ])

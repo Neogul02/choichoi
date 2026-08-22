@@ -6,7 +6,7 @@ import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfil
 import { getWeekStart, DAY_NAMES, requiredFor } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
-import { getAuthUser, wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
+import { wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
 import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups } from '@/lib/roster/query-helpers'
 import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
 import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'

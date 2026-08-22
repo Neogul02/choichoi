@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { POPUP_ID_KEY } from '@/lib/storage-keys';
 
 export interface PresenceUser {
   name: string;
@@ -15,7 +16,7 @@ export function usePresence(cashierName: string | null): PresenceUser[] {
   useEffect(() => {
     if (!cashierName) return () => {};
     const clientId = clientIdRef.current;
-    const popupId = (typeof window !== 'undefined' ? localStorage.getItem('choichoi_popup_id') : null) ?? '0';
+    const popupId = (typeof window !== 'undefined' ? localStorage.getItem(POPUP_ID_KEY) : null) ?? '0';
     const channel = supabase.channel(`pos-presence-${popupId}`, {
       config: { presence: { key: clientId } },
     });

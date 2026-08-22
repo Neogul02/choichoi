@@ -1,6 +1,5 @@
 'use client';
 
-import type { Tier } from '@/lib/tiers';
 import { getTier } from '@/lib/tiers';
 import type { TodaysSales } from '@/types/api';
 

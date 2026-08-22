@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getWeekStart } from '@/lib/staffing';
 import { parseDate, addDays, ymdToDateStr } from '@/lib/date';
 
+// WeeklyRosterPrintModal.tsx도 초기 인쇄 범위를 정할 때 같은 키를 읽으므로 공유 상수로 노출한다
+export const ROSTER_RANGE_FROM_KEY = 'roster_rangeFrom';
+export const ROSTER_RANGE_TO_KEY = 'roster_rangeTo';
+export const ROSTER_CURSOR_KEY = 'roster_cursor';
+
 /**
  * 근무표 뷰 상태 훅 — 월 커서·월/주 뷰 토글·표시 범위 필터·선택 날짜와
  * localStorage 동기화, 달력 그리드 파생값을 관리한다. 데이터 로딩은 useRosterRange 담당.
@@ -32,8 +37,8 @@ export function useRosterView() {
 
   // 마운트 시 localStorage에서 범위·뷰 모드 복원
   useEffect(() => {
-    setRangeFrom(localStorage.getItem('roster_rangeFrom') ?? '');
-    setRangeTo(localStorage.getItem('roster_rangeTo') ?? '');
+    setRangeFrom(localStorage.getItem(ROSTER_RANGE_FROM_KEY) ?? '');
+    setRangeTo(localStorage.getItem(ROSTER_RANGE_TO_KEY) ?? '');
     if (localStorage.getItem('roster_viewMode') === 'week') setViewMode('week');
   }, []);
 
@@ -43,13 +48,13 @@ export function useRosterView() {
 
   // 현재 보고 있는 달 저장 (근무표 인쇄 모달 자동 날짜에 사용)
   useEffect(() => {
-    if (cursor) localStorage.setItem('roster_cursor', JSON.stringify(cursor));
+    if (cursor) localStorage.setItem(ROSTER_CURSOR_KEY, JSON.stringify(cursor));
   }, [cursor]);
 
   // 범위 변경 시 localStorage 저장
   useEffect(() => {
-    localStorage.setItem('roster_rangeFrom', rangeFrom);
-    localStorage.setItem('roster_rangeTo', rangeTo);
+    localStorage.setItem(ROSTER_RANGE_FROM_KEY, rangeFrom);
+    localStorage.setItem(ROSTER_RANGE_TO_KEY, rangeTo);
   }, [rangeFrom, rangeTo]);
 
   /** 월/단위 변경 시 뷰 리셋 — 첫 호출(마운트·탭 복귀)은 localStorage 범위를 유지 */

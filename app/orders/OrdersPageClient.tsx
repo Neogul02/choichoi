@@ -9,6 +9,7 @@ import { fetchPendingOrders, markOrderPrepared } from '@/app/actions/orders';
 import { supabase } from '@/lib/supabase';
 import type { OrderRecordWithItems } from '@/types/api';
 import { formatKSTTime, formatPrice } from '@/lib/utils';
+import { POPUP_ID_KEY } from '@/lib/storage-keys';
 
 const pendingCardVariants: Variants = {
   hidden: { opacity: 0, scale: 0.96, y: 10 },
@@ -30,7 +31,7 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
 
   useEffect(() => {
     // localStorage가 원본 — 쿠키(initialPopupId)와 다르면 localStorage 값으로 교정
-    setPopupId(localStorage.getItem('choichoi_popup_id') ?? '0');
+    setPopupId(localStorage.getItem(POPUP_ID_KEY) ?? '0');
   }, []);
 
   useEffect(() => {
