@@ -881,10 +881,12 @@ async function fetchCumulativeWorkedHoursForUserProfileId(userProfileId: string)
   const staffIds = (staffRows ?? []).map(s => s.id)
   if (staffIds.length === 0) return { totalHours: 0, totalDays: 0 }
 
+  // 아직 근무하지 않은 미래 배정까지 누적시간에 잡히면 티어가 미리 올라가버린다 — 오늘까지만 합산
   const { data: assignData, error: assignError } = await supabaseAdmin
     .from('roster_assignments')
     .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time)')
     .in('staff_id', staffIds)
+    .lte('work_date', kstToday())
   if (assignError) throw new Error(assignError.message)
 
   let totalMinutes = 0
@@ -917,6 +919,59 @@ export async function getCumulativeWorkedHoursAsAdmin(userId: string): Promise<A
   return wrap(async () => {
     await requireAdmin()
     return fetchCumulativeWorkedHoursForUserProfileId(userId)
+  })
+}
+
+export interface WorkerTierRankingRow {
+  name: string
+  hours: number
+}
+
+/**
+ * MY 페이지 근무 티어 랭킹 — 퇴사자 포함 전체 근무자의 누적 유급 근무시간 순위
+ * (status 무관 — 후보/불합격은 근무 기록이 없어 어차피 0시간으로 걸러짐).
+ * 한 사람이 여러 팝업(staff_profiles row)에서 일해도 user_profile_id 기준으로 합산한다.
+ */
+export async function getWorkerTierRanking(): Promise<ApiResponse<WorkerTierRankingRow[]>> {
+  return wrap(async () => {
+    await requireAuth()
+
+    const { data: staffRows, error: staffError } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('id, name, user_profile_id')
+    if (staffError) throw new Error(staffError.message)
+    if (!staffRows || staffRows.length === 0) return []
+
+    const staffIds = staffRows.map(s => s.id)
+    // 아직 근무하지 않은 미래 배정까지 잡히면 티어가 미리 올라가버린다 — 오늘까지만 합산
+    const { data: assignData, error: assignError } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('staff_id, work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time)')
+      .in('staff_id', staffIds)
+      .lte('work_date', kstToday())
+    if (assignError) throw new Error(assignError.message)
+
+    const minutesByStaffId = new Map<number, number>()
+    for (const a of assignData ?? []) {
+      const shift = a.roster_shifts as unknown as { start_time: string; end_time: string } | null
+      const start = a.start_time ?? shift?.start_time ?? '00:00'
+      const end = a.end_time ?? shift?.end_time ?? '00:00'
+      minutesByStaffId.set(a.staff_id, (minutesByStaffId.get(a.staff_id) ?? 0) + paidMinutes(start, end, a.break_minutes))
+    }
+
+    // 여러 팝업에서 뛰는 사람은 user_profile_id로, 계정이 없는 후보는 staff_id로 묶는다
+    const groups = new Map<string, { name: string; minutes: number }>()
+    for (const s of staffRows) {
+      const key = s.user_profile_id ?? `staff:${s.id}`
+      const minutes = minutesByStaffId.get(s.id) ?? 0
+      const existing = groups.get(key)
+      if (existing) existing.minutes += minutes
+      else groups.set(key, { name: s.name, minutes })
+    }
+
+    return Array.from(groups.values())
+      .map(g => ({ name: g.name, hours: minutesToHours(g.minutes) }))
+      .sort((a, b) => b.hours - a.hours)
   })
 }
 

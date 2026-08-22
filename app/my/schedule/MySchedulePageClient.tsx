@@ -158,7 +158,7 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
       return (
         <>
           <NavBar />
-          <main className="min-h-screen p-4 pb-10">
+          <main className="min-h-screen p-3 md:p-5 pb-10">
             <div className="max-w-[560px] mx-auto space-y-4">
               <h1 className="m-0 text-heading-2 text-ink">직원 스케줄 조회</h1>
               <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
@@ -184,7 +184,7 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
   return (
     <>
       <NavBar />
-      <main className="min-h-screen p-4 pb-10">
+      <main className="min-h-screen p-3 md:p-5 pb-10">
         <div className="max-w-[560px] lg:max-w-[1040px] mx-auto space-y-4 lg:space-y-5">
 
           <h1 className="m-0 text-heading-2 text-ink">{staffName}님의 근무 일정</h1>

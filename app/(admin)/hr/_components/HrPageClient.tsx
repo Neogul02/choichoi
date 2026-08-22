@@ -254,8 +254,6 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5">
-        <h1 className="m-0 text-[19px] font-extrabold mb-4">인사관리</h1>
-
         <div ref={containerRef} className="flex flex-col lg:flex-row items-stretch lg:items-start select-none gap-4 lg:gap-0">
           {/* 좌측: 직원 목록 — lg 미만에서는 전체 폭 세로 스택 */}
           <div className="flex flex-col shrink-0 min-w-0 w-full lg:w-[var(--left-w)]" style={{ '--left-w': `${leftWidth}px` } as React.CSSProperties}>

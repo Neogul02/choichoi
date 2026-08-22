@@ -42,10 +42,8 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
   return (
     <>
       <NavBar />
-      <main className="min-h-screen p-3 md:p-5 lg:p-8 max-w-[1100px] lg:max-w-[1600px] mx-auto">
+      <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="max-w-[800px] lg:max-w-none mx-auto flex flex-col gap-3 md:gap-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
-          <h2 className="m-0 px-1 text-heading-1 text-ink lg:col-span-2">통계</h2>
-
           <div className="lg:col-span-2">
             <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
           </div>

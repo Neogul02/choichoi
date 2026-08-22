@@ -85,12 +85,12 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
   return (
     <>
       <NavBar />
-      <main className="min-h-screen p-3 md:p-5 max-w-[800px] mx-auto">
+      <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="flex items-center justify-between bg-canvas mt-[-10px] rounded-xl px-4 py-3.5 md:px-5 mb-3 md:mb-4 shadow-level-1 border border-hairline"
+          className="flex items-center justify-between bg-canvas rounded-xl px-4 py-3.5 md:px-5 mb-3 md:mb-4 shadow-level-1 border border-hairline"
         >
           <h1 className="m-0 text-lg font-black text-ink">주문 현황</h1>
           {pendingOrders.length > 0 && (

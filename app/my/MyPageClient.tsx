@@ -14,7 +14,7 @@ import {
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
 import { formatPhoneInput } from '@/lib/phone'
 import { getMyContracts, getContractsAsAdmin } from '@/app/actions/contracts'
-import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, type MyShift } from '@/app/actions/roster'
+import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, getWorkerTierRanking, type MyShift, type WorkerTierRankingRow } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
@@ -33,6 +33,34 @@ function todayStr() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 function hhmm(t: string) { return t.slice(0, 5) }
+
+function AdminShield({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.6' strokeLinecap='round' strokeLinejoin='round'>
+      <path d='M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z' />
+      <path d='M9 12l2 2 4-4' />
+    </svg>
+  )
+}
+
+// 랭킹 개인정보 보호 — 이름 가운데 글자를 * 처리 ("김수현" → "김*현", 2글자는 뒷글자)
+function maskMiddleName(name: string): string {
+  const chars = Array.from(name)
+  if (chars.length <= 1) return name
+  if (chars.length === 2) return `${chars[0]}*`
+  const mid = Math.floor(chars.length / 2)
+  return chars.map((c, i) => (i === mid ? '*' : c)).join('')
+}
+
+// 티어 텍스트 뱃지 대신 왕관 아이콘으로 표현 — 등수만 봐도 색으로 구분되게
+function TierCrown({ color, size = 16 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox='0 0 24 24' fill={color} style={{ filter: `drop-shadow(0 0 3px ${color}90)` }}>
+      <path d='M5 16 3 5l6 4 3-6 3 6 6-4-2 11H5Z' />
+      <rect x='4' y='18' width='16' height='2.5' rx='0.5' />
+    </svg>
+  )
+}
 
 // 서버 컴포넌트(page.tsx)가 프리페치한 초기 데이터 — null이면 기존 클라이언트 조회로 폴백
 export interface InitialMyData {
@@ -90,6 +118,15 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
 
   const [contracts, setContracts] = useState<ContractRecord[]>(initial?.contracts ?? [])
   const [signingContract, setSigningContract] = useState<ContractRecord | null>(null)
+  const [tierRanking, setTierRanking] = useState<WorkerTierRankingRow[]>([])
+  const [showAllRanking, setShowAllRanking] = useState(false)
+
+  // 근무 티어 랭킹 — 조회 대상과 무관한 전체 순위라 프리페치 여부와 별개로 한 번만 불러온다
+  useEffect(() => {
+    getWorkerTierRanking().then(res => {
+      if (res.success && res.data) setTierRanking(res.data)
+    })
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -285,13 +322,10 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
     return (
       <>
         <NavBar />
-        <main className='min-h-screen p-4 pb-10'>
+        <main className='min-h-screen p-3 md:p-5 pb-10'>
           <div className='max-w-[560px] lg:max-w-[900px] mx-auto space-y-4 animate-pulse'>
-            <div className='h-6 w-16 bg-gray-100 rounded' />
-            {/* 히어로 카드 */}
-            <div className='rounded-2xl bg-gray-100 h-[104px]' />
-            {/* 티어 카드 */}
-            <div className='rounded-2xl bg-gray-100 h-[96px]' />
+            {/* 프로필 + 티어 통합 카드 */}
+            <div className='rounded-2xl bg-gray-100 h-[200px]' />
             {/* 판매 통계 카드 */}
             <div className='rounded-2xl border border-hairline bg-canvas p-4 h-[140px]'>
               <div className='h-4 w-24 bg-gray-100 rounded mb-3' />
@@ -317,8 +351,6 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       <NavBar />
       <main className='min-h-screen p-4 pb-10'>
         <div className='max-w-[560px] lg:max-w-[900px] mx-auto space-y-4 lg:space-y-5'>
-
-          <h1 className='m-0 text-heading-2 text-ink'>MY</h1>
 
           {/* 직원 선택기 (관리자 전용) — 다른 근무자의 MY 페이지를 조회 */}
           {isAdmin && userPicker && userPicker.length > 0 && (
@@ -352,26 +384,74 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             </div>
           )}
 
-          {/* 프로필 히어로 카드 */}
-          <div className='rounded-2xl bg-primary-700 text-white p-5 shadow-level-1'>
-            <div className='flex items-center gap-3.5'>
-              <div className='w-14 h-14 rounded-full bg-white/15 flex items-center justify-center text-[24px] font-extrabold shrink-0'>
-                {displayName.charAt(0)}
-              </div>
-              <div className='flex-1 min-w-0'>
-                <div className='flex items-center gap-2'>
-                  <p className='m-0 text-[19px] font-extrabold leading-tight'>{displayName}</p>
-                  {isAdmin && (
-                    <span className='text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/15'>관리자</span>
-                  )}
-                </div>
-                {displayEmail && <p className='m-0 mt-0.5 text-[13px] opacity-70 truncate'>{displayEmail}</p>}
-              </div>
-            </div>
-          </div>
+          {/* 프로필 + 근무 티어 통합 카드 — 티어 색상을 그대로 내 정보 배경으로 사용 */}
+          {(() => {
+            // 관리자 계정은 근무 티어 대상이 아니다 — 티어 카드 대신 별도 디자인의 관리자 카드를 보여준다
+            const isViewedAdmin = profile?.worker_role === 'admin'
+            if (isViewedAdmin) {
+              return (
+                <section className='rounded-2xl p-5 shadow-level-1 overflow-hidden bg-gradient-to-br from-slate-800 via-slate-700 to-slate-600 text-white'>
+                  <div className='flex items-center gap-3.5'>
+                    <div className='w-14 h-14 rounded-full bg-white/15 flex items-center justify-center text-[24px] font-extrabold shrink-0'>
+                      {displayName.charAt(0)}
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='flex items-center gap-2'>
+                        <p className='m-0 text-[19px] font-extrabold leading-tight'>{displayName}</p>
+                        <span className='inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/15'>
+                          <AdminShield size={12} /> 관리자
+                        </span>
+                      </div>
+                      {displayEmail && <p className='m-0 mt-0.5 text-[13px] opacity-70 truncate'>{displayEmail}</p>}
+                    </div>
+                    <AdminShield size={32} />
+                  </div>
+                  <p className='m-0 mt-4 text-[12px] opacity-60'>관리자 계정은 근무 티어 시스템 대상이 아닙니다.</p>
+                </section>
+              )
+            }
 
-          {/* 데스크톱에서는 다음 근무 + 티어를 나란히 배치 — 모바일은 그대로 세로 스택 */}
-          <div className='space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:items-stretch'>
+            const { current, next } = getWorkerTier(workedHours)
+            const progress = next
+              ? Math.min(100, ((workedHours - current.threshold) / (next.threshold - current.threshold)) * 100)
+              : 100
+            return (
+              <section className='rounded-2xl p-5 shadow-level-1 overflow-hidden' style={{ background: current.bg, boxShadow: current.shadow }}>
+                <div className='flex items-center gap-3.5 mb-4'>
+                  <div className='w-14 h-14 rounded-full bg-white/15 flex items-center justify-center text-[24px] font-extrabold shrink-0' style={{ color: current.labelText }}>
+                    {displayName.charAt(0)}
+                  </div>
+                  <div className='flex-1 min-w-0'>
+                    <div className='flex items-center gap-2'>
+                      <p className='m-0 text-[19px] font-extrabold leading-tight' style={{ color: current.labelText }}>{displayName}</p>
+                    </div>
+                    {displayEmail && <p className='m-0 mt-0.5 text-[13px] truncate' style={{ color: current.mute }}>{displayEmail}</p>}
+                  </div>
+                </div>
+
+                <div className='flex items-center justify-between mb-3'>
+                  <div>
+                    <p className='m-0 text-caption font-semibold mb-0.5' style={{ color: current.mute }}>내 근무 티어</p>
+                    <p className='m-0 text-[26px] font-black leading-none' style={{ color: current.labelText }}>{current.name}</p>
+                  </div>
+                  <div className='text-right'>
+                    <p className='m-0 text-caption' style={{ color: current.mute }}>누적 근무시간</p>
+                    <p className='m-0 text-[19px] font-bold' style={{ color: current.accent }}>{workedHours}시간</p>
+                  </div>
+                </div>
+                {next && (
+                  <>
+                    <div className='w-full rounded-full h-2 mb-1.5' style={{ background: 'rgba(255,255,255,0.2)' }}>
+                      <div className='h-2 rounded-full transition-all' style={{ width: `${progress}%`, background: current.accent }} />
+                    </div>
+                    <p className='m-0 text-caption' style={{ color: current.mute }}>
+                      다음 티어 {next.ko}까지 {Math.round((next.threshold - workedHours) * 10) / 10}시간 남음
+                    </p>
+                  </>
+                )}
+              </section>
+            )
+          })()}
 
           {/* 다음 근무 미리보기 → 근무 일정 바로가기 (다른 근무자 조회 중에는 본인 스케줄 탭으로 링크하지 않음) */}
           {myShifts !== null && (() => {
@@ -407,80 +487,84 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             )
           })()}
 
-          {/* 티어 */}
-          {profile && (() => {
-            // 근무자 티어는 누적 유급 근무시간 기준 — 주방/캐셔 모두 공평하게 쌓인다(getMyCumulativeWorkedHours)
-            const { current, next } = getWorkerTier(workedHours)
-            const progress = next
-              ? Math.min(100, ((workedHours - current.threshold) / (next.threshold - current.threshold)) * 100)
-              : 100
-            return (
-              <section className='rounded-2xl p-5 shadow-level-1 overflow-hidden h-full flex flex-col justify-center' style={{ background: current.bg, boxShadow: current.shadow }}>
-                <div className='flex items-center justify-between mb-3'>
-                  <div>
-                    <p className='m-0 text-caption font-semibold mb-0.5' style={{ color: current.mute }}>내 근무 티어</p>
-                    <p className='m-0 text-[26px] font-black leading-none' style={{ color: current.labelText }}>{current.name}</p>
-                  </div>
-                  <div className='text-right'>
-                    <p className='m-0 text-caption' style={{ color: current.mute }}>누적 근무시간</p>
-                    <p className='m-0 text-[19px] font-bold' style={{ color: current.accent }}>{workedHours}시간</p>
-                  </div>
-                </div>
-                {next && (
-                  <>
-                    <div className='w-full rounded-full h-2 mb-1.5' style={{ background: 'rgba(255,255,255,0.2)' }}>
-                      <div className='h-2 rounded-full transition-all' style={{ width: `${progress}%`, background: current.accent }} />
-                    </div>
-                    <p className='m-0 text-caption' style={{ color: current.mute }}>
-                      다음 티어 {next.ko}까지 {Math.round((next.threshold - workedHours) * 10) / 10}시간 남음
-                    </p>
-                  </>
-                )}
-              </section>
-            )
-          })()}
-
-          </div>
+          {/* 근무 티어 랭킹 — 전체 근무자, 이름 마스킹 + 왕관 아이콘 + 누적 근무시간 */}
+          {tierRanking.length > 0 && (
+            <section className='bg-canvas border border-hairline rounded-2xl p-4 lg:p-5 shadow-level-1'>
+              <h2 className='m-0 mb-3 text-title text-ink'>근무 티어 랭킹</h2>
+              <div className='overflow-x-auto'>
+                <table className='w-full text-body-sm border-collapse'>
+                  <thead>
+                    <tr className='border-b border-hairline'>
+                      <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted w-8'>#</th>
+                      <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted'>이름</th>
+                      <th className='text-left py-1.5 pr-2 font-semibold text-ink-muted'>티어</th>
+                      <th className='text-right py-1.5 font-semibold text-ink-muted'>누적 근무시간</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showAllRanking ? tierRanking : tierRanking.slice(0, 5)).map((row, i) => {
+                      const { current, dot } = getWorkerTier(row.hours)
+                      const isMe = row.name === displayName
+                      return (
+                        <tr key={`${row.name}-${i}`} className={`border-b border-hairline last:border-b-0 ${isMe ? 'bg-primary-50' : ''}`}>
+                          <td className='py-1.5 pr-2 text-ink-muted'>{i + 1}</td>
+                          <td className='py-1.5 pr-2 font-semibold text-ink'>{maskMiddleName(row.name)}{isMe && ' (나)'}</td>
+                          <td className='py-1.5 pr-2'>
+                            <div className='flex items-center gap-1.5'>
+                              <TierCrown color={dot} />
+                              <span className='text-[11px] font-black tracking-wide' style={{ color: dot }}>{current.name}</span>
+                            </div>
+                          </td>
+                          <td className='py-1.5 text-right font-bold text-ink'>{row.hours}시간</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {tierRanking.length > 5 && (
+                <button
+                  type='button'
+                  onClick={() => setShowAllRanking(v => !v)}
+                  className='w-full mt-2 py-2 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-soft/70 transition'
+                >
+                  {showAllRanking ? '접기' : `더보기 (전체 ${tierRanking.length}명)`}
+                </button>
+              )}
+            </section>
+          )}
 
           {/* 판매 통계 */}
-          {stats && (
+          {stats && stats.totalOrders > 0 && (
             <section className='bg-canvas border border-hairline rounded-2xl p-4 lg:p-5 shadow-level-1'>
               <div className='flex items-center justify-between mb-3'>
                 <h2 className='m-0 text-title text-ink'>내 판매 통계</h2>
-                {stats.totalOrders > 0 && (
-                  <span className='text-caption text-ink-muted'>
-                    전체 {stats.totalOrders}건 · {formatPrice(stats.totalRevenue)}
-                  </span>
-                )}
+                <span className='text-caption text-ink-muted'>
+                  전체 {stats.totalOrders}건 · {formatPrice(stats.totalRevenue)}
+                </span>
               </div>
 
-              {stats.totalOrders === 0 ? (
-                <p className='m-0 text-ink-muted text-body-sm'>아직 처리한 주문이 없습니다.</p>
-              ) : (
-                <>
-                  {/* 팝업 탭 (전체 합산 탭 포함) */}
-                  {popupTabs.length > 1 && (
-                    <div className='flex gap-1.5 mb-4 flex-wrap'>
-                      {popupTabs.map((p, i) => (
-                        <button
-                          key={p.popupId}
-                          type='button'
-                          onClick={() => setActivePopupIdx(i)}
-                          className={`text-caption px-3 py-1.5 rounded-xl border transition-all cursor-pointer font-semibold ${
-                            activePopupIdx === i
-                              ? 'bg-primary-700 text-white border-primary-700'
-                              : 'bg-canvas-soft text-ink-muted border-hairline hover:border-primary-300 hover:text-primary-700'
-                          }`}
-                        >
-                          {p.popupName}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {activePopup && <PopupStats popup={activePopup} />}
-                </>
+              {/* 팝업 탭 (전체 합산 탭 포함) */}
+              {popupTabs.length > 1 && (
+                <div className='flex gap-1.5 mb-4 flex-wrap'>
+                  {popupTabs.map((p, i) => (
+                    <button
+                      key={p.popupId}
+                      type='button'
+                      onClick={() => setActivePopupIdx(i)}
+                      className={`text-caption px-3 py-1.5 rounded-xl border transition-all cursor-pointer font-semibold ${
+                        activePopupIdx === i
+                          ? 'bg-primary-700 text-white border-primary-700'
+                          : 'bg-canvas-soft text-ink-muted border-hairline hover:border-primary-300 hover:text-primary-700'
+                      }`}
+                    >
+                      {p.popupName}
+                    </button>
+                  ))}
+                </div>
               )}
+
+              {activePopup && <PopupStats popup={activePopup} />}
             </section>
           )}
 
