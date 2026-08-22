@@ -4,9 +4,11 @@ import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { formatPrice } from '@/lib/utils';
 import { PERIOD_LABELS } from '../_lib/period';
+import { CHART_GRID_STROKE, CHART_TICK_STYLE, CHART_VALUE_LABEL_STYLE } from '../_lib/chartTheme';
 import type { Period } from '../_lib/period';
 import type { MenuSalesItem } from '@/types/api';
 import SectionHeader from './SectionHeader';
+import ChartTooltipCard from './ChartTooltipCard';
 
 const RANK_COLORS = ['#b8842f', '#8a8f98', '#a5673a'];
 
@@ -21,14 +23,14 @@ function MenuTooltip({ active, payload }: MenuTooltipProps) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
-    <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+    <ChartTooltipCard>
       <div className="flex items-center gap-1.5 mb-1">
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
         <p className="font-bold text-ink-secondary">{item.name}</p>
       </div>
       <p className="text-ink-muted">판매량: {item.totalQuantity}개</p>
-      <p className="text-primary-700">매출: ₩{formatPrice(item.totalRevenue)}</p>
-    </div>
+      <p className="text-primary-700 m-0">매출: ₩{formatPrice(item.totalRevenue)}</p>
+    </ChartTooltipCard>
   );
 }
 
@@ -92,21 +94,21 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
         </div>
         <ResponsiveContainer width="100%" height={Math.max(200, breakdown.length * 44)}>
             <BarChart data={chartData} margin={{ top: 20, right: 8, left: -4, bottom: 4 }} barCategoryGap="30%">
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
               <XAxis
                 dataKey="shortName"
-                tick={{ fontSize: 11, fill: '#666' }}
+                tick={CHART_TICK_STYLE}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: '#888' }}
+                tick={CHART_TICK_STYLE}
                 axisLine={false}
                 tickLine={false}
                 width={32}
                 allowDecimals={false}
               />
-              <Tooltip content={<MenuTooltip />} cursor={{ fill: '#f5f5f5' }} />
+              <Tooltip content={<MenuTooltip />} cursor={{ fill: 'var(--color-canvas-soft)' }} />
               <Bar dataKey="totalQuantity" radius={[6, 6, 0, 0]} maxBarSize={48}>
                 {chartData.map((item) => (
                   <Cell key={item.id} fill={item.color} fillOpacity={0.9} />
@@ -115,7 +117,7 @@ export default function MenuBreakdownSection({ breakdown, period, isLoading, per
                   dataKey="totalQuantity"
                   position="top"
                   formatter={(v: number) => `${v}개`}
-                  style={{ fontSize: 11, fill: '#555', fontWeight: 600 }}
+                  style={CHART_VALUE_LABEL_STYLE}
                 />
               </Bar>
             </BarChart>

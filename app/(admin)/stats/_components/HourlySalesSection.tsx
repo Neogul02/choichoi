@@ -6,6 +6,8 @@ import { formatPrice } from '@/lib/utils';
 import { fetchOrdersByPeriod } from '@/app/actions/orders';
 import { HOURS, buildHourlyData } from '../_lib/hourly';
 import { getPeriodBounds } from '../_lib/period';
+import { CHART_GRID_STROKE, CHART_TICK_STYLE, CHART_ACCENT_PRIMARY } from '../_lib/chartTheme';
+import ChartTooltipCard from './ChartTooltipCard';
 import type { HourlyData } from '../_lib/hourly';
 import type { OrderRecordWithItems } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
@@ -28,11 +30,11 @@ function HourlyTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+    <ChartTooltipCard>
       <p className="font-bold mb-1 text-ink-secondary">{d.label}</p>
       <p className="text-ink-muted">주문: {d.orderCount}건</p>
-      <p className="text-primary-700">매출: ₩{formatPrice(d.revenue)}</p>
-    </div>
+      <p className="text-primary-700 m-0">매출: ₩{formatPrice(d.revenue)}</p>
+    </ChartTooltipCard>
   );
 }
 
@@ -134,7 +136,7 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
             popupEvents.map((p) => (
               <button
                 key={p.id}
-                className={`px-3 py-1 rounded-lg border cursor-pointer text-[12px] font-medium transition-all duration-200 ${selectedPopupId === p.id ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-[#f5f6f7] border-hairline text-ink-muted hover:bg-canvas-soft'}`}
+                className={`px-3 py-1 rounded-lg border cursor-pointer text-[12px] font-medium transition-all duration-200 ${selectedPopupId === p.id ? 'bg-primary-50 border-primary-200 text-primary-700' : 'bg-[#f5f6f7] border-hairline text-ink-muted hover:bg-canvas-soft'}`}
                 onClick={() => setSelectedPopupId(p.id)}
               >
                 {p.name}
@@ -165,12 +167,12 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
               <AreaChart data={hourlyData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="hourlyGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    <stop offset="5%" stopColor={CHART_ACCENT_PRIMARY} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={CHART_ACCENT_PRIMARY} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
+                <XAxis dataKey="label" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
                 <YAxis
                   tickFormatter={(v: number) => {
                     if (v === 0) return '0';
@@ -178,21 +180,21 @@ export default function HourlySalesSection({ todayOrders, isLoadingToday, popupE
                     if (v >= 1000) return `${Math.round(v / 1000)}k`;
                     return String(v);
                   }}
-                  tick={{ fontSize: 11, fill: '#888' }}
+                  tick={CHART_TICK_STYLE}
                   axisLine={false}
                   tickLine={false}
                   width={44}
                   allowDecimals={false}
                 />
-                <Tooltip content={<HourlyTooltip />} cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 2' }} />
+                <Tooltip content={<HourlyTooltip />} cursor={{ stroke: CHART_ACCENT_PRIMARY, strokeWidth: 1, strokeDasharray: '4 2' }} />
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#6366f1"
+                  stroke={CHART_ACCENT_PRIMARY}
                   strokeWidth={2}
                   fill="url(#hourlyGradient)"
-                  dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }}
-                  activeDot={{ r: 5, fill: '#6366f1', strokeWidth: 0 }}
+                  dot={false}
+                  activeDot={{ r: 5, fill: CHART_ACCENT_PRIMARY, strokeWidth: 2, stroke: 'var(--color-canvas)' }}
                 />
               </AreaChart>
             </ResponsiveContainer>
