@@ -65,14 +65,21 @@ function DayCell({
         )}
       </span>
       {shifts.map(shift => {
-        const filled = getAssigned(dateStr, shift.id).length;
-        if (filled === 0) return null;
+        const assigned = getAssigned(dateStr, shift.id);
+        if (assigned.length === 0) return null;
+        const names = assigned.map(a => a.staff_profiles?.name).filter((n): n is string => !!n);
+        const label = names.length === 0
+          ? `${getShiftLabel(shift)} ${assigned.length}명`
+          : names.length === 1
+            ? `${getShiftLabel(shift)} ${names[0]}`
+            : `${getShiftLabel(shift)} ${names[0]} 외 ${names.length - 1}`;
         return (
           <span
             key={shift.id}
+            title={names.length > 0 ? names.join(', ') : undefined}
             className="text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate bg-canvas-soft text-ink-muted"
           >
-            {getShiftLabel(shift)} {filled}명
+            {label}
           </span>
         );
       })}

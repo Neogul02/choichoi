@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { showMsg } from '@/lib/toast';
 import type { StaffProfile, RosterShift, RosterAssignment } from '@/types/database';
-import { DAY_NAMES, STATUS_LABELS, checkStaffAvailability, shiftTextColor } from '../constants';
+import { DAY_NAMES, checkStaffAvailability, shiftTextColor } from '../constants';
 import { toMinutes, MIN_REST_MINUTES } from '@/lib/staffing';
 import { prevDate, dayOfWeek } from '@/lib/date';
+import StaffAddPicker from './StaffAddPicker';
 
 interface Props {
   dateStr: string;
@@ -245,21 +246,11 @@ export default function DayPanel({
                 </div>
               ))}
 
-              {/* 인원 추가 */}
-              <select
-                value=""
-                onChange={e => { if (e.target.value) onAdd(dateStr, shift.id, Number(e.target.value)); }}
-                className="w-full px-2 py-1.5 border border-dashed border-hairline rounded-lg text-[11px] text-ink-muted bg-canvas cursor-pointer focus:outline-none focus:border-primary-700"
-              >
-                <option value="">+ 인원 추가</option>
-                {candidates.map(({ staff, avail }) => (
-                  <option key={staff.id} value={staff.id}>
-                    {avail.ok ? '✓' : '✗'} {staff.name}
-                    {staff.status === 'candidate' ? ` (${STATUS_LABELS.candidate})` : ''}
-                    {!avail.ok ? ` — ${avail.reasons.join(', ')}` : ''}
-                  </option>
-                ))}
-              </select>
+              {/* 인원 추가 — 이름 검색 가능한 선택기 (후보 많을 때 네이티브 select보다 찾기 쉬움) */}
+              <StaffAddPicker
+                candidates={candidates}
+                onPick={staffId => onAdd(dateStr, shift.id, staffId)}
+              />
             </div>
           </div>
         );

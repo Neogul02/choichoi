@@ -9,7 +9,9 @@ import {
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
 import { buildDayHourMatrix, DAY_COLORS, DAYS, WEEKDAY_ORDER, weekendAccentColor, getDayOfWeekLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import { HOURS, buildHourlyData, mergeManualHourlyData } from '@/app/(admin)/stats/_lib/hourly';
+import { CHART_GRID_STROKE, CHART_TICK_STYLE, CHART_VALUE_LABEL_STYLE, CHART_ACCENT_PRIMARY, CHART_ACCENT_PRIMARY_SOFT, CHART_ACCENT_GOLD } from '@/app/(admin)/stats/_lib/chartTheme';
 import { kstToday } from '@/lib/date';
+import ChartTooltipCard from './ChartTooltipCard';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
@@ -29,11 +31,11 @@ interface DailyTooltipProps {
 function DailyTooltip({ active, payload, label }: DailyTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+    <ChartTooltipCard>
       <p className="font-bold mb-1 text-ink-secondary">{label}</p>
       <p className="text-primary-700">₩{payload[0].value.toLocaleString('ko-KR')}</p>
-      <p className="text-ink-muted">주문 {payload[0].payload.orderCount}건</p>
-    </div>
+      <p className="text-ink-muted m-0">주문 {payload[0].payload.orderCount}건</p>
+    </ChartTooltipCard>
   );
 }
 
@@ -46,11 +48,11 @@ interface MenuTooltipProps {
 function MenuTooltip({ active, payload }: MenuTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+    <ChartTooltipCard>
       <p className="font-bold mb-1 text-ink-secondary">{payload[0].payload.name}</p>
       <p className="text-ink-muted">판매량: {payload[0].value}개</p>
-      <p className="text-primary-700">매출: ₩{payload[0].payload.totalRevenue.toLocaleString('ko-KR')}</p>
-    </div>
+      <p className="text-primary-700 m-0">매출: ₩{payload[0].payload.totalRevenue.toLocaleString('ko-KR')}</p>
+    </ChartTooltipCard>
   );
 }
 
@@ -355,23 +357,23 @@ export default function PopupStatsSection({
                     <ChartCard title="일별 매출 추이">
                       <ResponsiveContainer width="100%" height={216}>
                         <BarChart data={dailyChartData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                          <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
+                          <XAxis dataKey="dateLabel" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
+                          <YAxis tickFormatter={formatRevenueTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={48} />
                           <Tooltip content={<DailyTooltip />} />
                           {derived.avgDailyRevenue > 0 && (
                             <ReferenceLine
                               y={derived.avgDailyRevenue}
-                              stroke="#f59e0b"
+                              stroke={CHART_ACCENT_GOLD}
                               strokeDasharray="4 4"
-                              label={{ value: `평균 ${formatRevenueTick(derived.avgDailyRevenue)}`, position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }}
+                              label={{ value: `평균 ${formatRevenueTick(derived.avgDailyRevenue)}`, position: 'insideTopRight', fontSize: 10, fill: CHART_ACCENT_GOLD }}
                             />
                           )}
                           <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
                             {dailyChartData.map((d) => (
-                              <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, '#3d9966')} />
+                              <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, CHART_ACCENT_PRIMARY_SOFT)} />
                             ))}
-                            <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
+                            <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={CHART_VALUE_LABEL_STYLE} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
@@ -381,33 +383,33 @@ export default function PopupStatsSection({
                     <ChartCard title="누적 매출 추이">
                       <ResponsiveContainer width="100%" height={200}>
                         <ComposedChart data={cumulativeData} margin={{ top: 12, right: 8, left: 0, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                          <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                          <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
+                          <XAxis dataKey="dateLabel" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
+                          <YAxis tickFormatter={formatRevenueTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={48} />
                           <Tooltip
                             content={({ active, payload, label }) => {
                               if (!active || !payload?.length) return null;
                               const row = payload[0].payload as { cumulative: number; daily: number; pace: number };
                               const diff = row.cumulative - row.pace;
                               return (
-                                <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                <ChartTooltipCard>
                                   <p className="font-bold mb-1 text-ink-secondary">{label}</p>
                                   <p className="text-primary-700">누적 ₩{row.cumulative.toLocaleString('ko-KR')}</p>
                                   <p className="text-ink-muted">당일 ₩{row.daily.toLocaleString('ko-KR')}</p>
                                   <p className={diff >= 0 ? 'text-primary-700 m-0' : 'text-rose-500 m-0'}>
                                     평균 페이스 대비 {diff >= 0 ? '+' : '−'}₩{Math.abs(diff).toLocaleString('ko-KR')}
                                   </p>
-                                </div>
+                                </ChartTooltipCard>
                               );
                             }}
                           />
                           <Bar dataKey="daily" fillOpacity={0.25} radius={[4, 4, 0, 0]}>
                             {cumulativeData.map((d) => (
-                              <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, '#3d9966')} />
+                              <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, CHART_ACCENT_PRIMARY_SOFT)} />
                             ))}
                           </Bar>
-                          <Line type="monotone" dataKey="pace" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={false} />
-                          <Area type="monotone" dataKey="cumulative" stroke="#3d9966" strokeWidth={2} fill="#3d9966" fillOpacity={0.08} dot={{ r: 3, strokeWidth: 0, fill: '#3d9966' }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                          <Line type="monotone" dataKey="pace" stroke={CHART_ACCENT_GOLD} strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={false} />
+                          <Area type="monotone" dataKey="cumulative" stroke={CHART_ACCENT_PRIMARY_SOFT} strokeWidth={2} fill={CHART_ACCENT_PRIMARY_SOFT} fillOpacity={0.08} dot={{ r: 3, strokeWidth: 0, fill: CHART_ACCENT_PRIMARY_SOFT }} activeDot={{ r: 5, strokeWidth: 0 }} />
                         </ComposedChart>
                       </ResponsiveContainer>
                       <p className="text-[10px] text-ink-faint mt-1 m-0">※ 옅은 막대는 일별 매출, 주황 점선은 평균 페이스 — 초록 선이 점선 위면 평균보다 앞선 페이스</p>
@@ -417,32 +419,32 @@ export default function PopupStatsSection({
                       <ChartCard title="일별 객단가 추이">
                         <ResponsiveContainer width="100%" height={180}>
                           <LineChart data={aovTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                            <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={40} />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
+                            <XAxis dataKey="dateLabel" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
+                            <YAxis tickFormatter={formatRevenueTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={40} />
                             <Tooltip
                               content={({ active, payload, label }) => {
                                 if (!active || !payload?.length) return null;
                                 return (
-                                  <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                  <ChartTooltipCard>
                                     <p className="font-bold mb-1 text-ink-secondary">{label}</p>
                                     <p className="text-primary-700 m-0">객단가 ₩{Number(payload[0].value).toLocaleString('ko-KR')}</p>
-                                  </div>
+                                  </ChartTooltipCard>
                                 );
                               }}
                             />
                             {derived.avgOrderValue > 0 && (
-                              <ReferenceLine y={derived.avgOrderValue} stroke="#f59e0b" strokeDasharray="4 4" />
+                              <ReferenceLine y={derived.avgOrderValue} stroke={CHART_ACCENT_GOLD} strokeDasharray="4 4" />
                             )}
                             <Line
                               type="monotone"
                               dataKey="aov"
-                              stroke="#6366f1"
+                              stroke={CHART_ACCENT_GOLD}
                               strokeWidth={2}
                               dot={(props: { cx?: number; cy?: number; index?: number; payload: { day: DayLabel } }) => {
                                 const { cx, cy, index, payload } = props;
                                 if (cx == null || cy == null) return <></>;
-                                return <circle key={`aov-dot-${index}`} cx={cx} cy={cy} r={3} fill={weekendAccentColor(payload.day, '#6366f1')} />;
+                                return <circle key={`aov-dot-${index}`} cx={cx} cy={cy} r={3} fill={weekendAccentColor(payload.day, CHART_ACCENT_GOLD)} />;
                               }}
                               activeDot={{ r: 5, strokeWidth: 0 }}
                             />
@@ -456,18 +458,18 @@ export default function PopupStatsSection({
                       <ChartCard title="요일별 평균 매출">
                         <ResponsiveContainer width="100%" height={196}>
                           <BarChart data={dayOfWeekData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                            <XAxis dataKey="day" tickFormatter={(d: string) => `${d}요일`} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                            <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
+                            <XAxis dataKey="day" tickFormatter={(d: string) => `${d}요일`} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
+                            <YAxis tickFormatter={formatRevenueTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={48} />
                             <Tooltip
                               content={({ active, payload }) => {
                                 if (!active || !payload?.length) return null;
                                 const row = payload[0].payload as { day: string; avgRevenue: number; dayCount: number };
                                 return (
-                                  <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                                  <ChartTooltipCard>
                                     <p className="font-bold mb-1 text-ink-secondary">{row.day}요일 ({row.dayCount}일 평균)</p>
                                     <p className="text-primary-700 m-0">₩{row.avgRevenue.toLocaleString('ko-KR')}</p>
-                                  </div>
+                                  </ChartTooltipCard>
                                 );
                               }}
                             />
@@ -475,7 +477,7 @@ export default function PopupStatsSection({
                               {dayOfWeekData.map((row) => (
                                 <Cell key={row.day} fill={DAY_COLORS[row.day as DayLabel]} />
                               ))}
-                              <LabelList dataKey="avgRevenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={{ fontSize: 10, fill: '#555' }} />
+                              <LabelList dataKey="avgRevenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={CHART_VALUE_LABEL_STYLE} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -490,24 +492,24 @@ export default function PopupStatsSection({
                   <ChartCard title="시간대별 매출 분포">
                     <ResponsiveContainer width="100%" height={200}>
                       <BarChart data={hourlyData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                        <YAxis tickFormatter={formatRevenueTick} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} width={48} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
+                        <XAxis dataKey="label" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
+                        <YAxis tickFormatter={formatRevenueTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={48} />
                         <Tooltip
                           content={({ active, payload }) => {
                             if (!active || !payload?.length) return null;
                             const row = payload[0].payload as { label: string; revenue: number; orderCount: number };
                             return (
-                              <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                              <ChartTooltipCard>
                                 <p className="font-bold mb-1 text-ink-secondary">{row.label}</p>
                                 <p className="text-primary-700">₩{row.revenue.toLocaleString('ko-KR')}</p>
-                                <p className="text-ink-muted">주문 {row.orderCount}건</p>
-                              </div>
+                                <p className="text-ink-muted m-0">주문 {row.orderCount}건</p>
+                              </ChartTooltipCard>
                             );
                           }}
                         />
-                        <Bar dataKey="revenue" fill="#0ea5e9" radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="revenue" position="top" formatter={(v: number) => (v > 0 ? formatRevenueTick(v) : '')} style={{ fontSize: 10, fill: '#555' }} />
+                        <Bar dataKey="revenue" fill={CHART_ACCENT_PRIMARY} radius={[4, 4, 0, 0]}>
+                          <LabelList dataKey="revenue" position="top" formatter={(v: number) => (v > 0 ? formatRevenueTick(v) : '')} style={CHART_VALUE_LABEL_STYLE} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -535,11 +537,11 @@ export default function PopupStatsSection({
                   >
                     <ResponsiveContainer width="100%" height={220}>
                       <LineChart data={dayHourRows} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
+                        <XAxis dataKey="label" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
                         <YAxis
                           tickFormatter={metric === 'revenue' ? formatRevenueTick : String}
-                          tick={{ fontSize: 11, fill: '#888' }}
+                          tick={CHART_TICK_STYLE}
                           axisLine={false}
                           tickLine={false}
                           width={40}
@@ -550,7 +552,7 @@ export default function PopupStatsSection({
                           const filtered = payload.filter((p) => Number(p.value) > 0);
                           if (!filtered.length) return null;
                           return (
-                            <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md min-w-[110px]">
+                            <ChartTooltipCard minWidth={110}>
                               <p className="font-bold mb-1.5 text-ink-secondary">{label}</p>
                               {filtered.map((p) => (
                                 <p key={String(p.dataKey)} style={{ color: p.stroke as string }} className="mb-0.5">
@@ -560,11 +562,11 @@ export default function PopupStatsSection({
                                     : `${p.value}건`}
                                 </p>
                               ))}
-                            </div>
+                            </ChartTooltipCard>
                           );
                         }} />
                         <Legend
-                          formatter={(value: string) => <span style={{ fontSize: 11, color: '#555' }}>{value}요일</span>}
+                          formatter={(value: string) => <span style={{ fontSize: 11, color: 'var(--color-ink-secondary)' }}>{value}요일</span>}
                           iconType="circle"
                           iconSize={8}
                           wrapperStyle={{ paddingTop: 8 }}
@@ -613,11 +615,11 @@ export default function PopupStatsSection({
                             const row = payload[0].payload as MenuSalesItem;
                             const pct = menuShareTotal > 0 ? Math.round((row.totalRevenue / menuShareTotal) * 100) : 0;
                             return (
-                              <div className="bg-canvas border border-hairline rounded-lg p-2.5 text-xs shadow-md">
+                              <ChartTooltipCard>
                                 <p className="font-bold mb-1 text-ink-secondary">{row.name}</p>
                                 <p className="text-primary-700">₩{row.totalRevenue.toLocaleString('ko-KR')} ({pct}%)</p>
-                                <p className="text-ink-muted">판매량 {row.totalQuantity}개</p>
-                              </div>
+                                <p className="text-ink-muted m-0">판매량 {row.totalQuantity}개</p>
+                              </ChartTooltipCard>
                             );
                           }}
                         />
@@ -652,15 +654,15 @@ export default function PopupStatsSection({
                   {popupMenuBreakdown.length > 0 ? (
                     <ResponsiveContainer width="100%" height={popupMenuChartHeight}>
                         <BarChart layout="vertical" data={popupMenuBreakdown} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                          <XAxis type="number" tickFormatter={String} tick={{ fontSize: 11, fill: '#888' }} axisLine={false} tickLine={false} />
-                          <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12, fill: '#444' }} axisLine={false} tickLine={false} />
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID_STROKE} />
+                          <XAxis type="number" tickFormatter={String} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
+                          <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12, fill: 'var(--color-ink-secondary)' }} axisLine={false} tickLine={false} />
                           <Tooltip content={<MenuTooltip />} />
                           <Bar dataKey="totalQuantity" radius={[0, 4, 4, 0]}>
                             {popupMenuBreakdown.map((item) => (
                               <Cell key={item.id} fill={item.color} />
                             ))}
-                            <LabelList dataKey="totalQuantity" position="right" formatter={(v: number) => `${v}개`} style={{ fontSize: 11, fill: '#555' }} />
+                            <LabelList dataKey="totalQuantity" position="right" formatter={(v: number) => `${v}개`} style={CHART_VALUE_LABEL_STYLE} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
