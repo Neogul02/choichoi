@@ -167,7 +167,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
 
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-1.5">
         {/* mounted가 되기 전(=localStorage에서 교정된 collapsed 값이 아직 반영되기 전)에는
             숨겨서, 이전에 접어둔 사용자가 열린 상태로 반짝였다가 닫히는 플래시를 방지한다.
             AnimatePresence 자체는 항상 마운트돼 있어 이 래퍼는 순수 CSS 토글이며,

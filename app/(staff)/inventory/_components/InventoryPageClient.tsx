@@ -103,16 +103,15 @@ export default function InventoryPageClient({ initialIngredients }: { initialIng
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5">
-        <div className="max-w-[860px] mx-auto flex flex-col gap-3">
+        <div className="max-w-[1100px] mx-auto flex flex-col gap-3">
 
           <div className="flex items-center justify-between px-0.5">
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-extrabold text-ink">재고</h2>
               {isLoading && <span className="text-[11px] text-ink-faint">불러오는 중…</span>}
             </div>
             <button
               onClick={() => setAddOpen(true)}
-              className="text-[12px] font-bold px-3 py-1.5 rounded-xl bg-primary-700 text-white hover:bg-primary-800 cursor-pointer border-none transition"
+              className="px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition"
             >
               + 재고 종류 추가
             </button>

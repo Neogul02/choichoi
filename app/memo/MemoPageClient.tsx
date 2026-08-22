@@ -131,10 +131,9 @@ export default function MemoPageClient({ initialMemos }: { initialMemos: Memo[] 
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="max-w-[1100px] mx-auto">
-          <div className="flex justify-between items-center mb-5">
-            <h2 className="m-0 text-heading-1 text-ink">메모</h2>
+          <div className="flex justify-end items-center mb-5">
             <button
-              className="px-4 py-2 rounded-lg border-none bg-primary-700 text-white font-bold cursor-pointer transition-all duration-200 hover:bg-primary-800"
+              className="px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition"
               onClick={() => setCreateMode(true)}
             >
               + 새 메모

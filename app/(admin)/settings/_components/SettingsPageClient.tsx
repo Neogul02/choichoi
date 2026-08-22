@@ -163,11 +163,10 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="bg-canvas rounded-xl p-4 md:p-5 max-w-[800px] mx-auto">
+        <div className="bg-canvas rounded-xl p-4 md:p-5">
 
           {/* 헤더 */}
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="m-0 text-2xl font-extrabold">설정</h2>
+          <div className="flex items-center justify-end mb-5">
             <div className="flex gap-1.5 bg-[#f5f6f7] p-1 rounded-xl">
               {([['menu', '메뉴 관리'], ['popups', '팝업 관리'], ['users', '유저 관리'], ['devtools', '개발자 도구']] as [ActiveTab, string][]).map(([tab, label]) => (
                 <button key={tab} onClick={() => setActiveTab(tab)}

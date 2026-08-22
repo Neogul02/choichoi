@@ -160,11 +160,6 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3 md:mb-4">
-          <h1 className="m-0 text-[19px] font-extrabold">전체 근무표</h1>
-          <p className="m-0 text-[12px] text-ink-faint">열람·메모 전용 — 배정 편집은 인사 탭에서 합니다</p>
-        </div>
-
         {/* 주 이동 */}
         <div className="flex items-center gap-1.5 mb-3">
           <button onClick={() => moveWeek(-1)} aria-label="이전 주" className="w-9 h-9 rounded-xl bg-canvas border border-hairline shadow-level-1 cursor-pointer font-bold text-ink-muted hover:bg-canvas-soft transition text-base flex items-center justify-center">‹</button>

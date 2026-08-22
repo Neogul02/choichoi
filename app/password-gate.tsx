@@ -329,6 +329,9 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
           {view === 'login' && (
             <form className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline' onSubmit={onLogin}>
               {info && <div className='text-emerald-600 text-[13px] mb-3 bg-emerald-50 rounded-lg px-3 py-2'>{info}</div>}
+              <div className='text-[12px] text-ink-muted bg-canvas-soft rounded-lg px-3 py-2 mb-3'>
+                💡 기본 비밀번호는 가입 시 등록한 전화번호입니다.
+              </div>
               {popupSelectField}
               <input type='text' className={inputClass} value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
