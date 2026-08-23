@@ -4,7 +4,7 @@ import NavBar from '@/components/NavBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems } from '@/app/actions/menu';
+import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems, uploadMenuItemImage, setMenuItemSoldOut } from '@/app/actions/menu';
 import type { MenuItem } from '@/types/database';
 import DevToolsSection from './DevToolsSection';
 import UserManagementSection from './UserManagementSection';
@@ -24,9 +24,9 @@ const COLOR_PALETTE: ColorOption[] = [
   { name: '보라', value: '#8E24AA' },
 ];
 
-const INITIAL_ADD = { name: '', price: '', color: COLOR_PALETTE[0].value, isDiscount: false };
+const INITIAL_ADD = { name: '', price: '', color: COLOR_PALETTE[0].value, emoji: '', isDiscount: false };
 
-type InlineEdit = { name: string; price: string; color: string; isDiscount: boolean };
+type InlineEdit = { name: string; price: string; color: string; emoji: string; isDiscount: boolean };
 
 // 초기 메뉴 목록은 서버 컴포넌트(page.tsx)가 조회해 내려준다 — 마운트 후 왕복 제거
 export default function SettingsPageClient({ initialMenuItems }: { initialMenuItems: MenuItem[] | null }) {
@@ -47,6 +47,10 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
   // 삭제 확인
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
+  // 메뉴판 사진 업로드 / 품절 토글
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [togglingSoldOutId, setTogglingSoldOutId] = useState<number | null>(null);
+
   useEffect(() => {
     if (initialMenuItems != null) return; // 서버 프리페치 성공 시 재조회 생략
     getAllMenu().then(r => {
@@ -65,7 +69,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
     if (isNaN(magnitude) || magnitude <= 0) { toast.error('가격은 0보다 큰 숫자여야 합니다'); return; }
     const price = addForm.isDiscount ? -magnitude : magnitude;
     setIsAdding(true);
-    const res = await createNewMenuItem(addForm.name, price, addForm.color);
+    const res = await createNewMenuItem(addForm.name, price, addForm.color, addForm.emoji || null);
     setIsAdding(false);
     if (res.success && res.data) {
       setMenuItems(p => [...p, res.data!]);
@@ -84,6 +88,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
         name: item.name,
         price: String(Math.abs(item.price)),
         color: COLOR_PALETTE.some(c => c.value === item.color) ? item.color : COLOR_PALETTE[0].value,
+        emoji: item.emoji ?? '',
         isDiscount: item.price < 0,
       },
     }));
@@ -101,7 +106,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
     if (isNaN(magnitude) || magnitude <= 0) { toast.error('가격은 0보다 큰 숫자여야 합니다'); return; }
     const price = draft.isDiscount ? -magnitude : magnitude;
     setSavingId(id);
-    const res = await editMenuItem(id, draft.name, price, draft.color);
+    const res = await editMenuItem(id, draft.name, price, draft.color, draft.emoji || null);
     setSavingId(null);
     if (res.success && res.data) {
       setMenuItems(p => p.map(m => m.id === id ? res.data! : m));
@@ -124,6 +129,34 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
       setMenuItems(p => p.filter(m => m.id !== id));
       cancelEdit(id);
       toast.success('삭제됐습니다');
+    } else {
+      toast.error(`오류: ${res.error}`);
+    }
+  };
+
+  // ── 메뉴판 사진 업로드 ──────────────────────────────────
+  const handlePhotoSelect = async (id: number, file: File | undefined) => {
+    if (!file) return;
+    setUploadingId(id);
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await uploadMenuItemImage(id, formData);
+    setUploadingId(null);
+    if (res.success && res.data) {
+      setMenuItems(p => p.map(m => m.id === id ? res.data! : m));
+      toast.success('메뉴판 사진이 업데이트됐습니다');
+    } else {
+      toast.error(`오류: ${res.error}`);
+    }
+  };
+
+  // ── 품절 토글 ───────────────────────────────────────────
+  const handleToggleSoldOut = async (item: MenuItem) => {
+    setTogglingSoldOutId(item.id);
+    const res = await setMenuItemSoldOut(item.id, !item.is_sold_out);
+    setTogglingSoldOutId(null);
+    if (res.success && res.data) {
+      setMenuItems(p => p.map(m => m.id === item.id ? res.data! : m));
     } else {
       toast.error(`오류: ${res.error}`);
     }
@@ -189,6 +222,12 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                 <h3 className="mt-0 mb-3 text-base font-bold">새 메뉴 추가</h3>
                 <form onSubmit={e => { e.preventDefault(); handleAdd(); }}>
                   <div className="flex gap-2 mb-2.5">
+                    <input
+                      type="text" value={addForm.emoji} placeholder="🍑" maxLength={8}
+                      onChange={e => setAddForm(p => ({ ...p, emoji: e.target.value }))}
+                      title="이모지 (선택) — 키보드의 이모지 버튼으로 입력하세요"
+                      className="w-14 px-2 py-2 border border-hairline rounded-lg text-sm text-center focus:outline-none focus:border-primary-700 bg-canvas"
+                    />
                     <input
                       type="text" value={addForm.name} placeholder="메뉴 이름"
                       onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))}
@@ -256,6 +295,12 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                           >
                             <div className="flex gap-2 mb-2.5">
                               <input
+                                type="text" value={draft.emoji} maxLength={8}
+                                onChange={e => setInlineEdits(p => ({ ...p, [item.id]: { ...p[item.id], emoji: e.target.value } }))}
+                                className="w-14 px-2 py-1.5 border border-hairline rounded-lg text-sm text-center focus:outline-none focus:border-primary-700 bg-canvas"
+                                placeholder="🍑"
+                              />
+                              <input
                                 type="text" value={draft.name} autoFocus
                                 onChange={e => setInlineEdits(p => ({ ...p, [item.id]: { ...p[item.id], name: e.target.value } }))}
                                 className="flex-1 px-2.5 py-1.5 border border-hairline rounded-lg text-sm focus:outline-none focus:border-primary-700 bg-canvas"
@@ -307,15 +352,46 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                               onTouchEnd={handleTouchDragEnd}
                               onTouchCancel={handleTouchDragEnd}
                             >⠿</div>
+
+                            {/* 메뉴판 사진 — 클릭해서 업로드/교체 */}
+                            <label
+                              title="메뉴판 사진 업로드"
+                              className="relative w-9 h-9 rounded-lg overflow-hidden shrink-0 cursor-pointer bg-canvas-soft border border-hairline flex items-center justify-center"
+                            >
+                              {item.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={item.image_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-ink-faint text-[10px]">사진</span>
+                              )}
+                              {uploadingId === item.id && (
+                                <span className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[9px] font-bold">...</span>
+                              )}
+                              <input
+                                type="file" accept="image/*" className="hidden"
+                                onChange={e => { handlePhotoSelect(item.id, e.target.files?.[0]); e.target.value = ''; }}
+                              />
+                            </label>
+
                             <div className="w-4 h-4 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
+                            {item.emoji && <span className="text-base shrink-0">{item.emoji}</span>}
                             <div className="flex-1 min-w-0">
                               <span className="text-sm font-semibold text-ink">{item.name}</span>
                               {item.price < 0 && (
                                 <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600">할인</span>
                               )}
+                              {item.is_sold_out && (
+                                <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-ink text-white">품절</span>
+                              )}
                               <span className="ml-2 text-xs text-ink-muted">₩{item.price.toLocaleString('ko-KR')}</span>
                             </div>
                             <div className="flex gap-1.5 shrink-0">
+                              <button onClick={() => handleToggleSoldOut(item)} disabled={togglingSoldOutId === item.id}
+                                className={`px-2.5 py-1 rounded-md text-xs font-semibold border-none cursor-pointer transition-colors disabled:opacity-50 ${
+                                  item.is_sold_out ? 'bg-ink text-white hover:bg-ink/85' : 'bg-canvas-soft text-ink-muted hover:bg-hairline'
+                                }`}>
+                                {item.is_sold_out ? '품절 해제' : '품절 처리'}
+                              </button>
                               <button onClick={() => startEdit(item)}
                                 className="px-2.5 py-1 rounded-md text-xs font-semibold border-none bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer transition-colors">
                                 수정

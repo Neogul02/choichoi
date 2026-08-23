@@ -3,9 +3,12 @@ export interface MenuItem {
   name: string;
   price: number;
   color: string;
+  emoji: string | null;
   stock: number;
   is_active: boolean;
   display_order: number;
+  image_url: string | null;
+  is_sold_out: boolean;
   created_at: string;
   updated_at: string;
 }

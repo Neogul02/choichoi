@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 
 const BANNERS = [
-  '4개 이상 구매하시면 보냉백에 담아드려요.',
+  '3개 이상 구매하시면 보냉백에 담아드려요.',
   '현금결제와 상품권 결제는 미리 말씀해주세요.',
   '받은 산도는 냉장보관 해주세요.',
   '모든 산도는 당일 제조 상품이에요.',
