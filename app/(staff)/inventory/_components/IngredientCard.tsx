@@ -12,6 +12,8 @@ interface Props {
   onDecreaseUnit: () => void;
   /** 디바운스 동기화 실패로 로컬 변경분이 되돌려졌을 때 카드에 표시 */
   hasError?: boolean;
+  /** user 역할 — 조회만 가능, 관리 모달·재고 조작 버튼 숨김 */
+  readOnly?: boolean;
 }
 
 function formatRemaining(ing: Ingredient): string {
@@ -51,14 +53,14 @@ const CATEGORY_COLOR: Record<string, string> = {
   '패키지': 'bg-blue-100 text-blue-600',
 };
 
-export default function IngredientCard({ ingredient, onManage, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit, hasError }: Props) {
+export default function IngredientCard({ ingredient, onManage, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit, hasError, readOnly }: Props) {
   const status = getStatus(ingredient);
   const styles = STATUS_STYLES[status];
 
   return (
     <div
-      onClick={onManage}
-      className={`${styles.bg} w-full text-left rounded-xl p-3.5 shadow-level-1 border-[1.5px] ${hasError ? 'border-rose-400' : styles.border} transition-all hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]`}
+      onClick={readOnly ? undefined : onManage}
+      className={`${styles.bg} w-full text-left rounded-xl p-3.5 shadow-level-1 border-[1.5px] ${hasError ? 'border-rose-400' : styles.border} transition-all ${readOnly ? '' : 'hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] cursor-pointer active:scale-[0.99]'}`}
     >
       {/* 헤더 */}
       <div className="flex items-center gap-1.5 flex-wrap mb-1">
@@ -97,7 +99,8 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
         <p className="text-[11px] font-bold text-rose-500 mb-2 -mt-1">저장 실패, 다시 시도해주세요</p>
       )}
 
-      {/* POS식 +/- 재고 조작: 박스 단위 + 낱개 단위 */}
+      {/* POS식 +/- 재고 조작: 박스 단위 + 낱개 단위 (readOnly면 조회 전용이라 숨김) */}
+      {!readOnly && (
       <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
           <span className="w-9 text-[10px] font-bold text-ink-faint shrink-0">박스</span>
@@ -158,6 +161,7 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }

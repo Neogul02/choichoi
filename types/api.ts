@@ -65,6 +65,7 @@ export interface DailySalesItem {
 // ── Inventory ─────────────────────────────────────────────────────────────────
 
 export type FetchIngredientsResponse = ApiResponse<import('./database').Ingredient[]>;
+export type FetchStorageBoardResponse = ApiResponse<import('./database').StorageObjectWithItems[]>;
 
 export interface ManualSalesEntry {
   id: number;

@@ -34,17 +34,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // 재고탭 임시 블라인드 처리 (2026-08-07) — 직접 URL 접근도 차단. 재개 시 이 블록 삭제 +
-  // NavBar.tsx의 동일 주석 블록도 함께 되돌릴 것
-  if (request.nextUrl.pathname.startsWith('/inventory')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/pos'
-    return NextResponse.redirect(url)
-  }
-
   const role = (claims.user_metadata as { role?: string } | undefined)?.role
   const adminOnlyPrefixes = ['/settings', '/hr', '/stats']
-  const managerPrefixes = ['/inventory', '/roster']
+  // 재고탭은 로그인한 모든 직원(user 포함)이 조회 가능 — 편집은 서버 액션 내 requireManagerOrAdmin()이 담당
+  const managerPrefixes = ['/roster']
   const isAdminOnlyPath = adminOnlyPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
   const isManagerPath = managerPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
 
