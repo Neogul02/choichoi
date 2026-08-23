@@ -11,7 +11,7 @@ import { fetchActivePopupEvents } from '@/app/actions/schedule';
 import type { MenuItem, PopupEvent } from '@/types/database';
 import type { CartItem, Mode, DisplayState } from '@/types/display';
 import ViewMode from '@/components/display/ViewMode';
-import OrderMode from '@/components/display/OrderMode';
+import MenuBoard from '@/components/display/MenuBoard';
 import ScreenMode from '@/components/display/ScreenMode';
 import CheckoutOverlay from '@/components/display/CheckoutOverlay';
 import BottomBanner from '@/components/display/BottomBanner';
@@ -41,12 +41,12 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
         프론트
       </button>
       <button
-        onClick={() => setMode('order')}
+        onClick={() => setMode('menu')}
         className={`shrink-0 whitespace-nowrap px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
-          mode === 'order' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
+          mode === 'menu' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
         }`}
       >
-        주문하기
+        메뉴판
       </button>
       <button
         onClick={() => setMode('screen')}
@@ -107,7 +107,6 @@ function DisplayContent({ popupId }: { popupId: string }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartTotalPrice, setCartTotalPrice] = useState(0);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [localCounts, setLocalCounts] = useState<Record<number, number>>({});
   const [displayState, setDisplayState] = useState<DisplayState>('idle');
   const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
   const [checkoutTotal, setCheckoutTotal] = useState(0);
@@ -154,7 +153,6 @@ function DisplayContent({ popupId }: { popupId: string }) {
         })
         .on('broadcast', { event: 'cart_reset' }, () => {
           if (displayStateRef.current !== 'idle') return;
-          setLocalCounts({});
           setCartItems([]);
           setCartTotalPrice(0);
         })
@@ -163,7 +161,6 @@ function DisplayContent({ popupId }: { popupId: string }) {
           animTimerRef.current.forEach(clearTimeout);
           setCheckoutItems(items ?? []);
           setCheckoutTotal(total ?? 0);
-          setLocalCounts({});
           setCartItems([]);
           setCartTotalPrice(0);
           setMode('view');
@@ -218,40 +215,15 @@ function DisplayContent({ popupId }: { popupId: string }) {
   }, [displayState]);
 
   useEffect(() => {
-    if (mode === 'order' && menuItems.length === 0) {
+    if (mode === 'menu' && menuItems.length === 0) {
       fetchMenuItems().then((result) => {
         if (result.success) setMenuItems(result.data ?? []);
       });
     }
   }, [mode, menuItems.length]);
 
-  const sendUpdate = (itemId: number, delta: number) => {
-    channelRef.current?.send({ type: 'broadcast', event: 'customer_update', payload: { itemId, delta } });
-  };
-
-  const increment = (itemId: number) => {
-    setLocalCounts((prev) => ({ ...prev, [itemId]: (prev[itemId] ?? 0) + 1 }));
-    sendUpdate(itemId, 1);
-  };
-
-  const decrement = (itemId: number) => {
-    if ((localCounts[itemId] ?? 0) <= 0) return;
-    setLocalCounts((prev) => ({ ...prev, [itemId]: Math.max(0, (prev[itemId] ?? 0) - 1) }));
-    sendUpdate(itemId, -1);
-  };
-
-  const resetLocalOrder = () => {
-    const ch = channelRef.current;
-    if (ch) {
-      Object.entries(localCounts).forEach(([id, count]) => {
-        if (count > 0) ch.send({ type: 'broadcast', event: 'customer_update', payload: { itemId: Number(id), delta: -count } });
-      });
-    }
-    setLocalCounts({});
-  };
-
   return (
-    <div className="min-h-screen bg-canvas-soft flex flex-col select-none">
+    <div className="h-dvh bg-canvas-soft flex flex-col select-none overflow-hidden">
       <motion.header
         animate={{ height: navExpanded ? 'auto' : 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -272,55 +244,36 @@ function DisplayContent({ popupId }: { popupId: string }) {
           </Link>
           <div className="justify-self-center flex items-center gap-1 min-w-0 max-w-full">
             <ModeToggle mode={mode} setMode={setMode} />
-            <button
-              onClick={toggleNav}
-              className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-hairline hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
-              title="헤더 접기"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="18 15 12 9 6 15"/>
-              </svg>
-            </button>
           </div>
           <div />
         </div>
       </motion.header>
 
-      <AnimatePresence>
-        {!navExpanded && (
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-2xl p-1.5 shadow-lg border border-hairline max-w-[calc(100vw-2rem)]"
-          >
-            <ModeToggle mode={mode} setMode={setMode} />
-            <button
-              onClick={toggleNav}
-              className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-hairline hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
-              title="헤더 펼치기"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <button
+        onClick={toggleNav}
+        title={navExpanded ? '헤더 접기' : '헤더 펼치기'}
+        aria-label={navExpanded ? '헤더 접기' : '헤더 펼치기'}
+        className={`fixed top-2 right-2 z-30 flex items-center justify-center w-9 h-9 rounded-full border-none cursor-pointer transition-all duration-200 ${
+          navExpanded
+            ? 'bg-canvas-soft text-ink-faint opacity-100 hover:bg-hairline hover:text-[#555]'
+            : 'bg-black/10 text-ink-faint opacity-35 hover:opacity-80'
+        }`}
+      >
+        <motion.svg
+          animate={{ rotate: navExpanded ? 180 : 0 }}
+          transition={{ duration: 0.22, ease: 'easeInOut' }}
+          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </motion.svg>
+      </button>
 
-      <main className="flex-1 flex flex-col overflow-auto relative pb-24">
+      <main className="flex-1 min-h-0 flex flex-col overflow-auto relative pb-24">
         <AnimatePresence mode="wait">
           {mode === 'view' ? (
             <ViewMode cartItems={cartItems} cartTotalPrice={cartTotalPrice} connecting={connectionStatus !== 'connected'} />
-          ) : mode === 'order' ? (
-            <OrderMode
-              menuItems={menuItems}
-              localCounts={localCounts}
-              onIncrement={increment}
-              onDecrement={decrement}
-              onReset={resetLocalOrder}
-            />
+          ) : mode === 'menu' ? (
+            <MenuBoard menuItems={menuItems} />
           ) : (
             <ScreenMode />
           )}

@@ -12,6 +12,7 @@ const MenuItemSchema = z.object({
   name: z.string().min(1, '메뉴 이름을 입력해주세요').max(20, '메뉴 이름은 20자 이하여야 합니다'),
   price: z.number().int().refine((v) => v !== 0, '가격은 0이 될 수 없습니다'),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, '올바른 색상 코드를 입력해주세요'),
+  emoji: z.string().trim().max(8, '이모지는 하나만 입력해주세요').nullable().optional(),
 });
 
 async function getMenuItems(): Promise<MenuItem[]> {
@@ -35,7 +36,7 @@ async function getAllMenuItems(): Promise<MenuItem[]> {
   return data ?? []
 }
 
-async function addMenuItem(name: string, price: number, color: string): Promise<MenuItem> {
+async function addMenuItem(name: string, price: number, color: string, emoji: string | null): Promise<MenuItem> {
   const { data: lastItem, error: lastItemError } = await supabaseAdmin
     .from('menu_items')
     .select('display_order')
@@ -54,6 +55,7 @@ async function addMenuItem(name: string, price: number, color: string): Promise<
         name,
         price,
         color,
+        emoji,
         stock: 999,
         is_active: true,
         display_order: nextDisplayOrder,
@@ -66,10 +68,10 @@ async function addMenuItem(name: string, price: number, color: string): Promise<
   return data as MenuItem
 }
 
-async function updateMenuItem(id: number, name: string, price: number, color: string): Promise<MenuItem> {
+async function updateMenuItem(id: number, name: string, price: number, color: string, emoji: string | null): Promise<MenuItem> {
   const { data, error } = await supabaseAdmin
     .from('menu_items')
-    .update({ name, price, color, updated_at: new Date().toISOString() })
+    .update({ name, price, color, emoji, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()
@@ -90,6 +92,40 @@ async function updateMenuItemStock(id: number, stock: number | null): Promise<Me
   const { data, error } = await supabaseAdmin
     .from('menu_items')
     .update({ stock, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as MenuItem
+}
+
+async function updateMenuItemSoldOut(id: number, soldOut: boolean): Promise<MenuItem> {
+  const { data, error } = await supabaseAdmin
+    .from('menu_items')
+    .update({ is_sold_out: soldOut, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as MenuItem
+}
+
+// menu-images는 공개 버킷 — 고객용 메뉴판(/display)이 로그인 없이 직접 이미지를 불러온다
+async function uploadMenuItemPhoto(id: number, file: File): Promise<MenuItem> {
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `menu-items/${id}.${ext}`
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from('menu-images')
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (uploadError) throw uploadError
+
+  const { data: publicUrlData } = supabaseAdmin.storage.from('menu-images').getPublicUrl(path)
+  // 캐시 무효화 — 같은 파일명으로 재업로드해도 CDN/브라우저 캐시가 이전 사진을 계속 보여주는 것 방지
+  const url = `${publicUrlData.publicUrl}?v=${Date.now()}`
+
+  const { data, error } = await supabaseAdmin
+    .from('menu_items')
+    .update({ image_url: url, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()
@@ -150,18 +186,18 @@ export async function getMenuSalesByPeriod(
 export async function fetchMenuItems(): Promise<FetchMenuItemsResponse> { return wrap(getMenuItems); }
 export async function getAllMenu(): Promise<FetchMenuItemsResponse> { return wrap(async () => { await requireAdmin(); return getAllMenuItems(); }); }
 
-export async function createNewMenuItem(name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> {
-  const parsed = MenuItemSchema.safeParse({ name, price, color });
+export async function createNewMenuItem(name: string, price: number, color: string, emoji?: string | null): Promise<ApiResponse<MenuItem>> {
+  const parsed = MenuItemSchema.safeParse({ name, price, color, emoji });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  const result = await wrap(async () => { await requireAdmin(); return addMenuItem(parsed.data.name, parsed.data.price, parsed.data.color); });
+  const result = await wrap(async () => { await requireAdmin(); return addMenuItem(parsed.data.name, parsed.data.price, parsed.data.color, parsed.data.emoji || null); });
   if (result.success) after(() => notifyDiscord('add', '🍞 메뉴 추가', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
 
-export async function editMenuItem(id: number, name: string, price: number, color: string): Promise<ApiResponse<MenuItem>> {
-  const parsed = MenuItemSchema.safeParse({ name, price, color });
+export async function editMenuItem(id: number, name: string, price: number, color: string, emoji?: string | null): Promise<ApiResponse<MenuItem>> {
+  const parsed = MenuItemSchema.safeParse({ name, price, color, emoji });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  const result = await wrap(async () => { await requireAdmin(); return updateMenuItem(id, parsed.data.name, parsed.data.price, parsed.data.color); });
+  const result = await wrap(async () => { await requireAdmin(); return updateMenuItem(id, parsed.data.name, parsed.data.price, parsed.data.color, parsed.data.emoji || null); });
   if (result.success) after(() => notifyDiscord('edit', '✏️ 메뉴 수정', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
@@ -179,6 +215,22 @@ export async function updateMenuStock(id: number, stock: number | null): Promise
   }).safeParse({ id, stock });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   return wrap(() => updateMenuItemStock(parsed.data.id, parsed.data.stock));
+}
+
+export async function setMenuItemSoldOut(id: number, soldOut: boolean): Promise<ApiResponse<MenuItem>> {
+  const parsed = z.object({ id: z.number().int().positive(), soldOut: z.boolean() }).safeParse({ id, soldOut });
+  if (!parsed.success) return { success: false, error: '올바르지 않은 요청입니다' };
+  return wrap(async () => { await requireAdmin(); return updateMenuItemSoldOut(parsed.data.id, parsed.data.soldOut); });
+}
+
+export async function uploadMenuItemImage(id: number, formData: FormData): Promise<ApiResponse<MenuItem>> {
+  const parsedId = z.number().int().positive().safeParse(id);
+  if (!parsedId.success) return { success: false, error: '올바르지 않은 메뉴입니다' };
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) return { success: false, error: '파일이 없습니다' };
+  if (!file.type.startsWith('image/')) return { success: false, error: '이미지 파일만 업로드할 수 있습니다' };
+  if (file.size > 5 * 1024 * 1024) return { success: false, error: '이미지는 5MB 이하여야 합니다' };
+  return wrap(async () => { await requireAdmin(); return uploadMenuItemPhoto(parsedId.data, file); });
 }
 
 export async function reorderMenuItems(orderedIds: number[]): Promise<ApiResponse> {
