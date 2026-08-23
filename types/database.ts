@@ -168,3 +168,29 @@ export interface RestockEvent {
   created_at: string;
 }
 
+export type StorageObjectIcon = 'fridge' | 'freezer' | 'shelf' | 'box' | 'other';
+
+export interface StorageObject {
+  id: string;
+  name: string;
+  icon: StorageObjectIcon;
+  pos_x: number;
+  pos_y: number;
+  sort_order: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StorageObjectItem {
+  id: number;
+  object_id: string;
+  ingredient_id: string;
+  created_at: string;
+}
+
+/** 보드 조회용: 오브젝트 + 연결된 ingredient_id 목록 */
+export interface StorageObjectWithItems extends StorageObject {
+  ingredient_ids: string[];
+}
+
