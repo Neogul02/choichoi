@@ -263,7 +263,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         </AnimatePresence>
         </div>
 
-        <div className="flex items-center justify-end px-3 h-8">
+        <div className={`flex items-center px-3 h-8 ${pathname === '/pos' ? 'justify-center' : 'justify-end'}`}>
           {/* 시각적 크기(w-9 h-4)는 유지하되 탭 히트 영역은 padding으로 ~44x44px까지 확대 */}
           <button
             onClick={toggle}

@@ -5,10 +5,7 @@ import { totalQty, getStatus, type IngredientStatus } from '../_hooks/useInvento
 interface Props {
   ingredient: Ingredient;
   onManage: () => void;
-  onIncreaseBox: () => void;
-  onDecreaseBox: () => void;
-  onIncreaseUnit: () => void;
-  onDecreaseUnit: () => void;
+  onAdjust: (delta: number) => void;
   /** 디바운스 동기화 실패로 로컬 변경분이 되돌려졌을 때 카드에 표시 */
   hasError?: boolean;
   /** user 역할 — 조회만 가능, 관리 모달·재고 조작 버튼 숨김 */
@@ -55,49 +52,58 @@ const STATUS_LABELS: Record<IngredientStatus, string> = {
   out: '없음', low: '발주', warn: '주의', ok: '정상',
 };
 
-function Stepper({
-  label, value, unit, onIncrease, onDecrease, disabled, name, color, cap,
-}: {
-  label: string; value: number; unit: string; onIncrease: () => void; onDecrease: () => void; disabled: boolean; name: string; color: string; cap: number;
+/** ±1 / ±10 네 버튼으로 총 수량을 바로 조작 — 박스/낱개 이원 관리 대신 단일 총량만 다룬다 */
+function QuantityStepper({ value, unit, onAdjust, disabled, name }: {
+  value: number; unit: string; onAdjust: (delta: number) => void; disabled: boolean; name: string;
 }) {
-  const ratio = cap > 0 ? Math.min(1, Math.max(0, value / cap)) : 0;
   return (
     <div className="flex items-center gap-1">
       <button
-        onClick={onDecrease}
-        disabled={disabled}
+        onClick={() => onAdjust(-10)}
+        disabled={disabled || value < 10}
+        className="flex items-center justify-center h-6 px-1.5 rounded-md border border-hairline text-[10px] font-bold cursor-pointer bg-canvas-soft transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+        aria-label={`${name} 10 감소`}
+      >
+        −10
+      </button>
+      <button
+        onClick={() => onAdjust(-1)}
+        disabled={disabled || value < 1}
         className="flex items-center justify-center w-6 h-6 rounded-md border border-hairline text-[13px] font-semibold cursor-pointer bg-canvas-soft transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-        aria-label={`${name} ${label} 감소`}
+        aria-label={`${name} 1 감소`}
       >
         −
       </button>
-      <span className="relative flex-1 h-6 rounded-md overflow-hidden bg-canvas-soft">
-        <span
-          className="absolute inset-y-0 left-0 transition-[width] duration-300 ease-out"
-          style={{ width: `${ratio * 100}%`, backgroundColor: color, opacity: 0.32 }}
-        />
+      <span className="relative flex-1 h-6 rounded-md overflow-hidden bg-canvas-soft flex items-center justify-center">
         <motion.span
           key={value}
           initial={{ scale: 1.25, opacity: 0.4 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="relative z-10 flex items-center justify-center h-full text-[11px] font-bold text-ink-secondary tabular-nums"
+          className="relative z-10 text-[11px] font-bold text-ink-secondary tabular-nums"
         >
           {value}{unit}
         </motion.span>
       </span>
       <button
-        onClick={onIncrease}
+        onClick={() => onAdjust(1)}
         className="flex items-center justify-center w-6 h-6 rounded-md border border-hairline text-[13px] font-semibold cursor-pointer bg-canvas-soft transition-all active:scale-95 leading-none shrink-0"
-        aria-label={`${name} ${label} 증가`}
+        aria-label={`${name} 1 증가`}
       >
         +
+      </button>
+      <button
+        onClick={() => onAdjust(10)}
+        className="flex items-center justify-center h-6 px-1.5 rounded-md border border-hairline text-[10px] font-bold cursor-pointer bg-canvas-soft transition-all active:scale-95 leading-none shrink-0"
+        aria-label={`${name} 10 증가`}
+      >
+        +10
       </button>
     </div>
   );
 }
 
-export default function IngredientCard({ ingredient, onManage, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit, hasError, readOnly }: Props) {
+export default function IngredientCard({ ingredient, onManage, onAdjust, hasError, readOnly }: Props) {
   const status = getStatus(ingredient);
   const styles = STATUS_STYLES[status];
 
@@ -126,9 +132,6 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
         >
           {formatRemaining(ingredient)}
         </motion.span>
-        <span className="text-[9.5px] text-ink-faint truncate">
-          1{ingredient.container_unit}={ingredient.container_size}{ingredient.base_unit}
-        </span>
       </div>
 
       {ingredient.vendor && (
@@ -141,20 +144,12 @@ export default function IngredientCard({ ingredient, onManage, onIncreaseBox, on
         <p className="text-[9.5px] font-bold text-rose-500 mb-1">저장 실패, 다시 시도</p>
       )}
 
-      {/* POS식 +/- 재고 조작: 박스 단위 + 낱개 단위 (readOnly면 조회 전용이라 숨김) */}
+      {/* POS식 +/- 재고 조작 — 총 수량 단일 스테퍼 (readOnly면 조회 전용이라 숨김) */}
       {!readOnly && (
-        <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
-          <Stepper
-            label="박스" value={ingredient.sealed_count} unit={ingredient.container_unit}
-            onIncrease={onIncreaseBox} onDecrease={onDecreaseBox}
-            disabled={ingredient.sealed_count <= 0} name={ingredient.name}
-            color={ingredient.color} cap={12}
-          />
-          <Stepper
-            label="낱개" value={ingredient.opened_remaining} unit={ingredient.base_unit}
-            onIncrease={onIncreaseUnit} onDecrease={onDecreaseUnit}
-            disabled={ingredient.opened_remaining <= 0} name={ingredient.name}
-            color={ingredient.color} cap={ingredient.container_size}
+        <div onClick={(e) => e.stopPropagation()}>
+          <QuantityStepper
+            value={ingredient.total_count} unit={ingredient.base_unit}
+            onAdjust={onAdjust} disabled={ingredient.total_count <= 0} name={ingredient.name}
           />
         </div>
       )}

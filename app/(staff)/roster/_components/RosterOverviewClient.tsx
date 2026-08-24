@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NavBar from '@/components/NavBar';
-import ConfirmDialog from '@/components/ConfirmDialog';
 import WeekMatrix from '@/app/(admin)/hr/_components/WeekMatrix';
 import StaffTotalsPanel from '@/app/(admin)/hr/_components/StaffTotalsPanel';
-import { createRosterMemo, deleteRosterMemo, fetchRosterOverview } from '@/app/actions/roster-view';
+import { shiftBgColor, shiftTextColor } from '@/app/(admin)/hr/_components/constants';
+import { fetchRosterOverview } from '@/app/actions/roster-view';
 import type { RosterOverview, RosterUnitOverview } from '@/app/actions/roster-view';
 import { DAY_NAMES, findRosterViolations, getWeekStart, buildAssignMap } from '@/lib/staffing';
 import { addDays, dayOfWeek } from '@/lib/date';
@@ -35,10 +35,6 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
   const [overview, setOverview] = useState<RosterOverview | null>(initialOverview);
   const [isLoading, setIsLoading] = useState(initialOverview === null);
   const [selectedDate, setSelectedDate] = useState(today);
-  const [memoDate, setMemoDate] = useState(today);
-  const [memoContent, setMemoContent] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [deleteMemoId, setDeleteMemoId] = useState<number | null>(null);
 
   // 주별 캐시 — 캐시 히트 시 즉시 표시 후 백그라운드 재검증(SWR), 미스 시 스켈레톤
   const cacheRef = useRef<Map<string, RosterOverview>>(
@@ -99,7 +95,6 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
     weekStartRef.current = next;
     setWeekStart(next);
     setSelectedDate(base);
-    setMemoDate(base);
     const cached = cacheRef.current.get(next);
     if (cached) {
       setOverview(cached);
@@ -113,47 +108,6 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
 
   const handleDateClick = (dateStr: string) => {
     setSelectedDate(dateStr);
-    setMemoDate(dateStr);
-  };
-
-  const handleAddMemo = async () => {
-    if (!memoContent.trim()) { showMsg('메모 내용을 입력하세요'); return; }
-    setIsSaving(true);
-    const r = await createRosterMemo(memoDate, memoContent);
-    if (r.success && r.data) {
-      setOverview(p => {
-        if (!p) return p;
-        const next = {
-          ...p,
-          memos: [...p.memos, r.data!].sort((a, b) =>
-            a.memo_date.localeCompare(b.memo_date) || a.created_at.localeCompare(b.created_at)),
-        };
-        cacheRef.current.set(weekStartRef.current, next); // 캐시도 함께 갱신 — 주 이동 후 복귀 시 메모 유실 방지
-        return next;
-      });
-      setMemoContent('');
-      showMsg('메모가 등록되었습니다');
-    } else {
-      showMsg(`오류: ${r.error}`);
-    }
-    setIsSaving(false);
-  };
-
-  const handleDeleteMemo = (id: number) => setDeleteMemoId(id);
-
-  const confirmDeleteMemo = async () => {
-    const id = deleteMemoId;
-    if (id == null) return;
-    setDeleteMemoId(null);
-    const r = await deleteRosterMemo(id);
-    if (r.success) {
-      setOverview(p => {
-        if (!p) return p;
-        const next = { ...p, memos: p.memos.filter(m => m.id !== id) };
-        cacheRef.current.set(weekStartRef.current, next);
-        return next;
-      });
-    } else showMsg(`오류: ${r.error}`);
   };
 
   return (
@@ -165,14 +119,14 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
           <button onClick={() => moveWeek(-1)} aria-label="이전 주" className="w-9 h-9 rounded-xl bg-canvas border border-hairline shadow-level-1 cursor-pointer font-bold text-ink-muted hover:bg-canvas-soft transition text-base flex items-center justify-center">‹</button>
           <button onClick={() => moveWeek(0)} className="px-3 h-9 rounded-xl bg-canvas border border-hairline shadow-level-1 text-[13px] font-semibold text-ink-muted cursor-pointer hover:bg-canvas-soft transition">이번주</button>
           <button onClick={() => moveWeek(1)} aria-label="다음 주" className="w-9 h-9 rounded-xl bg-canvas border border-hairline shadow-level-1 cursor-pointer font-bold text-ink-muted hover:bg-canvas-soft transition text-base flex items-center justify-center">›</button>
-          <span className="ml-1.5 text-[13px] font-bold text-ink whitespace-nowrap">
-            <span className="text-ink-faint font-semibold">{weekStart.slice(0, 4)}년</span> {fmtMD(weekStart)} ~ {fmtMD(weekEnd)}
+          <span className="ml-2 text-[15px] font-extrabold text-ink whitespace-nowrap">
+            <span className="text-ink-faint font-semibold text-[13px]">{weekStart.slice(0, 4)}년</span> {fmtMD(weekStart)} ~ {fmtMD(weekEnd)}
           </span>
           {isLoading && <span className="text-[12px] text-ink-faint">불러오는 중...</span>}
         </div>
 
         {/* 모바일 전용 날짜 선택 칩 — 매트릭스는 가로 스크롤이 필요해 폰에서는 요일 탭이 더 빠르다 */}
-        <div className="grid grid-cols-7 gap-1 mb-3 md:hidden">
+        <div className="grid grid-cols-7 gap-1.5 mb-4 md:hidden">
           {weekDates.map(d => {
             const day = dayOfWeek(d);
             const isSelected = d === selectedDate;
@@ -181,18 +135,19 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
               <button
                 key={d}
                 onClick={() => handleDateClick(d)}
-                className={`py-1.5 rounded-xl border cursor-pointer text-center transition ${
-                  isSelected ? 'bg-primary-700 border-primary-700 text-white' : 'bg-canvas border-hairline'
+                className={`py-2 rounded-xl border cursor-pointer text-center transition ${
+                  isSelected ? 'bg-primary-700 border-primary-700 text-white shadow-level-1' : 'bg-canvas border-hairline hover:border-primary-300'
                 }`}
               >
-                <span className={`block text-[10px] font-bold leading-none ${isSelected ? 'opacity-80' : dayTextColor(day, 'text-ink-faint')}`}>
+                <span className={`block text-[11px] font-bold leading-none ${isSelected ? 'opacity-80' : dayTextColor(day, 'text-ink-faint')}`}>
                   {DAY_NAMES[day]}
                 </span>
-                <span className={`block mt-1 text-[13px] font-extrabold leading-none ${
+                <span className={`block mt-1 text-[15px] font-extrabold leading-none ${
                   isSelected ? '' : isToday ? 'text-primary-700' : 'text-ink'
                 }`}>
                   {Number(d.slice(8))}
                 </span>
+                {isToday && !isSelected && <span className="block mt-1 w-1 h-1 rounded-full bg-primary-700 mx-auto" />}
               </button>
             );
           })}
@@ -217,78 +172,9 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
                 onDateClick={handleDateClick}
               />
             ))}
-
-            {/* ── 일정 메모 ── */}
-            <section className="bg-canvas rounded-2xl p-3 md:p-4 shadow-level-1 border border-hairline">
-              <h2 className="m-0 mb-1 text-[15px] font-extrabold">일정 메모</h2>
-              <p className="m-0 mb-3 text-[11px] text-ink-faint">날짜를 누르면 메모 날짜가 바뀝니다. 이 주의 메모만 표시됩니다.</p>
-
-              <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                <input
-                  type="date" value={memoDate} min={weekStart} max={weekEnd}
-                  onChange={e => setMemoDate(e.target.value)}
-                  className="px-3 py-2 border border-hairline rounded-xl text-[13px] bg-canvas shadow-level-1 focus:outline-none focus:border-primary-700 shrink-0"
-                />
-                <input
-                  type="text" value={memoContent} maxLength={500}
-                  onChange={e => setMemoContent(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleAddMemo(); }}
-                  placeholder="예: 15일 오후 행사로 캐셔 1명 추가 필요"
-                  className="flex-1 min-w-0 px-3 py-2 border border-hairline rounded-xl text-[13px] bg-canvas shadow-level-1 focus:outline-none focus:border-primary-700"
-                />
-                <button
-                  onClick={handleAddMemo} disabled={isSaving}
-                  className="px-4 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-50 shrink-0"
-                >
-                  등록
-                </button>
-              </div>
-
-              {overview.memos.length === 0 ? (
-                <p className="m-0 text-[13px] text-ink-faint">이번 주 메모가 없습니다.</p>
-              ) : (
-                <ul className="m-0 p-0 list-none flex flex-col">
-                  {overview.memos.map((memo, i) => (
-                    <li key={memo.id} className={`flex items-start gap-2.5 py-2.5 ${i > 0 ? 'border-t border-hairline' : ''}`}>
-                      <button
-                        onClick={() => handleDateClick(memo.memo_date)}
-                        className={`shrink-0 text-[11px] font-bold px-2 py-1 rounded-full border cursor-pointer transition ${
-                          memo.memo_date === selectedDate
-                            ? 'bg-primary-700 text-white border-primary-700'
-                            : 'bg-primary-50 text-primary-700 border-primary-100 hover:bg-primary-100'
-                        }`}
-                      >
-                        {fmtDate(memo.memo_date)}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p className="m-0 text-[13px] text-ink whitespace-pre-wrap break-words">{memo.content}</p>
-                        <p className="m-0 mt-0.5 text-[11px] text-ink-faint">
-                          {memo.author_name ?? '이름 없음'} · {new Date(memo.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteMemo(memo.id)}
-                        aria-label="메모 삭제"
-                        className="shrink-0 w-6 h-6 rounded-lg bg-transparent border-none text-ink-faint cursor-pointer hover:bg-rose-50 hover:text-rose-500 transition text-[13px] leading-none"
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
           </div>
         )}
       </main>
-      <ConfirmDialog
-        open={deleteMemoId != null}
-        title="이 메모를 삭제할까요?"
-        confirmLabel="삭제"
-        danger
-        onConfirm={confirmDeleteMemo}
-        onClose={() => setDeleteMemoId(null)}
-      />
     </>
   );
 }
@@ -341,8 +227,8 @@ function DayDetailCard({ overview, dateStr, today }: {
 
   return (
     <section className="bg-canvas rounded-2xl p-3 md:p-4 shadow-level-1 border border-hairline">
-      <div className="flex items-center justify-between mb-2.5">
-        <h2 className="m-0 text-[15px] font-extrabold">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="m-0 text-[16px] font-extrabold">
           {fmtDate(dateStr)} 근무 인원
           {dateStr === today && <span className="ml-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-700 text-white align-middle">오늘</span>}
         </h2>
@@ -354,27 +240,28 @@ function DayDetailCard({ overview, dateStr, today }: {
           {copying ? '복사 중...' : '복사'}
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {overview.units.map(u => {
           const rows = u.data.shifts
-            .map(shift => ({
+            .map((shift, idx) => ({
               shift,
+              idx,
               assigned: u.data.assignments.filter(a => a.work_date === dateStr && a.shift_id === shift.id),
             }))
             .filter(r => r.assigned.length > 0);
           return (
-            <div key={u.key} className="rounded-xl border border-hairline bg-canvas-soft/40 p-2.5 min-w-0">
-              <p className="m-0 mb-1.5 text-[13px] font-extrabold text-ink">{u.label}</p>
+            <div key={u.key} className="rounded-xl border border-hairline bg-canvas p-3 min-w-0">
+              <p className="m-0 mb-2 text-[14px] font-extrabold text-ink">{u.label}</p>
               {rows.length === 0 ? (
                 <p className="m-0 text-[12px] text-ink-faint">근무 없음</p>
               ) : (
-                <div className="flex flex-col gap-1.5">
-                  {rows.map(({ shift, assigned }) => (
+                <div className="flex flex-col gap-2">
+                  {rows.map(({ shift, idx, assigned }) => (
                     <div key={shift.id} className="flex items-start gap-1.5">
-                      <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded leading-tight bg-canvas-soft text-ink-muted">
+                      <span className={`shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded leading-tight ${shiftBgColor(idx)} ${shiftTextColor(idx)}`}>
                         {shift.name} {assigned.length}명
                       </span>
-                      <span className="text-[12px] text-ink leading-snug min-w-0 break-keep">
+                      <span className="text-[13px] text-ink leading-snug min-w-0 break-keep">
                         {assigned.length === 0 ? (
                           <span className="text-ink-faint">미배정</span>
                         ) : (
@@ -430,7 +317,7 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
 
   return (
     <section className="bg-canvas rounded-2xl p-3 md:p-4 shadow-level-1 border border-hairline">
-      <h2 className="m-0 mb-2.5 text-[15px] font-extrabold">{label}</h2>
+      <h2 className="m-0 mb-3 text-[16px] font-extrabold">{label}</h2>
       <WeekMatrix
         weekStart={weekStart}
         todayStr={todayStr}

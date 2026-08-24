@@ -22,6 +22,7 @@ import PayCalculatorPanel from './PayCalculatorPanel';
 import ContractsPanel from './ContractsPanel';
 import StaffAssignModal from './StaffAssignModal';
 import ImportStaffFromPopupModal from './ImportStaffFromPopupModal';
+import PopupFilterPicker from './PopupFilterPicker';
 import { StaffRow, StaffCard } from './StaffList';
 import { useStaffFilters } from './useStaffFilters';
 import type { RoleFilter, StatusFilter } from './useStaffFilters';
@@ -260,16 +261,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             {/* 팝업 필터 + 기존 근무자 추가 + 근무표 동기화 */}
             {initialPopups.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <select
-                  value={popupFilter === 'all' ? 'all' : String(popupFilter)}
-                  onChange={e => setPopupFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  className="px-3 py-1.5 border border-hairline rounded-xl text-[12px] font-bold bg-canvas shadow-level-1 focus:outline-none focus:border-primary-700"
-                >
-                  <option value="all">전체 팝업</option>
-                  {initialPopups.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                <PopupFilterPicker popups={initialPopups} value={popupFilter} onChange={setPopupFilter} />
                 {popupFilter !== 'all' && (
                   <>
                     <button

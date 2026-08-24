@@ -8,6 +8,8 @@ import {
   fetchManualDailyMenuSalesForRange, fetchManualHourlySales,
 } from '@/app/actions/stats';
 import { fetchOrdersByPeriod } from '@/app/actions/orders';
+import { pickOngoingPopup } from '@/lib/staffing';
+import { kstToday } from '@/lib/date';
 import type { MenuSalesItem, DailySalesItem, ManualSalesEntry, ManualHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
@@ -60,6 +62,13 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회만
   }, []);
+
+  // 아직 아무것도 선택 안 했으면 오늘 날짜 기준 진행중인 팝업을 기본으로 — 없으면 최신 팝업(목록 첫 번째)
+  useEffect(() => {
+    if (selectedPopupId != null || popupEvents.length === 0) return;
+    const ongoing = pickOngoingPopup(popupEvents, kstToday());
+    setSelectedPopupId((ongoing ?? popupEvents[0]).id);
+  }, [popupEvents, selectedPopupId]);
 
   useEffect(() => {
     let isCurrent = true;

@@ -17,10 +17,7 @@ interface Props {
   canEdit: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  onIncreaseBox: (ing: Ingredient) => void;
-  onDecreaseBox: (ing: Ingredient) => void;
-  onIncreaseUnit: (ing: Ingredient) => void;
-  onDecreaseUnit: (ing: Ingredient) => void;
+  onAdjust: (ing: Ingredient, delta: number) => void;
   failedIds: Set<string>;
 }
 
@@ -34,7 +31,7 @@ const STATUS_CHIP: Record<IngredientStatus, string> = {
   ok: 'bg-emerald-100 text-emerald-600',
 };
 
-export default function StorageObjectModal({ object, ingredients, canEdit, onClose, onSuccess, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit, failedIds }: Props) {
+export default function StorageObjectModal({ object, ingredients, canEdit, onClose, onSuccess, onAdjust, failedIds }: Props) {
   useBodyScrollLock(object != null);
   const panelRef = useRef<HTMLDivElement>(null);
   useModalKeyboard({ active: object != null, onClose, containerRef: panelRef });
@@ -190,63 +187,46 @@ export default function StorageObjectModal({ object, ingredients, canEdit, onClo
                       </div>
 
                       {canEdit && (
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <div className="flex items-center gap-1 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => onDecreaseBox(ing)}
-                              disabled={ing.sealed_count <= 0}
-                              aria-label={`${ing.name} 박스 1${ing.container_unit} 감소`}
-                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                            >
-                              −
-                            </button>
-                            <span className="relative flex-1 h-7 rounded-lg overflow-hidden bg-canvas">
-                              <span
-                                className="absolute inset-y-0 left-0 transition-[width] duration-300 ease-out"
-                                style={{ width: `${Math.min(1, ing.sealed_count / 12) * 100}%`, backgroundColor: ing.color, opacity: 0.32 }}
-                              />
-                              <span className="relative z-10 flex items-center justify-center h-full text-[11px] font-bold text-ink-secondary tabular-nums">
-                                {ing.sealed_count}{ing.container_unit}
-                              </span>
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onAdjust(ing, -10)}
+                            disabled={ing.total_count < 10}
+                            aria-label={`${ing.name} 10 감소`}
+                            className="flex items-center justify-center h-7 px-2 rounded-lg border border-hairline text-[11px] font-bold cursor-pointer bg-canvas transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          >
+                            −10
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onAdjust(ing, -1)}
+                            disabled={ing.total_count < 1}
+                            aria-label={`${ing.name} 1 감소`}
+                            className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          >
+                            −
+                          </button>
+                          <span className="relative flex-1 h-7 rounded-lg overflow-hidden bg-canvas flex items-center justify-center">
+                            <span className="relative z-10 text-[11px] font-bold text-ink-secondary tabular-nums">
+                              {ing.total_count}{ing.base_unit}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => onIncreaseBox(ing)}
-                              aria-label={`${ing.name} 박스 1${ing.container_unit} 증가`}
-                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none shrink-0"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-1 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => onDecreaseUnit(ing)}
-                              disabled={ing.opened_remaining <= 0}
-                              aria-label={`${ing.name} 낱개 1${ing.base_unit} 감소`}
-                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-                            >
-                              −
-                            </button>
-                            <span className="relative flex-1 h-7 rounded-lg overflow-hidden bg-canvas">
-                              <span
-                                className="absolute inset-y-0 left-0 transition-[width] duration-300 ease-out"
-                                style={{ width: `${(ing.container_size > 0 ? Math.min(1, ing.opened_remaining / ing.container_size) : 0) * 100}%`, backgroundColor: ing.color, opacity: 0.32 }}
-                              />
-                              <span className="relative z-10 flex items-center justify-center h-full text-[11px] font-bold text-ink-secondary tabular-nums">
-                                {ing.opened_remaining}{ing.base_unit}
-                              </span>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onIncreaseUnit(ing)}
-                              aria-label={`${ing.name} 낱개 1${ing.base_unit} 증가`}
-                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none shrink-0"
-                            >
-                              +
-                            </button>
-                          </div>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onAdjust(ing, 1)}
+                            aria-label={`${ing.name} 1 증가`}
+                            className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none shrink-0"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onAdjust(ing, 10)}
+                            aria-label={`${ing.name} 10 증가`}
+                            className="flex items-center justify-center h-7 px-2 rounded-lg border border-hairline text-[11px] font-bold cursor-pointer bg-canvas transition-all active:scale-95 leading-none shrink-0"
+                          >
+                            +10
+                          </button>
                         </div>
                       )}
                     </li>

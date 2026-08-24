@@ -116,15 +116,6 @@ export interface RosterAssignment {
   staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'status'>;
 }
 
-// 일정표(전체 근무표)의 날짜별 메모 — 매니저 이상이 작성·조회
-export interface RosterMemo {
-  id: number;
-  memo_date: string; // YYYY-MM-DD
-  content: string;
-  author_name: string | null;
-  created_at: string;
-}
-
 export interface Memo {
   id: number;
   title: string | null;
@@ -145,11 +136,8 @@ export interface Ingredient {
   color: string;
   unit_type: 'count' | 'weight';
   base_unit: string;
-  container_unit: string;
-  container_size: number;
-  sealed_count: number;
-  opened_remaining: number;
-  reorder_at_containers: number;
+  total_count: number;
+  reorder_at: number;
   vendor: string | null;
   lead_days: number | null;
   unit_price: number | null;
@@ -161,8 +149,7 @@ export interface Ingredient {
 export interface RestockEvent {
   id: number;
   ingredient_id: string;
-  sealed_delta: number;
-  opened_delta: number;
+  delta: number;
   note: string | null;
   created_by: string | null;
   created_at: string;

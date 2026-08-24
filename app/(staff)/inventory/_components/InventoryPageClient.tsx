@@ -38,7 +38,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
   const [addObjectOpen, setAddObjectOpen] = useState(false);
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
 
-  const pendingRef = useRef<Record<string, { sealed: number; opened: number }>>({});
+  const pendingRef = useRef<Record<string, number>>({});
   const timerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
       // 페이지를 벗어나도 디바운스 대기 중이던 변경분은 유실되지 않도록 즉시 전송
       Object.keys(timers).forEach((id) => clearTimeout(timers[id]));
       Object.entries(pending).forEach(([id, delta]) => {
-        if (delta.sealed !== 0 || delta.opened !== 0) restockIngredient(id, delta.sealed, delta.opened);
+        if (delta !== 0) restockIngredient(id, delta);
       });
     };
   }, []);
@@ -70,8 +70,8 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
       delete timerRef.current[id];
       const delta = pendingRef.current[id];
       delete pendingRef.current[id];
-      if (!delta || (delta.sealed === 0 && delta.opened === 0)) return;
-      const res = await restockIngredient(id, delta.sealed, delta.opened);
+      if (!delta) return;
+      const res = await restockIngredient(id, delta);
       if (!res.success) {
         toast.error(`재고 변경 실패: ${res.error}`);
         setFailedIds((prev) => new Set(prev).add(id));
@@ -87,31 +87,16 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
     }, SYNC_DEBOUNCE_MS);
   }, [reload]);
 
-  const adjustSealed = useCallback((ing: Ingredient, delta: 1 | -1) => {
+  const adjustCount = useCallback((ing: Ingredient, delta: number) => {
     if (!canEdit) return;
-    applyLocalDelta(ing.id, delta, 0);
+    applyLocalDelta(ing.id, delta);
     setFailedIds((prev) => {
       if (!prev.has(ing.id)) return prev;
       const next = new Set(prev);
       next.delete(ing.id);
       return next;
     });
-    const p = pendingRef.current[ing.id] ?? { sealed: 0, opened: 0 };
-    pendingRef.current[ing.id] = { sealed: p.sealed + delta, opened: p.opened };
-    scheduleSync(ing.id);
-  }, [canEdit, applyLocalDelta, scheduleSync]);
-
-  const adjustOpened = useCallback((ing: Ingredient, delta: 1 | -1) => {
-    if (!canEdit) return;
-    applyLocalDelta(ing.id, 0, delta);
-    setFailedIds((prev) => {
-      if (!prev.has(ing.id)) return prev;
-      const next = new Set(prev);
-      next.delete(ing.id);
-      return next;
-    });
-    const p = pendingRef.current[ing.id] ?? { sealed: 0, opened: 0 };
-    pendingRef.current[ing.id] = { sealed: p.sealed, opened: p.opened + delta };
+    pendingRef.current[ing.id] = (pendingRef.current[ing.id] ?? 0) + delta;
     scheduleSync(ing.id);
   }, [canEdit, applyLocalDelta, scheduleSync]);
 
@@ -176,10 +161,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
                   key={ing.id}
                   ingredient={ing}
                   onManage={() => canEdit && setManageTarget(ing)}
-                  onIncreaseBox={() => adjustSealed(ing, 1)}
-                  onDecreaseBox={() => adjustSealed(ing, -1)}
-                  onIncreaseUnit={() => adjustOpened(ing, 1)}
-                  onDecreaseUnit={() => adjustOpened(ing, -1)}
+                  onAdjust={(delta) => adjustCount(ing, delta)}
                   hasError={failedIds.has(ing.id)}
                   readOnly={!canEdit}
                 />
@@ -218,10 +200,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
         canEdit={canEdit}
         onClose={() => setSelectedObjectId(null)}
         onSuccess={reloadBoard}
-        onIncreaseBox={(ing) => adjustSealed(ing, 1)}
-        onDecreaseBox={(ing) => adjustSealed(ing, -1)}
-        onIncreaseUnit={(ing) => adjustOpened(ing, 1)}
-        onDecreaseUnit={(ing) => adjustOpened(ing, -1)}
+        onAdjust={(ing, delta) => adjustCount(ing, delta)}
         failedIds={failedIds}
       />
     </>
