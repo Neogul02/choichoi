@@ -13,11 +13,13 @@ interface Props {
   onSuccess: () => void;
 }
 
-const CATEGORIES = ['빵', '크림', '과일', '패키지'] as const;
+const DEFAULT_CATEGORY = '기타';
 const PRESET_COLORS = [
-  '#F5E6C8', '#FFFDE7', '#FFF9C4', '#FFB3BA',
-  '#B5EAD7', '#FFD700', '#C7E4A3', '#E0E7FF',
-  '#F3F4F6', '#FECACA', '#BBF7D0', '#BAE6FD',
+  '#FFB3BA', '#FF8FA3', '#F87171', '#FB923C',
+  '#FBBF24', '#FDE047', '#D9F99D', '#86EFAC',
+  '#5EEAD4', '#7DD3FC', '#93C5FD', '#A5B4FC',
+  '#C4B5FD', '#F0ABFC', '#F9A8D4', '#D6D3D1',
+  '#B5EAD7', '#C7E4A3', '#E0E7FF', '#F3F4F6',
 ];
 
 type UnitType = 'count' | 'weight';
@@ -44,7 +46,6 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
 
   const [name, setName] = useState('');
   const [id, setId] = useState('');
-  const [category, setCategory] = useState<typeof CATEGORIES[number]>('과일');
   const [color, setColor] = useState('#FFB3BA');
   const [unitType, setUnitType] = useState<UnitType>('weight');
   const [baseUnit, setBaseUnit] = useState('g');
@@ -54,7 +55,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
   const [saving, setSaving] = useState(false);
 
   function reset() {
-    setName(''); setId(''); setCategory('과일'); setColor('#FFB3BA');
+    setName(''); setId(''); setColor('#FFB3BA');
     setUnitType('weight'); setBaseUnit('g'); setContainerUnit('박스');
     setContainerSize('1000'); setVendor('');
   }
@@ -73,7 +74,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
     const res = await createIngredient({
       id: id.trim().toLowerCase().replace(/\s+/g, '_'),
       name: name.trim(),
-      category,
+      category: DEFAULT_CATEGORY,
       color,
       unit_type: unitType,
       base_unit: baseUnit,
@@ -147,20 +148,6 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                 </div>
               </div>
 
-              {/* 카테고리 */}
-              <div>
-                <label className="text-[10px] font-bold text-ink-muted block mb-1.5">카테고리</label>
-                <div className="flex gap-1.5">
-                  {CATEGORIES.map((c) => (
-                    <button key={c} type="button" onClick={() => setCategory(c)}
-                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border-none transition ${
-                        category === c ? 'bg-primary-700 text-white' : 'bg-[#f5f6f7] text-ink-muted hover:bg-primary-50'
-                      }`}
-                    >{c}</button>
-                  ))}
-                </div>
-              </div>
-
               {/* 단위 타입 */}
               <div>
                 <label className="text-[10px] font-bold text-ink-muted block mb-1.5">단위 타입</label>
@@ -211,7 +198,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                 <label className="text-[10px] font-bold text-ink-muted block mb-1">거래처 (선택)</label>
                 <input
                   type="text" value={vendor} onChange={(e) => setVendor(e.target.value)}
-                  placeholder="예: 마켓컬리"
+                  placeholder="예: 마켓컬리 010-1234-5678"
                   className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                   style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                 />
@@ -236,7 +223,6 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
               <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
                 <span className="font-bold">{name || '재료명'}</span>
                 {' · '}1{containerUnit} = {containerSize}{baseUnit}
-                {' · '}{category}
                 {' · '}<span className="inline-block w-3 h-3 rounded-full align-middle" style={{ backgroundColor: color }} />
               </div>
 

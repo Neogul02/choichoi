@@ -19,7 +19,6 @@ import AddStorageObjectModal from './AddStorageObjectModal';
 import { InventoryGridSkeleton } from '@/components/Skeleton';
 
 const SYNC_DEBOUNCE_MS = 700;
-type Tab = 'board' | 'list';
 
 interface Props {
   initialIngredients: Ingredient[] | null;
@@ -32,8 +31,6 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
   const { ingredients, isLoading, reload, applyLocalDelta } = useInventory(initialIngredients);
   const { objects, isLoading: boardLoading, reload: reloadBoard, applyLocalPosition } = useStorageBoard(initialStorageObjects);
 
-  const [tab, setTab] = useState<Tab>('board');
-  const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState<SortKey>('default');
   const [manageTarget, setManageTarget] = useState<Ingredient | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -57,7 +54,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
   }, []);
 
   const filtered = useMemo(() => {
-    let list = category === '전체' ? ingredients : ingredients.filter((i) => i.category === category);
+    let list = ingredients;
     if (sort === 'qty_asc') {
       list = [...list].sort((a, b) => totalQty(a) - totalQty(b));
     } else if (sort === 'status') {
@@ -65,22 +62,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
       list = [...list].sort((a, b) => order[getStatus(a)] - order[getStatus(b)]);
     }
     return list;
-  }, [ingredients, category, sort]);
-
-  const dashboard = useMemo(() => {
-    const placedIds = new Set(objects.flatMap((o) => o.ingredient_ids));
-    const unplacedCount = ingredients.filter((i) => !placedIds.has(i.id)).length;
-    const lowStockCount = ingredients.filter((i) => {
-      const s = getStatus(i);
-      return s === 'out' || s === 'low';
-    }).length;
-    return {
-      objectCount: objects.length,
-      placedCount: placedIds.size,
-      unplacedCount,
-      lowStockCount,
-    };
-  }, [objects, ingredients]);
+  }, [ingredients, sort]);
 
   const scheduleSync = useCallback((id: string) => {
     if (timerRef.current[id]) clearTimeout(timerRef.current[id]);
@@ -153,94 +135,56 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
       <main className="min-h-screen p-3 md:p-5">
         <div className="max-w-[1100px] mx-auto flex flex-col gap-3">
 
-          {/* 대시보드 요약 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div className="bg-canvas rounded-xl border border-hairline px-3.5 py-2.5">
-              <div className="text-[10px] font-bold text-ink-faint">오브젝트</div>
-              <div className="text-lg font-black text-ink tabular-nums">{dashboard.objectCount}개</div>
-            </div>
-            <div className="bg-canvas rounded-xl border border-hairline px-3.5 py-2.5">
-              <div className="text-[10px] font-bold text-ink-faint">배치된 재료</div>
-              <div className="text-lg font-black text-ink tabular-nums">{dashboard.placedCount}종</div>
-            </div>
-            <div className="bg-canvas rounded-xl border border-hairline px-3.5 py-2.5">
-              <div className="text-[10px] font-bold text-ink-faint">미배치 재료</div>
-              <div className="text-lg font-black text-ink tabular-nums">{dashboard.unplacedCount}종</div>
-            </div>
-            <div className="bg-canvas rounded-xl border border-hairline px-3.5 py-2.5">
-              <div className="text-[10px] font-bold text-ink-faint">재고부족</div>
-              <div className="text-lg font-black text-rose-500 tabular-nums">{dashboard.lowStockCount}종</div>
-            </div>
+          {/* 보관함 시각 영역 */}
+          <div className="flex items-center justify-between px-0.5">
+            <h2 className="text-[13px] font-extrabold text-ink">보관함</h2>
+            {(isLoading || boardLoading) && <span className="text-[11px] text-ink-faint">불러오는 중…</span>}
           </div>
 
-          {/* 탭 전환 */}
-          <div className="flex items-center justify-between px-0.5">
-            <div className="flex bg-[#f5f6f7] rounded-xl p-1 gap-1">
-              {([['board', '보관함'], ['list', '전체 목록']] as [Tab, string][]).map(([t, label]) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTab(t)}
-                  className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold cursor-pointer transition border-none ${
-                    tab === t ? 'bg-canvas text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-ink-muted'
-                  }`}
-                >
-                  {label}
-                </button>
+          <StorageBoard
+            objects={objects}
+            ingredients={ingredients}
+            canEdit={canEdit}
+            onSelect={(o) => setSelectedObjectId(o.id)}
+            onMove={handleMoveObject}
+            onAddClick={() => setAddObjectOpen(true)}
+          />
+
+          {/* 전체 재료 목록 — 맨 아래 */}
+          <div className="flex items-center justify-between px-0.5 mt-2">
+            <h2 className="text-[13px] font-extrabold text-ink">전체 재료 목록</h2>
+            {canEdit && (
+              <button
+                onClick={() => setAddOpen(true)}
+                className="px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition"
+              >
+                + 재고 종류 추가
+              </button>
+            )}
+          </div>
+
+          <FilterBar sort={sort} onSortChange={setSort} />
+
+          {isLoading && ingredients.length === 0 ? (
+            <InventoryGridSkeleton />
+          ) : filtered.length === 0 ? (
+            <p className="text-[12px] text-ink-faint px-0.5">재료가 없습니다.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5">
+              {filtered.map((ing) => (
+                <IngredientCard
+                  key={ing.id}
+                  ingredient={ing}
+                  onManage={() => canEdit && setManageTarget(ing)}
+                  onIncreaseBox={() => adjustSealed(ing, 1)}
+                  onDecreaseBox={() => adjustSealed(ing, -1)}
+                  onIncreaseUnit={() => adjustOpened(ing, 1)}
+                  onDecreaseUnit={() => adjustOpened(ing, -1)}
+                  hasError={failedIds.has(ing.id)}
+                  readOnly={!canEdit}
+                />
               ))}
             </div>
-            <div className="flex items-center gap-2">
-              {(isLoading || boardLoading) && <span className="text-[11px] text-ink-faint">불러오는 중…</span>}
-              {tab === 'list' && canEdit && (
-                <button
-                  onClick={() => setAddOpen(true)}
-                  className="px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition"
-                >
-                  + 재고 종류 추가
-                </button>
-              )}
-            </div>
-          </div>
-
-          {tab === 'board' ? (
-            <StorageBoard
-              objects={objects}
-              canEdit={canEdit}
-              onSelect={(o) => setSelectedObjectId(o.id)}
-              onMove={handleMoveObject}
-              onAddClick={() => setAddObjectOpen(true)}
-            />
-          ) : (
-            <>
-              <FilterBar
-                category={category}
-                sort={sort}
-                onCategoryChange={setCategory}
-                onSortChange={setSort}
-              />
-
-              {isLoading && ingredients.length === 0 ? (
-                <InventoryGridSkeleton />
-              ) : filtered.length === 0 ? (
-                <p className="text-[12px] text-ink-faint px-0.5">재료가 없습니다.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {filtered.map((ing) => (
-                    <IngredientCard
-                      key={ing.id}
-                      ingredient={ing}
-                      onManage={() => canEdit && setManageTarget(ing)}
-                      onIncreaseBox={() => adjustSealed(ing, 1)}
-                      onDecreaseBox={() => adjustSealed(ing, -1)}
-                      onIncreaseUnit={() => adjustOpened(ing, 1)}
-                      onDecreaseUnit={() => adjustOpened(ing, -1)}
-                      hasError={failedIds.has(ing.id)}
-                      readOnly={!canEdit}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
           )}
 
         </div>
@@ -274,6 +218,11 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
         canEdit={canEdit}
         onClose={() => setSelectedObjectId(null)}
         onSuccess={reloadBoard}
+        onIncreaseBox={(ing) => adjustSealed(ing, 1)}
+        onDecreaseBox={(ing) => adjustSealed(ing, -1)}
+        onIncreaseUnit={(ing) => adjustOpened(ing, 1)}
+        onDecreaseUnit={(ing) => adjustOpened(ing, -1)}
+        failedIds={failedIds}
       />
     </>
   );
