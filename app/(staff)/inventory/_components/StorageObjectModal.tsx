@@ -17,6 +17,11 @@ interface Props {
   canEdit: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onIncreaseBox: (ing: Ingredient) => void;
+  onDecreaseBox: (ing: Ingredient) => void;
+  onIncreaseUnit: (ing: Ingredient) => void;
+  onDecreaseUnit: (ing: Ingredient) => void;
+  failedIds: Set<string>;
 }
 
 const STATUS_LABELS: Record<IngredientStatus, string> = {
@@ -29,7 +34,7 @@ const STATUS_CHIP: Record<IngredientStatus, string> = {
   ok: 'bg-emerald-100 text-emerald-600',
 };
 
-export default function StorageObjectModal({ object, ingredients, canEdit, onClose, onSuccess }: Props) {
+export default function StorageObjectModal({ object, ingredients, canEdit, onClose, onSuccess, onIncreaseBox, onDecreaseBox, onIncreaseUnit, onDecreaseUnit, failedIds }: Props) {
   useBodyScrollLock(object != null);
   const panelRef = useRef<HTMLDivElement>(null);
   useModalKeyboard({ active: object != null, onClose, containerRef: panelRef });
@@ -161,24 +166,88 @@ export default function StorageObjectModal({ object, ingredients, canEdit, onClo
               <ul className="flex flex-col gap-1.5">
                 {linkedIngredients.map((ing) => {
                   const status = getStatus(ing);
+                  const hasError = failedIds.has(ing.id);
                   return (
-                    <li key={ing.id} className="flex items-center justify-between gap-2 bg-canvas-soft rounded-xl px-3 py-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-[12px] font-bold text-ink truncate">{ing.name}</span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_CHIP[status]}`}>
-                          {STATUS_LABELS[status]}
-                        </span>
+                    <li key={ing.id} className={`bg-canvas-soft rounded-xl px-3 py-2 border ${hasError ? 'border-rose-400' : 'border-transparent'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[12px] font-bold text-ink truncate">{ing.name}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${STATUS_CHIP[status]}`}>
+                            {STATUS_LABELS[status]}
+                          </span>
+                        </div>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(ing.id)}
+                            disabled={busyId === ing.id}
+                            aria-label={`${ing.name} 제거`}
+                            className="text-ink-faint hover:text-rose-500 text-sm leading-none cursor-pointer border-none bg-transparent disabled:opacity-40 shrink-0"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
+
                       {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemove(ing.id)}
-                          disabled={busyId === ing.id}
-                          aria-label={`${ing.name} 제거`}
-                          className="text-ink-faint hover:text-rose-500 text-sm leading-none cursor-pointer border-none bg-transparent disabled:opacity-40 shrink-0"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <div className="flex items-center gap-1 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => onDecreaseBox(ing)}
+                              disabled={ing.sealed_count <= 0}
+                              aria-label={`${ing.name} 박스 1${ing.container_unit} 감소`}
+                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                            >
+                              −
+                            </button>
+                            <span className="relative flex-1 h-7 rounded-lg overflow-hidden bg-canvas">
+                              <span
+                                className="absolute inset-y-0 left-0 transition-[width] duration-300 ease-out"
+                                style={{ width: `${Math.min(1, ing.sealed_count / 12) * 100}%`, backgroundColor: ing.color, opacity: 0.32 }}
+                              />
+                              <span className="relative z-10 flex items-center justify-center h-full text-[11px] font-bold text-ink-secondary tabular-nums">
+                                {ing.sealed_count}{ing.container_unit}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onIncreaseBox(ing)}
+                              aria-label={`${ing.name} 박스 1${ing.container_unit} 증가`}
+                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none shrink-0"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => onDecreaseUnit(ing)}
+                              disabled={ing.opened_remaining <= 0}
+                              aria-label={`${ing.name} 낱개 1${ing.base_unit} 감소`}
+                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                            >
+                              −
+                            </button>
+                            <span className="relative flex-1 h-7 rounded-lg overflow-hidden bg-canvas">
+                              <span
+                                className="absolute inset-y-0 left-0 transition-[width] duration-300 ease-out"
+                                style={{ width: `${(ing.container_size > 0 ? Math.min(1, ing.opened_remaining / ing.container_size) : 0) * 100}%`, backgroundColor: ing.color, opacity: 0.32 }}
+                              />
+                              <span className="relative z-10 flex items-center justify-center h-full text-[11px] font-bold text-ink-secondary tabular-nums">
+                                {ing.opened_remaining}{ing.base_unit}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onIncreaseUnit(ing)}
+                              aria-label={`${ing.name} 낱개 1${ing.base_unit} 증가`}
+                              className="flex items-center justify-center w-7 h-7 rounded-lg border border-hairline text-[15px] font-semibold cursor-pointer bg-canvas transition-all active:scale-95 leading-none shrink-0"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </li>
                   );

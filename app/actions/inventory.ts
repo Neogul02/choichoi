@@ -12,7 +12,7 @@ import type { Ingredient } from '@/types/database';
 const CreateIngredientSchema = z.object({
   id: z.string().min(1, 'ID를 입력해주세요').max(50, 'ID는 50자 이하여야 합니다').regex(/^[a-z0-9_]+$/, 'ID는 영문 소문자, 숫자, 밑줄(_)만 사용할 수 있습니다'),
   name: z.string().min(1, '재료명을 입력해주세요').max(50, '재료명은 50자 이하여야 합니다'),
-  category: z.enum(['빵', '크림', '과일', '패키지'] as const, { error: '올바른 카테고리를 선택해주세요' }),
+  category: z.string().min(1).max(20).default('기타'),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, '올바른 색상 코드를 입력해주세요'),
   unit_type: z.enum(['count', 'weight']),
   base_unit: z.string().min(1, '기본 단위를 입력해주세요'),

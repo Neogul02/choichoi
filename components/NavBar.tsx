@@ -27,7 +27,6 @@ const ALL_NAV_LINKS = [
   { href: '/hr', label: '인사', minRole: 'admin' },
   { href: '/inventory', label: '재고', minRole: 'user' },
   { href: '/memo', label: '메모', minRole: 'user' },
-  { href: '/my/schedule', label: '스케줄', minRole: 'user' },
   { href: '/my', label: 'MY', minRole: 'user' },
   { href: '/settings', label: '설정', minRole: 'admin' },
 ] as const;
@@ -163,7 +162,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                   <div className="flex items-center gap-3 min-w-0">
                     <Link href="/pos" className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0 no-underline hover:opacity-70 transition-opacity">ChoiChoi</Link>
                     {popupName && (
-                      <span className="hidden md:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
                         {popupName}
                       </span>
                     )}
@@ -264,19 +263,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         </AnimatePresence>
         </div>
 
-        <div className="flex items-center justify-between px-3 h-8">
-          {/* 접힌 상태에서도 항상 보이는 로그인 정보 — 모바일에서 내가 누구로/어느 팝업으로 로그인 중인지 확인용 */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {mounted && cashierName && (
-              <span className="text-[11px] font-bold text-ink-muted truncate">{cashierName}</span>
-            )}
-            {mounted && popupName && (
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
-                {popupName}
-              </span>
-            )}
-          </div>
-
+        <div className="flex items-center justify-end px-3 h-8">
           {/* 시각적 크기(w-9 h-4)는 유지하되 탭 히트 영역은 padding으로 ~44x44px까지 확대 */}
           <button
             onClick={toggle}

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import NavBar from '@/components/NavBar'
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getMyRoster, getStaffRosterAsManager, type MyShift } from '@/app/actions/roster'
@@ -25,7 +24,7 @@ function dDayLabel(dateStr: string, today: string): string {
   return `${diff}일 후`
 }
 
-// 서버 컴포넌트(page.tsx)가 프리페치한 초기 데이터 — null이면 기존 클라이언트 조회로 폴백
+// 서버 컴포넌트(app/my/page.tsx)가 프리페치한 초기 데이터 — null이면 기존 클라이언트 조회로 폴백
 export interface InitialSchedule {
   staffId: number | null
   staffName: string
@@ -34,7 +33,9 @@ export interface InitialSchedule {
   cursor: { y: number; m: number }
 }
 
-export default function MySchedulePageClient({ initial, staffPicker }: { initial: InitialSchedule | null; staffPicker: StaffPickerItem[] | null }) {
+// MY 페이지의 "일정" 탭 콘텐츠 — 과거 독립 라우트였던 /my/schedule을 흡수한 것
+// (탭이 많아 헷갈린다는 피드백으로 2026-08-24 MY 페이지 안 탭으로 병합)
+export default function ScheduleTab({ initial, staffPicker }: { initial: InitialSchedule | null; staffPicker: StaffPickerItem[] | null }) {
   // 관리자/매니저는 본인 근무 기록이 없어도 다른 직원의 스케줄을 조회할 수 있어야 하므로
   // "내 staffId"(ownStaffId, 고정)와 "현재 화면에 보이는 staffId"(viewingId)를 분리한다
   const [ownStaffId, setOwnStaffId] = useState<number | null>(initial?.staffId ?? null)
@@ -142,152 +143,129 @@ export default function MySchedulePageClient({ initial, staffPicker }: { initial
   const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
 
   if (!loaded || !cursor) {
-    return (
-      <>
-        <NavBar />
-        <main className="min-h-screen flex items-center justify-center">
-          <p className="text-ink-faint text-sm">불러오는 중...</p>
-        </main>
-      </>
-    )
+    return <p className="text-ink-faint text-sm text-center py-10">불러오는 중...</p>
   }
 
   if (!viewingId) {
     // 관리자/매니저는 본인 근무 기록이 없어도 선택기를 바로 띄운다 — "할 게 없는 빈 탭" 대신 다른 직원 조회로 안내
     if (canPickStaff) {
       return (
-        <>
-          <NavBar />
-          <main className="min-h-screen p-3 md:p-5 pb-10">
-            <div className="max-w-[560px] mx-auto space-y-4">
-              <h1 className="m-0 text-heading-2 text-ink">직원 스케줄 조회</h1>
-              <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
-              <p className="m-0 text-[14px] text-ink-muted">조회할 직원을 선택하세요.</p>
-            </div>
-          </main>
-        </>
+        <div className="space-y-4">
+          <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
+          <p className="m-0 text-[14px] text-ink-muted">조회할 직원을 선택하세요.</p>
+        </div>
       )
     }
     return (
-      <>
-        <NavBar />
-        <main className="min-h-screen flex items-center justify-center p-4">
-          <div className="text-center">
-            <p className="text-[16px] font-bold text-ink mb-2">아직 등록된 근무 정보가 없습니다</p>
-            <p className="text-[14px] text-ink-muted">관리자에게 문의해 주세요.</p>
-          </div>
-        </main>
-      </>
+      <div className="text-center py-10">
+        <p className="text-[16px] font-bold text-ink mb-2">아직 등록된 근무 정보가 없습니다</p>
+        <p className="text-[14px] text-ink-muted">관리자에게 문의해 주세요.</p>
+      </div>
     )
   }
 
   return (
-    <>
-      <NavBar />
-      <main className="min-h-screen p-3 md:p-5 pb-10">
-        <div className="max-w-[560px] lg:max-w-[1040px] mx-auto space-y-4 lg:space-y-5">
+    <div className="space-y-4 lg:space-y-5">
 
-          <h1 className="m-0 text-heading-2 text-ink">{staffName}님의 근무 일정</h1>
+      <h2 className="m-0 text-title text-ink">{staffName}님의 근무 일정</h2>
 
-          {canPickStaff && (
-            <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
-          )}
+      {canPickStaff && (
+        <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
+      )}
 
-          {/* 데스크톱에서는 다음 근무+예정 근무를 좌측 컬럼, 월 달력을 우측 컬럼에 나란히 배치 */}
-          <div className="space-y-4 lg:space-y-5 lg:grid lg:grid-cols-[380px_1fr] lg:gap-5 lg:items-start">
-          <div className="space-y-4 lg:space-y-5">
+      {/* 데스크톱에서는 다음 근무+예정 근무를 좌측 컬럼, 월 달력을 우측 컬럼에 나란히 배치 */}
+      <div className="space-y-4 lg:space-y-5 lg:grid lg:grid-cols-[380px_1fr] lg:gap-5 lg:items-start">
+      <div className="space-y-4 lg:space-y-5">
 
-          {/* 다음 근무 히어로 카드 */}
-          {nextShift ? (
-            <NextShiftCard shift={nextShift} today={today} />
-          ) : (
-            <div className="rounded-2xl bg-primary-700 text-white p-5">
-              <p className="m-0 text-caption font-bold opacity-70">다음 근무</p>
-              <p className="m-0 mt-1.5 text-title">예정된 근무가 없습니다</p>
-              <p className="m-0 mt-1 text-caption opacity-70">새 스케줄이 배정되면 여기에 표시됩니다.</p>
-            </div>
-          )}
-
-          {/* 예정 근무 리스트 */}
-          <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
-            <h2 className="m-0 mb-3 text-title text-ink">
-              예정 근무
-              {upcomingShifts.length > 0 && (
-                <span className="ml-1.5 text-caption font-semibold text-ink-faint">{upcomingShifts.length}건</span>
-              )}
-            </h2>
-            {upcomingShifts.length === 0 ? (
-              <p className="m-0 text-body-sm text-ink-muted">예정된 근무가 없습니다.</p>
-            ) : (
-              <>
-                <div className="flex flex-col">
-                  {visibleShifts.map((s, i) => (
-                    <ShiftRow key={`${s.work_date}-${s.shift_name}-${s.start_time}`} shift={s} today={today} isFirst={i === 0} />
-                  ))}
-                </div>
-                {upcomingShifts.length > 5 && (
-                  <button
-                    onClick={() => setShowAll(v => !v)}
-                    className="w-full mt-3 py-2.5 rounded-xl border border-hairline bg-transparent text-caption text-ink-muted font-semibold cursor-pointer hover:bg-canvas-soft transition-colors"
-                  >
-                    {showAll ? '접기' : `${upcomingShifts.length - 5}개 더 보기`}
-                  </button>
-                )}
-              </>
-            )}
-          </section>
-
-          </div>
-
-          {/* 월 달력 */}
-          <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4 lg:p-5">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="m-0 text-title text-ink">{cursor.y}년 {cursor.m + 1}월</h2>
-              <div className="flex items-center gap-1.5">
-                <button onClick={prevMonth} aria-label="이전 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">‹</button>
-                <button onClick={goToday} className="px-3 h-9 rounded-xl bg-canvas-soft border border-hairline text-caption font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">이번달</button>
-                <button onClick={nextMonth} aria-label="다음 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">›</button>
-              </div>
-            </div>
-            <p className="m-0 mb-3 text-caption text-ink-muted">
-              {isLoading ? '불러오는 중...' : totalDays === 0 ? '이달 배정된 근무가 없습니다' : (
-                <>근무 <span className="font-bold text-primary-700">{totalDays}일</span> · 총 <span className="font-bold text-primary-700">{totalHours}시간</span></>
-              )}
-            </p>
-
-            {!isLoading && (
-              <>
-                <WorkerCalendar
-                  year={cursor.y}
-                  month={cursor.m}
-                  details={details}
-                  today={today}
-                  selectedDate={selectedDate}
-                  onSelectDate={d => setSelectedDate(prev => prev === d ? null : d)}
-                />
-                {selectedDate && (
-                  <DayDetail
-                    dateStr={selectedDate}
-                    entries={details.filter(d => d.date === selectedDate)}
-                    allShifts={allShifts}
-                  />
-                )}
-              </>
-            )}
-            {isLoading && (
-              <div className="grid grid-cols-7 gap-1 animate-pulse">
-                {Array.from({ length: 35 }).map((_, i) => (
-                  <div key={i} className="aspect-square rounded-lg bg-gray-100" />
-                ))}
-              </div>
-            )}
-          </section>
-
-          </div>
-
+      {/* 다음 근무 히어로 카드 */}
+      {nextShift ? (
+        <NextShiftCard shift={nextShift} today={today} />
+      ) : (
+        <div className="rounded-2xl bg-primary-700 text-white p-5">
+          <p className="m-0 text-caption font-bold opacity-70">다음 근무</p>
+          <p className="m-0 mt-1.5 text-title">예정된 근무가 없습니다</p>
+          <p className="m-0 mt-1 text-caption opacity-70">새 스케줄이 배정되면 여기에 표시됩니다.</p>
         </div>
-      </main>
-    </>
+      )}
+
+      {/* 예정 근무 리스트 */}
+      <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
+        <h2 className="m-0 mb-3 text-title text-ink">
+          예정 근무
+          {upcomingShifts.length > 0 && (
+            <span className="ml-1.5 text-caption font-semibold text-ink-faint">{upcomingShifts.length}건</span>
+          )}
+        </h2>
+        {upcomingShifts.length === 0 ? (
+          <p className="m-0 text-body-sm text-ink-muted">예정된 근무가 없습니다.</p>
+        ) : (
+          <>
+            <div className="flex flex-col">
+              {visibleShifts.map((s, i) => (
+                <ShiftRow key={`${s.work_date}-${s.shift_name}-${s.start_time}`} shift={s} today={today} isFirst={i === 0} />
+              ))}
+            </div>
+            {upcomingShifts.length > 5 && (
+              <button
+                onClick={() => setShowAll(v => !v)}
+                className="w-full mt-3 py-2.5 rounded-xl border border-hairline bg-transparent text-caption text-ink-muted font-semibold cursor-pointer hover:bg-canvas-soft transition-colors"
+              >
+                {showAll ? '접기' : `${upcomingShifts.length - 5}개 더 보기`}
+              </button>
+            )}
+          </>
+        )}
+      </section>
+
+      </div>
+
+      {/* 월 달력 */}
+      <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4 lg:p-5">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="m-0 text-title text-ink">{cursor.y}년 {cursor.m + 1}월</h2>
+          <div className="flex items-center gap-1.5">
+            <button onClick={prevMonth} aria-label="이전 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">‹</button>
+            <button onClick={goToday} className="px-3 h-9 rounded-xl bg-canvas-soft border border-hairline text-caption font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">이번달</button>
+            <button onClick={nextMonth} aria-label="다음 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">›</button>
+          </div>
+        </div>
+        <p className="m-0 mb-3 text-caption text-ink-muted">
+          {isLoading ? '불러오는 중...' : totalDays === 0 ? '이달 배정된 근무가 없습니다' : (
+            <>근무 <span className="font-bold text-primary-700">{totalDays}일</span> · 총 <span className="font-bold text-primary-700">{totalHours}시간</span></>
+          )}
+        </p>
+
+        {!isLoading && (
+          <>
+            <WorkerCalendar
+              year={cursor.y}
+              month={cursor.m}
+              details={details}
+              today={today}
+              selectedDate={selectedDate}
+              onSelectDate={d => setSelectedDate(prev => prev === d ? null : d)}
+            />
+            {selectedDate && (
+              <DayDetail
+                dateStr={selectedDate}
+                entries={details.filter(d => d.date === selectedDate)}
+                allShifts={allShifts}
+              />
+            )}
+          </>
+        )}
+        {isLoading && (
+          <div className="grid grid-cols-7 gap-1 animate-pulse">
+            {Array.from({ length: 35 }).map((_, i) => (
+              <div key={i} className="aspect-square rounded-lg bg-gray-100" />
+            ))}
+          </div>
+        )}
+      </section>
+
+      </div>
+
+    </div>
   )
 }
 

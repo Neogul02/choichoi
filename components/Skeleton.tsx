@@ -24,11 +24,11 @@ export function MatrixSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
-/** 재고 카드 그리드 자리 (2열 카드) */
-export function InventoryGridSkeleton({ cards = 6 }: { cards?: number }) {
+/** 재고 카드 그리드 자리 (다열 소형 카드) */
+export function InventoryGridSkeleton({ cards = 12 }: { cards?: number }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3" role="status" aria-label="재고 불러오는 중">
-      {Array.from({ length: cards }, (_, i) => <Skeleton key={i} className="h-[168px]" />)}
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5" role="status" aria-label="재고 불러오는 중">
+      {Array.from({ length: cards }, (_, i) => <Skeleton key={i} className="h-[126px]" />)}
     </div>
   );
 }

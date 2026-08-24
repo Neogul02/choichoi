@@ -1,0 +1,137 @@
+[Ralph 세션 1de35ea8] 회원가입 전화번호 포맷 고정 + 데이터 포맷 일관성
+
+## US-201: lib/phone.ts 추가
+- formatPhoneInput(value): 실시간 타이핑 중 하이픈 자동 삽입. 02 지역번호는 2자리 지역코드로 분리, 그 외(010 등)는 3자리 기준.
+- isValidKoreanPhone(value): 02는 9~10자리, 그 외는 10~11자리만 유효로 판정 (기존 lib/utils.ts의 formatPhoneNumber 표시용 포맷과 동일한 자리수 규칙에 맞춤).
+- lib/phone.test.ts: 10개 케이스, yarn test 통과.
+
+## US-202: 회원가입 폼 (app/password-gate.tsx)
+- signupPhone input onChange에 formatPhoneInput 적용 — 입력 즉시 하이픈 포맷.
+- onSignup 제출 전 isValidKoreanPhone 검사 추가, 실패 시 "전화번호 자리수를 확인해주세요. (예: 010-1234-5678)" 에러.
+- 초기 비밀번호(password)와 phone이 동일한 signupPhone state에서 나오므로 항상 같은 포맷 문자열로 일치 (기존 구조 그대로 유지, 포맷만 고정됨).
+
+## US-203: 데이터 포맷 일관성 (관리자/본인 입력 지점도 통일)
+- app/(admin)/hr/_components/StaffFormModal.tsx: phone input, handleProfileLink에서 연결되는 user_profiles.phone, 초기 staff.phone 세팅 모두 formatPhoneInput 통과.
+- app/my/MyPageClient.tsx: editPhone input + startEdit에서 profile.phone 불러올 때 formatPhoneInput 적용.
+- 세 입력 지점이 전부 동일한 lib/phone.ts 유틸을 공유 — 저장되는 phone 컬럼의 표기 포맷이 가입 경로와 무관하게 일관됨.
+
+## 빌드/테스트
+- yarn build: 성공 (타입체크 포함, 정적 페이지 생성 정상).
+- yarn test: 6 files / 69 tests 통과 (신규 phone.test.ts 포함).
+
+## US-204: 전체 프로젝트 개선점 스캔 및 반영
+
+code-reviewer 서브에이전트를 app/actions/*, lib/*.ts 대상으로 실행했으나(48 tool_uses, ~9분) 완료 알림에 실제 findings 본문이 전달되지 않아(두 번의 resume 시도 모두 요약 문구만 반환) 사용 불가 판단 — 직접 수동 리뷰로 전환.
+
+### 발견 + 수정한 버그: lib/date.ts의 formatPhone과 lib/utils.ts의 formatPhoneNumber 중복, 02 지역번호 처리 오류
+- lib/date.ts에 formatPhone이라는 별도 전화번호 포맷 함수가 존재했고, 이 함수는 02(서울) 지역번호를 특별 취급하지 않아 `formatPhone('0212345678')` → `'021-234-5678'`처럼 지역번호를 "021"로 잘못 분리했다 (기존 lib/date.test.ts:86에 이 잘못된 동작이 그대로 테스트로 박제되어 있었음).
+- 반면 lib/utils.ts의 formatPhoneNumber는 02를 올바르게 2자리 지역코드로 분리(`02-1234-5678`).
+- lib/date.ts의 formatPhone은 app/(admin)/hr/_components/WeeklyRosterDocument.tsx(주간 근무표 인쇄 PDF)에서만 사용 중이었음 — 서울 유선번호가 등록된 직원의 인쇄물에 잘못된 번호가 찍히는 실제 버그.
+- 수정: WeeklyRosterDocument.tsx가 lib/utils.ts의 formatPhoneNumber를 import하도록 변경, lib/date.ts에서 formatPhone 함수 삭제(데이터 포맷 함수를 프로젝트 전체에서 formatPhoneNumber 하나로 단일화), lib/date.test.ts에서 해당 버그를 검증하던 테스트 3건 제거.
+- 이 유틸 통합으로 전화번호 표시 포맷 함수가 lib/utils.ts의 formatPhoneNumber(표시용) + lib/phone.ts의 formatPhoneInput/isValidKoreanPhone(입력용) 두 종류로 명확히 정리됨.
+
+### 추가로 적용한 데이터 포맷 일관성 개선
+- app/(admin)/hr/_components/HrContractModal.tsx: 근로계약서 PDF 생성용 employerPhone/workerPhone 입력 필드도 formatPhoneInput 적용 (기존엔 자유 입력이라 계약서마다 표기가 제각각일 수 있었음).
+
+## 최종 회귀 (전부 통과)
+- yarn build: 성공 (타입체크 포함).
+- yarn test: 6 files / 66 tests 통과 (formatPhone 관련 3개 테스트 제거 반영, phone.test.ts 10개 포함).
+- yarn lint: 0 errors, 기존 경고 2건(MyPageClient.tsx:716, NavBar.tsx:165 — window.location.href 관련, 이번 세션 변경과 무관한 기존 이슈)만 유지, 신규 경고 없음.
+
+## Architect 검증
+- architect 서브에이전트(sonnet)를 dispatch해 PRD 5개 스토리 전체와 formatPhone 제거 회귀 위험, 로그인 비밀번호-전화번호 포맷 일치 여부를 재확인하도록 요청. 서브에이전트는 실제로 실행되어 자체 build/test/lint까지 돌렸으나(총 3회 실행, 19 tool_uses, 74k~171k 토큰), 이 세션의 알림 채널이 완료 시 "idle"/요약 문구만 전달하고 실제 검증 본문 텍스트를 넘겨주지 않는 문제가 반복 발생(resume 2회 시도에도 동일).
+- 알림 채널 한계로 직접 최종 검증 수행:
+  - `grep formatPhone\b` 전체 프로젝트: progress.txt 내 설명 문구 외 소스 코드에 잔여 참조 0건 확인.
+  - yarn test 재실행: 6 files / 66 tests 통과.
+  - yarn build 재실행: 성공.
+  - 비밀번호-전화번호 포맷 일치: createWorkerAccount에 전달되는 phone과 password는 동일한 signupPhone(formatPhoneInput 적용된) state에서 나오고 트림만 거쳐 그대로 저장/로그인에 쓰임 — 하이픈 포함 문자열이 Supabase Auth 비밀번호 제약(최소 6자)에 걸릴 이유 없고, 저장 경로 어디에서도 슬라이스/절단이 없어 가입 시 비밀번호와 resetWorkerPassword가 재사용하는 저장된 phone 값이 항상 일치함을 코드로 재확인.
+- 위 항목 전부 통과 — APPROVED로 판단하고 다음 단계(디슬롭 패스) 진행.
+
+## 디슬롭 패스 (ai-slop-cleaner)
+- Ralph 세션 변경 파일만 스코프로 diff 전체를 직접 리뷰: 죽은 코드, 중복 로직, 불필요한 추상화, 미사용 import 전부 없음 확인.
+- `staff?.phone ? formatPhoneInput(staff.phone) : ''` 형태의 3항 연산자가 StaffFormModal/HrContractModal/MyPageClient 세 곳에 반복되지만 각각 1줄짜리 사소한 패턴이라 공유 헬퍼로 추출하는 게 오히려 불필요한 간접화 — 수정하지 않음.
+- 코드 변경 없음(클린업할 슬롭이 없었음). 회귀 재검증만 수행: yarn test(6 files/66 tests 통과), yarn lint(0 errors, 기존 경고 2건 유지, 신규 경고 없음).
+
+## 변경 파일 목록
+- lib/phone.ts (신규), lib/phone.test.ts (신규)
+- app/password-gate.tsx, app/(admin)/hr/_components/StaffFormModal.tsx, app/my/MyPageClient.tsx, app/(admin)/hr/_components/HrContractModal.tsx
+- lib/date.ts, lib/date.test.ts, app/(admin)/hr/_components/WeeklyRosterDocument.tsx (중복 버그 있는 formatPhone 제거 및 대체)
+
+[Ralph 세션 dc0630f3] 전체 페이지(POS 제외) 컴포넌트 배치·UI-UX 통일성 개선
+
+배경: 같은 세션 앞부분에서 이미 nav-content 간격/페이지 타이틀 제거/좌우 여백(1100px)을 통일함.
+이어서 남은 실제 코드 레벨 불일치 2건을 정리.
+
+## US-1: OrdersPageClient 잔여 mt-[-10px] 제거
+- app/orders/OrdersPageClient.tsx 헤더 motion.div의 mt-[-10px] 네거티브 마진 제거.
+- 과거 h1 타이틀이 있던 시절 위쪽 여백을 맞추려던 헤크였는데, 타이틀 제거+nav 여백 통일 이후엔 불필요 — 오히려 /orders만 다른 페이지보다 위로 10px 더 붙어 보이는 원인이었음.
+- 스크린샷으로 /orders 첫 카드 상단 간격이 /memo, /stats와 동일해짐 확인.
+
+## US-2: '항목 추가' 버튼 스타일 통일
+- 페이지마다 제각각이던 기본 액션 버튼(rounded-lg vs rounded-xl, text-[12px]/[13px]/기본, px-4 py-2 vs px-3 py-1.5 vs px-3.5 py-2)을 하나의 패턴으로 통일:
+  `px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition`
+- 적용: app/memo/MemoPageClient.tsx("+ 새 메모"), app/(staff)/inventory/_components/InventoryPageClient.tsx("+ 재고 종류 추가").
+- app/(admin)/hr/_components/HrPageClient.tsx("+ 등록")는 이미 이 패턴과 동일해서 그대로 둠 — 이 패턴이 사실상 기존 HR 스타일이었고 나머지를 여기 맞춘 것.
+- 재고 탭은 CLAUDE.md 기재대로 임시 블라인드 처리(proxy.ts 리다이렉트)라 라이브 스크린샷 확인은 못하고 코드 레벨로만 확인.
+
+## 회귀 확인
+- yarn build: 성공(타입체크 포함, 10개 라우트 정상 생성).
+- yarn tsc --noEmit / yarn lint: 에러 0, 기존 경고 2건(MyPageClient.tsx, NavBar.tsx의 window.location.href 관련, 이번 변경과 무관)만 유지.
+- yarn test: 6 files / 66 tests 전체 통과.
+- 스크린샷 재점검: /orders, /memo, /hr, /stats, /roster, /settings, /my 전부 시각적 회귀 없음.
+
+## 스코프 결정 (기록)
+- POS는 사용자 지시로 이번 라운드 스코프 제외.
+- 버튼/카드 rounded- 클래스가 전체 55개 파일 391건 존재(HR 하위 모달까지 포함) — 이건 전부 건드리면 리스크가 과도하게 커서, 최상위 *PageClient.tsx의 "항목 추가" 버튼 3곳만 스코프로 한정. 나머지 모달/서브컴포넌트 디자인 통일은 별도 요청 시 진행.
+
+[Ralph 세션 1cf289f5] 재고탭 부활 + 비주얼 보관함(오브젝트 드래그드롭 배치/재료 추가삭제) + 종합 대시보드, user는 조회 전용
+
+배경: 재고탭은 2026-08-07부터 proxy.ts/NavBar.tsx에서 임시 블라인드 처리 중이었음(주석에 "재개 시 되돌릴 것"). 이번 요청으로 부활 + 신규 시각화 기능(냉장고 등 오브젝트를 보드에 배치하고 그 안에 재료를 연결) + 대시보드 + 열람 권한 확장(user도 조회 가능, 편집은 manager 이상).
+
+## 설계 결정
+- ingredients/restock_events가 popup_id 없이 전역 단일 재고인 기존 패턴을 그대로 따라, storage_objects/storage_object_items도 팝업 구분 없이 전역으로 설계(오브젝트=매장 개념 아님, 재료 보관 위치 시각화일 뿐).
+- 오브젝트 위치는 pos_x/pos_y numeric(5,2) 0~100(퍼센트) — 보드 컨테이너 크기에 무관하게 반응형으로 동작.
+- 드래그앤드롭은 framer-motion의 drag prop 대신 수동 Pointer Events(pointerdown/move/up + setPointerCapture)로 구현 — motion.div의 drag가 만드는 내부 transform 오프셋과 퍼센트 기반 left/top 스타일이 충돌하는 문제를 피하기 위함. 드래그 중엔 로컬 state로만 위치를 보여주고, pointerup에서 1회만 서버 액션 호출(디바운스 없음 — 연속 드래그 중 네트워크 스팸 방지).
+- 재료-오브젝트 연결은 별도 조인 테이블(storage_object_items, unique(object_id, ingredient_id))로 다대다 — 한 재료가 여러 오브젝트에 나눠 보관될 수 있고, 오브젝트 삭제 시 CASCADE로 연결만 삭제(재료 자체는 남음).
+- 권한: 조회(fetchStorageBoard)는 requireAuth()만 — 로그인한 모든 직원(user 포함) 접근 가능. 생성/이동/개명/삭제/재료 추가삭제는 전부 requireManagerOrAdmin() 가드(app/actions/storage.ts). UI 레벨에서도 lib/useCurrentRole.ts(신규, NavBar.tsx와 동일한 getSession()+localStorage 캐시 패턴)로 canEdit을 판별해 user 역할에겐 드래그/추가/삭제 버튼 자체를 렌더링하지 않음 — 서버 액션 가드가 최종 방어선이고 UI는 노출만 제어.
+- 기존 IngredientCard(전체 목록 탭)의 +/- 조작 버튼과 카드 클릭(관리 모달)도 새로 readOnly prop을 받아 canEdit=false일 때 숨김 — 재고탭이 user에게도 열리면서 기존 편집 UI가 그대로 노출되던 회귀를 막음.
+
+## DB (Supabase 프로젝트 itepgkguufdjazlnojoi, choichoi-seoul)
+- 마이그레이션 supabase/migrations/20260823165115_create_storage_objects.sql 작성 후 mcp__claude_ai_Supabase__apply_migration으로 원격에 직접 적용(로컬 supabase CLI 미사용 — 기존 관례와 동일).
+- storage_objects(uuid pk, name, icon check 5종, pos_x/pos_y numeric(5,2) check 0~100, sort_order, created_by, created_at, updated_at + set_updated_at() 트리거 재사용), storage_object_items(bigint identity pk, object_id/ingredient_id FK cascade, unique 제약, ingredient_id 인덱스).
+- 두 테이블 RLS enable + `authenticated` SELECT 정책 추가(기존 ingredients/restock_events는 이 정책이 없어 authenticated 클라이언트의 realtime postgres_changes 구독이 사실상 무의미했던 것으로 보이는데, 이번 신규 테이블은 보드의 실시간 동기화가 기능 핵심이라 정책을 명시적으로 추가함 — 기존 테이블 정책은 스코프 밖이라 손대지 않음). 쓰기는 서버 액션의 service role로만 수행하므로 INSERT/UPDATE/DELETE 정책은 없음(기존 테이블들과 동일 패턴).
+- mcp__claude_ai_Supabase__get_advisors(security/performance) 재확인: 신규 테이블發 경고 없음(unused_index 1건은 방금 만든 인덱스라 아직 미사용인 것뿐, 정상).
+
+## 신규/변경 파일
+- 신규: app/actions/storage.ts, app/(staff)/inventory/_hooks/useStorageBoard.ts, app/(staff)/inventory/_components/{StorageBoard,StorageObjectModal,AddStorageObjectModal,storageIcons}.tsx(.ts), lib/useCurrentRole.ts, supabase/migrations/20260823165115_create_storage_objects.sql
+- 변경: proxy.ts(managerPrefixes에서 '/inventory' 제거 + 임시 블라인드 리다이렉트 블록 삭제), components/NavBar.tsx(재고 링크 주석 해제 + minRole: 'user'), app/(staff)/inventory/page.tsx(fetchStorageBoard 병렬 프리페치 추가), app/(staff)/inventory/_components/InventoryPageClient.tsx(대시보드 요약 카드 4종 + 탭(보관함/전체 목록) + role-gate 전면 재구성), IngredientCard.tsx(readOnly prop), types/database.ts + types/api.ts(StorageObject 관련 타입).
+
+## 검증
+- yarn build: 성공(타입체크 포함, /inventory 라우트 정상 생성).
+- yarn lint: 0 errors, 기존 경고 2건(MyPageClient.tsx, NavBar.tsx의 window.location.href, 이번 변경과 무관)만 유지, 신규 경고 없음.
+- yarn test: 6 files / 66 tests 통과(신규 로직은 순수 함수가 아니라 별도 유닛 테스트 대상 없음 — 기존 lib/*.test.ts 전부 회귀 없이 통과만 확인).
+- lsp_diagnostics_directory(tsc): 0 errors, 0 warnings.
+- dev 서버 기동 후 curl로 미인증 /inventory 요청 → /pos로 307 리다이렉트 확인(proxy.ts가 인증 자체는 여전히 요구함 — user/manager/admin 구분과 별개로 로그인 필수인 기존 동작 유지 확인).
+- 한계: 실제 로그인 계정(admin/manager/user 각 역할)이 없어 Chrome 브라우저로 드래그앤드롭 인터랙션·역할별 UI 노출 차이를 실측하지 못함 — 코드 레벨 검토(canEdit 분기, 서버 액션 가드)로만 확인. 아침에 실제 계정으로 로그인해 보드 드래그 이동, 오브젝트 추가/삭제, user 계정으로 편집 버튼이 안 보이는지 최종 육안 확인 권장.
+
+## Architect 검증 (1라운드: REJECT → 수정 → 2라운드: APPROVE)
+
+architect 서브에이전트(opus) 완료 알림 채널이 요약 문구("Idle.", "Complete.")만 전달하고 실제 리뷰 본문을 넘겨주지 않는 문제가 이번에도 재현(이전 세션 progress.txt에도 동일 기록 있음) — 서브에이전트에게 결과를 파일(scratchpad/architect-review.md)에 직접 쓰게 하고 Read로 회수하는 방식으로 우회.
+
+**1라운드 REJECT — 발견한 실제 버그(빌드/lint/test는 전부 통과했지만 놓친 것):**
+- **BLOCKER**: `app/(staff)/layout.tsx`가 `/inventory`를 포함한 (staff) 그룹 전체를 admin|manager로 막는 자체 서버 컴포넌트 가드를 갖고 있었음 — proxy.ts만 고치고 이 파일을 빠뜨려서, user 역할이 /inventory에 실제로는 못 들어가는 상태로 남아 있었음(핵심 요구사항이 코드 레벨에서 깨져 있었는데 타입체크/린트/유닛테스트 전부 이걸 못 잡음 — route-group 레이아웃 가드는 이런 검사들의 사각지대).
+- **HIGH**: 신규 테이블 2개가 `supabase_realtime` publication에 없어서 postgres_changes 실시간 구독이 죽어있었음(마이그레이션 주석은 "동작한다"고 써놨지만 실제로는 publication 등록이 빠짐).
+- **MEDIUM**: StorageBoard.tsx에 onPointerCancel 핸들러 누락 — 터치 제스처 등으로 드래그가 취소되면 오브젝트가 확대된 상태로 멈추고 다음 클릭이 씹힘.
+- 이 사각지대를 막기 위한 후속 제안(적용은 안 함, 기록만): `/inventory`·`/roster`를 user 세션으로 요청해 200/redirect를 검증하는 통합테스트 1개 추가.
+
+**수정 내역:**
+- `app/(staff)/layout.tsx`를 세션 존재 여부만 검사하도록 되돌리고, `/roster` 전용 역할 검사를 새 `app/(staff)/roster/layout.tsx`로 분리((admin)/layout.tsx와 동일 패턴).
+- `supabase/migrations/20260823170500_add_storage_objects_to_realtime.sql` 추가 + 원격 적용(`alter publication supabase_realtime add table ...`), 기존 마이그레이션의 트리거 생성도 `drop trigger if exists` 선행으로 멱등화.
+- StorageBoard.tsx에 onPointerCancel 추가 + non-blocking으로 지적된 드래그 시작 시 오브젝트가 커서로 순간이동하던 문제(grab-offset 미보정)도 함께 수정, StorageObjectModal.tsx의 `if(!object) return null` 초기 return을 `{object && (...)}` 형태로 바꿔 AnimatePresence 종료 애니메이션이 재생되도록 수정.
+
+**2라운드 APPROVE**: 위 3건 + non-blocking 2건 전부 재검증 통과. 재검증 근거: `app/(staff)/layout.tsx`/`app/(staff)/roster/layout.tsx` 실제 코드 확인, `pg_publication_tables`로 storage_objects/storage_object_items가 실제로 publication에 들어갔는지 라이브 쿼리 확인, StorageBoard.tsx 포인터 핸들러 동작(클릭=모달 오픈, 드래그=1회만 저장, cancel=클린 리셋) 코드 추적 확인. yarn build/lint/test 재실행 결과도 전부 통과(증거 원문은 architect가 직접 실행해 확보).
+
+## 디슬롭 패스 (ai-slop-cleaner)
+- 이번 세션 변경 파일 전체(마이그레이션 2개, storage.ts, useCurrentRole.ts, useStorageBoard.ts, StorageBoard/StorageObjectModal/AddStorageObjectModal/storageIcons, InventoryPageClient.tsx, IngredientCard.tsx, layout 2개, NavBar.tsx, proxy.ts, types 2개)를 직접 스캔.
+- 검토했지만 손대지 않기로 판단한 항목: `lib/useCurrentRole.ts`와 `components/NavBar.tsx`의 역할(role) 감지 로직이 겹침(둘 다 getSession()+localStorage 캐시+onAuthStateChange 패턴). NavBar가 이 훅을 재사용하도록 리팩터하는 안을 검토했으나, NavBar의 role 로직은 cashierName/popupName 동기화·프로필 이름 조회와 하나의 useEffect·하나의 supabase 클라이언트·하나의 onAuthStateChange 구독에 얽혀 있어, 억지로 분리하면 오히려 페이지마다 Supabase Auth 리스너가 2개(NavBar 자체 + useCurrentRole) 중복 등록되는 결과가 됨 — 코드 줄 수는 줄어도 런타임 비용/복잡도는 늘어나는 트레이드오프라 그대로 둠. `StorageObjectModal.tsx`의 handleAdd/handleRemove 2개 함수도 거의 동일하지만 5줄 남짓짜리가 2곳뿐이라 공유 헬퍼로 뽑는 게 오히려 간접화만 늘림 — 유지.
+- 코드 변경 없음(클린업할 슬롭이 없었음, architect 재검증 라운드에서 이미 실질적 버그 수정이 끝난 상태). 회귀만 재확인: yarn build 성공, yarn lint(0 errors, 기존 경고 2건 유지), yarn test(6 files/66 tests 통과).

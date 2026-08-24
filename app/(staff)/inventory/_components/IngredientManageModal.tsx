@@ -243,7 +243,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
                     type="text"
                     value={vendor}
                     onChange={(e) => setVendor(e.target.value)}
-                    placeholder="예: 마켓컬리"
+                    placeholder="예: 마켓컬리 010-1234-5678"
                     className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                     style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                   />
