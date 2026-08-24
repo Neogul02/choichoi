@@ -16,17 +16,11 @@ const CreateIngredientSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, '올바른 색상 코드를 입력해주세요'),
   unit_type: z.enum(['count', 'weight']),
   base_unit: z.string().min(1, '기본 단위를 입력해주세요'),
-  container_unit: z.string().min(1, '용기 단위를 입력해주세요'),
-  container_size: z.number().positive('용기 크기는 0보다 커야 합니다'),
+  reorder_at: z.number().nonnegative('발주 기준 수량은 0 이상이어야 합니다'),
   vendor: z.string().max(100, '거래처는 100자 이하여야 합니다').optional(),
 });
 
 const UUID = z.string().min(1, 'ID를 입력해주세요').max(50).regex(/^[a-z0-9_]+$/, '올바른 ID 형식이어야 합니다');
-
-const RestockSchema = z.object({
-  sealed: z.number().int('밀봉 수량은 정수여야 합니다'),
-  opened: z.number().int('개봉 수량은 정수여야 합니다'),
-});
 
 async function getIngredients(): Promise<Ingredient[]> {
   const { data, error } = await supabaseAdmin
@@ -39,25 +33,23 @@ async function getIngredients(): Promise<Ingredient[]> {
 
 async function addRestock(
   ingredient_id: string,
-  sealed_delta: number,
-  opened_delta: number,
+  delta: number,
   note?: string,
   created_by?: string,
 ): Promise<void> {
   const { error } = await supabaseAdmin.rpc('apply_restock', {
     p_ingredient_id: ingredient_id,
-    p_sealed_delta: sealed_delta,
-    p_opened_delta: opened_delta,
+    p_delta: delta,
     p_note: note ?? null,
     p_created_by: created_by ?? null,
   })
   if (error) throw error
 }
 
-async function physicalInventory(id: string, sealed_count: number, opened_remaining: number): Promise<Ingredient> {
+async function physicalInventory(id: string, total_count: number): Promise<Ingredient> {
   const { data, error } = await supabaseAdmin
     .from('ingredients')
-    .update({ sealed_count, opened_remaining: Math.max(0, opened_remaining) })
+    .update({ total_count: Math.max(0, total_count) })
     .eq('id', id)
     .select()
     .single()
@@ -72,8 +64,7 @@ async function addIngredient(data: {
   color: string
   unit_type: 'count' | 'weight'
   base_unit: string
-  container_unit: string
-  container_size: number
+  reorder_at: number
   vendor?: string
   sort_order?: number
 }): Promise<Ingredient> {
@@ -97,7 +88,7 @@ async function deleteIngredient(id: string): Promise<void> {
 async function updateIngredientMeta(
   id: string,
   updates: {
-    container_size?: number
+    reorder_at?: number
     vendor?: string | null
   },
 ): Promise<Ingredient> {
@@ -115,29 +106,28 @@ export async function fetchIngredients(): Promise<FetchIngredientsResponse> {
   return wrap(async () => { await requireManagerOrAdmin(); return getIngredients(); });
 }
 
-export async function restockIngredient(id: string, sealed: number, opened: number, note?: string, by?: string): Promise<ApiResponse> {
+export async function restockIngredient(id: string, delta: number, note?: string, by?: string): Promise<ApiResponse> {
   const idParsed = UUID.safeParse(id);
   if (!idParsed.success) return { success: false, error: idParsed.error.issues[0].message };
-  const parsed = RestockSchema.safeParse({ sealed, opened });
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(async () => { await requireManagerOrAdmin(); return addRestock(id, sealed, opened, note, by); });
+  if (!Number.isFinite(delta)) return { success: false, error: '수량 변경값이 올바르지 않습니다.' };
+  return wrap(async () => { await requireManagerOrAdmin(); return addRestock(id, delta, note, by); });
 }
 
-export async function setPhysicalInventory(id: string, sealed: number, opened: number): Promise<ApiResponse<Ingredient>> {
-  return wrap(async () => { await requireManagerOrAdmin(); return physicalInventory(id, sealed, opened); });
+export async function setPhysicalInventory(id: string, total: number): Promise<ApiResponse<Ingredient>> {
+  return wrap(async () => { await requireManagerOrAdmin(); return physicalInventory(id, total); });
 }
 
 export async function updateIngredientSettings(
   id: string,
-  updates: { container_size?: number; vendor?: string | null }
+  updates: { reorder_at?: number; vendor?: string | null }
 ): Promise<ApiResponse<Ingredient>> {
   return wrap(async () => { await requireManagerOrAdmin(); return updateIngredientMeta(id, updates); });
 }
 
 export async function createIngredient(data: {
   id: string; name: string; category: string; color: string;
-  unit_type: 'count' | 'weight'; base_unit: string; container_unit: string;
-  container_size: number; vendor?: string;
+  unit_type: 'count' | 'weight'; base_unit: string;
+  reorder_at: number; vendor?: string;
 }): Promise<ApiResponse<Ingredient>> {
   const parsed = CreateIngredientSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };

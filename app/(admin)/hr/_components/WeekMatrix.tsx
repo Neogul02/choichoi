@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { RosterAssignment, RosterShift, StaffProfile } from '@/types/database';
-import { DAY_NAMES, shiftTextColor } from './constants';
+import { DAY_NAMES, shiftTextColor, shiftBgColor } from './constants';
 import { addDays } from '@/lib/date';
 
 interface Props {
@@ -57,13 +57,16 @@ export default function WeekMatrix({
   const idleStaff = staffList.filter(s => !byStaff.has(s.id) && s.status === 'confirmed');
 
   const dayHeaderColor = (i: number) => (i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-ink-muted');
+  // 주말 칸은 텍스트 색만으론 스크롤 중에 눈에 잘 안 띄어 옅은 배경도 함께 준다
+  const weekendTint = (i: number, selected: boolean) =>
+    selected ? '' : i === 0 ? 'bg-red-50/50' : i === 6 ? 'bg-blue-50/40' : '';
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[560px] grid gap-px bg-hairline rounded-lg overflow-hidden border border-hairline" style={{ gridTemplateColumns: 'minmax(76px, auto) repeat(7, minmax(0, 1fr)) 44px' }}>
+      <div className="min-w-[620px] grid gap-px bg-hairline rounded-lg overflow-hidden border border-hairline" style={{ gridTemplateColumns: 'minmax(88px, auto) repeat(7, minmax(0, 1fr)) 48px' }}>
         {/* ── 헤더: 날짜 ── */}
         {/* 첫 열은 sticky — 모바일 가로 스크롤 시 이름·라벨이 왼쪽에 고정 (불투명 배경 + 우측 1px 그림자로 경계 유지) */}
-        <div className="sticky left-0 z-10 bg-canvas-soft px-2 py-1.5 shadow-[1px_0_0_var(--color-hairline)]" />
+        <div className="sticky left-0 z-10 bg-canvas-soft px-2 py-2 shadow-[1px_0_0_var(--color-hairline)]" />
         {dates.map((dateStr, i) => {
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDate;
@@ -71,39 +74,40 @@ export default function WeekMatrix({
             <button
               key={dateStr}
               onClick={() => onDateClick(dateStr)}
-              className={`px-1 py-1.5 text-center cursor-pointer border-none transition ${
-                isSelected ? 'bg-primary-50' : 'bg-canvas-soft hover:bg-primary-50/60'
+              className={`px-1 py-2 text-center cursor-pointer border-none transition ${
+                isSelected ? 'bg-primary-100' : `bg-canvas-soft hover:bg-primary-50/60 ${weekendTint(i, false)}`
               }`}
             >
-              <span className={`block text-[10px] font-bold leading-none ${dayHeaderColor(i)}`}>{DAY_NAMES[i]}</span>
-              <span className={`mt-0.5 inline-flex items-center justify-center text-[11px] font-bold leading-none ${
-                isToday ? 'text-white bg-primary-700 rounded-full w-[18px] h-[18px]' : 'text-ink'
+              <span className={`block text-[11px] font-bold leading-none ${dayHeaderColor(i)}`}>{DAY_NAMES[i]}</span>
+              <span className={`mt-1 inline-flex items-center justify-center text-[12px] font-bold leading-none ${
+                isToday ? 'text-white bg-primary-700 rounded-full w-[20px] h-[20px]' : 'text-ink'
               }`}>
                 {Number(dateStr.slice(8))}
               </span>
             </button>
           );
         })}
-        <div className="bg-canvas-soft px-1 py-1.5 text-center text-[10px] font-bold text-ink-muted flex items-center justify-center">일수</div>
+        <div className="bg-canvas-soft px-1 py-2 text-center text-[10px] font-bold text-ink-muted flex items-center justify-center">일수</div>
 
-        {/* ── 근무자 행 ── */}
-        {rows.map(row => {
+        {/* ── 근무자 행 (짝수 행 옅은 줄무늬로 시선 추적 보조) ── */}
+        {rows.map((row, rowIdx) => {
           const dayMap = byStaff.get(row.id);
           const workDays = dayMap?.size ?? 0;
+          const rowBase = rowIdx % 2 === 1 ? 'bg-canvas-soft/40' : 'bg-canvas';
           return (
             <div key={row.id} className="contents">
-              <div className="sticky left-0 z-10 bg-canvas px-2 py-1.5 flex items-center min-w-0 shadow-[1px_0_0_var(--color-hairline)]">
-                <span className="text-[12px] font-bold text-ink truncate">{row.name}</span>
+              <div className={`sticky left-0 z-10 ${rowBase} px-2 py-2 flex items-center min-w-0 shadow-[1px_0_0_var(--color-hairline)]`}>
+                <span className="text-[13px] font-bold text-ink truncate">{row.name}</span>
               </div>
-              {dates.map(dateStr => {
+              {dates.map((dateStr, i) => {
                 const cellAssigns = dayMap?.get(dateStr) ?? [];
                 const isSelected = dateStr === selectedDate;
                 return (
                   <button
                     key={dateStr}
                     onClick={() => onDateClick(dateStr)}
-                    className={`px-0.5 py-1 min-h-[44px] md:min-h-[34px] flex flex-col gap-0.5 items-stretch justify-center cursor-pointer border-none transition ${
-                      isSelected ? 'bg-primary-50/70' : 'bg-canvas hover:bg-primary-50/40'
+                    className={`px-1 py-1 min-h-[46px] md:min-h-[38px] flex flex-col gap-0.5 items-stretch justify-center cursor-pointer border-none transition ${
+                      isSelected ? 'bg-primary-50/70' : `${rowBase} hover:bg-primary-50/40 ${weekendTint(i, isSelected)}`
                     }`}
                   >
                     {cellAssigns.map(a => {
@@ -113,8 +117,8 @@ export default function WeekMatrix({
                         <span
                           key={a.id}
                           title={reasons?.join(', ')}
-                          className={`text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate text-center ${
-                            reasons ? 'bg-rose-50 ring-1 ring-rose-200' : 'bg-canvas-soft'
+                          className={`text-[11px] font-bold rounded px-1.5 py-0.5 leading-tight truncate text-center ${
+                            reasons ? 'bg-rose-50 ring-1 ring-rose-300' : shiftBgColor(info?.idx ?? 0)
                           } ${shiftTextColor(info?.idx ?? 0)}`}
                         >
                           {reasons && '⚠️'}
@@ -130,8 +134,8 @@ export default function WeekMatrix({
                   </button>
                 );
               })}
-              <div className="bg-canvas px-1 py-1.5 flex items-center justify-center">
-                <span className="text-[11px] font-bold text-ink-muted">{workDays}</span>
+              <div className={`${rowBase} px-1 py-2 flex items-center justify-center`}>
+                <span className="text-[12px] font-bold text-ink-muted">{workDays}</span>
               </div>
             </div>
           );

@@ -24,18 +24,9 @@ const PRESET_COLORS = [
 
 type UnitType = 'count' | 'weight';
 
-const UNIT_PRESETS: Record<UnitType, { base: string; container: string }[]> = {
-  count: [
-    { base: '장', container: '봉지' },
-    { base: '개', container: '박스' },
-    { base: '개', container: '봉지' },
-  ],
-  weight: [
-    { base: 'g', container: '박스' },
-    { base: 'g', container: '팩' },
-    { base: 'g', container: '통' },
-    { base: 'g', container: '봉지' },
-  ],
+const BASE_UNIT_PRESETS: Record<UnitType, string[]> = {
+  count: ['개', '장', '봉지'],
+  weight: ['g'],
 };
 
 export default function AddIngredientModal({ open, onClose, onSuccess }: Props) {
@@ -47,28 +38,22 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [color, setColor] = useState('#FFB3BA');
-  const [unitType, setUnitType] = useState<UnitType>('weight');
-  const [baseUnit, setBaseUnit] = useState('g');
-  const [containerUnit, setContainerUnit] = useState('박스');
-  const [containerSize, setContainerSize] = useState('1000');
+  const [unitType, setUnitType] = useState<UnitType>('count');
+  const [baseUnit, setBaseUnit] = useState('개');
+  const [reorderAt, setReorderAt] = useState('5');
   const [vendor, setVendor] = useState('');
   const [saving, setSaving] = useState(false);
 
   function reset() {
     setName(''); setId(''); setColor('#FFB3BA');
-    setUnitType('weight'); setBaseUnit('g'); setContainerUnit('박스');
-    setContainerSize('1000'); setVendor('');
-  }
-
-  function handleUnitPreset(preset: { base: string; container: string }) {
-    setBaseUnit(preset.base);
-    setContainerUnit(preset.container);
+    setUnitType('count'); setBaseUnit('개');
+    setReorderAt('5'); setVendor('');
   }
 
   async function handleSave() {
     if (!name.trim() || !id.trim()) { toast.error('이름과 ID를 입력하세요'); return; }
-    const cs = parseFloat(containerSize);
-    if (isNaN(cs) || cs <= 0) { toast.error('올바른 용량을 입력하세요'); return; }
+    const ra = parseFloat(reorderAt);
+    if (isNaN(ra) || ra < 0) { toast.error('올바른 발주 기준 수량을 입력하세요'); return; }
 
     setSaving(true);
     const res = await createIngredient({
@@ -78,8 +63,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
       color,
       unit_type: unitType,
       base_unit: baseUnit,
-      container_unit: containerUnit,
-      container_size: cs,
+      reorder_at: ra,
       vendor: vendor.trim() || undefined,
     });
     setSaving(false);
@@ -155,10 +139,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                   {(['count', 'weight'] as UnitType[]).map((t) => (
                     <button key={t} type="button" onClick={() => {
                       setUnitType(t);
-                      const preset = UNIT_PRESETS[t][0];
-                      setBaseUnit(preset.base);
-                      setContainerUnit(preset.container);
-                      setContainerSize(t === 'weight' ? '1000' : '12');
+                      setBaseUnit(BASE_UNIT_PRESETS[t][0]);
                     }}
                       className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border-none transition ${
                         unitType === t ? 'bg-primary-700 text-white' : 'bg-[#f5f6f7] text-ink-muted hover:bg-primary-50'
@@ -167,30 +148,31 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                   ))}
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
-                  {UNIT_PRESETS[unitType].map((p) => (
-                    <button key={`${p.base}-${p.container}`}
+                  {BASE_UNIT_PRESETS[unitType].map((u) => (
+                    <button key={u}
                       type="button"
-                      onClick={() => handleUnitPreset(p)}
+                      onClick={() => setBaseUnit(u)}
                       className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
-                        baseUnit === p.base && containerUnit === p.container
+                        baseUnit === u
                           ? 'bg-[#161616] text-white'
                           : 'bg-[#f5f6f7] text-ink-muted hover:bg-[#e8e8e8]'
                       }`}
-                    >{p.base}/{p.container}</button>
+                    >{u}</button>
                   ))}
                 </div>
               </div>
 
-              {/* 용량 */}
+              {/* 발주 기준 수량 */}
               <div>
                 <label className="text-[10px] font-bold text-ink-muted block mb-1">
-                  1{containerUnit}당 {baseUnit} 수
+                  발주 기준 수량 ({baseUnit})
                 </label>
                 <input
-                  type="number" value={containerSize} onChange={(e) => setContainerSize(e.target.value)} min={1}
+                  type="number" value={reorderAt} onChange={(e) => setReorderAt(e.target.value)} min={0}
                   className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                   style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                 />
+                <p className="text-[10px] text-ink-faint mt-1">재고가 이 수량 이하로 떨어지면 &quot;발주&quot; 상태로 표시됩니다.</p>
               </div>
 
               {/* 거래처 */}
@@ -222,7 +204,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
               {/* 프리뷰 */}
               <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
                 <span className="font-bold">{name || '재료명'}</span>
-                {' · '}1{containerUnit} = {containerSize}{baseUnit}
+                {' · '}단위 {baseUnit}
                 {' · '}<span className="inline-block w-3 h-3 rounded-full align-middle" style={{ backgroundColor: color }} />
               </div>
 

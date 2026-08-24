@@ -7,15 +7,16 @@ import { fetchIngredients } from '@/app/actions/inventory';
 import type { Ingredient } from '@/types/database';
 
 export function totalQty(ing: Ingredient): number {
-  return ing.sealed_count * ing.container_size + ing.opened_remaining;
+  return ing.total_count;
 }
 
 export type IngredientStatus = 'out' | 'low' | 'warn' | 'ok';
 
+// reorder_at(발주 기준 수량)을 실제 저재고 판정에 사용 — warn은 발주 기준의 2배 이하일 때
 export function getStatus(ing: Ingredient): IngredientStatus {
-  if (totalQty(ing) === 0) return 'out';
-  if (ing.sealed_count === 0) return 'low';
-  if (ing.sealed_count === 1) return 'warn';
+  if (ing.total_count <= 0) return 'out';
+  if (ing.total_count <= ing.reorder_at) return 'low';
+  if (ing.total_count <= ing.reorder_at * 2) return 'warn';
   return 'ok';
 }
 
@@ -32,13 +33,9 @@ export function useInventory(initialIngredients?: Ingredient[] | null) {
     if (!silent) setIsLoading(false);
   }, []);
 
-  const applyLocalDelta = useCallback((id: string, sealedDelta: number, openedDelta: number) => {
+  const applyLocalDelta = useCallback((id: string, delta: number) => {
     setIngredients(prev => prev.map(ing => ing.id === id
-      ? {
-          ...ing,
-          sealed_count: Math.max(0, ing.sealed_count + sealedDelta),
-          opened_remaining: Math.max(0, ing.opened_remaining + openedDelta),
-        }
+      ? { ...ing, total_count: Math.max(0, ing.total_count + delta) }
       : ing
     ));
   }, []);

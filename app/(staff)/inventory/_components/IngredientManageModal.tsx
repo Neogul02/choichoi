@@ -21,20 +21,18 @@ type Tab = 'adjust' | 'settings';
 export default function IngredientManageModal({ ingredient, onClose, onSuccess }: Props) {
   useBodyScrollLock(ingredient != null);
   const [tab, setTab] = useState<Tab>('adjust');
-  const [containerSize, setContainerSize] = useState('');
+  const [reorderAt, setReorderAt] = useState('');
   const [vendor, setVendor] = useState('');
-  const [adjSealed, setAdjSealed] = useState('');
-  const [adjOpened, setAdjOpened] = useState('');
+  const [adjTotal, setAdjTotal] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (ingredient) {
       setTab('adjust');
-      setContainerSize(String(ingredient.container_size));
+      setReorderAt(String(ingredient.reorder_at));
       setVendor(ingredient.vendor ?? '');
-      setAdjSealed(String(ingredient.sealed_count));
-      setAdjOpened(String(ingredient.opened_remaining));
+      setAdjTotal(String(ingredient.total_count));
       setConfirmDelete(false);
     }
   }, [ingredient]);
@@ -54,14 +52,13 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
   }
 
   async function handleAdjust() {
-    const s = parseInt(adjSealed, 10);
-    const o = parseFloat(adjOpened);
-    if (isNaN(s) || s < 0 || isNaN(o) || o < 0) {
+    const t = parseFloat(adjTotal);
+    if (isNaN(t) || t < 0) {
       toast.error('올바른 값을 입력해주세요');
       return;
     }
     setSaving(true);
-    const res = await setPhysicalInventory(ingredient!.id, s, o);
+    const res = await setPhysicalInventory(ingredient!.id, t);
     setSaving(false);
     if (res.success) {
       toast.success('재고 조정 완료');
@@ -86,14 +83,14 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
   }
 
   async function handleSettings() {
-    const cs = parseFloat(containerSize);
-    if (isNaN(cs) || cs <= 0) {
+    const ra = parseFloat(reorderAt);
+    if (isNaN(ra) || ra < 0) {
       toast.error('올바른 값을 입력해주세요');
       return;
     }
     setSaving(true);
     const res = await updateIngredientSettings(ingredient.id, {
-      container_size: cs,
+      reorder_at: ra,
       vendor: vendor.trim() || null,
     });
     setSaving(false);
@@ -131,9 +128,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <div>
               <h2 className="text-[15px] font-extrabold text-ink">{ingredient.name}</h2>
-              <p className="text-[11px] text-ink-faint mt-0.5">
-                현재 {fmt(currentTotal)} · 1{ingredient.container_unit}={ingredient.container_size}{ingredient.base_unit}
-              </p>
+              <p className="text-[11px] text-ink-faint mt-0.5">현재 {fmt(currentTotal)}</p>
             </div>
             <button
               type="button"
@@ -167,44 +162,22 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
             {tab === 'adjust' && (
               <form onSubmit={(e) => { e.preventDefault(); handleAdjust(); }} className="flex flex-col gap-4">
                 <p className="text-[11px] text-ink-faint">실사 결과를 직접 입력합니다. 현재 재고가 이 값으로 덮어써집니다. 카드의 +/- 버튼으로도 빠르게 조정할 수 있습니다.</p>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
-                      미개봉 ({ingredient.container_unit})
-                    </label>
-                    <input
-                      type="number"
-                      value={adjSealed}
-                      onChange={(e) => setAdjSealed(e.target.value)}
-                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
-                      style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                      min={0}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
-                      개봉 잔량 ({ingredient.base_unit})
-                    </label>
-                    <input
-                      type="number"
-                      value={adjOpened}
-                      onChange={(e) => setAdjOpened(e.target.value)}
-                      className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
-                      style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                      min={0}
-                    />
-                  </div>
+                <div>
+                  <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
+                    재고 수량 ({ingredient.base_unit})
+                  </label>
+                  <input
+                    type="number"
+                    value={adjTotal}
+                    onChange={(e) => setAdjTotal(e.target.value)}
+                    className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
+                    style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+                    min={0}
+                  />
                 </div>
 
                 <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
-                  조정 후:{' '}
-                  <span className="font-bold text-ink">
-                    {fmt(
-                      (parseInt(adjSealed, 10) || 0) * ingredient.container_size +
-                      (parseFloat(adjOpened) || 0)
-                    )}
-                  </span>
-                  {' '}({adjSealed || 0}{ingredient.container_unit} + {adjOpened || 0}{ingredient.base_unit})
+                  조정 후: <span className="font-bold text-ink">{fmt(parseFloat(adjTotal) || 0)}</span>
                 </div>
 
                 <button
@@ -221,20 +194,20 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
               <form onSubmit={(e) => { e.preventDefault(); handleSettings(); }} className="flex flex-col gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-ink-muted block mb-1.5">
-                    1{ingredient.container_unit}당 {ingredient.base_unit} 수
+                    발주 기준 수량 ({ingredient.base_unit})
                   </label>
                   <input
                     type="number"
-                    value={containerSize}
-                    onChange={(e) => setContainerSize(e.target.value)}
+                    value={reorderAt}
+                    onChange={(e) => setReorderAt(e.target.value)}
                     className="w-full border border-hairline rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary-700 transition"
                     style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
-                    min={1}
+                    min={0}
                   />
                 </div>
 
                 <div className="bg-canvas-soft rounded-xl px-3.5 py-2.5 text-[11px] text-ink-muted">
-                  1{ingredient.container_unit} = {containerSize || '?'}{ingredient.base_unit}
+                  재고가 이 수량 이하로 떨어지면 &quot;발주&quot; 상태로 표시됩니다.
                 </div>
 
                 <div>

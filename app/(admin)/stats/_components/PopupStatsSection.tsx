@@ -10,8 +10,9 @@ import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
 import { buildDayHourMatrix, DAY_COLORS, DAYS, WEEKDAY_ORDER, weekendAccentColor, getDayOfWeekLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import { HOURS, buildHourlyData, mergeManualHourlyData } from '@/app/(admin)/stats/_lib/hourly';
 import { CHART_GRID_STROKE, CHART_TICK_STYLE, CHART_VALUE_LABEL_STYLE, CHART_ACCENT_PRIMARY, CHART_ACCENT_PRIMARY_SOFT, CHART_ACCENT_GOLD } from '@/app/(admin)/stats/_lib/chartTheme';
-import { kstToday } from '@/lib/date';
+import { getPopupPeriod } from '@/lib/popupPeriod';
 import ChartTooltipCard from './ChartTooltipCard';
+import PopupPicker from './PopupPicker';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
@@ -101,22 +102,8 @@ export default function PopupStatsSection({
   const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
   const popupTotalOrders = useMemo(() => popupDailySales.reduce((s, d) => s + d.orderCount, 0), [popupDailySales]);
 
-  // 운영 기간 지표 — 총 일수, 현재까지 경과한 운영 일수, 진행 상태
-  const period = useMemo(() => {
-    if (!selectedPopup) return null;
-    const today = kstToday();
-    const dayMs = 86400000;
-    const start = new Date(selectedPopup.start_date + 'T00:00:00');
-    const end = new Date(selectedPopup.end_date + 'T00:00:00');
-    const totalDays = Math.round((end.getTime() - start.getTime()) / dayMs) + 1;
-    const status: '예정' | '진행중' | '종료' =
-      today < selectedPopup.start_date ? '예정' : today > selectedPopup.end_date ? '종료' : '진행중';
-    const elapsedDays =
-      status === '예정'
-        ? 0
-        : Math.min(totalDays, Math.round((new Date(today + 'T00:00:00').getTime() - start.getTime()) / dayMs) + 1);
-    return { totalDays, elapsedDays, remainingDays: totalDays - elapsedDays, status };
-  }, [selectedPopup]);
+  // 운영 기간 지표 — 총 일수, 현재까지 경과한 운영 일수, 진행 상태 (팝업 선택기·비교 대시보드와 공유 로직)
+  const period = useMemo(() => (selectedPopup ? getPopupPeriod(selectedPopup) : null), [selectedPopup]);
 
   const derived = useMemo(() => {
     const elapsed = period?.elapsedDays ?? 0;
@@ -141,13 +128,15 @@ export default function PopupStatsSection({
   const cumulativeData = useMemo(() => {
     const total = popupDailySales.reduce((s, d) => s + d.revenue, 0);
     const avg = popupDailySales.length > 0 ? total / popupDailySales.length : 0;
-    let sum = 0;
+    const cumulativeRevenues = popupDailySales.reduce<number[]>((acc, d, i) => {
+      acc.push((acc[i - 1] ?? 0) + d.revenue);
+      return acc;
+    }, []);
     return popupDailySales.map((d, i) => {
-      sum += d.revenue;
       return {
         dateLabel: formatDateLabel(d.date),
         day: getDayOfWeekLabel(d.date),
-        cumulative: sum,
+        cumulative: cumulativeRevenues[i],
         daily: d.revenue,
         pace: Math.round(avg * (i + 1)),
       };
@@ -253,18 +242,7 @@ export default function PopupStatsSection({
         <p className="m-0 text-ink-faint text-sm">등록된 팝업이 없습니다. 일정 탭에서 팝업을 먼저 생성하세요.</p>
       ) : (
         <>
-          <select
-            value={selectedPopupId ?? ''}
-            onChange={(e) => onSelectPopup(e.target.value ? Number(e.target.value) : null)}
-            className="w-full border border-[#d8e8e0] rounded-lg px-3 py-2.5 text-sm font-semibold bg-canvas text-ink-secondary outline-none focus:border-primary-700 mb-4"
-          >
-            <option value="">팝업을 선택하세요</option>
-            {popupEvents.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.start_date} ~ {p.end_date})
-              </option>
-            ))}
-          </select>
+          <PopupPicker popupEvents={popupEvents} selectedPopupId={selectedPopupId} onSelectPopup={onSelectPopup} />
 
           {selectedPopup && period && (
             isLoading ? (
