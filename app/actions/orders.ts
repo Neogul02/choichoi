@@ -91,26 +91,19 @@ async function deleteOrder(id: number): Promise<void> {
 
 async function getTodaysSales(popupId?: string | number | null): Promise<TodaysSales> {
   const { start, end } = getKSTDateBounds()
-  let query = supabaseAdmin
-    .from('orders')
-    .select('total_price')
-    .gte('created_at', start)
-    .lte('created_at', end)
-    .limit(10000)
-
-  if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
-
-  const { data, error } = await query
+  // 결제 완료마다 호출되는 핫패스라 당일 주문 전체 행을 끌어와 JS에서 합산하는 대신
+  // DB 집계 RPC(get_todays_sales_totals)로 단일 행만 받는다 — 주문이 쌓일수록 커지던 payload가 고정된다.
+  const { data, error } = await supabaseAdmin.rpc('get_todays_sales_totals', {
+    p_start: start,
+    p_end: end,
+    p_popup_id: popupId && popupId !== '0' ? Number(popupId) : null,
+  })
   if (error) throw error
 
-  const totalRevenue =
-    data?.reduce(
-      (sum, order) => sum + parseFloat(String(order.total_price)),
-      0,
-    ) ?? 0
+  const row = data?.[0] as { total_revenue: number | string; total_orders: number | string } | undefined
   return {
-    totalOrders: data?.length ?? 0,
-    totalRevenue,
+    totalOrders: Number(row?.total_orders ?? 0),
+    totalRevenue: Number(row?.total_revenue ?? 0),
   }
 }
 
