@@ -116,7 +116,7 @@ export async function fetchStaffMonthlyDetail(
 
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')
+      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time), popup_events(start_date, end_date)')
       .eq('staff_id', staffId)
       .gte('work_date', from)
       .lte('work_date', to)
@@ -124,7 +124,16 @@ export async function fetchStaffMonthlyDetail(
 
     if (error) return { success: false, error: error.message }
 
-    const details: StaffDayDetail[] = (data ?? []).map(a => {
+    // 팝업 이벤트 종료 후에도 남아있는 유령 배정(직원이 다른 팝업으로 재배정된 뒤 예전 팝업 배정이 삭제되지 않은 경우)이
+    // 급여에 중복 반영되는 것을 막는다 — 배정일이 연결된 팝업 이벤트 기간 밖이면 제외. 주방 등 popup_id가 없는 배정은 그대로 포함.
+    const validRows = (data ?? []).filter(a => {
+      const peRaw = a.popup_events
+      const pe = (Array.isArray(peRaw) ? peRaw[0] : peRaw) as { start_date: string; end_date: string } | null
+      if (!pe) return true
+      return a.work_date >= pe.start_date && a.work_date <= pe.end_date
+    })
+
+    const details: StaffDayDetail[] = validRows.map(a => {
       const shiftRaw = a.roster_shifts
       const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
       const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
@@ -168,7 +177,7 @@ export async function fetchMonthlyPayroll(
     const [assignRes, staffRes, shiftRes] = await Promise.all([
       supabaseAdmin
         .from('roster_assignments')
-        .select('staff_id, shift_id, start_time, end_time, break_minutes')
+        .select('staff_id, shift_id, start_time, end_time, break_minutes, work_date, popup_events(start_date, end_date)')
         .eq('staff_role', staffRole)
         .gte('work_date', from)
         .lte('work_date', to),
@@ -190,6 +199,10 @@ export async function fetchMonthlyPayroll(
     for (const a of assignRes.data ?? []) {
       const shift = shiftMap.get(a.shift_id)
       if (!shift) continue
+      // 팝업 이벤트 종료 후 남은 유령 배정은 급여 합계에서 제외 (fetchStaffMonthlyDetail과 동일 기준)
+      const peRaw = a.popup_events
+      const pe = (Array.isArray(peRaw) ? peRaw[0] : peRaw) as { start_date: string; end_date: string } | null
+      if (pe && (a.work_date < pe.start_date || a.work_date > pe.end_date)) continue
       const startStr: string = a.start_time ?? shift.start_time
       const endStr: string = a.end_time ?? shift.end_time
       const paidMin = paidMinutes(startStr, endStr, a.break_minutes)
