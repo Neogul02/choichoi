@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchMonthlyPayroll, type PayrollRow } from '@/app/actions/payroll'
-import type { StaffRole } from '@/types/database'
+import { fetchMonthlyPayroll, fetchPopupPayroll, type PayrollRow, type PopupPayrollResult } from '@/app/actions/payroll'
+import { fetchPopupEvents } from '@/app/actions/schedule'
+import type { StaffRole, PopupEvent } from '@/types/database'
 import { showMsg } from '@/lib/toast'
 import { formatPhoneNumber } from '@/lib/utils'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { ROLE_LABELS } from './constants'
-import PayrollDetailModal from './PayrollDetailModal'
+import PayrollDetailModal, { type PayrollPeriod } from './PayrollDetailModal'
 
 interface Props {
   defaultRole: StaffRole
@@ -16,16 +17,27 @@ interface Props {
   onRetire?: (staffId: number) => Promise<boolean>
 }
 
+type ViewMode = 'month' | 'popup'
+
 export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const [role, setRole] = useState<StaffRole>(defaultRole)
+  // 월별(달력 기준) 또는 팝업별(행사 기간 기준, 월 경계를 넘어도 한 번에 정산) — 주방은 팝업이 없어 항상 월별
+  const [mode, setMode] = useState<ViewMode>('month')
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(null)
+  const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null)
   const [detailTarget, setDetailTarget] = useState<PayrollRow | null>(null)
-  // 급여 지급 완료 표시 — 월별로 localStorage에 보관, 체크된 행은 회색 처리
+  // 급여 지급 완료 표시 — 월/팝업별로 localStorage에 보관, 체크된 행은 회색 처리
   const [paidIds, setPaidIds] = useState<Set<number>>(new Set())
   const [retireTarget, setRetireTarget] = useState<PayrollRow | null>(null)
   const [retiring, setRetiring] = useState(false)
 
-  const paidKey = cursor ? `payroll_paid_${cursor.y}-${cursor.m}` : null
+  useEffect(() => {
+    if (role === 'kitchen') setMode('month')
+  }, [role])
+
+  const paidKey = mode === 'month'
+    ? (cursor ? `payroll_paid_${cursor.y}-${cursor.m}` : null)
+    : (selectedPopupId != null ? `payroll_paid_popup_${selectedPopupId}` : null)
   useEffect(() => {
     if (!paidKey) return
     try {
@@ -74,16 +86,44 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   }, [defaultRole])
 
   // react-query 캐시 — 탭을 떠났다 돌아와도 같은 월·역할이면 재조회 없이 즉시 표시 (staleTime 5분 전역 기본값)
-  const payrollQuery = useQuery<PayrollRow[]>({
+  const monthlyQuery = useQuery<PayrollRow[]>({
     queryKey: ['payroll', role, cursor?.y, cursor?.m],
     queryFn: async () => {
       const res = await fetchMonthlyPayroll(role, cursor!.y, cursor!.m)
       return res.success && res.data ? res.data : []
     },
-    enabled: cursor != null,
+    enabled: mode === 'month' && cursor != null,
   })
-  const rows = payrollQuery.data ?? []
-  const isLoading = cursor == null || payrollQuery.isPending
+
+  const popupsQuery = useQuery<PopupEvent[]>({
+    queryKey: ['popupEventsForPayroll'],
+    queryFn: async () => {
+      const res = await fetchPopupEvents()
+      return res.success && res.data ? res.data : []
+    },
+    enabled: mode === 'popup',
+  })
+
+  // 팝업별 모드 진입 시 가장 최근 팝업을 기본 선택
+  useEffect(() => {
+    if (mode === 'popup' && selectedPopupId == null && popupsQuery.data && popupsQuery.data.length > 0) {
+      setSelectedPopupId(popupsQuery.data[0].id)
+    }
+  }, [mode, selectedPopupId, popupsQuery.data])
+
+  const popupQuery = useQuery<PopupPayrollResult | null>({
+    queryKey: ['payroll-popup', selectedPopupId],
+    queryFn: async () => {
+      const res = await fetchPopupPayroll(selectedPopupId!)
+      return res.success && res.data ? res.data : null
+    },
+    enabled: mode === 'popup' && selectedPopupId != null,
+  })
+
+  const rows = mode === 'month' ? (monthlyQuery.data ?? []) : (popupQuery.data?.rows ?? [])
+  const isLoading = mode === 'month'
+    ? (cursor == null || monthlyQuery.isPending)
+    : (selectedPopupId == null || popupQuery.isPending)
 
   const prevMonth = () => setCursor(c => !c ? c : c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 })
   const nextMonth = () => setCursor(c => !c ? c : c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 })
@@ -92,9 +132,13 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const totalPay = rows.reduce((s, r) => s + (r.totalPay ?? 0), 0)
   const hasPayRate = rows.some(r => r.totalPay != null)
 
+  const periodLabel = mode === 'month'
+    ? (cursor ? `${cursor.y}년${cursor.m + 1}월` : '')
+    : (popupQuery.data?.popup.name ?? '')
+
   // 엑셀 한글 호환을 위해 UTF-8 BOM을 붙여 CSV 다운로드
   const handleExportCsv = () => {
-    if (!cursor || rows.length === 0) return
+    if (!periodLabel || rows.length === 0) return
     const esc = (v: string) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
     const lines = [
       ['이름', '전화', '근무일', '총 시간(h)', '시급(원)', '총 급여(원)'].join(','),
@@ -104,32 +148,50 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
         r.totalPay != null ? String(r.totalPay) : '',
       ].join(',')),
     ]
-    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const bom = String.fromCharCode(0xFEFF)
+    const blob = new Blob([bom + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `급여정산_${cursor.y}년${cursor.m + 1}월_${ROLE_LABELS[role]}.csv`
+    a.download = `급여정산_${periodLabel}_${ROLE_LABELS[role]}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const detailPeriod: PayrollPeriod | null = mode === 'month'
+    ? (cursor ? { type: 'month', year: cursor.y, month: cursor.m } : null)
+    : (popupQuery.data ? { type: 'popup', popupId: popupQuery.data.popup.id, popupName: popupQuery.data.popup.name, startDate: popupQuery.data.popup.startDate, endDate: popupQuery.data.popup.endDate } : null)
 
   return (
     <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
       {/* 헤더 */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 border-b border-hairline bg-canvas-soft">
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={prevMonth}
-            className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-[#ececeb] text-base cursor-pointer flex items-center justify-center transition"
-          >‹</button>
-          <span className="text-[13px] font-bold text-ink min-w-[90px] text-center">
-            {cursor ? `${cursor.y}년 ${cursor.m + 1}월` : '—'}
-          </span>
-          <button
-            onClick={nextMonth}
-            className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-[#ececeb] text-base cursor-pointer flex items-center justify-center transition"
-          >›</button>
-        </div>
+        {mode === 'month' ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={prevMonth}
+              className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-[#ececeb] text-base cursor-pointer flex items-center justify-center transition"
+            >‹</button>
+            <span className="text-[13px] font-bold text-ink min-w-[90px] text-center">
+              {cursor ? `${cursor.y}년 ${cursor.m + 1}월` : '—'}
+            </span>
+            <button
+              onClick={nextMonth}
+              className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-[#ececeb] text-base cursor-pointer flex items-center justify-center transition"
+            >›</button>
+          </div>
+        ) : (
+          <select
+            value={selectedPopupId ?? ''}
+            onChange={e => setSelectedPopupId(e.target.value ? Number(e.target.value) : null)}
+            className="text-[13px] font-bold text-ink px-2.5 py-1.5 rounded-lg border border-hairline bg-canvas cursor-pointer focus:outline-none focus:border-primary-700 max-w-[220px]"
+          >
+            {(popupsQuery.data ?? []).length === 0 && <option value="">팝업 없음</option>}
+            {(popupsQuery.data ?? []).map(p => (
+              <option key={p.id} value={p.id}>{p.name} ({p.start_date.slice(5)}~{p.end_date.slice(5)})</option>
+            ))}
+          </select>
+        )}
         <div className="flex items-center gap-2">
           <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas">
             {(['kitchen', 'cashier'] as StaffRole[]).map(r => (
@@ -144,6 +206,22 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
               </button>
             ))}
           </div>
+          {/* 주방은 팝업에 속하지 않으므로 캐셔일 때만 팝업별 정산 옵션 노출 */}
+          {role === 'cashier' && (
+            <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas">
+              {([['month', '월별'], ['popup', '팝업별']] as [ViewMode, string][]).map(([m, label]) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${
+                    mode === m ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             onClick={handleExportCsv}
             disabled={rows.length === 0}
@@ -158,7 +236,9 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
       {isLoading ? (
         <p className="text-ink-faint text-sm p-6 text-center m-0">불러오는 중...</p>
       ) : rows.length === 0 ? (
-        <p className="text-ink-faint text-sm p-6 text-center m-0">이번 달 배정된 직원이 없습니다.</p>
+        <p className="text-ink-faint text-sm p-6 text-center m-0">
+          {mode === 'month' ? '이번 달 배정된 직원이 없습니다.' : '이 팝업에 배정된 직원이 없습니다.'}
+        </p>
       ) : (
         <>
           <div className="overflow-x-auto">
@@ -259,7 +339,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
         onClose={() => setRetireTarget(null)}
       />
 
-      {detailTarget && cursor && (
+      {detailTarget && detailPeriod && (
         <PayrollDetailModal
           staffId={detailTarget.staffId}
           name={detailTarget.name}
@@ -267,8 +347,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           bankName={detailTarget.bankName}
           bankAccount={detailTarget.bankAccount}
           hourlyRate={detailTarget.hourlyRate}
-          year={cursor.y}
-          month={cursor.m}
+          period={detailPeriod}
           onClose={() => setDetailTarget(null)}
         />
       )}
