@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
+import { fetchStaffMonthlyDetail, fetchStaffPopupDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getWorkerContracts } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
@@ -24,6 +24,11 @@ interface Adjustment {
   amount: number
 }
 
+// 월별 정산(달력 기준) 또는 팝업별 정산(행사 기간 기준, 월 경계를 넘어가도 한 번에) 중 하나로 조회
+export type PayrollPeriod =
+  | { type: 'month'; year: number; month: number }
+  | { type: 'popup'; popupId: number; popupName: string; startDate: string; endDate: string }
+
 interface Props {
   staffId: number
   name: string
@@ -31,8 +36,7 @@ interface Props {
   bankName?: string | null
   bankAccount?: string | null
   hourlyRate: number | null
-  year: number
-  month: number
+  period: PayrollPeriod
   onClose: () => void
 }
 
@@ -44,7 +48,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function PayrollDetailModal({
-  staffId, name, phone, bankName, bankAccount, hourlyRate, year, month, onClose,
+  staffId, name, phone, bankName, bankAccount, hourlyRate, period, onClose,
 }: Props) {
   useBodyScrollLock()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -65,8 +69,13 @@ export default function PayrollDetailModal({
   const [latestContract, setLatestContract] = useState<ContractRecord | null>(null)
   const [contractsLoaded, setContractsLoaded] = useState(false)
 
+  // period.type이 바뀌어도 안전하게 재조회되도록 두 케이스에서 다른 primitive 키를 쓴다
+  const periodKey = period.type === 'month' ? `month:${period.year}-${period.month}` : `popup:${period.popupId}`
   useEffect(() => {
-    fetchStaffMonthlyDetail(staffId, year, month).then(res => {
+    const detailPromise = period.type === 'month'
+      ? fetchStaffMonthlyDetail(staffId, period.year, period.month)
+      : fetchStaffPopupDetail(staffId, period.popupId)
+    detailPromise.then(res => {
       setDetails(res.success && res.data ? res.data : [])
     })
     setContractsLoaded(false)
@@ -74,7 +83,10 @@ export default function PayrollDetailModal({
       setLatestContract(res.success && res.data && res.data.length > 0 ? res.data[0] : null)
       setContractsLoaded(true)
     })
-  }, [staffId, year, month])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffId, periodKey])
+
+  const periodLabel = period.type === 'month' ? `${period.year}년 ${period.month + 1}월` : period.popupName
 
   // 총 유급시간·기본급은 이 모달이 직접 불러온 details(일별 상세)에서만 계산한다.
   // 목록(PayrollPanel)의 totalHours/totalPay는 react-query 캐시(staleTime 5분)를 타므로
@@ -112,9 +124,8 @@ export default function PayrollDetailModal({
   }
 
   const handleShare = () => {
-    const monthStr = `${year}년 ${month + 1}월`
     const lines: string[] = [
-      `📋 ${name} 님 ${monthStr} 급여 내역`,
+      `📋 ${name} 님 ${periodLabel} 급여 내역`,
       '',
       `총 근무: ${details?.length ?? 0}일 / ${totalHours}h`,
     ]
@@ -165,7 +176,7 @@ export default function PayrollDetailModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-canvas-soft sticky top-0 z-10">
           <div>
             <h3 className="m-0 text-[16px] font-bold text-ink">{name}</h3>
-            <p className="m-0 text-[12px] text-ink-muted">{year}년 {month + 1}월 급여 세부내역</p>
+            <p className="m-0 text-[12px] text-ink-muted">{periodLabel} 급여 세부내역</p>
           </div>
           <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none w-8 h-8 flex items-center justify-center">×</button>
         </div>
