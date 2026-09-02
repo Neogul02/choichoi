@@ -133,31 +133,93 @@ export async function fetchStaffMonthlyDetail(
       return a.work_date >= pe.start_date && a.work_date <= pe.end_date
     })
 
-    const details: StaffDayDetail[] = validRows.map(a => {
-      const shiftRaw = a.roster_shifts
-      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
-      const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
-      const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
-      const rawMinutes = shiftRawMinutes(startTime, endTime)
-      const breakMinutes = a.break_minutes ?? DEFAULT_BREAK_MINUTES
-      const paid = paidMinutes(startTime, endTime, a.break_minutes)
-      return {
-        date: a.work_date,
-        shiftName: shift?.name ?? '파트 미정',
-        startTime: startTime.slice(0, 5),
-        endTime: endTime.slice(0, 5),
-        hours: minutesToHours(paid),
-        rawMinutes, breakMinutes, paidMinutes: paid,
-        isCustomTime: a.start_time != null || a.end_time != null,
-        isCustomBreak: a.break_minutes != null,
-      }
-    })
+    const details: StaffDayDetail[] = mapAssignmentsToDetails(validRows)
 
     return { success: true, data: details }
   } catch (err) {
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
+}
+
+// 팝업(행사) 기간이 월 경계를 넘어가도(예: 8/21~9/3) 한 번에 조회할 때 사용 — 캐셔 전용, 주방은 팝업에 속하지 않는다
+export async function fetchStaffPopupDetail(
+  staffId: number,
+  popupId: number,
+): Promise<ApiResponse<StaffDayDetail[]>> {
+  try {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+    if (user.role !== 'admin' && user.role !== 'manager') {
+      const { data: own } = await supabaseAdmin
+        .from('staff_profiles')
+        .select('id')
+        .eq('user_profile_id', user.id)
+        .eq('id', staffId)
+        .maybeSingle()
+      if (!own) return { success: false, error: '권한이 없습니다.' }
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')
+      .eq('staff_id', staffId)
+      .eq('popup_id', popupId)
+      .order('work_date', { ascending: true })
+
+    if (error) return { success: false, error: error.message }
+
+    return { success: true, data: mapAssignmentsToDetails(data ?? []) }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
+type AssignmentDetailRow = {
+  work_date: string
+  start_time: string | null
+  end_time: string | null
+  break_minutes: number | null
+  roster_shifts: { name: string; start_time: string; end_time: string }[] | { name: string; start_time: string; end_time: string } | null
+}
+
+function mapAssignmentsToDetails(rows: AssignmentDetailRow[]): StaffDayDetail[] {
+  return rows.map(a => {
+    const shiftRaw = a.roster_shifts
+    const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
+    const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
+    const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
+    const rawMinutes = shiftRawMinutes(startTime, endTime)
+    const breakMinutes = a.break_minutes ?? DEFAULT_BREAK_MINUTES
+    const paid = paidMinutes(startTime, endTime, a.break_minutes)
+    return {
+      date: a.work_date,
+      shiftName: shift?.name ?? '파트 미정',
+      startTime: startTime.slice(0, 5),
+      endTime: endTime.slice(0, 5),
+      hours: minutesToHours(paid),
+      rawMinutes, breakMinutes, paidMinutes: paid,
+      isCustomTime: a.start_time != null || a.end_time != null,
+      isCustomBreak: a.break_minutes != null,
+    }
+  })
+}
+
+function buildPayrollRows(
+  totals: Map<number, { days: number; minutes: number }>,
+  staffMap: Map<number, { id: number; name: string; phone: string | null; bank_name: string | null; bank_account: string | null; hourly_rate: number | null }>,
+): PayrollRow[] {
+  const rows: PayrollRow[] = []
+  for (const [staffId, { days, minutes }] of totals) {
+    const staff = staffMap.get(staffId)
+    if (!staff) continue
+    const totalHours = minutesToHours(minutes)
+    const totalPay = staff.hourly_rate != null ? Math.round(totalHours * staff.hourly_rate) : null
+    rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: staff.bank_name ?? null, bankAccount: staff.bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
+  }
+  rows.sort((a, b) => b.totalHours - a.totalHours)
+  return rows
 }
 
 export async function fetchMonthlyPayroll(
@@ -210,17 +272,72 @@ export async function fetchMonthlyPayroll(
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
 
-    const rows: PayrollRow[] = []
-    for (const [staffId, { days, minutes }] of totals) {
-      const staff = staffMap.get(staffId)
-      if (!staff) continue
-      const totalHours = minutesToHours(minutes)
-      const totalPay = staff.hourly_rate != null ? Math.round(totalHours * staff.hourly_rate) : null
-      rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: staff.bank_name ?? null, bankAccount: staff.bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
+    return { success: true, data: buildPayrollRows(totals, staffMap) }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
+export interface PopupPayrollResult {
+  popup: { id: number; name: string; startDate: string; endDate: string }
+  rows: PayrollRow[]
+}
+
+// 팝업(행사) 단위 급여 집계 — 팝업 기간이 월 경계를 넘어가도(예: 8/21~9/3) 한 번에 정산할 때 사용.
+// 캐셔 전용(주방은 popup_id가 없다) — roster_assignments.popup_id로 직접 필터링하므로 다른 팝업 배정이 섞일 여지가 없다.
+export async function fetchPopupPayroll(popupId: number): Promise<ApiResponse<PopupPayrollResult>> {
+  try {
+    const user = await getAuthUser()
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return { success: false, error: '권한이 없습니다.' }
+
+    const { data: popup, error: popupError } = await supabaseAdmin
+      .from('popup_events')
+      .select('id, name, start_date, end_date')
+      .eq('id', popupId)
+      .maybeSingle()
+    if (popupError) return { success: false, error: popupError.message }
+    if (!popup) return { success: false, error: '팝업을 찾을 수 없습니다.' }
+
+    const [assignRes, staffRes, shiftRes] = await Promise.all([
+      supabaseAdmin
+        .from('roster_assignments')
+        .select('staff_id, shift_id, start_time, end_time, break_minutes, work_date')
+        .eq('popup_id', popupId),
+      supabaseAdmin
+        .from('staff_profiles')
+        .select('id, name, phone, bank_name, bank_account, hourly_rate')
+        .eq('staff_role', 'cashier'),
+      supabaseAdmin
+        .from('roster_shifts')
+        .select('id, start_time, end_time'),
+    ])
+
+    if (assignRes.error) return { success: false, error: assignRes.error.message }
+
+    const staffMap = new Map((staffRes.data ?? []).map(s => [s.id, s]))
+    const shiftMap = new Map((shiftRes.data ?? []).map(s => [s.id, s]))
+
+    const totals = new Map<number, { days: number; minutes: number }>()
+    for (const a of assignRes.data ?? []) {
+      const shift = shiftMap.get(a.shift_id)
+      if (!shift) continue
+      // 팝업 기간 밖 날짜로 남은 배정은 제외 (fetchStaffMonthlyDetail과 동일 기준의 방어 로직)
+      if (a.work_date < popup.start_date || a.work_date > popup.end_date) continue
+      const startStr: string = a.start_time ?? shift.start_time
+      const endStr: string = a.end_time ?? shift.end_time
+      const paidMin = paidMinutes(startStr, endStr, a.break_minutes)
+      const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
+      totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
 
-    rows.sort((a, b) => b.totalHours - a.totalHours)
-    return { success: true, data: rows }
+    return {
+      success: true,
+      data: {
+        popup: { id: popup.id, name: popup.name, startDate: popup.start_date, endDate: popup.end_date },
+        rows: buildPayrollRows(totals, staffMap),
+      },
+    }
   } catch (err) {
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
