@@ -7,12 +7,12 @@ import { paidMinutes, minutesToHours } from '@/lib/workhours';
 interface Props {
   staffList: StaffProfile[];
   shifts: RosterShift[];
-  /** 표시 범위로 이미 필터된 배정 목록 */
+  /** 화면에 보이는 기간으로 이미 필터된 배정 목록 */
   assignments: RosterAssignment[];
   isLoading: boolean;
 }
 
-/** 표시 범위 기준 인원별 근무일 수·총 시간(휴게 제외) 합계 */
+/** 화면에 보이는 기간 기준 인원별 근무일 수·총 시간(휴게 제외) 합계 */
 export default function StaffTotalsPanel({ staffList, shifts, assignments, isLoading }: Props) {
   const totals = useMemo(() => {
     const shiftById = new Map(shifts.map(s => [s.id, s]));
@@ -41,7 +41,7 @@ export default function StaffTotalsPanel({ staffList, shifts, assignments, isLoa
     <div className="mt-3 border border-hairline rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-canvas-soft border-b border-hairline">
         <span className="text-[12px] font-bold text-ink-muted">인원별 합계</span>
-        <span className="text-[11px] text-ink-faint">표시 범위 기준 · 휴게시간 제외</span>
+        <span className="text-[11px] text-ink-faint">화면에 보이는 기간 기준 · 휴게시간 제외</span>
       </div>
       <table className="w-full border-collapse text-[12px]">
         <tbody>

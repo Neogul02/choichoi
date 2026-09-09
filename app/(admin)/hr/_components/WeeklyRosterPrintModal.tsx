@@ -11,7 +11,7 @@ import { toDateStr, addDays } from '@/lib/date'
 import { DAY_NAMES as DAY_KR } from '@/lib/staffing'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
-import { ROSTER_RANGE_FROM_KEY, ROSTER_RANGE_TO_KEY, ROSTER_CURSOR_KEY } from './roster/useRosterView'
+import { ROSTER_CURSOR_KEY } from './roster/useRosterView'
 
 interface Props {
   onClose: () => void
@@ -34,10 +34,6 @@ function formatRangeLabel(from: string, to: string): string {
 
 function getInitialRange(): { from: string; to: string } {
   try {
-    const rf = localStorage.getItem(ROSTER_RANGE_FROM_KEY) ?? ''
-    const rt = localStorage.getItem(ROSTER_RANGE_TO_KEY) ?? ''
-    if (rf && rt) return { from: rf, to: rt }
-
     const raw = localStorage.getItem(ROSTER_CURSOR_KEY)
     if (raw) {
       const { y, m } = JSON.parse(raw) as { y: number; m: number }
