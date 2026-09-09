@@ -150,8 +150,8 @@ export default function PopupManagementSection() {
   return (
     <>
       {/* 새 팝업 추가 폼 */}
-      <div className="bg-canvas-soft rounded-xl p-4 mb-5">
-        <h3 className="mt-0 mb-3 text-base font-bold">새 팝업 추가</h3>
+      <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4 mb-4">
+        <h3 className="mt-0 mb-3 text-[15px] font-bold text-ink">새 팝업 추가</h3>
         <form onSubmit={e => { e.preventDefault(); handleAdd(); }}>
           {renderFormFields(addForm, updates => setAddForm(p => ({ ...p, ...updates })))}
           <div className="flex justify-end mt-3">
@@ -164,11 +164,14 @@ export default function PopupManagementSection() {
       </div>
 
       {/* 팝업 목록 */}
-      <h3 className="mb-1.5 text-base font-bold">팝업 목록</h3>
+      <h3 className="mb-1.5 text-[15px] font-bold text-ink">
+        팝업 목록
+        <span className="ml-1.5 text-[12px] font-semibold text-ink-faint tabular-nums">{events.length}</span>
+      </h3>
       <p className="mt-0 mb-3 text-xs text-ink-muted">
         비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 스케줄·일정표에서 숨겨집니다.
       </p>
-      {isLoading ? <p className="text-ink-muted text-sm">로딩 중...</p> : events.length === 0 ? (
+      {isLoading ? <p className="text-ink-muted text-sm">불러오는 중…</p> : events.length === 0 ? (
         <p className="text-ink-faint text-sm">등록된 팝업이 없습니다.</p>
       ) : (
         <ul className="m-0 p-0 list-none space-y-1.5">

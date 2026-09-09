@@ -10,7 +10,15 @@ import DevToolsSection from './DevToolsSection';
 import UserManagementSection from './UserManagementSection';
 import PopupManagementSection from './PopupManagementSection';
 
-type ActiveTab = 'menu' | 'popups' | 'devtools' | 'users';
+type ActiveTab = 'menu' | 'popups' | 'users' | 'devtools';
+
+// 탭 순서 = 쓰는 빈도 순. 설명은 "무엇을 하는 곳인지"를 한 줄로만 말한다.
+const TABS: { id: ActiveTab; label: string; desc: string }[] = [
+  { id: 'menu', label: '메뉴 관리', desc: 'POS에 보이는 메뉴와 순서를 관리합니다' },
+  { id: 'popups', label: '팝업 관리', desc: '행사 기간과 활성 상태를 관리합니다' },
+  { id: 'users', label: '유저 관리', desc: '계정 권한·연락처를 관리합니다' },
+  { id: 'devtools', label: '개발자 도구', desc: '배포 환경, 서버 액션, 데이터베이스 구조를 확인합니다' },
+];
 type ColorOption = { name: string; value: string };
 
 const COLOR_PALETTE: ColorOption[] = [
@@ -196,21 +204,32 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
-        <div className="bg-canvas rounded-xl p-4 md:p-5">
+        <div className="pt-1 md:pt-2">
 
-          {/* 헤더 */}
-          <div className="flex items-center justify-end mb-5">
-            <div className="flex gap-1.5 bg-[#f5f6f7] p-1 rounded-xl">
-              {([['menu', '메뉴 관리'], ['popups', '팝업 관리'], ['users', '유저 관리'], ['devtools', '개발자 도구']] as [ActiveTab, string][]).map(([tab, label]) => (
-                <button key={tab} onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1.5 text-sm font-semibold rounded-lg border-none cursor-pointer transition-all ${
-                    activeTab === tab ? 'bg-canvas text-ink shadow-sm' : 'bg-transparent text-ink-muted hover:text-ink-secondary'
-                  }`}>
-                  {label}
-                </button>
-              ))}
+          {/* 헤더 — 탭이 아래 내용에 붙도록 밑줄형으로 두고, 선택한 탭의 설명을 바로 아래 둔다 */}
+          <header className="mb-4">
+            <h1 className="m-0 mb-3 text-heading-2 text-ink">설정</h1>
+            <div className="flex gap-1 overflow-x-auto border-b border-hairline [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {TABS.map(tab => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`relative shrink-0 px-3 py-2 text-[13px] font-bold bg-transparent border-none cursor-pointer transition-colors whitespace-nowrap after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:transition-colors ${
+                      isActive ? 'text-ink after:bg-primary-700' : 'text-ink-muted hover:text-ink after:bg-transparent'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+            <p className="m-0 mt-2 text-[12px] text-ink-muted">
+              {TABS.find(t => t.id === activeTab)?.desc}
+            </p>
+          </header>
 
           {activeTab === 'devtools' ? <DevToolsSection />
            : activeTab === 'users' ? <UserManagementSection />
@@ -218,8 +237,8 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
            : (
             <>
               {/* 새 메뉴 추가 폼 */}
-              <div className="bg-canvas-soft rounded-xl p-4 mb-5">
-                <h3 className="mt-0 mb-3 text-base font-bold">새 메뉴 추가</h3>
+              <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4 mb-4">
+                <h3 className="mt-0 mb-3 text-[15px] font-bold text-ink">새 메뉴 추가</h3>
                 <form onSubmit={e => { e.preventDefault(); handleAdd(); }}>
                   <div className="flex gap-2 mb-2.5">
                     <input
@@ -265,8 +284,11 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
               </div>
 
               {/* 메뉴 목록 */}
-              <h3 className="mb-3 text-base font-bold">메뉴 목록</h3>
-              {isLoading ? <p className="text-ink-muted text-sm">로딩 중...</p> : (
+              <h3 className="mb-2 text-[15px] font-bold text-ink">
+                메뉴 목록
+                <span className="ml-1.5 text-[12px] font-semibold text-ink-faint tabular-nums">{activeMenuItems.length}</span>
+              </h3>
+              {isLoading ? <p className="text-ink-muted text-sm">불러오는 중…</p> : (
                 <ul className="m-0 p-0 list-none space-y-1.5">
                   {activeMenuItems.map(item => {
                     const draft = inlineEdits[item.id];

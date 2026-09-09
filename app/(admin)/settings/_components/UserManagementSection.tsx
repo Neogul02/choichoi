@@ -219,7 +219,7 @@ export default function UserManagementSection() {
         {filtered.length === users.length ? `총 ${users.length}명` : `${filtered.length} / ${users.length}명`}
       </div>
 
-      <div className="rounded-xl border border-hairline overflow-hidden">
+      <div className="rounded-2xl border border-hairline bg-canvas shadow-level-1 overflow-hidden">
         {filtered.length === 0 ? (
           <p className="text-[12px] text-ink-muted text-center py-6">
             {query.trim() ? '검색 결과가 없습니다.' : '이 권한에 해당하는 계정이 없습니다.'}
