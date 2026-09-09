@@ -410,6 +410,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             selectedDate={selectedDate}
             shifts={shifts}
             getAssigned={getAssigned}
+            getRequired={getRequired}
             getShiftLabel={getShiftLabel}
             violationDates={violationDates}
             onSelectDate={setSelectedDate}
