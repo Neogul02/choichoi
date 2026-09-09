@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { formatTimeRange } from '@/lib/workhours';
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
@@ -126,7 +127,7 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
                     }`}
                   >
                     {s.name}
-                    <span className="ml-1 text-[10px] opacity-70">{s.start_time}~{s.end_time}</span>
+                    <span className="ml-1 text-[10px] opacity-70">{formatTimeRange(s.start_time, s.end_time)}</span>
                   </button>
                 ))}
               </div>

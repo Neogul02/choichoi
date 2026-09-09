@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatTimeRange } from '@/lib/workhours';
 import { showMsg } from '@/lib/toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
@@ -198,7 +199,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
         for (const shift of shifts) {
           const assigned = getAssigned(dateStr, shift.id);
           if (assigned.length === 0) continue;
-          dayLines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
+          dayLines.push(`[${shift.name}] ${formatTimeRange(shift.start_time, shift.end_time)}`);
           for (const a of assigned) {
             const extras = [
               a.start_time || a.end_time
@@ -410,6 +411,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             selectedDate={selectedDate}
             shifts={shifts}
             getAssigned={getAssigned}
+            getRequired={getRequired}
             getShiftLabel={getShiftLabel}
             violationDates={violationDates}
             onSelectDate={setSelectedDate}

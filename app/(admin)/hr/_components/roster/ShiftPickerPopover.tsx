@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { formatTimeRange } from '@/lib/workhours';
 import { createPortal } from 'react-dom';
 import type { RosterShift } from '@/types/database';
 import { useModalKeyboard } from '@/lib/useModalKeyboard';
@@ -42,7 +43,7 @@ export default function ShiftPickerPopover({ dateStr, x, y, shifts, getShiftLabe
               onClick={() => onPick(s.id)}
               className="w-full text-left px-3 py-1.5 rounded-lg text-[12px] hover:bg-canvas-soft cursor-pointer bg-transparent border-none transition"
             >
-              {getShiftLabel(s)} <span className="text-ink-faint text-[10px]">{s.start_time}~{s.end_time}</span>
+              {getShiftLabel(s)} <span className="text-ink-faint text-[10px]">{formatTimeRange(s.start_time, s.end_time)}</span>
             </button>
           ))
         }

@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchActivePopupEvents } from '@/app/actions/schedule'
 import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
-import { formatPhoneInput, isValidKoreanPhone } from '@/lib/phone'
+import { formatPhoneInput, isValidKoreanPhone, normalizePhone } from '@/lib/phone'
 import { notifyLoginEvent } from '@/app/actions/discord'
 import { withTimeout } from '@/lib/utils'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -194,7 +194,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     if (!signupName.trim()) { setError('이름을 입력해주세요.'); return }
     if (!signupEmail.trim()) { setError('이메일을 입력해주세요.'); return }
     if (!signupPhone.trim()) { setError('전화번호를 입력해주세요. (초기 비밀번호로 사용됩니다)'); return }
-    if (!isValidKoreanPhone(signupPhone)) { setError('전화번호 자리수를 확인해주세요. (예: 010-1234-5678)'); return }
+    if (!isValidKoreanPhone(signupPhone)) { setError('전화번호 형식을 확인해주세요. 0으로 시작하는 국내 번호만 가능합니다. (예: 010-1234-5678)'); return }
     if (!signupInviteCode.trim()) { setError('초대 코드를 입력해주세요.'); return }
     const residentFront = signupResidentFront.trim()
     const residentBack = signupResidentBack.trim()
@@ -208,15 +208,17 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setIsSubmitting(true)
 
     const email = signupEmail.trim()
-    const password = signupPhone.trim()
+    // DB·비밀번호에는 항상 하이픈 없는 숫자만 넣는다 — 표시 포맷과 저장 포맷이 섞이면 로그인이 안 된다
+    const phone = normalizePhone(signupPhone)
+    const password = phone
 
     // 서버 액션: 초대코드 검증 + 계정 생성 + 프로필 INSERT (이메일 발송 없음)
+    // 초기 비밀번호는 서버가 전화번호에서 파생하므로 여기서 넘기지 않는다
     const result = await createWorkerAccount({
       inviteCode: signupInviteCode,
       email,
-      password,
       name: signupName.trim(),
-      phone: signupPhone.trim(),
+      phone,
       bankName: signupBankName.trim() || undefined,
       bankAccount: signupBankAccount.trim() || undefined,
       residentIdFront: residentFront,

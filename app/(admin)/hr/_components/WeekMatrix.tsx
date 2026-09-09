@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { formatTimeRange } from '@/lib/workhours';
 import type { RosterAssignment, RosterShift, StaffProfile } from '@/types/database';
 import { DAY_NAMES, shiftTextColor, shiftBgColor } from './constants';
 import { addDays } from '@/lib/date';
@@ -125,7 +126,7 @@ export default function WeekMatrix({
                           {info ? getShiftLabel(info.shift) : '?'}
                           {(a.start_time || a.end_time) && (
                             <span className="ml-0.5 font-semibold opacity-70">
-                              {(a.start_time ?? info?.shift.start_time ?? '').slice(0, 5)}~{(a.end_time ?? info?.shift.end_time ?? '').slice(0, 5)}
+                              {formatTimeRange(a.start_time ?? info?.shift.start_time ?? '00:00', a.end_time ?? info?.shift.end_time ?? '00:00')}
                             </span>
                           )}
                         </span>
