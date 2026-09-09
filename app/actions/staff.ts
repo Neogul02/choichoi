@@ -5,6 +5,7 @@ import { getAuthUser, isNextInternalControlFlowError } from './_base'
 import { STAFF_COLUMNS } from '@/lib/staff-columns'
 import type { ApiResponse } from '@/types/api'
 import { normalizePhone } from '@/lib/phone'
+import { isValidBankAccount, normalizeBankAccount, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
 import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
 
 export async function uploadHealthCert(staffId: number, file: FormData): Promise<ApiResponse<{ url: string }>> {
@@ -130,13 +131,15 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
   try {
     const user = await getAuthUser()
     if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
+    const bankAccount = normalizeBankAccount(input.bank_account)
+    if (bankAccount && !isValidBankAccount(bankAccount)) return { success: false, error: BANK_ACCOUNT_RULE_MESSAGE }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .insert([{
         name: input.name.trim(),
         phone: normalizePhone(input.phone ?? '') || null,
         bank_name: input.bank_name?.trim() || null,
-        bank_account: input.bank_account?.trim() || null,
+        bank_account: bankAccount || null,
         staff_role: input.staff_role,
         popup_id: input.staff_role === 'cashier' ? (input.popup_id ?? null) : null,
         preferred_shift_ids: input.preferred_shift_ids,
@@ -165,13 +168,15 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
   try {
     const user = await getAuthUser()
     if (!user || user.role !== 'admin') return { success: false, error: '권한이 없습니다.' }
+    const bankAccount = normalizeBankAccount(input.bank_account)
+    if (bankAccount && !isValidBankAccount(bankAccount)) return { success: false, error: BANK_ACCOUNT_RULE_MESSAGE }
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .update({
         name: input.name.trim(),
         phone: normalizePhone(input.phone ?? '') || null,
         bank_name: input.bank_name?.trim() || null,
-        bank_account: input.bank_account?.trim() || null,
+        bank_account: bankAccount || null,
         staff_role: input.staff_role,
         popup_id: input.staff_role === 'cashier' ? (input.popup_id ?? null) : null,
         preferred_shift_ids: input.preferred_shift_ids,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { formatBankAccountInput, normalizeBankAccount, isValidBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
 import { toast } from 'sonner'
 import { getWorkerTier } from '@/lib/tiers'
 import { DAY_NAMES } from '@/lib/staffing'
@@ -282,12 +283,18 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
     setEditEmail(authEmail ?? '')
     setEditPhone(profile?.phone ? formatPhoneInput(profile.phone) : '')
     setEditBankName(profile?.bank_name ?? '')
-    setEditBankAccount(profile?.bank_account ?? '')
+    setEditBankAccount(normalizeBankAccount(profile?.bank_account))
     setEditHealthCert(null)
     setIsEditing(true)
   }
 
   const handleSaveProfile = () => {
+    // 계좌는 선택 입력이지만, 넣었다면 자리수까지 맞아야 한다 — 급여 송금에 그대로 쓰는 값이다
+    if (editBankAccount.trim() && !isValidBankAccount(editBankAccount)) {
+      toast.error(BANK_ACCOUNT_RULE_MESSAGE)
+      return
+    }
+
     startEditTransition(async () => {
       const supabase = createSupabaseBrowserClient()
       let healthCertUrl: string | undefined
@@ -313,7 +320,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
         name: editName.trim() || undefined,
         phone: normalizePhone(editPhone) || undefined,
         bankName: editBankName.trim() || undefined,
-        bankAccount: editBankAccount.trim() || undefined,
+        bankAccount: normalizeBankAccount(editBankAccount) || undefined,
         healthCertUrl,
       })
 
@@ -645,7 +652,10 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                 <input type='email' value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder='이메일' className={inputClass} />
                 <input type='tel' value={editPhone} onChange={(e) => setEditPhone(formatPhoneInput(e.target.value))} placeholder='전화번호' className={inputClass} maxLength={13} />
                 <input type='text' value={editBankName} onChange={(e) => setEditBankName(e.target.value)} placeholder='은행명' className={inputClass} />
-                <input type='text' value={editBankAccount} onChange={(e) => setEditBankAccount(e.target.value)} placeholder='계좌번호' className={inputClass} />
+                <input type='text' inputMode='numeric' value={editBankAccount}
+                  onChange={(e) => setEditBankAccount(formatBankAccountInput(e.target.value))}
+                  maxLength={BANK_ACCOUNT_MAX_DIGITS}
+                  placeholder="계좌번호 ('-' 없이 숫자만)" className={inputClass} />
                 <button type='button' onClick={() => editFileRef.current?.click()}
                   className='w-full border border-dashed border-hairline rounded-xl px-3 py-2.5 text-[14px] text-ink-muted hover:border-primary-700 hover:text-primary-700 transition-colors bg-transparent cursor-pointer'>
                   {editHealthCert ? `보건증: ${editHealthCert.name}` : '보건증 사본 교체 (선택)'}
