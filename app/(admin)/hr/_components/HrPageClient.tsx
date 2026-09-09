@@ -347,7 +347,10 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
               />
             </div>
 
-            {/* 불합격 통지 폼 */}
+            {/* 클릭 복사·드래그 정렬은 눈에 띄지 않는 동작이라 한 줄 안내를 둔다 */}
+            <p className="m-0 mb-1.5 text-[11px] text-ink-faint">
+              이름·전화번호는 클릭하면 복사 · 드래그로 선택도 가능 · <span className="font-semibold">⋮⋮</span> 를 잡으면 순서 변경
+            </p>
 
             {/* 직원 테이블 */}
             <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
@@ -406,7 +409,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                     </tbody>
                   </table>
                 </div>
-                {/* md 미만: 카드 리스트 (드래그 순서변경은 데스크톱 전용) */}
+                {/* md 미만: 카드 리스트 — 손잡이를 꾹 눌러 순서 변경 (포인터 이벤트, 터치 지원) */}
                 <div className="md:hidden divide-y divide-hairline max-h-[calc(100dvh-280px)] overflow-y-auto">
                   {filtered.map(staff => (
                     <StaffCard
@@ -421,6 +424,12 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       onContractsList={() => contractsList.open(staff)}
                       onAssign={() => assigning.open(staff)}
                       onCalendar={() => calendar.open(staff)}
+                      isDragging={draggingStaffId === staff.id}
+                      isDragOver={dragOverStaffId === staff.id}
+                      onReorderStart={() => setDraggingStaffId(staff.id)}
+                      onReorderOver={targetId => setDragOverStaffId(targetId)}
+                      onReorderEnd={() => { setDraggingStaffId(null); setDragOverStaffId(null); }}
+                      onReorderDrop={targetId => handleStaffDrop(targetId)}
                     />
                   ))}
                 </div>

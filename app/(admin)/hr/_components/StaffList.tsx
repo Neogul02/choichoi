@@ -1,16 +1,10 @@
 'use client';
 
-import { toast } from 'sonner';
-import type { MouseEvent } from 'react';
+import { useRef, useState } from 'react';
 import type { StaffProfile, StaffStatus, PopupEvent } from '@/types/database';
 import { formatPhoneNumber } from '@/lib/utils';
+import CopyText from '@/components/CopyText';
 import { STATUS_LABELS, STATUS_COLORS } from './constants';
-
-function copyPhone(e: MouseEvent, phone: string) {
-  e.stopPropagation();
-  navigator.clipboard.writeText(formatPhoneNumber(phone));
-  toast.success('전화번호 복사됨');
-}
 
 interface RowProps {
   staff: StaffProfile;
@@ -25,7 +19,30 @@ interface RowProps {
   onCalendar: () => void;
 }
 
-/** md 이상 테이블 행 — 드래그로 순서 변경 지원 */
+/** 이름/전화 — 클릭하면 복사, 드래그하면 선택. 행 클릭(정보 수정)과는 stopPropagation으로 분리된다 */
+function StaffIdentity({ staff, popup, nameClassName }: { staff: StaffProfile; popup: PopupEvent | null; nameClassName: string }) {
+  return (
+    <>
+      <div className={nameClassName}>
+        <CopyText value={staff.name} label="이름">{staff.name}</CopyText>
+      </div>
+      {staff.phone && (
+        <div className="text-[12px] text-ink-muted mt-0.5">
+          <CopyText value={formatPhoneNumber(staff.phone)} label="전화번호">{formatPhoneNumber(staff.phone)}</CopyText>
+        </div>
+      )}
+      {staff.staff_role === 'cashier' ? (
+        <div className={`text-[11px] font-semibold mt-0.5 select-text ${popup ? 'text-violet-600' : 'text-amber-600'}`}>
+          {popup ? popup.name : '팝업 미배정'}
+        </div>
+      ) : (
+        <div className="text-[11px] font-semibold mt-0.5 text-ink-muted select-text">주방</div>
+      )}
+    </>
+  );
+}
+
+/** md 이상 테이블 행 — 좌측 손잡이(⋮⋮)를 잡았을 때만 드래그로 순서 변경 */
 export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
   isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: RowProps & {
   isLast: boolean;
@@ -37,38 +54,43 @@ export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRow
   onDrop?: () => void;
 }) {
   const sc = STATUS_COLORS[staff.status];
+  // 행 전체에 draggable을 걸어두면 HTML5 드래그가 마우스 드래그를 가로채 셀 텍스트를 선택할 수 없다.
+  // 손잡이를 눌렀을 때만 draggable을 켜서, 나머지 영역에서는 드래그 선택/복사가 그대로 동작하게 한다.
+  const [dragArmed, setDragArmed] = useState(false);
+  const draggingRef = useRef(false);
+
+  const armDrag = () => {
+    setDragArmed(true);
+    const disarm = () => {
+      window.removeEventListener('pointerup', disarm);
+      window.removeEventListener('pointercancel', disarm);
+      // 드래그가 실제로 시작됐다면 dragend에서 해제한다 (드래그 시작 직후 pointercancel이 먼저 오는 브라우저 대응)
+      if (!draggingRef.current) setDragArmed(false);
+    };
+    window.addEventListener('pointerup', disarm);
+    window.addEventListener('pointercancel', disarm);
+  };
 
   return (
     <tr
-      draggable
-      onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('application/staff-id', String(staff.id)); e.dataTransfer.effectAllowed = 'copy'; onDragStart?.(); }}
+      draggable={dragArmed}
+      onDragStart={e => { e.stopPropagation(); draggingRef.current = true; e.dataTransfer.setData('application/staff-id', String(staff.id)); e.dataTransfer.effectAllowed = 'copy'; onDragStart?.(); }}
       onDragOver={e => { e.preventDefault(); e.stopPropagation(); onDragOver?.(); }}
-      onDragEnd={onDragEnd}
-      onDrop={e => { e.preventDefault(); e.stopPropagation(); onDrop?.(); }}
+      onDragEnd={() => { draggingRef.current = false; setDragArmed(false); onDragEnd?.(); }}
+      onDrop={e => { e.preventDefault(); e.stopPropagation(); draggingRef.current = false; setDragArmed(false); onDrop?.(); }}
       className={`transition cursor-pointer ${isDragOver ? 'bg-primary-50 outline outline-2 outline-primary-400 outline-offset-[-1px]' : 'hover:bg-canvas-soft'} ${isDragging ? 'opacity-40' : ''} ${!isLast ? 'border-b border-hairline' : ''}`}
       onClick={onRowClick}
     >
-      <td className="px-1 py-2.5 w-5 cursor-grab" onClick={e => e.stopPropagation()}>
+      <td
+        className="px-1 py-2.5 w-5 cursor-grab active:cursor-grabbing"
+        title="드래그해서 순서 변경"
+        onPointerDown={armDrag}
+        onClick={e => e.stopPropagation()}
+      >
         <span className="text-ink-faint text-[13px] select-none">⋮⋮</span>
       </td>
       <td className="px-3 py-2.5">
-        <div className="font-bold text-ink leading-tight">{staff.name}</div>
-        {staff.phone && (
-          <div
-            onClick={e => copyPhone(e, staff.phone!)}
-            title="클릭해서 복사"
-            className="text-[12px] text-ink-muted mt-0.5 w-fit cursor-pointer hover:underline"
-          >
-            {formatPhoneNumber(staff.phone)}
-          </div>
-        )}
-        {staff.staff_role === 'cashier' ? (
-          <div className={`text-[11px] font-semibold mt-0.5 ${popup ? 'text-violet-600' : 'text-amber-600'}`}>
-            {popup ? popup.name : '팝업 미배정'}
-          </div>
-        ) : (
-          <div className="text-[11px] font-semibold mt-0.5 text-ink-muted">주방</div>
-        )}
+        <StaffIdentity staff={staff} popup={popup} nameClassName="font-bold text-ink leading-tight" />
       </td>
       <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
         <select
@@ -81,7 +103,7 @@ export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRow
           ))}
         </select>
       </td>
-      <td className="px-2 py-2.5 font-semibold text-ink whitespace-nowrap">
+      <td className="px-2 py-2.5 font-semibold text-ink whitespace-nowrap select-text">
         {staff.preferred_shift_ids.length === 0 ? <span className="text-ink-faint font-normal">무관</span> : shiftNames}
       </td>
       <td className="px-2 py-2.5 whitespace-nowrap" onClick={e => e.stopPropagation()}>
@@ -108,7 +130,7 @@ function StaffActions({ staff, contractDone, fill, onContract, onContractsList, 
   onAssign: () => void;
   onCalendar: () => void;
 }) {
-  const btnBase = `whitespace-nowrap text-[11px] font-semibold rounded-lg border transition cursor-pointer ${
+  const btnBase = `whitespace-nowrap text-[11px] font-semibold rounded-lg border transition cursor-pointer select-none ${
     fill ? 'flex-1 px-2 py-1.5 text-center' : 'px-2 py-1'
   }`;
   return (
@@ -154,29 +176,64 @@ function StaffActions({ staff, contractDone, fill, onContract, onContractsList, 
 }
 
 /** md 미만 전용 카드 — 테이블의 가로 스크롤 없이 한 화면(393px)에 담기는 레이아웃 */
-export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar }: RowProps) {
+export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
+  isDragging, isDragOver, onReorderStart, onReorderOver, onReorderEnd, onReorderDrop }: RowProps & {
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onReorderStart?: () => void;
+  onReorderOver?: (targetId: number) => void;
+  onReorderEnd?: () => void;
+  onReorderDrop?: (targetId: number) => void;
+}) {
   const sc = STATUS_COLORS[staff.status];
+
+  // HTML5 드래그는 터치에서 동작하지 않아 모바일에선 순서 변경이 아예 불가능했다.
+  // 포인터 이벤트로 직접 구현 — 손잡이를 누른 채 움직이면 손가락 아래 카드가 놓을 자리가 된다.
+  const startReorder = (e: React.PointerEvent) => {
+    if (!onReorderDrop) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onReorderStart?.();
+    let targetId: number | null = null;
+    const move = (ev: PointerEvent) => {
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-staff-card-id]');
+      const id = el ? Number((el as HTMLElement).dataset.staffCardId) : null;
+      if (id !== targetId) {
+        targetId = id;
+        if (id != null) onReorderOver?.(id);
+      }
+    };
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      if (targetId != null && targetId !== staff.id) onReorderDrop(targetId);
+      else onReorderEnd?.();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  };
+
   return (
-    <div onClick={onRowClick} className="p-3 cursor-pointer active:bg-canvas-soft transition">
+    <div
+      data-staff-card-id={staff.id}
+      onClick={onRowClick}
+      className={`p-3 cursor-pointer active:bg-canvas-soft transition ${
+        isDragOver ? 'bg-primary-50 outline outline-2 outline-primary-400 outline-offset-[-1px]' : ''
+      } ${isDragging ? 'opacity-40' : ''}`}
+    >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-bold text-ink text-[14px] leading-tight">{staff.name}</div>
-          {staff.phone && (
-          <div
-            onClick={e => copyPhone(e, staff.phone!)}
-            title="클릭해서 복사"
-            className="text-[12px] text-ink-muted mt-0.5 w-fit cursor-pointer hover:underline"
-          >
-            {formatPhoneNumber(staff.phone)}
-          </div>
+        {onReorderDrop && (
+          <span
+            onPointerDown={startReorder}
+            onClick={e => e.stopPropagation()}
+            title="꾹 누른 채 위아래로 옮기면 순서 변경"
+            className="shrink-0 -m-1 p-1 text-ink-faint text-[15px] leading-none select-none cursor-grab active:cursor-grabbing touch-none"
+          >⋮⋮</span>
         )}
-          {staff.staff_role === 'cashier' ? (
-            <div className={`text-[11px] font-semibold mt-0.5 ${popup ? 'text-violet-600' : 'text-amber-600'}`}>
-              {popup ? popup.name : '팝업 미배정'}
-            </div>
-          ) : (
-            <div className="text-[11px] font-semibold mt-0.5 text-ink-muted">주방</div>
-          )}
+        <div className="min-w-0 flex-1">
+          <StaffIdentity staff={staff} popup={popup} nameClassName="font-bold text-ink text-[14px] leading-tight" />
         </div>
         <div onClick={e => e.stopPropagation()}>
           <select
@@ -190,7 +247,7 @@ export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, 
           </select>
         </div>
       </div>
-      <div className="text-[11px] text-ink-muted mt-1.5 truncate">
+      <div className="text-[11px] text-ink-muted mt-1.5 truncate select-text">
         파트 <span className="font-semibold text-ink">{shiftNames || '무관'}</span>
       </div>
       <div className="mt-2" onClick={e => e.stopPropagation()}>
