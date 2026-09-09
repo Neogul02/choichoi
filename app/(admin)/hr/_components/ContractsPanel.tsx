@@ -6,6 +6,7 @@ import { fetchAllContracts, deleteContract } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
 import type { StaffProfile, PopupEvent } from '@/types/database'
 import { showMsg } from '@/lib/toast'
+import CopyText from '@/components/CopyText'
 import ConfirmDialog from '@/components/ConfirmDialog'
 
 type ContractFilter = 'all' | 'signed' | 'pending' | 'missing'
@@ -130,10 +131,12 @@ export default function ContractsPanel({ staffList, popups, refreshSignal, onWri
               const staff = staffById.get(c.worker_id)
               const aff = affiliationLabel(staff)
               return (
-                <div key={c.id} className="flex items-center gap-2 flex-wrap bg-canvas-soft rounded-lg px-3 py-2 border border-hairline">
+                <div key={c.id} className="flex items-center gap-2 flex-wrap bg-canvas-soft rounded-lg px-3 py-2 border border-hairline select-text">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[12px] font-bold text-ink">{staff?.name ?? `#${c.worker_id}`}</span>
+                      <span className="text-[12px] font-bold text-ink">
+                        <CopyText value={staff?.name ?? `#${c.worker_id}`} label="이름">{staff?.name ?? `#${c.worker_id}`}</CopyText>
+                      </span>
                       {aff && <span className="text-[10px] font-semibold text-violet-600">{aff}</span>}
                       {c.worker_signed_at ? (
                         <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -178,9 +181,9 @@ export default function ContractsPanel({ staffList, popups, refreshSignal, onWri
                   <p className="m-0 pt-2 pb-1 text-[11px] font-bold text-amber-600">계약서 미작성 재직자</p>
                 )}
                 {missingStaff.map(s => (
-                  <div key={`missing-${s.id}`} className="flex items-center gap-2 flex-wrap bg-canvas rounded-lg px-3 py-2 border border-dashed border-amber-300">
+                  <div key={`missing-${s.id}`} className="flex items-center gap-2 flex-wrap bg-canvas rounded-lg px-3 py-2 border border-dashed border-amber-300 select-text">
                     <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                      <span className="text-[12px] font-bold text-ink">{s.name}</span>
+                      <span className="text-[12px] font-bold text-ink"><CopyText value={s.name} label="이름">{s.name}</CopyText></span>
                       {affiliationLabel(s) && <span className="text-[10px] font-semibold text-violet-600">{affiliationLabel(s)}</span>}
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                         미작성
