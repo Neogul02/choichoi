@@ -14,7 +14,7 @@ import { isValidBankAccount, normalizeBankAccount, BANK_ACCOUNT_RULE_MESSAGE } f
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
-const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role, resident_reg_no_masked'
+const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role, resident_reg_no_masked, created_at'
 
 export interface UserProfile {
   id: string
@@ -25,6 +25,8 @@ export interface UserProfile {
   health_cert_url: string | null
   worker_role: string
   resident_reg_no_masked: string | null
+  /** 가입 시각 — 유저관리의 가입순 정렬에 쓴다 */
+  created_at: string | null
 }
 
 export async function getMyProfile(): Promise<ApiResponse<UserProfile>> {
