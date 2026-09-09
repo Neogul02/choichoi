@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { formatBankAccountInput, isValidBankAccount, normalizeBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
 import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchActivePopupEvents } from '@/app/actions/schedule'
@@ -196,6 +197,8 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     if (!signupPhone.trim()) { setError('전화번호를 입력해주세요. (초기 비밀번호로 사용됩니다)'); return }
     if (!isValidKoreanPhone(signupPhone)) { setError('전화번호 형식을 확인해주세요. 0으로 시작하는 국내 번호만 가능합니다. (예: 010-1234-5678)'); return }
     if (!signupInviteCode.trim()) { setError('초대 코드를 입력해주세요.'); return }
+    // 계좌는 선택 입력이지만, 넣었다면 자리수까지 맞아야 한다 — 급여 송금에 그대로 쓰는 값이다
+    if (signupBankAccount.trim() && !isValidBankAccount(signupBankAccount)) { setError(BANK_ACCOUNT_RULE_MESSAGE); return }
     const residentFront = signupResidentFront.trim()
     const residentBack = signupResidentBack.trim()
     if (!isValidResidentRegistrationNumber(residentFront, residentBack)) {
@@ -220,7 +223,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       name: signupName.trim(),
       phone,
       bankName: signupBankName.trim() || undefined,
-      bankAccount: signupBankAccount.trim() || undefined,
+      bankAccount: normalizeBankAccount(signupBankAccount) || undefined,
       residentIdFront: residentFront,
       residentIdBack: residentBack,
     })
@@ -357,10 +360,11 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
                 onChange={(e) => setSignupBankName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupBankAccountRef.current?.focus() } }}
                 placeholder='은행명 (선택)' />
-              <input ref={signupBankAccountRef} type='text' className={inputClass} value={signupBankAccount}
-                onChange={(e) => setSignupBankAccount(e.target.value)}
+              <input ref={signupBankAccountRef} type='text' inputMode='numeric' className={inputClass} value={signupBankAccount}
+                onChange={(e) => setSignupBankAccount(formatBankAccountInput(e.target.value))}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); signupResidentFrontRef.current?.focus() } }}
-                placeholder='계좌번호 (선택)' />
+                maxLength={BANK_ACCOUNT_MAX_DIGITS}
+                placeholder="계좌번호 (선택, '-' 없이 숫자만)" />
 
               <div className='flex items-center gap-2 mb-3'>
                 <input ref={signupResidentFrontRef} type='text' inputMode='numeric' maxLength={6}

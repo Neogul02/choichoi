@@ -10,6 +10,7 @@ import { utcToKstDateStr } from '@/lib/date'
 import { encryptResidentId, decryptResidentId } from '@/lib/pii-crypto'
 import { isValidResidentRegistrationNumber, maskResidentId } from '@/lib/resident-id'
 import { isValidKoreanPhone, normalizePhone } from '@/lib/phone'
+import { isValidBankAccount, normalizeBankAccount, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
@@ -250,8 +251,12 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<ApiRes
       if (phone && !isValidKoreanPhone(phone)) return { success: false, error: '전화번호 형식이 올바르지 않습니다. (예: 010-1234-5678)' }
       updates.phone = phone || null
     }
-    if (input.bankName !== undefined) updates.bank_name = input.bankName || null
-    if (input.bankAccount !== undefined) updates.bank_account = input.bankAccount || null
+    if (input.bankName !== undefined) updates.bank_name = input.bankName?.trim() || null
+    if (input.bankAccount !== undefined) {
+      const account = normalizeBankAccount(input.bankAccount)
+      if (account && !isValidBankAccount(account)) return { success: false, error: BANK_ACCOUNT_RULE_MESSAGE }
+      updates.bank_account = account || null
+    }
     if (input.healthCertUrl !== undefined) updates.health_cert_url = input.healthCertUrl || null
 
     const { error } = await supabaseAdmin
@@ -361,6 +366,12 @@ export async function createWorkerAccount(
     // 비밀번호는 클라이언트가 보낸 값이 아니라 정규화된 전화번호로 고정한다
     const password = phone
 
+    // 1-3. 계좌번호도 숫자만으로 강제 — 하이픈이 섞이면 송금 붙여넣기가 깨지고 같은 계좌가 중복 저장된다
+    const bankAccount = normalizeBankAccount(input.bankAccount)
+    if (bankAccount && !isValidBankAccount(bankAccount)) {
+      return { success: false, error: BANK_ACCOUNT_RULE_MESSAGE }
+    }
+
     // 2. admin API로 유저 생성 (이메일 인증 메일 없음, rate limit 없음)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: input.email.trim(),
@@ -385,7 +396,7 @@ export async function createWorkerAccount(
       name: input.name.trim(),
       phone,
       bank_name: input.bankName?.trim() || null,
-      bank_account: input.bankAccount?.trim() || null,
+      bank_account: bankAccount || null,
       worker_role: 'user',
       resident_reg_no_enc: encryptResidentId(`${residentFront}${residentBack}`),
       resident_reg_no_masked: maskResidentId(residentFront, residentBack),

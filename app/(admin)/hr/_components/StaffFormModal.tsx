@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { formatBankAccountInput, normalizeBankAccount, isValidBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank';
+import { toast } from 'sonner';
 import { formatTimeRange } from '@/lib/workhours';
 import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
@@ -34,7 +36,7 @@ export default function StaffFormModal({
   const [name, setName] = useState(staff?.name ?? '');
   const [phone, setPhone] = useState(staff?.phone ? formatPhoneInput(staff.phone) : '');
   const [bankName, setBankName] = useState(staff?.bank_name ?? '');
-  const [bankAccount, setBankAccount] = useState(staff?.bank_account ?? '');
+  const [bankAccount, setBankAccount] = useState(normalizeBankAccount(staff?.bank_account));
   const [staffRole, setStaffRole] = useState<StaffRole>(staff?.staff_role ?? defaultRole ?? 'cashier');
   const [popupId, setPopupId] = useState<number | null>(staff?.popup_id ?? defaultPopupId ?? null);
   const [shiftIds, setShiftIds] = useState<number[]>(staff?.preferred_shift_ids ?? []);
@@ -85,7 +87,7 @@ export default function StaffFormModal({
     setName(p.name);
     if (p.phone) setPhone(formatPhoneInput(p.phone));
     if (p.bank_name) setBankName(p.bank_name);
-    if (p.bank_account) setBankAccount(p.bank_account);
+    if (p.bank_account) setBankAccount(normalizeBankAccount(p.bank_account));
   };
 
   const updateRange = (i: number, patch: Partial<AvailabilityRange>) =>
@@ -93,6 +95,7 @@ export default function StaffFormModal({
 
   const handleSubmit = async () => {
     if (!name.trim()) return;
+    if (bankAccount && !isValidBankAccount(bankAccount)) { toast.error(BANK_ACCOUNT_RULE_MESSAGE); return; }
     const validRanges = ranges.filter(r => r.from && r.to && r.from <= r.to);
     setIsSaving(true);
     await onSubmit({
@@ -188,7 +191,12 @@ export default function StaffFormModal({
             </div>
             <div className="flex flex-col gap-1">
               <label className={labelCls}>계좌번호</label>
-              <input type="text" value={bankAccount} onChange={e => setBankAccount(e.target.value)} placeholder="000-0000-0000-00" className={inputCls} />
+              <input
+                type="text" inputMode="numeric" value={bankAccount}
+                onChange={e => setBankAccount(formatBankAccountInput(e.target.value))}
+                maxLength={BANK_ACCOUNT_MAX_DIGITS}
+                placeholder="'-' 없이 숫자만" className={inputCls}
+              />
             </div>
           </div>
 

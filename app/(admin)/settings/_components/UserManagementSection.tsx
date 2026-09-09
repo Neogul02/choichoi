@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { bankAccountMatches } from '@/lib/bank'
 import { phoneMatches } from '@/lib/phone'
 import { toast } from 'sonner'
 import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount, getResidentIdForInsurance, resetWorkerPassword } from '@/app/actions/workers'
@@ -49,7 +50,7 @@ export default function UserManagementSection() {
     return users.filter(u =>
       u.name.toLowerCase().includes(q) ||
       phoneMatches(u.phone, q) ||
-      (u.bank_account ?? '').includes(q) ||
+      bankAccountMatches(u.bank_account, q) ||
       (u.bank_name ?? '').toLowerCase().includes(q)
     )
   }, [users, query])
