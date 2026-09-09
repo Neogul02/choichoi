@@ -15,7 +15,7 @@ import { showMsg } from '@/lib/toast'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { formatPhoneNumber } from '@/lib/utils'
-import { minutesToHours } from '@/lib/workhours'
+import { minutesToHours, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
@@ -182,7 +182,7 @@ export default function PayrollDetailModal({
           d.breakMinutes > 0 ? `휴게 ${minToH(d.breakMinutes)}h 차감${d.isCustomBreak ? '(개별)' : ''}` : d.isCustomBreak ? '휴게 미포함(개별)' : '',
           d.isCustomTime ? '시간 개별 수정' : '',
         ].filter(Boolean)
-        lines.push(`${d.date} ${d.shiftName} ${d.startTime}~${d.endTime} = ${d.hours}h${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`)
+        lines.push(`${d.date} ${d.shiftName} ${formatTimeRange(d.startTime, d.endTime)} = ${d.hours}h${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`)
       }
     }
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -279,7 +279,7 @@ export default function PayrollDetailModal({
                         <td className="px-3 py-2 font-semibold text-ink whitespace-nowrap">{formatDate(d.date)}</td>
                         <td className="px-2 py-2 text-ink-muted">{d.shiftName}</td>
                         <td className={`px-2 py-2 text-center whitespace-nowrap ${d.isCustomTime ? 'text-primary-700 font-semibold' : 'text-ink-muted'}`} title={d.isCustomTime ? '파트 기본 시간이 아닌 개별 수정 시간' : undefined}>
-                          {d.startTime}~{d.endTime}{d.isCustomTime && <span className="ml-0.5 align-super text-[9px]">*</span>}
+                          {formatTimeRange(d.startTime, d.endTime)}{d.isCustomTime && <span className="ml-0.5 align-super text-[9px]">*</span>}
                         </td>
                         <td className={`px-2 py-2 text-center ${d.isCustomBreak ? 'text-primary-700 font-semibold' : 'text-ink-faint'}`} title={d.isCustomBreak ? '기본 휴게시간이 아닌 이 근무일만 개별 조정된 값' : undefined}>
                           {d.breakMinutes > 0 ? `−${minToH(d.breakMinutes)}h` : '없음'}{d.isCustomBreak && <span className="ml-0.5 align-super text-[9px]">*</span>}

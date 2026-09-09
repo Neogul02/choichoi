@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { formatTimeRange } from '@/lib/workhours';
 import { fetchTomorrowRosterDigest } from '@/app/actions/roster'
 import { notifyDiscord } from '@/lib/discord'
 
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
       `📋 ${dateLabel} 근무 안내`,
       '내일 근무 배정입니다.',
       shifts.map(s => ({
-        name: `[${s.shiftName}] ${s.startTime}~${s.endTime}`,
+        name: `[${s.shiftName}] ${formatTimeRange(s.startTime, s.endTime)}`,
         value: s.names.map(n => `· ${n}`).join('\n'),
       })),
     )

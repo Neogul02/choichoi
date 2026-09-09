@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { hhmmToMinutes, shiftRawMinutes, paidMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from './workhours'
+import {
+  hhmmToMinutes, minutesToHHMM, shiftRawMinutes, paidMinutes, minutesToHours,
+  crossesMidnight, isFullDay, formatTimeRange, DEFAULT_BREAK_MINUTES, MINUTES_IN_DAY,
+} from './workhours'
 
 describe('hhmmToMinutes', () => {
   it('HH:MM을 분으로 변환한다', () => {
@@ -7,6 +10,10 @@ describe('hhmmToMinutes', () => {
     expect(hhmmToMinutes('09:00')).toBe(540)
     expect(hhmmToMinutes('09:30')).toBe(570)
     expect(hhmmToMinutes('23:59')).toBe(1439)
+  })
+
+  it('하루의 끝은 24:00 = 1440분', () => {
+    expect(hhmmToMinutes('24:00')).toBe(MINUTES_IN_DAY)
   })
 
   it('DB time 컬럼의 초 단위(HH:MM:SS)는 무시한다', () => {
@@ -27,8 +34,63 @@ describe('shiftRawMinutes', () => {
     expect(shiftRawMinutes('23:30', '00:30')).toBe(60)
   })
 
-  it('출퇴근이 같으면 0 (24시간 근무가 아니라 0으로 본다)', () => {
-    expect(shiftRawMinutes('09:00', '09:00')).toBe(0)
+  it('출퇴근이 같으면 24시간 근무로 본다 (길이 0인 근무는 의미가 없다)', () => {
+    expect(shiftRawMinutes('09:00', '09:00')).toBe(MINUTES_IN_DAY)
+    expect(shiftRawMinutes('00:00', '00:00')).toBe(MINUTES_IN_DAY)
+  })
+
+  it('00:00~24:00 종일 근무는 1440분', () => {
+    expect(shiftRawMinutes('00:00', '24:00')).toBe(MINUTES_IN_DAY)
+  })
+
+  it('24:00으로 끝나는 근무는 자정까지로 계산한다', () => {
+    expect(shiftRawMinutes('18:00', '24:00')).toBe(360)
+  })
+})
+
+describe('minutesToHHMM', () => {
+  it('분을 HH:MM으로 되돌린다', () => {
+    expect(minutesToHHMM(0)).toBe('00:00')
+    expect(minutesToHHMM(570)).toBe('09:30')
+    expect(minutesToHHMM(MINUTES_IN_DAY)).toBe('24:00')
+  })
+
+  it('익일로 넘어간 분은 24를 빼고 표기한다', () => {
+    expect(minutesToHHMM(MINUTES_IN_DAY + 360)).toBe('06:00')
+  })
+})
+
+describe('crossesMidnight / isFullDay', () => {
+  it('종료가 시작보다 이르면 자정을 넘긴 근무다', () => {
+    expect(crossesMidnight('22:00', '06:00')).toBe(true)
+    expect(crossesMidnight('09:00', '18:00')).toBe(false)
+  })
+
+  it('24:00 종료는 그날의 끝이지 익일이 아니다', () => {
+    expect(crossesMidnight('18:00', '24:00')).toBe(false)
+    expect(crossesMidnight('00:00', '24:00')).toBe(false)
+  })
+
+  it('24시간을 꽉 채우면 종일 근무', () => {
+    expect(isFullDay('00:00', '24:00')).toBe(true)
+    expect(isFullDay('09:00', '09:00')).toBe(true)
+    expect(isFullDay('09:00', '18:00')).toBe(false)
+  })
+})
+
+describe('formatTimeRange', () => {
+  it('종일 근무는 00:00~24:00으로 통일해 보여준다', () => {
+    expect(formatTimeRange('00:00', '24:00')).toBe('00:00~24:00')
+    expect(formatTimeRange('00:00', '00:00')).toBe('00:00~24:00')
+  })
+
+  it('자정을 넘기면 (익일)을 붙인다', () => {
+    expect(formatTimeRange('22:00', '06:00')).toBe('22:00~06:00 (익일)')
+  })
+
+  it('같은 날 안에서 끝나면 그대로 표기하고 초 단위는 자른다', () => {
+    expect(formatTimeRange('09:00', '18:00')).toBe('09:00~18:00')
+    expect(formatTimeRange('09:00:00', '18:00:00')).toBe('09:00~18:00')
   })
 })
 
@@ -48,6 +110,10 @@ describe('paidMinutes', () => {
   it('휴게시간이 근무시간보다 길면 음수가 아니라 0', () => {
     expect(paidMinutes('09:00', '09:30', null)).toBe(0)
     expect(paidMinutes('09:00', '10:00', 120)).toBe(0)
+  })
+
+  it('종일 근무도 휴게를 차감한다', () => {
+    expect(paidMinutes('00:00', '24:00', null)).toBe(MINUTES_IN_DAY - 60)
   })
 
   it('야간 근무에도 휴게 차감이 적용된다', () => {
