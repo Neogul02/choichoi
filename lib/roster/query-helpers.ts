@@ -1,8 +1,11 @@
 import type { RosterAssignment } from '@/types/database'
 import type { RosterUnit } from '@/app/actions/roster'
+import { hhmmToMinutes } from '@/lib/workhours'
 
-// 시프트 이름 고정 우선순위: 오전 → 오후 → 기타
-export const shiftNamePriority = (name: string) => name === '오전' ? 0 : name === '오후' ? 1 : 2
+// 파트 정렬 기준은 이름(오전/오후)이 아니라 시작 시각 — 하루를 00:00~24:00 한 축으로 보고
+// 이른 시간대가 먼저 온다. 자정을 넘겨 시작하는 파트도 시작 시각 그대로 줄 세우면 된다.
+export const shiftStartPriority = (startTime: string | null | undefined) =>
+  startTime ? hhmmToMinutes(startTime) : Number.MAX_SAFE_INTEGER
 
 export const ASSIGNMENT_COLUMNS = 'id, work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time, break_minutes, created_at, staff_profiles (id, name, phone, status)'
 export const SNAPSHOT_COLUMNS = 'work_date, shift_id, staff_id, staff_role, popup_id, start_time, end_time'
@@ -26,7 +29,8 @@ export function applyUnitFilter<T>(query: T, unit: RosterUnit): T {
   return filtered as T
 }
 
+// 새 팝업의 기본 파트 — 오전/오후로 미리 쪼개지 않고 하루 전체(00:00~24:00) 하나로 시작한다.
+// 실제 운영 시간에 맞춰 좁히거나 여러 파트로 나누는 건 파트 관리에서 자유롭게 한다.
 export const DEFAULT_SHIFTS = [
-  { name: '오전', start_time: '06:00', end_time: '15:00', weekday_required: 2, weekend_required: 2, sort_order: 0 },
-  { name: '오후', start_time: '15:00', end_time: '22:00', weekday_required: 2, weekend_required: 2, sort_order: 1 },
+  { name: '종일', start_time: '00:00', end_time: '24:00', weekday_required: 1, weekend_required: 1, sort_order: 0 },
 ]

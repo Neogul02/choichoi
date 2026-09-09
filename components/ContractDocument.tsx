@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer'
+import { shiftRawMinutes } from '@/lib/workhours'
 import path from 'path'
 
 Font.register({
@@ -128,16 +129,14 @@ function todayStr(d?: string) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
 }
 
+// 근무시간 계산은 lib/workhours의 규칙을 그대로 쓴다 — 여기서 따로 빼면 계약서와 급여의 시간이 어긋난다.
+// shiftRawMinutes가 자정을 넘기는 근무(22:00~06:00)와 종일 근무(00:00~24:00)를 함께 처리한다.
 function calcNetMins(startTime: string, endTime: string, breakStart?: string, breakEnd?: string): number {
-  const [sh, sm] = startTime.split(':').map(Number)
-  const [eh, em] = endTime.split(':').map(Number)
-  const rawMins = (eh * 60 + em) - (sh * 60 + sm)
-  let brkMins = 0
-  if (breakStart && breakEnd) {
-    const [bsh, bsm] = breakStart.split(':').map(Number)
-    const [beh, bem] = breakEnd.split(':').map(Number)
-    brkMins = (beh * 60 + bem) - (bsh * 60 + bsm)
-  }
+  const rawMins = shiftRawMinutes(startTime, endTime)
+  // 시작=종료인 휴게는 "휴게 없음"이지 24시간이 아니므로 shiftRawMinutes를 태우지 않는다
+  const brkMins = breakStart && breakEnd && breakStart !== breakEnd
+    ? shiftRawMinutes(breakStart, breakEnd)
+    : 0
   return Math.max(0, rawMins - brkMins)
 }
 

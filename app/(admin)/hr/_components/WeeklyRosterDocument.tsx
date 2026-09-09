@@ -1,6 +1,7 @@
 'use client'
 
 import { Document, Page, Text, View, Font, StyleSheet } from '@react-pdf/renderer'
+import { crossesMidnight } from '@/lib/workhours';
 import path from 'path'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { parseDate } from '@/lib/date'
@@ -84,7 +85,7 @@ export function WeeklyRosterDocument({ weekLabel, entries }: { weekLabel: string
                   <Text style={s.cName}>{e.name}</Text>
                   <Text style={s.cTime}>{e.start_time}</Text>
                   <Text style={s.cTime}> </Text>
-                  <Text style={s.cTime}>{e.end_time}</Text>
+                  <Text style={s.cTime}>{e.end_time}{crossesMidnight(e.start_time, e.end_time) ? ' (익일)' : ''}</Text>
                   <Text style={s.cTime}> </Text>
                   <Text style={s.cPhone}>{formatPhoneNumber(e.phone ?? '')}</Text>
                   <View style={s.cSign}>

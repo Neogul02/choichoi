@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { formatTimeRange } from '@/lib/workhours';
 import { createPortal } from 'react-dom';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useModalKeyboard } from '@/lib/useModalKeyboard';
@@ -236,7 +237,7 @@ export default function StaffFormModal({
               <div className="flex gap-1.5 flex-wrap">
                 {unitShifts.map(s => (
                   <button key={s.id} type="button" className={chipCls(shiftIds.includes(s.id))} onClick={() => toggleShift(s.id)}>
-                    {s.name} <span className="font-normal opacity-70">{s.start_time}~{s.end_time}</span>
+                    {s.name} <span className="font-normal opacity-70">{formatTimeRange(s.start_time, s.end_time)}</span>
                   </button>
                 ))}
               </div>

@@ -140,6 +140,29 @@ describe('findRosterViolations', () => {
     expect(v.size).toBe(0)
   })
 
+  it('자정을 넘기는 야간 근무는 퇴근이 다음 날임을 반영한다', () => {
+    // 야간 파트 22:00~06:00 — 월요일 야간 근무자는 화요일 06:00에 퇴근하므로
+    // 화요일 15:00 출근까지 9시간, 06:00 출근이면 0시간이다.
+    const night = [...shifts, { id: 3, start_time: '22:00', end_time: '06:00' }]
+    const staff = [{ id: 1, max_days_per_week: null }]
+
+    const bad = findRosterViolations([assign(1, MON, 3), assign(2, TUE, 1)], night, staff)
+    expect(bad.get(2)).toContain('전일 퇴근 후 9시간 미만 휴식')
+
+    const ok = findRosterViolations([assign(1, MON, 3), assign(2, TUE, 2)], night, staff)
+    expect(ok.size).toBe(0)
+  })
+
+  it('00:00~24:00 종일 근무는 다음 날 어느 시각에 출근해도 휴식이 부족하다', () => {
+    const allDay = [...shifts, { id: 4, start_time: '00:00', end_time: '24:00' }]
+    const v = findRosterViolations(
+      [assign(1, MON, 4), assign(2, TUE, 1)],
+      allDay,
+      [{ id: 1, max_days_per_week: null }],
+    )
+    expect(v.get(2)).toContain('전일 퇴근 후 9시간 미만 휴식')
+  })
+
   it('개별 시간 오버라이드를 반영한다', () => {
     // 전일 22:00 퇴근(오버라이드) → 당일 06:00 = 8시간 → 위반
     const v = findRosterViolations(

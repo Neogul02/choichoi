@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import TimeOfDayField from '@/components/TimeOfDayField';
+import { formatTimeRange, crossesMidnight, shiftRawMinutes, minutesToHours } from '@/lib/workhours';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
 import { formatBreakMinutes } from '@/lib/utils';
@@ -123,11 +125,26 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
           placeholder="예: 과일손질, 배송" autoFocus className={`${inputCls} w-full`}
         />
       </div>
-      <div className="flex items-center gap-2">
-        <label className={`${labelCls} w-10 shrink-0`}>시간</label>
-        <input type="time" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} className={`${inputCls} flex-1 min-w-0`} />
-        <span className="text-ink-faint text-[12px]">~</span>
-        <input type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} className={`${inputCls} flex-1 min-w-0`} />
+      {/* 시간대는 오전/오후로 나누지 않고 00:00~24:00 한 축에서 고른다 — 24:00(하루의 끝)과 야간 근무 모두 표현 가능 */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className={`${labelCls} w-10 shrink-0`}>시간</label>
+          <TimeOfDayField value={form.start_time} onChange={v => setForm(f => ({ ...f, start_time: v }))} ariaLabel="시작" />
+          <span className="text-ink-faint text-[12px]">~</span>
+          <TimeOfDayField value={form.end_time} onChange={v => setForm(f => ({ ...f, end_time: v }))} ariaLabel="종료" />
+          <button
+            type="button"
+            onClick={() => setForm(f => ({ ...f, start_time: '00:00', end_time: '24:00' }))}
+            className="px-2 py-1 rounded-lg border border-hairline bg-canvas text-[10px] font-semibold text-ink-muted cursor-pointer hover:bg-canvas-soft transition"
+          >
+            종일
+          </button>
+        </div>
+        <p className="m-0 ml-12 text-[10px] text-ink-faint">
+          {formatTimeRange(form.start_time, form.end_time)}
+          {' · 근무 '}{minutesToHours(shiftRawMinutes(form.start_time, form.end_time))}h
+          {crossesMidnight(form.start_time, form.end_time) && ' · 자정을 넘겨 다음 날 끝납니다'}
+        </p>
       </div>
       <div className="flex items-center gap-1.5">
         <label className={labelCls}>휴게시간(분)</label>
@@ -239,7 +256,7 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
                 <div className="flex-1 min-w-0">
                   <p className="m-0 text-[13px] font-bold text-ink truncate">{shift.name}</p>
                   <p className="m-0 text-[11px] text-ink-muted">
-                    {shift.start_time}~{shift.end_time}
+                    {formatTimeRange(shift.start_time, shift.end_time)}
                     {shift.break_minutes > 0 && ` · 휴게 ${formatBreakMinutes(shift.break_minutes)}`}
                     {' '}· 평일 {shift.weekday_required}명 · 주말 {shift.weekend_required}명
                   </p>
