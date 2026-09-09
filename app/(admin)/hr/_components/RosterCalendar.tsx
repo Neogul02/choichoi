@@ -59,8 +59,8 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
   // 뷰 상태(월 커서·월/주 토글·범위 필터·선택 날짜 + localStorage 동기화)
   const {
     cursor, setCursor, todayStr, viewMode, weekStart, setWeekStart,
-    selectedDate, setSelectedDate, rangeFrom, setRangeFrom, rangeTo, setRangeTo,
-    resetOnCursorChange, monthStart, monthEnd, weekEndStr, loadFrom, loadTo,
+    selectedDate, setSelectedDate,
+    resetOnCursorChange, weekEndStr, loadFrom, loadTo,
     gridDates, visibleDates, targetFrom, targetTo, targetLabel,
     syncCursorToDate, moveWeek, switchView,
   } = useRosterView();
@@ -133,7 +133,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     return days.size;
   };
 
-  // 표시 범위에 속한 배정만 (인원별 합계용)
+  // 화면에 보이는 날짜의 배정만 (인원별 합계용)
   const visibleAssignments = useMemo(() => {
     const dateSet = new Set(visibleDates.filter((d): d is string => d !== null));
     return assignments.filter(a => dateSet.has(a.work_date));
@@ -357,38 +357,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           onShowBulkEdit={() => setShowBulkEdit(true)}
           onShowShiftManage={() => setShowShiftManage(true)}
         />
-
-        {/* 날짜 범위 필터 (월 뷰 전용) */}
-        {viewMode === 'month' && (
-        <div className="flex flex-wrap items-center gap-1.5 mb-3 p-2 rounded-lg bg-canvas-soft border border-hairline">
-          <span className="text-[11px] font-semibold text-ink-muted shrink-0">표시 범위</span>
-          <input
-            type="date"
-            value={rangeFrom}
-            min={monthStart}
-            max={rangeTo || monthEnd}
-            onChange={e => setRangeFrom(e.target.value)}
-            className="flex-1 min-w-[136px] px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
-          />
-          <span className="text-ink-faint text-[11px] shrink-0">~</span>
-          <input
-            type="date"
-            value={rangeTo}
-            min={rangeFrom || monthStart}
-            max={monthEnd}
-            onChange={e => setRangeTo(e.target.value)}
-            className="flex-1 min-w-[136px] px-2 py-1 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
-          />
-          {(rangeFrom || rangeTo) && (
-            <button
-              onClick={() => { setRangeFrom(''); setRangeTo(''); }}
-              className="shrink-0 text-[11px] font-bold text-primary-600 bg-transparent border-none cursor-pointer hover:text-primary-800 transition whitespace-nowrap"
-            >
-              전체보기
-            </button>
-          )}
-        </div>
-        )}
 
         {isLoading ? (
           viewMode === 'week' ? <MatrixSkeleton /> : <CalendarGridSkeleton />
