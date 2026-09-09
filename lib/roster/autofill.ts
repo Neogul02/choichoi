@@ -1,5 +1,6 @@
 import type { RosterShift, StaffProfile } from '@/types/database'
 import { getWeekStart, toMinutes, MIN_REST_MINUTES } from '@/lib/staffing'
+import { shiftRawMinutes, MINUTES_IN_DAY } from '@/lib/workhours'
 import { parseDate, prevDate, dayOfWeek, dayGroup } from '@/lib/date'
 import type { RosterUnit, AutoFillLogEntry, AutoFillResult } from '@/app/actions/roster'
 
@@ -15,7 +16,8 @@ export interface GreedyCtx {
   workload: Map<number, number>
   weeklyCount: Map<string, number>
   groupLoad: Map<string, number>
-  staffEndByDate: Map<string, string>
+  /** `${date}|${staff_id}` → 그날 00:00 기준 퇴근 시각(분). 자정을 넘기면 1440 초과 */
+  staffEndByDate: Map<string, number>
   unit: RosterUnit
 }
 
@@ -89,7 +91,7 @@ export function runGreedy(staffList: StaffProfile[], ctx: GreedyCtx): { inserts:
       if (s.preferred_shift_ids.length > 0 && !s.preferred_shift_ids.includes(shiftId)) return false
       const prevEnd = sed.get(`${prevDate(dateStr)}|${s.id}`)
       const todayShift = shiftById.get(shiftId)
-      if (prevEnd && todayShift && toMinutes(todayShift.start_time) + 24 * 60 - toMinutes(prevEnd) < MIN_REST_MINUTES) return false
+      if (prevEnd !== undefined && todayShift && toMinutes(todayShift.start_time) + MINUTES_IN_DAY - prevEnd < MIN_REST_MINUTES) return false
       return true
     }
 
@@ -140,7 +142,7 @@ export function runGreedy(staffList: StaffProfile[], ctx: GreedyCtx): { inserts:
         wc.set(`${s.id}|${weekStart}`, (wc.get(`${s.id}|${weekStart}`) ?? 0) + 1)
         const gk = `${s.id}|${grp}`
         gl.set(gk, (gl.get(gk) ?? 0) + 1)
-        sed.set(`${dateStr}|${s.id}`, shift.end_time)
+        sed.set(`${dateStr}|${s.id}`, toMinutes(shift.start_time) + shiftRawMinutes(shift.start_time, shift.end_time))
       }
       if (names.length > 0) log.push({ date: dateStr, shiftName: shift.name, names })
       if (filled < required) holes.push({ date: dateStr, shiftName: shift.name, missing: required - filled })

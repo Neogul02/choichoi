@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatTimeRange } from '@/lib/workhours';
 import NavBar from '@/components/NavBar';
 import WeekMatrix from '@/app/(admin)/hr/_components/WeekMatrix';
 import StaffTotalsPanel from '@/app/(admin)/hr/_components/StaffTotalsPanel';
@@ -199,7 +200,7 @@ function DayDetailCard({ overview, dateStr, today }: {
         for (const shift of u.data.shifts) {
           const assigned = u.data.assignments.filter(a => a.work_date === dateStr && a.shift_id === shift.id);
           if (assigned.length === 0) continue;
-          unitLines.push(`[${shift.name}] ${shift.start_time}~${shift.end_time}`);
+          unitLines.push(`[${shift.name}] ${formatTimeRange(shift.start_time, shift.end_time)}`);
           for (const a of assigned) {
             const extras = [
               a.start_time || a.end_time
@@ -269,7 +270,7 @@ function DayDetailCard({ overview, dateStr, today }: {
                             <span key={a.id} className="font-semibold whitespace-nowrap">
                               {a.staff_profiles?.name ?? `#${a.staff_id}`}
                               {(a.start_time || a.end_time) && (
-                                <span className="text-ink-faint font-normal"> {(a.start_time ?? shift.start_time).slice(0, 5)}~{(a.end_time ?? shift.end_time).slice(0, 5)}</span>
+                                <span className="text-ink-faint font-normal"> {formatTimeRange(a.start_time ?? shift.start_time, a.end_time ?? shift.end_time)}</span>
                               )}
                               {a.break_minutes === 0 && <span className="text-amber-600 font-normal text-[11px]"> 휴게X</span>}
                               {i < assigned.length - 1 && <span className="text-ink-faint font-normal">, </span>}

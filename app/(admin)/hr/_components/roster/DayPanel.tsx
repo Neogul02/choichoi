@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import TimeOfDayField from '@/components/TimeOfDayField';
+import { formatTimeRange, crossesMidnight, shiftRawMinutes, minutesToHours } from '@/lib/workhours';
 import { showMsg } from '@/lib/toast';
 import type { StaffProfile, RosterShift, RosterAssignment } from '@/types/database';
 import { DAY_NAMES, checkStaffAvailability, shiftTextColor } from '../constants';
@@ -77,7 +79,7 @@ export default function DayPanel({
         const assigned = getAssigned(dateStr, shift.id);
         if (assigned.length === 0) continue;
         hasAny = true;
-        lines.push(`[${getShiftLabel(shift)}] ${shift.start_time}~${shift.end_time}`);
+        lines.push(`[${getShiftLabel(shift)}] ${formatTimeRange(shift.start_time, shift.end_time)}`);
         for (const a of assigned) {
           // 개별 수정 시간·휴게 미포함은 이름 옆에 표기 — 파트 기본과 다르게 일하는 사람이 헷갈리지 않도록
           const extras = [
@@ -153,7 +155,7 @@ export default function DayPanel({
           <div key={shift.id} className="mb-3 last:mb-0">
             <div className="flex items-center justify-between mb-1.5">
               <span className={`text-[12px] font-extrabold ${shiftTextColor(shiftIdx)}`}>
-                {getShiftLabel(shift)} <span className="text-ink-faint font-semibold">{shift.start_time}~{shift.end_time}</span>
+                {getShiftLabel(shift)} <span className="text-ink-faint font-semibold">{formatTimeRange(shift.start_time, shift.end_time)}</span>
               </span>
               <div className="flex items-center gap-1.5">
                 <button
@@ -191,12 +193,17 @@ export default function DayPanel({
                   {editingTimeId === a.id ? (
                     (() => {
                       const saveTimeEdit = async () => { await onTimeChange(a.id, editStart || null, editEnd || null); setEditingTimeId(null); };
-                      const onEnterSave = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { e.preventDefault(); void saveTimeEdit(); } };
                       return (
                         <>
-                          <input type="time" value={editStart} onChange={e => setEditStart(e.target.value)} onKeyDown={onEnterSave} className="flex-1 min-w-0 px-1 py-0.5 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
+                          <TimeOfDayField value={editStart} onChange={setEditStart} ariaLabel="시작" className="shrink-0" />
                           <span className="text-ink-faint text-[10px]">~</span>
-                          <input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)} onKeyDown={onEnterSave} className="flex-1 min-w-0 px-1 py-0.5 border border-hairline rounded text-[11px] bg-canvas focus:outline-none focus:border-primary-700" />
+                          <TimeOfDayField value={editEnd} onChange={setEditEnd} ariaLabel="종료" className="shrink-0" />
+                          <span
+                            title={crossesMidnight(editStart, editEnd) ? '자정을 넘겨 다음 날 끝나는 근무' : undefined}
+                            className="shrink-0 text-[10px] text-ink-faint whitespace-nowrap tabular-nums"
+                          >
+                            {minutesToHours(shiftRawMinutes(editStart, editEnd))}h{crossesMidnight(editStart, editEnd) && ' 익일'}
+                          </span>
                           <button
                             onClick={saveTimeEdit}
                             className="shrink-0 text-[10px] font-bold text-white bg-primary-700 border-none rounded px-1.5 py-1 cursor-pointer hover:bg-primary-800 transition"
@@ -223,7 +230,7 @@ export default function DayPanel({
                         title="시간 수정"
                         className={`text-[10px] bg-transparent border-none cursor-pointer transition ${a.start_time ? 'text-primary-700 font-bold' : 'text-ink-faint hover:text-primary-700'}`}
                       >
-                        {a.start_time ? `${a.start_time}~${a.end_time}` : '기본시간'}
+                        {a.start_time && a.end_time ? formatTimeRange(a.start_time, a.end_time) : '기본시간'}
                       </button>
                       <button
                         onClick={() => onBreakChange(a.id, a.break_minutes == null ? 0 : null)}

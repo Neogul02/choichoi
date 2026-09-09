@@ -3,11 +3,11 @@
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
-import { getWeekStart, DAY_NAMES, requiredFor } from '@/lib/staffing'
+import { getWeekStart, DAY_NAMES, requiredFor, toMinutes } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
-import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftNamePriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups } from '@/lib/roster/query-helpers'
+import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftStartPriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups } from '@/lib/roster/query-helpers'
 import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
 import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'
 
@@ -113,7 +113,7 @@ export async function fetchRosterShifts(unit: RosterUnit): Promise<ApiResponse<R
   })
 }
 
-/** 새 팝업 생성 시 1회 호출 — 오전/오후 기본 파트를 그 팝업의 실제 운영 기간(active_from/to)에 맞춰 생성 */
+/** 새 팝업 생성 시 1회 호출 — 하루 전체(00:00~24:00) 기본 파트 하나를 그 팝업의 실제 운영 기간(active_from/to)에 맞춰 생성 */
 export async function createDefaultCashierShifts(popupId: number, startDate: string, endDate: string): Promise<ApiResponse<RosterShift[]>> {
   return wrap(async () => {
     await requireAdmin()
@@ -566,7 +566,7 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
     const workload = new Map<number, number>()             // staff_id → 기간 내 근무일 수
     const weeklyCount = new Map<string, number>()          // `${staff_id}|${주 시작일}` → 주 근무일 수
     const groupLoad = new Map<string, number>()            // `${staff_id}|${그룹}` → 목금토/일월화수 그룹 내 근무일 수
-    const staffEndByDate = new Map<string, string>()       // `${date}|${staff_id}` → 퇴근 시간(HH:MM)
+    const staffEndByDate = new Map<string, number>()       // `${date}|${staff_id}` → 그날 00:00 기준 퇴근 시각(분, 자정 넘기면 1440 초과)
     for (const a of assignRes.data ?? []) {
       filledCount.set(`${a.work_date}|${a.shift_id}`, (filledCount.get(`${a.work_date}|${a.shift_id}`) ?? 0) + 1)
       if (!assignedByDate.has(a.work_date)) assignedByDate.set(a.work_date, new Set())
@@ -577,7 +577,10 @@ export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate:
       groupLoad.set(grpKey, (groupLoad.get(grpKey) ?? 0) + 1)
       // 실제 퇴근 시각 — 개별 시간 오버라이드가 있으면 그 값이 진짜 퇴근 시각이다 (findRosterViolations와 동일 규칙)
       const sh = shiftById.get(a.shift_id)
-      if (sh) staffEndByDate.set(`${a.work_date}|${a.staff_id}`, a.end_time ?? sh.end_time)
+      if (sh) {
+        const st = a.start_time ?? sh.start_time
+        staffEndByDate.set(`${a.work_date}|${a.staff_id}`, toMinutes(st) + shiftRawMinutes(st, a.end_time ?? sh.end_time))
+      }
     }
 
     const dates: string[] = []
@@ -735,7 +738,7 @@ export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; 
         startTime: a.start_time ?? shift?.start_time ?? '00:00',
         endTime: a.end_time ?? shift?.end_time ?? '00:00',
         sortOrder: shift?.sort_order ?? 99,
-        priority: shiftNamePriority(name),
+        priority: shiftStartPriority(a.start_time ?? shift?.start_time),
         names: [],
       })
     }
@@ -800,8 +803,8 @@ export async function fetchWeeklyRosterForPrint(from: string, to: string, staffR
     withOrder.sort((a, b) =>
       a.work_date !== b.work_date
         ? a.work_date.localeCompare(b.work_date)
-        : shiftNamePriority(a.shift_name) !== shiftNamePriority(b.shift_name)
-        ? shiftNamePriority(a.shift_name) - shiftNamePriority(b.shift_name)
+        : shiftStartPriority(a.start_time) !== shiftStartPriority(b.start_time)
+        ? shiftStartPriority(a.start_time) - shiftStartPriority(b.start_time)
         : a.shift_sort_order !== b.shift_sort_order
         ? a.shift_sort_order - b.shift_sort_order
         : a.sort_order - b.sort_order

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatTimeRange } from '@/lib/workhours';
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
 import { getMyRoster, getStaffRosterAsManager, type MyShift } from '@/app/actions/roster'
@@ -479,7 +480,7 @@ function DayDetail({ dateStr, entries, allShifts }: {
             return (
               <div key={i} className="flex items-center justify-between gap-2">
                 <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 shrink-0">{e.shiftName}</span>
-                <span className="text-[15px] font-bold text-ink flex-1">{hhmm(e.startTime)} ~ {hhmm(e.endTime)}</span>
+                <span className="text-[15px] font-bold text-ink flex-1">{formatTimeRange(e.startTime, e.endTime)}</span>
                 <span className="text-[13px] text-ink-muted text-right shrink-0">
                   {match && match.breakMinutes > 0
                     ? `휴게 ${formatBreakMinutes(match.breakMinutes)} · 실 ${match.netHours}h`

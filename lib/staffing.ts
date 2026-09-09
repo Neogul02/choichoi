@@ -1,5 +1,6 @@
 import type { PopupEvent, StaffProfile } from '@/types/database';
 import { prevDate, dayOfWeek } from '@/lib/date';
+import { shiftRawMinutes } from '@/lib/workhours';
 
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -126,7 +127,10 @@ export function findRosterViolations(
     for (const a of list) {
       const shift = shiftById.get(a.shift_id);
       if (!shift) continue;
-      const end = toMinutes(a.end_time ?? shift.end_time);
+      // 자정을 넘기는 근무는 퇴근 시각이 다음 날이므로 24h를 더한 값으로 잡아야
+      // 다음 날 출근까지의 휴식이 제대로 계산된다 (22:00~06:00 → 퇴근 = 30:00)
+      const start = toMinutes(a.start_time ?? shift.start_time);
+      const end = start + shiftRawMinutes(a.start_time ?? shift.start_time, a.end_time ?? shift.end_time);
       const cur = endByDate.get(a.work_date);
       if (cur === undefined || end > cur) endByDate.set(a.work_date, end);
     }

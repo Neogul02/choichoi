@@ -5,17 +5,56 @@
 /** 급여 계산용 기본 휴게시간(분) — 근무일별 오버라이드(break_minutes)가 없을 때 적용 */
 export const DEFAULT_BREAK_MINUTES = 60
 
-/** "HH:MM" 또는 "HH:MM:SS" → 분. DB time 컬럼의 초 단위는 무시한다 */
+/** 하루 = 1440분. 시간대는 오전/오후로 나누지 않고 00:00~24:00 한 축 위에서 다룬다 */
+export const MINUTES_IN_DAY = 24 * 60
+
+/** "HH:MM" 또는 "HH:MM:SS" → 분. DB time 컬럼의 초 단위는 무시한다. "24:00"은 1440 */
 export function hhmmToMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + (m ?? 0)
 }
 
-/** 출근~퇴근 실근무 분 — 자정을 넘기는 야간 근무(end < start)는 +24h로 보정 */
+/** 분 → "HH:MM". 1440은 "24:00"으로, 그 이상(익일)은 24를 빼고 표기한다 */
+export function minutesToHHMM(min: number): string {
+  const capped = min > MINUTES_IN_DAY ? min - MINUTES_IN_DAY : min
+  return `${String(Math.floor(capped / 60)).padStart(2, '0')}:${String(capped % 60).padStart(2, '0')}`
+}
+
+/**
+ * 출근~퇴근 실근무 분.
+ * 종료가 시작보다 이르거나 같으면 자정을 넘긴 것으로 본다 —
+ * 00:00~00:00, 09:00~09:00 처럼 같은 시각이면 길이 0이 아니라 24시간 근무다.
+ * (00:00~24:00 처럼 end가 명시적으로 24:00이면 그대로 1440분)
+ */
 export function shiftRawMinutes(start: string, end: string): number {
   let mins = hhmmToMinutes(end) - hhmmToMinutes(start)
-  if (mins < 0) mins += 24 * 60
+  if (mins <= 0) mins += MINUTES_IN_DAY
   return mins
+}
+
+/** 자정을 넘겨 다음 날 끝나는 근무인지 — 24시간 종일 근무는 자정을 "넘는" 게 아니라 하루를 꽉 채운 것으로 본다 */
+export function crossesMidnight(start: string, end: string): boolean {
+  const s = hhmmToMinutes(start)
+  const e = hhmmToMinutes(end)
+  if (e === MINUTES_IN_DAY) return false // 24:00은 그날의 끝
+  return e <= s
+}
+
+/** 24시간을 통째로 쓰는 근무인지 (00:00~24:00, 또는 시작=종료로 표현된 24시간) */
+export function isFullDay(start: string, end: string): boolean {
+  return shiftRawMinutes(start, end) === MINUTES_IN_DAY
+}
+
+/**
+ * 화면·복사 문구에 쓰는 시간대 표기.
+ * 오전/오후 구분 없이 00:00~24:00 축으로 읽히도록, 자정을 넘기면 (익일)을 붙이고
+ * 하루 전체면 00:00~24:00으로 통일해 보여준다.
+ */
+export function formatTimeRange(start: string, end: string): string {
+  const s = start.slice(0, 5)
+  const e = end.slice(0, 5)
+  if (isFullDay(start, end)) return '00:00~24:00'
+  return crossesMidnight(start, end) ? `${s}~${e} (익일)` : `${s}~${e}`
 }
 
 /** 유급 분 = 실근무 − 휴게(오버라이드 없으면 기본 1시간), 음수 방지 */
