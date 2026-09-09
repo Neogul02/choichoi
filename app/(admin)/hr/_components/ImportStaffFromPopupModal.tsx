@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { phoneMatches } from '@/lib/phone'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
@@ -44,7 +45,7 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
     const list = candidates ?? []
     const q = search.trim()
     if (!q) return list
-    return list.filter(s => s.name.includes(q) || (s.phone ?? '').includes(q))
+    return list.filter(s => s.name.includes(q) || phoneMatches(s.phone, q))
   }, [candidates, search])
 
   const toggle = (staffId: number) => {
