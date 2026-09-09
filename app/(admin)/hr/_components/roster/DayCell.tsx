@@ -13,6 +13,8 @@ interface Props {
   hasViolation: boolean;
   shifts: RosterShift[];
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
+  /** 그날 그 파트에 필요한 인원 — 0이면 운영하지 않는 파트 */
+  getRequired: (dateStr: string, shift: RosterShift) => number;
   /** 캐셔 "전체" 보기에서 서로 다른 팝업의 동명 파트를 구분하기 위한 표시 이름 — 기본은 shift.name */
   getShiftLabel: (shift: RosterShift) => string;
   onSelectDate: (dateStr: string | null) => void;
@@ -21,7 +23,7 @@ interface Props {
 
 /** 달력 셀 하나 — memo로 감싸 날짜 선택·팝오버 등 무관한 부모 상태 변화에 재렌더되지 않게 한다 */
 function DayCell({
-  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, getShiftLabel, onSelectDate, onDropStaff,
+  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, getRequired, getShiftLabel, onSelectDate, onDropStaff,
 }: Props) {
   // 드래그오버 강조는 순수 시각 상태라 셀 내부에서만 관리
   const [dragOver, setDragOver] = useState(false);
@@ -66,20 +68,38 @@ function DayCell({
       </span>
       {shifts.map(shift => {
         const assigned = getAssigned(dateStr, shift.id);
-        if (assigned.length === 0) return null;
+        const required = getRequired(dateStr, shift);
+        // 배정도 없고 그날 운영하지도 않는 파트만 숨긴다 — 나머지는 항상 자리를 차지해
+        // 어느 날 어느 파트가 비어 있는지 달력만 봐도 보이게 한다
+        if (assigned.length === 0 && required === 0) return null;
+
+        if (assigned.length === 0) {
+          return (
+            <span
+              key={shift.id}
+              title={`${getShiftLabel(shift)} 미배정 (0/${required}명)`}
+              className="text-[9px] md:text-[10px] font-semibold rounded px-1 py-0.5 leading-none truncate border border-dashed border-hairline text-ink-faint"
+            >
+              {getShiftLabel(shift)} 0/{required}
+            </span>
+          );
+        }
+
         const names = assigned.map(a => a.staff_profiles?.name).filter((n): n is string => !!n);
         const label = names.length === 0
           ? `${getShiftLabel(shift)} ${assigned.length}명`
           : names.length === 1
             ? `${getShiftLabel(shift)} ${names[0]}`
             : `${getShiftLabel(shift)} ${names[0]} 외 ${names.length - 1}`;
+        const short = required > 0 && assigned.length < required;
         return (
           <span
             key={shift.id}
-            title={names.length > 0 ? names.join(', ') : undefined}
+            title={`${names.length > 0 ? names.join(', ') : `${assigned.length}명`}${required > 0 ? ` (${assigned.length}/${required}명)` : ''}`}
             className="text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate bg-canvas-soft text-ink-muted"
           >
             {label}
+            {short && <span className="ml-0.5 text-amber-600">{assigned.length}/{required}</span>}
           </span>
         );
       })}
