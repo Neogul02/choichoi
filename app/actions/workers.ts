@@ -9,6 +9,7 @@ import { getAuthUser, isNextInternalControlFlowError, requireAdmin, wrap } from 
 import { utcToKstDateStr } from '@/lib/date'
 import { encryptResidentId, decryptResidentId } from '@/lib/pii-crypto'
 import { isValidResidentRegistrationNumber, maskResidentId } from '@/lib/resident-id'
+import { isValidKoreanPhone, normalizePhone } from '@/lib/phone'
 import type { ApiResponse } from '@/types/api'
 import type { UserAppRole } from '@/types/database'
 
@@ -244,7 +245,11 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<ApiRes
 
     const updates: Record<string, string | null> = {}
     if (input.name !== undefined) updates.name = input.name || null
-    if (input.phone !== undefined) updates.phone = input.phone || null
+    if (input.phone !== undefined) {
+      const phone = normalizePhone(input.phone)
+      if (phone && !isValidKoreanPhone(phone)) return { success: false, error: '전화번호 형식이 올바르지 않습니다. (예: 010-1234-5678)' }
+      updates.phone = phone || null
+    }
     if (input.bankName !== undefined) updates.bank_name = input.bankName || null
     if (input.bankAccount !== undefined) updates.bank_account = input.bankAccount || null
     if (input.healthCertUrl !== undefined) updates.health_cert_url = input.healthCertUrl || null
@@ -321,7 +326,7 @@ export async function resolveLoginEmail(identifier: string): Promise<ApiResponse
 export interface CreateWorkerAccountInput {
   inviteCode: string
   email: string
-  password: string
+  /** 초기 비밀번호는 받지 않는다 — 서버가 정규화한 전화번호에서 직접 파생한다 */
   name: string
   phone: string
   bankName?: string
@@ -347,10 +352,19 @@ export async function createWorkerAccount(
       return { success: false, error: '주민등록번호가 올바르지 않습니다.' }
     }
 
+    // 1-2. 전화번호 정규화 강제 — 초기 비밀번호가 곧 전화번호이므로 저장 형식이 흔들리면 로그인 불능이 된다.
+    //      클라이언트를 우회해 직접 호출하더라도 여기서 막힌다.
+    const phone = normalizePhone(input.phone)
+    if (!isValidKoreanPhone(phone)) {
+      return { success: false, error: '전화번호 형식이 올바르지 않습니다. 0으로 시작하는 국내 번호를 입력해주세요. (예: 010-1234-5678)' }
+    }
+    // 비밀번호는 클라이언트가 보낸 값이 아니라 정규화된 전화번호로 고정한다
+    const password = phone
+
     // 2. admin API로 유저 생성 (이메일 인증 메일 없음, rate limit 없음)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: input.email.trim(),
-      password: input.password.trim(),
+      password,
       email_confirm: true,
       user_metadata: { role: 'user', name: input.name.trim() },
     })
@@ -369,7 +383,7 @@ export async function createWorkerAccount(
     const { error: profileError } = await supabaseAdmin.from('user_profiles').insert([{
       id: userId,
       name: input.name.trim(),
-      phone: input.phone.trim() || null,
+      phone,
       bank_name: input.bankName?.trim() || null,
       bank_account: input.bankAccount?.trim() || null,
       worker_role: 'user',
@@ -386,15 +400,13 @@ export async function createWorkerAccount(
     // 인사관리(staff_profiles)에 같은 이름의 미연결 프로필이 있으면 자동 연결
     // → 가입 즉시 마이페이지에서 본인 근무 일정을 볼 수 있다
     try {
-      const digits = (s: string | null) => (s ?? '').replace(/\D/g, '')
       const { data: staffMatches } = await supabaseAdmin
         .from('staff_profiles')
         .select('id, phone')
         .is('user_profile_id', null)
         .eq('name', input.name.trim())
-      const phone = digits(input.phone)
       const match = (staffMatches ?? []).find(s => {
-        const staffPhone = digits(s.phone)
+        const staffPhone = normalizePhone(s.phone ?? '')
         // 양쪽에 전화번호가 있으면 일치해야 하고, 동명이인(2건 이상)은 전화번호 일치만 허용
         if (staffPhone && phone) return staffPhone === phone
         return (staffMatches ?? []).length === 1
@@ -502,7 +514,12 @@ export async function resetWorkerPassword(userId: string): Promise<ApiResponse<{
     if (!profile) throw new Error('사용자를 찾을 수 없습니다.')
     if (!profile.phone) throw new Error('전화번호가 등록되어 있지 않아 초기화할 수 없습니다.')
 
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: profile.phone })
+    // 저장된 값이 과거 형식(하이픈 포함)이더라도 초기 비밀번호는 항상 숫자만으로 통일한다
+    const phone = normalizePhone(profile.phone)
+    if (!isValidKoreanPhone(phone)) throw new Error('전화번호 형식이 올바르지 않아 초기화할 수 없습니다.')
+    if (phone !== profile.phone) await supabaseAdmin.from('user_profiles').update({ phone }).eq('id', userId)
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: phone })
     if (error) throw new Error(error.message)
 
     after(async () => {

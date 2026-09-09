@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { phoneMatches } from '@/lib/phone';
 import type { StaffProfile, StaffStatus, StaffRole, RosterShift } from '@/types/database';
 
 export type StatusFilter = StaffStatus | 'all' | 'active';
@@ -45,7 +46,7 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
         if (storeFilter === 'none' ? s.popup_id !== null : s.popup_id !== storeFilter) return false;
       }
       if (statusFilter === 'active' ? (s.status !== 'candidate' && s.status !== 'confirmed') : statusFilter !== 'all' && s.status !== statusFilter) return false;
-      if (search.trim() && !s.name.includes(search.trim()) && !(s.phone ?? '').includes(search.trim())) return false;
+      if (search.trim() && !s.name.includes(search.trim()) && !phoneMatches(s.phone, search)) return false;
       return true;
     });
     if (sortKey) {

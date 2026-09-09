@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { getAuthUser, isNextInternalControlFlowError } from './_base'
 import { STAFF_COLUMNS } from '@/lib/staff-columns'
 import type { ApiResponse } from '@/types/api'
+import { normalizePhone } from '@/lib/phone'
 import type { StaffProfile, StaffStatus, StaffRole, AvailabilityRange } from '@/types/database'
 
 export async function uploadHealthCert(staffId: number, file: FormData): Promise<ApiResponse<{ url: string }>> {
@@ -133,7 +134,7 @@ export async function createStaffProfile(input: StaffProfileInput): Promise<ApiR
       .from('staff_profiles')
       .insert([{
         name: input.name.trim(),
-        phone: input.phone?.trim() || null,
+        phone: normalizePhone(input.phone ?? '') || null,
         bank_name: input.bank_name?.trim() || null,
         bank_account: input.bank_account?.trim() || null,
         staff_role: input.staff_role,
@@ -168,7 +169,7 @@ export async function updateStaffProfile(id: number, input: StaffProfileInput): 
       .from('staff_profiles')
       .update({
         name: input.name.trim(),
-        phone: input.phone?.trim() || null,
+        phone: normalizePhone(input.phone ?? '') || null,
         bank_name: input.bank_name?.trim() || null,
         bank_account: input.bank_account?.trim() || null,
         staff_role: input.staff_role,

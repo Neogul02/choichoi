@@ -11,7 +11,7 @@ import {
   getUserProfileAsAdmin, getOrderStatsAsAdmin, fetchAllUserProfiles,
 } from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
-import { formatPhoneInput } from '@/lib/phone'
+import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import { getMyContracts, getContractsAsAdmin } from '@/app/actions/contracts'
 import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, getWorkerTierRanking, type MyShift, type WorkerTierRankingByRole } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
@@ -311,7 +311,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       const res = await updateMyProfile({
         email: editEmail.trim() || undefined,
         name: editName.trim() || undefined,
-        phone: editPhone.trim() || undefined,
+        phone: normalizePhone(editPhone) || undefined,
         bankName: editBankName.trim() || undefined,
         bankAccount: editBankAccount.trim() || undefined,
         healthCertUrl,
