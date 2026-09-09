@@ -1,4 +1,4 @@
-export const EMOJI_MAP: { keyword: string; emoji: string }[] = [
+const EMOJI_MAP: { keyword: string; emoji: string }[] = [
   { keyword: '딸기',   emoji: '🍓' },
   { keyword: '후르츠', emoji: '🥝' },
   { keyword: '망고',   emoji: '🥭' },

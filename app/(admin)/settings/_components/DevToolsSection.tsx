@@ -1,14 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import confetti from 'canvas-confetti';
-import EmojiPhysics from '@/components/display/EmojiPhysics';
-import { EMOJI_MAP } from '@/lib/emoji-map';
-import type { CartItem } from '@/types/display';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchMenuItems, getAllMenu } from '@/app/actions/menu';
 import { fetchTodaysSales, fetchTodaysOrders, fetchTodaysOrdersWithItems } from '@/app/actions/orders';
 import { fetchMonthlySalesCalendar, fetchMenuSalesBreakdown, fetchDailySalesByPeriod } from '@/app/actions/stats';
 import { fetchPopupEvents } from '@/app/actions/schedule';
+import { fetchDbSchema, type SchemaTable } from '@/app/actions/devtools';
+import CopyText from '@/components/CopyText';
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
 
@@ -34,755 +32,177 @@ function todayISO() {
 }
 
 const API_ACTIONS: { label: string; desc: string; fn: () => Promise<unknown> }[] = [
-  {
-    label: 'fetchMenuItems',
-    desc: '활성 메뉴만 조회 — is_active=true 필터, display_order 오름차순',
-    fn: fetchMenuItems,
-  },
-  {
-    label: 'getAllMenu',
-    desc: '전체 메뉴 조회 — 비활성(삭제) 항목 포함',
-    fn: getAllMenu,
-  },
-  {
-    label: 'fetchTodaysSales',
-    desc: '오늘 총 주문 건수 & 매출 합계 — KST 기준 00:00~23:59',
-    fn: fetchTodaysSales,
-  },
-  {
-    label: 'fetchTodaysOrders',
-    desc: '오늘 주문 목록 — order_items 미포함 경량 조회, id 내림차순',
-    fn: fetchTodaysOrders,
-  },
-  {
-    label: 'fetchTodaysOrdersWithItems(5)',
-    desc: '오늘 최근 5건 주문 + order_items + menu_items(name) 중첩 포함',
-    fn: () => fetchTodaysOrdersWithItems(5),
-  },
+  { label: 'fetchMenuItems', desc: '활성 메뉴만 — is_active=true, display_order 오름차순', fn: fetchMenuItems },
+  { label: 'getAllMenu', desc: '전체 메뉴 — 비활성(삭제) 항목 포함', fn: getAllMenu },
+  { label: 'fetchTodaysSales', desc: '오늘 주문 건수·매출 합계 — KST 00:00~23:59', fn: fetchTodaysSales },
+  { label: 'fetchTodaysOrders', desc: '오늘 주문 목록 — order_items 없는 경량 조회', fn: fetchTodaysOrders },
+  { label: 'fetchTodaysOrdersWithItems(5)', desc: '최근 5건 + order_items + menu_items 중첩 조인', fn: () => fetchTodaysOrdersWithItems(5) },
   {
     label: 'fetchMonthlySalesCalendar',
-    desc: '이번 달 날짜별 매출 집계 — Supabase RPC get_monthly_sales_by_date 호출',
-    fn: () => {
-      const n = new Date();
-      return fetchMonthlySalesCalendar(n.getFullYear(), n.getMonth() + 1);
-    },
+    desc: '이번 달 날짜별 매출 — RPC get_monthly_sales_by_date',
+    fn: () => { const n = new Date(); return fetchMonthlySalesCalendar(n.getFullYear(), n.getMonth() + 1); },
   },
   {
-    label: 'fetchMenuSalesBreakdown (오늘)',
-    desc: '오늘 메뉴별 판매 수량 & 매출 — orders → order_items → menu_items 배치 조인',
-    fn: () => {
-      const { start, end } = todayISO();
-      return fetchMenuSalesBreakdown(start, end);
-    },
+    label: 'fetchMenuSalesBreakdown',
+    desc: '오늘 메뉴별 수량·매출 — orders → order_items → menu_items 배치 조인',
+    fn: () => { const { start, end } = todayISO(); return fetchMenuSalesBreakdown(start, end); },
   },
   {
-    label: 'fetchDailySalesByPeriod (이번 달)',
-    desc: '이번 달 일별 매출 — 1000건 페이지네이션, KST 날짜 변환 적용',
+    label: 'fetchDailySalesByPeriod',
+    desc: '이번 달 일별 매출 — 1000건 페이지네이션, KST 변환',
     fn: () => {
       const d = new Date();
       const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       return fetchDailySalesByPeriod(`${m}-01T00:00:00+09:00`, todayISO().end);
     },
   },
-  {
-    label: 'fetchPopupEvents',
-    desc: '팝업 행사 목록 — start_date 내림차순, 전체 조회',
-    fn: fetchPopupEvents,
-  },
+  { label: 'fetchPopupEvents', desc: '팝업 행사 목록 — start_date 내림차순', fn: fetchPopupEvents },
 ];
 
-const CONFETTI_EFFECTS = [
-  {
-    label: '기본',
-    fn: () => confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }),
-  },
-  {
-    label: '무지개',
-    fn: () =>
-      confetti({
-        particleCount: 180,
-        spread: 100,
-        origin: { y: 0.6 },
-        colors: ['#ff0000', '#ff7700', '#ffff00', '#00cc44', '#0066ff', '#8800cc'],
-      }),
-  },
-  {
-    label: '눈',
-    fn: () =>
-      confetti({
-        particleCount: 250,
-        spread: 360,
-        startVelocity: 12,
-        gravity: 0.25,
-        ticks: 500,
-        origin: { y: 0.1 },
-        shapes: ['circle'],
-        colors: ['#ffffff', '#ddeeff', '#aaccff'],
-        scalar: 1.3,
-      }),
-  },
-  {
-    label: '좌우 대포',
-    fn: () => {
-      confetti({ angle: 60, spread: 60, particleCount: 120, origin: { x: 0, y: 0.6 } });
-      setTimeout(
-        () => confetti({ angle: 120, spread: 60, particleCount: 120, origin: { x: 1, y: 0.6 } }),
-        150,
-      );
-    },
-  },
-  {
-    label: '연속 폭발',
-    fn: () => {
-      let n = 0;
-      const fire = () => {
-        confetti({ particleCount: 60, spread: 80, origin: { x: Math.random(), y: 0.3 + Math.random() * 0.4 } });
-        if (++n < 6) setTimeout(fire, 280);
-      };
-      fire();
-    },
-  },
-  {
-    label: '황금 비',
-    fn: () =>
-      confetti({
-        particleCount: 200,
-        spread: 60,
-        startVelocity: 30,
-        origin: { y: 0 },
-        colors: ['#FFD700', '#FFA500', '#FFE066', '#FFFACD'],
-        shapes: ['star'],
-        scalar: 1.5,
-      }),
-  },
-];
+/** Postgres 정식 타입명은 길어서 표에서 줄바꿈을 유발한다 — 통용되는 축약형으로 보여준다 */
+const TYPE_ALIASES: Record<string, string> = {
+  'character varying': 'varchar',
+  'timestamp without time zone': 'timestamp',
+  'timestamp with time zone': 'timestamptz',
+  'double precision': 'float8',
+  boolean: 'bool',
+  integer: 'int4',
+  bigint: 'int8',
+  smallint: 'int2',
+};
 
-// ── DB 스키마 정의 ────────────────────────────────────────────────────────────
-
-interface SchemaColumn {
-  name: string;
-  type: string;
-  nullable?: boolean;
-  note?: string;
-}
-
-interface SchemaTable {
-  name: string;
-  color: string;
-  columns: SchemaColumn[];
-}
-
-const DB_SCHEMA: SchemaTable[] = [
-  {
-    name: 'menu_items',
-    color: '#3949AB',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'name', type: 'varchar', note: '메뉴 이름' },
-      { name: 'price', type: 'numeric', note: '가격 (원)' },
-      { name: 'color', type: 'varchar', nullable: true, note: 'HEX 색상' },
-      { name: 'stock', type: 'int4', nullable: true, note: '재고 (기본 999)' },
-      { name: 'is_active', type: 'bool', nullable: true, note: 'false = 소프트 삭제' },
-      { name: 'display_order', type: 'int4', nullable: true, note: 'POS 그리드 순서' },
-      { name: 'created_at', type: 'timestamp', nullable: true },
-      { name: 'updated_at', type: 'timestamp', nullable: true },
-    ],
-  },
-  {
-    name: 'orders',
-    color: '#00897B',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'total_price', type: 'numeric', note: '총 결제금액' },
-      { name: 'payment_method', type: 'varchar', nullable: true },
-      { name: 'payment_status', type: 'varchar', nullable: true, note: '기본값 pending' },
-      { name: 'cashier_name', type: 'text', nullable: true },
-      { name: 'is_prepared', type: 'bool', note: '준비 완료 여부' },
-      { name: 'popup_id', type: 'int8', nullable: true, note: 'FK → popup_events.id' },
-      { name: 'created_at', type: 'timestamp', nullable: true, note: '주문 시각 (KST 필터링 기준)' },
-      { name: 'updated_at', type: 'timestamp', nullable: true },
-    ],
-  },
-  {
-    name: 'order_items',
-    color: '#F57C00',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'order_id', type: 'int8', note: 'FK → orders.id' },
-      { name: 'menu_item_id', type: 'int8', note: 'FK → menu_items.id' },
-      { name: 'quantity', type: 'int4', note: '수량' },
-      { name: 'unit_price', type: 'numeric', note: '단가 (주문 시점 스냅샷)' },
-      { name: 'subtotal', type: 'numeric', note: 'quantity × unit_price' },
-      { name: 'created_at', type: 'timestamp', nullable: true },
-    ],
-  },
-  {
-    name: 'popup_events',
-    color: '#8E24AA',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'name', type: 'varchar', note: '행사명 (2026-07-24 stores 흡수 이후 매장명 겸용)' },
-      { name: 'start_date', type: 'date', note: '시작일' },
-      { name: 'end_date', type: 'date', note: '종료일' },
-      { name: 'is_active', type: 'bool', note: '활성 여부 (기본 true)' },
-      { name: 'created_at', type: 'timestamptz', nullable: true },
-    ],
-  },
-  {
-    name: 'user_profiles',
-    color: '#1E88E5',
-    columns: [
-      { name: 'id', type: 'uuid', note: 'PK, FK → auth.users.id' },
-      { name: 'name', type: 'text' },
-      { name: 'phone', type: 'text', nullable: true },
-      { name: 'bank_name', type: 'text', nullable: true },
-      { name: 'bank_account', type: 'text', nullable: true },
-      { name: 'health_cert_url', type: 'text', nullable: true },
-      { name: 'worker_role', type: 'text', note: "'admin' | 'manager' | 'user'" },
-      { name: 'total_revenue', type: 'int4', note: '누적 매출 (기본 0)' },
-      { name: 'resident_reg_no_enc', type: 'text', nullable: true, note: '주민등록번호 암호화 저장' },
-      { name: 'resident_reg_no_masked', type: 'text', nullable: true, note: '화면 표시용 마스킹 값' },
-      { name: 'created_at', type: 'timestamptz', nullable: true },
-    ],
-  },
-  {
-    name: 'staff_profiles',
-    color: '#00ACC1',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'name', type: 'text' },
-      { name: 'phone', type: 'text', nullable: true },
-      { name: 'staff_role', type: 'text', note: "'kitchen' | 'cashier'" },
-      { name: 'popup_id', type: 'int8', nullable: true, note: 'FK → popup_events.id (캐셔만 단일값)' },
-      { name: 'status', type: 'text', note: "'candidate' | 'confirmed' | 'inactive'" },
-      { name: 'user_profile_id', type: 'uuid', nullable: true, note: 'FK → user_profiles.id' },
-      { name: 'hourly_rate', type: 'int4', nullable: true, note: '시급 (원)' },
-      { name: 'bank_name', type: 'text', nullable: true },
-      { name: 'bank_account', type: 'text', nullable: true },
-      { name: 'has_health_cert', type: 'bool', note: '기본 false' },
-      { name: 'health_cert_url', type: 'text', nullable: true },
-      { name: 'wants_insurance', type: 'bool', note: '기본 true' },
-      { name: 'preferred_days', type: 'int4[]', note: '선호 요일' },
-      { name: 'preferred_shift_ids', type: 'int8[]', note: '선호 파트 FK 목록' },
-      { name: 'available_ranges', type: 'jsonb', note: '가능 기간 목록' },
-      { name: 'max_days_per_week', type: 'int4', nullable: true, note: '1~7' },
-      { name: 'notes', type: 'text', nullable: true },
-      { name: 'sort_order', type: 'int4', nullable: true },
-      { name: 'created_at', type: 'timestamptz' },
-      { name: 'updated_at', type: 'timestamptz' },
-    ],
-  },
-  {
-    name: 'staff_popup_assignments',
-    color: '#5C6BC0',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'staff_id', type: 'int8', note: 'FK → staff_profiles.id' },
-      { name: 'popup_id', type: 'int8', note: 'FK → popup_events.id' },
-      { name: 'created_at', type: 'timestamptz' },
-    ],
-  },
-  {
-    name: 'roster_shifts',
-    color: '#7CB342',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto — 파트 정의' },
-      { name: 'staff_role', type: 'text', note: "'kitchen' | 'cashier'" },
-      { name: 'popup_id', type: 'int8', nullable: true, note: 'FK → popup_events.id' },
-      { name: 'name', type: 'text', note: '파트 이름' },
-      { name: 'start_time', type: 'text', note: '기본 09:00' },
-      { name: 'end_time', type: 'text', note: '기본 18:00' },
-      { name: 'break_minutes', type: 'int4', note: '기본 0' },
-      { name: 'weekday_required', type: 'int4', note: '평일 필요 인원' },
-      { name: 'weekend_required', type: 'int4', note: '주말 필요 인원' },
-      { name: 'active_from', type: 'date', nullable: true },
-      { name: 'active_to', type: 'date', nullable: true },
-      { name: 'sort_order', type: 'int4' },
-      { name: 'created_at', type: 'timestamptz' },
-    ],
-  },
-  {
-    name: 'roster_shift_requirements',
-    color: '#C0CA33',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'work_date', type: 'date' },
-      { name: 'shift_id', type: 'int8', note: 'FK → roster_shifts.id' },
-      { name: 'required', type: 'int4', note: '해당 날짜 필요 인원' },
-    ],
-  },
-  {
-    name: 'roster_assignments',
-    color: '#D81B60',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto — 날짜별 실배정' },
-      { name: 'work_date', type: 'date' },
-      { name: 'shift_id', type: 'int8', note: 'FK → roster_shifts.id' },
-      { name: 'staff_id', type: 'int8', note: 'FK → staff_profiles.id' },
-      { name: 'staff_role', type: 'text', note: "'kitchen' | 'cashier'" },
-      { name: 'popup_id', type: 'int8', nullable: true, note: 'FK → popup_events.id' },
-      { name: 'start_time', type: 'text', nullable: true, note: '파트 기본값 오버라이드' },
-      { name: 'end_time', type: 'text', nullable: true },
-      { name: 'break_minutes', type: 'int4', nullable: true },
-      { name: 'created_at', type: 'timestamptz' },
-    ],
-  },
-  {
-    name: 'contracts',
-    color: '#5E35B1',
-    columns: [
-      { name: 'id', type: 'uuid', note: 'PK, auto' },
-      { name: 'worker_id', type: 'int4', note: 'FK → staff_profiles.id' },
-      { name: 'popup_id', type: 'int4', nullable: true, note: 'FK → popup_events.id' },
-      { name: 'start_date', type: 'date' },
-      { name: 'end_date', type: 'date', nullable: true },
-      { name: 'hourly_rate', type: 'int4' },
-      { name: 'work_schedule', type: 'text', nullable: true },
-      { name: 'workplace', type: 'text', nullable: true },
-      { name: 'pdf_url', type: 'text', nullable: true, note: '비공개 storage signed URL 대상' },
-      { name: 'pdf_hash', type: 'text', nullable: true },
-      { name: 'contract_data', type: 'jsonb', nullable: true, note: '작성 시점 전체 계약 데이터' },
-      { name: 'worker_address', type: 'text', nullable: true },
-      { name: 'worker_signed_at', type: 'timestamptz', nullable: true },
-      { name: 'issued_at', type: 'timestamptz' },
-      { name: 'created_by', type: 'uuid', nullable: true, note: 'FK → auth.users.id' },
-      { name: 'created_at', type: 'timestamptz', nullable: true },
-    ],
-  },
-  {
-    name: 'ingredients',
-    color: '#43A047',
-    columns: [
-      { name: 'id', type: 'text', note: 'PK' },
-      { name: 'name', type: 'text' },
-      { name: 'category', type: 'text' },
-      { name: 'color', type: 'text' },
-      { name: 'unit_type', type: 'text', note: "'count' | 'weight'" },
-      { name: 'base_unit', type: 'text' },
-      { name: 'total_count', type: 'numeric', note: '총 재고 수량 (기본 0)' },
-      { name: 'reorder_at', type: 'numeric', note: '발주 기준 수량 (기본 5)' },
-      { name: 'vendor', type: 'text', nullable: true },
-      { name: 'lead_days', type: 'int4', nullable: true },
-      { name: 'unit_price', type: 'int4', nullable: true },
-      { name: 'sort_order', type: 'int4', nullable: true },
-      { name: 'created_at', type: 'timestamptz', nullable: true },
-      { name: 'updated_at', type: 'timestamptz', nullable: true },
-    ],
-  },
-  {
-    name: 'restock_events',
-    color: '#558B2F',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto — 재고 입고 이력' },
-      { name: 'ingredient_id', type: 'text', note: 'FK → ingredients.id' },
-      { name: 'delta', type: 'numeric', note: '수량 증감 (기본 0)' },
-      { name: 'note', type: 'text', nullable: true },
-      { name: 'created_by', type: 'text', nullable: true },
-      { name: 'created_at', type: 'timestamptz', nullable: true },
-    ],
-  },
-  {
-    name: 'memos',
-    color: '#6D4C41',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'title', type: 'varchar', nullable: true },
-      { name: 'content', type: 'text' },
-      { name: 'color', type: 'varchar', nullable: true, note: 'HEX, 기본 #fff9c4' },
-      { name: 'type', type: 'text', note: "'note' | 'checklist' (기본 note)" },
-      { name: 'is_pinned', type: 'bool', note: '기본 false' },
-      { name: 'created_at', type: 'timestamptz', nullable: true },
-      { name: 'updated_at', type: 'timestamptz', nullable: true },
-    ],
-  },
-  {
-    name: 'pos_note',
-    color: '#FFB300',
-    columns: [
-      { name: 'id', type: 'int2', note: 'PK, 항상 1 (싱글턴 row)' },
-      { name: 'content', type: 'text', note: 'POS 공지 내용' },
-      { name: 'updated_by', type: 'text', nullable: true },
-      { name: 'updated_at', type: 'timestamptz' },
-    ],
-  },
-  {
-    name: 'daily_sales',
-    color: '#00BFA5',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto' },
-      { name: 'sale_date', type: 'date', note: 'unique — 수동 입력용' },
-      { name: 'total_orders', type: 'int4', nullable: true, note: '기본 0' },
-      { name: 'total_revenue', type: 'numeric', nullable: true, note: '기본 0' },
-      { name: 'note', type: 'text', nullable: true },
-      { name: 'created_at', type: 'timestamp', nullable: true },
-      { name: 'updated_at', type: 'timestamp', nullable: true },
-    ],
-  },
-  {
-    name: 'manual_menu_sales',
-    color: '#EF6C00',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto — 팝업별 수기 메뉴 판매량(POS 보정용)' },
-      { name: 'popup_id', type: 'int8', note: 'FK → popup_events.id' },
-      { name: 'menu_item_id', type: 'int8', note: 'FK → menu_items.id' },
-      { name: 'quantity', type: 'int4', note: '기본 0, ≥0' },
-      { name: 'created_at', type: 'timestamptz' },
-      { name: 'updated_at', type: 'timestamptz' },
-    ],
-  },
-  {
-    name: 'manual_daily_menu_sales',
-    color: '#F4511E',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto — 날짜별 수기 메뉴 판매량' },
-      { name: 'popup_id', type: 'int8', note: 'FK → popup_events.id' },
-      { name: 'sale_date', type: 'date' },
-      { name: 'menu_item_id', type: 'int8', note: 'FK → menu_items.id' },
-      { name: 'quantity', type: 'int4', note: '기본 0, ≥0' },
-      { name: 'created_at', type: 'timestamptz' },
-      { name: 'updated_at', type: 'timestamptz' },
-    ],
-  },
-  {
-    name: 'manual_hourly_sales',
-    color: '#D84315',
-    columns: [
-      { name: 'id', type: 'int8', note: 'PK, auto — 시간대별 수기 매출' },
-      { name: 'popup_id', type: 'int8', note: 'FK → popup_events.id' },
-      { name: 'hour', type: 'int2', note: '0~23' },
-      { name: 'total_revenue', type: 'int8', note: '기본 0, ≥0' },
-      { name: 'total_orders', type: 'int4', note: '기본 0, ≥0' },
-      { name: 'created_at', type: 'timestamptz' },
-      { name: 'updated_at', type: 'timestamptz' },
-    ],
-  },
-];
+const shortType = (t: string) => TYPE_ALIASES[t] ?? t;
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 
 export default function DevToolsSection() {
   const [logs, setLogs] = useState<ApiLog[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [physicsItems, setPhysicsItems] = useState<CartItem[]>([]);
-  const [physicsActive, setPhysicsActive] = useState(false);
 
-  const firePhysics = (items: CartItem[]) => {
-    setPhysicsActive(false);
-    requestAnimationFrame(() => {
-      setPhysicsItems(items);
-      setPhysicsActive(true);
-    });
-  };
-  const [dbStats, setDbStats] = useState<{
-    menuActive: number;
-    menuTotal: number;
-    todayOrders: number;
-    todayRevenue: number;
-    dupCheck: string;
-    dupOk: boolean;
-  } | null>(null);
-  const [dbLoading, setDbLoading] = useState(false);
-  const [schemaOpen, setSchemaOpen] = useState<Set<string>>(new Set(['menu_items', 'orders', 'order_items']));
+  const [schema, setSchema] = useState<SchemaTable[] | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [schemaMs, setSchemaMs] = useState<number | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [openTables, setOpenTables] = useState<Set<string>>(new Set());
+  const [tableQuery, setTableQuery] = useState('');
 
-  const loadDbStats = useCallback(async () => {
-    setDbLoading(true);
-    const [menuRes, allMenuRes, salesRes, ordersRes] = await Promise.all([
-      fetchMenuItems(),
-      getAllMenu(),
-      fetchTodaysSales(),
-      fetchTodaysOrdersWithItems(),
-    ]);
-    const orders = ordersRes.success && ordersRes.data ? ordersRes.data : [];
-    const ids = orders.map((o) => o.id);
-    const uniqueIds = new Set(ids);
-    const dupOk = ids.length === uniqueIds.size;
-    setDbStats({
-      menuActive: menuRes.success && menuRes.data ? menuRes.data.length : 0,
-      menuTotal: allMenuRes.success && allMenuRes.data ? allMenuRes.data.length : 0,
-      todayOrders: salesRes.success && salesRes.data ? salesRes.data.totalOrders : 0,
-      todayRevenue: salesRes.success && salesRes.data ? salesRes.data.totalRevenue : 0,
-      dupCheck: dupOk ? `중복 없음 (${ids.length}건 확인)` : `중복 감지! ${ids.length}건 중 고유 ID ${uniqueIds.size}개`,
-      dupOk,
-    });
-    setDbLoading(false);
+  const loadSchema = useCallback(async () => {
+    setSchemaLoading(true);
+    setSchemaError(null);
+    const t0 = performance.now();
+    const res = await fetchDbSchema();
+    setSchemaMs(Math.round(performance.now() - t0));
+    if (res.success && res.data) setSchema(res.data);
+    else setSchemaError(res.error ?? '스키마를 불러오지 못했습니다');
+    setSchemaLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadDbStats();
-  }, [loadDbStats]);
+  useEffect(() => { loadSchema(); }, [loadSchema]);
+
+  const visibleTables = useMemo(() => {
+    const q = tableQuery.trim().toLowerCase();
+    if (!q) return schema ?? [];
+    // 테이블명뿐 아니라 컬럼명으로도 찾는다 — "이 컬럼이 어느 표에 있더라"가 실제 사용 패턴이다
+    return (schema ?? []).filter(t =>
+      t.name.includes(q) || t.columns.some(c => c.name.toLowerCase().includes(q)));
+  }, [schema, tableQuery]);
+
+  const totals = useMemo(() => {
+    if (!schema) return null;
+    return {
+      tables: schema.length,
+      rows: schema.reduce((s, t) => s + t.rowCount, 0),
+      noRls: schema.filter(t => !t.rls).length,
+    };
+  }, [schema]);
 
   const runApi = async (action: (typeof API_ACTIONS)[number]) => {
     const id = ++_logId;
-    setLogs((p) => [{ id, label: action.label, desc: action.desc, status: 'pending', ts: new Date() }, ...p]);
+    setLogs(p => [{ id, label: action.label, desc: action.desc, status: 'pending', ts: new Date() }, ...p]);
     const t0 = performance.now();
     try {
       const data = await action.fn();
-      const ms = Math.round(performance.now() - t0);
-      setLogs((p) => p.map((l) => (l.id === id ? { ...l, status: 'ok', ms, data } : l)));
+      setLogs(p => p.map(l => (l.id === id ? { ...l, status: 'ok', ms: Math.round(performance.now() - t0), data } : l)));
     } catch (e) {
-      const ms = Math.round(performance.now() - t0);
-      setLogs((p) => p.map((l) => (l.id === id ? { ...l, status: 'err', ms, err: String(e) } : l)));
+      setLogs(p => p.map(l => (l.id === id ? { ...l, status: 'err', ms: Math.round(performance.now() - t0), err: String(e) } : l)));
     }
   };
 
-  const toggleLog = (id: number) =>
-    setExpanded((p) => {
+  const toggle = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, key: T) =>
+    setter(p => {
       const next = new Set(p);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-
-  const toggleSchema = (name: string) =>
-    setSchemaOpen((p) => {
-      const next = new Set(p);
-      next.has(name) ? next.delete(name) : next.add(name);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
 
   return (
-    <div className="space-y-5">
-      <EmojiPhysics items={physicsItems} active={physicsActive} />
+    <div className="space-y-4">
 
-      {/* DB 상태 */}
-      <div className="bg-canvas-soft rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="m-0 text-base font-bold">DB 상태</h3>
-          <button
-            className="px-3 py-1 text-xs font-semibold bg-canvas border border-hairline text-ink-muted rounded-lg cursor-pointer hover:bg-canvas-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            onClick={loadDbStats}
-            disabled={dbLoading}
-          >
-            {dbLoading ? '로딩 중...' : '새로고침'}
-          </button>
-        </div>
-
-        {dbStats ? (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-              <StatCard label="활성 메뉴" value={`${dbStats.menuActive}개`} sub={`전체 ${dbStats.menuTotal}개`} color="blue" />
-              <StatCard label="비활성 메뉴" value={`${dbStats.menuTotal - dbStats.menuActive}개`} sub="소프트 삭제" color="gray" />
-              <StatCard label="오늘 주문" value={`${dbStats.todayOrders}건`} color="green" />
-              <StatCard label="오늘 매출" value={`₩${dbStats.todayRevenue.toLocaleString('ko-KR')}`} color="rose" />
-            </div>
-            <div className={`rounded-lg px-3 py-2 text-xs font-semibold flex items-center gap-2 ${dbStats.dupOk ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-              <span className="text-base">{dbStats.dupOk ? '✓' : '!'}</span>
-              <span>주문 ID 중복 검사: {dbStats.dupCheck}</span>
-            </div>
-          </>
-        ) : (
-          <div className="py-6 text-center text-sm text-ink-faint">데이터를 불러오는 중...</div>
-        )}
-      </div>
-
-      {/* DB 스키마 */}
-      <div className="bg-canvas-soft rounded-xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="m-0 text-base font-bold">DB 스키마</h3>
-          <div className="flex gap-1.5">
-            <button
-              className="px-2.5 py-1 text-[11px] font-semibold bg-canvas border border-hairline text-ink-muted rounded-lg cursor-pointer hover:bg-canvas-soft transition-colors"
-              onClick={() => setSchemaOpen(new Set(DB_SCHEMA.map((t) => t.name)))}
-            >
-              전체 펼치기
-            </button>
-            <button
-              className="px-2.5 py-1 text-[11px] font-semibold bg-canvas border border-hairline text-ink-muted rounded-lg cursor-pointer hover:bg-canvas-soft transition-colors"
-              onClick={() => setSchemaOpen(new Set())}
-            >
-              전체 접기
-            </button>
-          </div>
-        </div>
-        <div className="space-y-2">
-          {DB_SCHEMA.map((table) => (
-            <div key={table.name} className="bg-canvas border border-[#eeeeee] rounded-xl overflow-hidden">
-              <button
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 border-none bg-transparent cursor-pointer text-left hover:bg-canvas-soft transition-colors"
-                onClick={() => toggleSchema(table.name)}
-              >
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: table.color }} />
-                <span className="font-mono text-sm font-bold text-ink flex-1">{table.name}</span>
-                <span className="text-[11px] text-ink-faint">{table.columns.length}개 컬럼</span>
-                <span className="text-[10px] text-ink-faint ml-1">{schemaOpen.has(table.name) ? '▲' : '▼'}</span>
-              </button>
-              {schemaOpen.has(table.name) && (
-                <div className="overflow-x-auto border-t border-hairline">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-canvas-soft">
-                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee] w-[30%]">컬럼</th>
-                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee] w-[20%]">타입</th>
-                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee] w-[10%]">Null</th>
-                        <th className="px-3 py-2 text-left font-semibold text-ink-muted border-b border-[#eeeeee]">설명</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {table.columns.map((col, i) => (
-                        <tr key={col.name} className={i % 2 === 0 ? 'bg-canvas' : 'bg-canvas-soft'}>
-                          <td className="px-3 py-2 font-mono font-semibold text-ink-secondary">{col.name}</td>
-                          <td className="px-3 py-2">
-                            <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-[#f0f4ff] text-[#3949AB]">
-                              {col.type}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-ink-faint">{col.nullable ? 'YES' : ''}</td>
-                          <td className="px-3 py-2 text-ink-muted">
-                            {col.note?.includes('FK') ? (
-                              <span className="inline-flex items-center gap-1">
-                                <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-200">FK</span>
-                                <span>{col.note.replace('FK → ', '')}</span>
-                              </span>
-                            ) : col.note?.includes('PK') ? (
-                              <span className="inline-flex items-center gap-1">
-                                <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">PK</span>
-                                <span>{col.note.replace('PK, ', '')}</span>
-                              </span>
-                            ) : (
-                              col.note ?? ''
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+      {/* ── 환경 ── */}
+      <Panel eyebrow="environment" title="환경">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Field label="최신 배포">
+            <span className="font-mono text-[13px] font-bold text-ink">{formatBuildTime(process.env.NEXT_PUBLIC_BUILD_TIME)}</span>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {process.env.NEXT_PUBLIC_APP_VERSION && <Tag tone="ok">v{process.env.NEXT_PUBLIC_APP_VERSION}</Tag>}
+              {process.env.NEXT_PUBLIC_GIT_SHA && (
+                <Tag tone="info">
+                  <CopyText value={process.env.NEXT_PUBLIC_GIT_SHA} label="커밋 해시">
+                    {process.env.NEXT_PUBLIC_GIT_SHA.slice(0, 7)}
+                  </CopyText>
+                </Tag>
               )}
+              <Tag tone={process.env.NODE_ENV === 'production' ? 'ok' : 'warn'}>{process.env.NODE_ENV}</Tag>
             </div>
-          ))}
+          </Field>
+          <Field label="Supabase 프로젝트">
+            <EnvValue value={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+          </Field>
         </div>
-        {/* 관계 요약 */}
-        <div className="mt-3 px-3 py-2.5 bg-canvas border border-[#eeeeee] rounded-xl">
-          <p className="m-0 mb-2 text-[11px] font-bold text-ink-faint uppercase tracking-widest">테이블 관계</p>
-          <div className="flex flex-wrap gap-2 text-[11px] font-mono">
-            {[
-              { from: 'orders', to: 'order_items', label: '1:N' },
-              { from: 'menu_items', to: 'order_items', label: '1:N' },
-              { from: 'popup_events', to: 'orders', label: '1:N' },
-              { from: 'user_profiles', to: 'staff_profiles', label: '1:N' },
-              { from: 'popup_events', to: 'staff_profiles', label: '1:N (캐셔만)' },
-              { from: 'popup_events', to: 'staff_popup_assignments', label: 'N:M (staff_profiles)' },
-              { from: 'popup_events', to: 'roster_shifts', label: '1:N' },
-              { from: 'roster_shifts', to: 'roster_assignments', label: '1:N' },
-              { from: 'roster_shifts', to: 'roster_shift_requirements', label: '1:N' },
-              { from: 'staff_profiles', to: 'roster_assignments', label: '1:N' },
-              { from: 'staff_profiles', to: 'contracts', label: '1:N' },
-              { from: 'ingredients', to: 'restock_events', label: '1:N' },
-              { from: 'popup_events', to: 'manual_menu_sales', label: '1:N' },
-            ].map(({ from, to, label }) => (
-              <span key={`${from}-${to}`} className="flex items-center gap-1 bg-[#f5f6f7] px-2 py-1 rounded-md">
-                <span className="text-[#3949AB] font-semibold">{from}</span>
-                <span className="text-ink-faint">→</span>
-                <span className="text-[#F57C00] font-semibold">{to}</span>
-                <span className="text-ink-faint ml-0.5">({label})</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
+      </Panel>
 
-      {/* 폭죽 테스트 */}
-      <div className="bg-canvas-soft rounded-xl p-4">
-        <h3 className="m-0 mb-3 text-base font-bold">폭죽 테스트</h3>
-        <div className="flex flex-wrap gap-2">
-          {CONFETTI_EFFECTS.map((e) => (
-            <button
-              key={e.label}
-              className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-ink-secondary rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
-              onClick={e.fn}
-            >
-              {e.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 과일 이모지 테스트 */}
-      <div className="bg-canvas-soft rounded-xl p-4">
-        <h3 className="m-0 mb-3 text-base font-bold">과일 이모지 테스트</h3>
-        <div className="flex flex-wrap gap-2">
-          {EMOJI_MAP.map(({ keyword, emoji }) => (
-            <button
-              key={keyword}
-              className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-ink-secondary rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
-              onClick={() => firePhysics([{ id: 0, name: keyword, price: 0, count: 2 }])}
-            >
-              {emoji} {keyword}
-            </button>
-          ))}
-          <button
-            className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-ink-secondary rounded-lg cursor-pointer hover:bg-primary-700 hover:text-white hover:border-primary-700 transition-all duration-200 active:scale-95"
-            onClick={() => firePhysics(EMOJI_MAP.map(({ keyword }, i) => ({ id: i, name: keyword, price: 0, count: 1 })))}
-          >
-            🎉 전체
-          </button>
-          <button
-            className="px-4 py-2 text-sm font-semibold bg-canvas border border-hairline text-red-400 rounded-lg cursor-pointer hover:bg-red-50 hover:border-red-300 transition-all duration-200 active:scale-95"
-            onClick={() => setPhysicsActive(false)}
-          >
-            초기화
-          </button>
-        </div>
-      </div>
-
-      {/* API 요청 테스트 */}
-      <div className="bg-canvas-soft rounded-xl p-4">
-        <h3 className="m-0 mb-3 text-base font-bold">API 요청 테스트</h3>
-        <div className="space-y-1.5 mb-4">
-          {API_ACTIONS.map((action) => (
+      {/* ── 서버 액션 점검 ── */}
+      <Panel
+        eyebrow="server actions"
+        title="서버 액션 점검"
+        action={logs.length > 0 && (
+          <TextButton onClick={() => { setLogs([]); setExpanded(new Set()); }}>로그 지우기</TextButton>
+        )}
+      >
+        <div className="grid gap-1.5 md:grid-cols-2">
+          {API_ACTIONS.map(action => (
             <button
               key={action.label}
-              className="w-full flex items-start gap-3 px-3 py-2.5 bg-canvas border border-[#eeeeee] rounded-xl cursor-pointer text-left hover:border-[#3949AB] hover:bg-[#f0f4ff] transition-all duration-150 group"
               onClick={() => runApi(action)}
+              className="flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl border border-hairline bg-canvas cursor-pointer text-left transition-colors hover:border-primary-200 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-primary-700"
             >
-              <span className="font-mono text-[12px] font-bold text-[#3949AB] shrink-0 pt-px group-hover:text-[#3949AB]">
-                {action.label}
-              </span>
-              <span className="text-[11px] text-ink-muted leading-relaxed pt-px">{action.desc}</span>
+              <span className="font-mono text-[12px] font-bold text-primary-700">{action.label}</span>
+              <span className="text-[11px] text-ink-muted leading-snug">{action.desc}</span>
             </button>
           ))}
         </div>
 
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold text-ink-faint uppercase tracking-widest">요청 로그</span>
-          {logs.length > 0 && (
-            <button
-              className="text-xs text-ink-faint hover:text-ink-muted border-none bg-transparent cursor-pointer transition-colors"
-              onClick={() => { setLogs([]); setExpanded(new Set()); }}
-            >
-              전체 삭제
-            </button>
-          )}
-        </div>
-
-        {logs.length === 0 ? (
-          <div className="py-8 text-center text-sm text-ink-faint border border-dashed border-hairline rounded-xl bg-canvas">
-            위 버튼을 클릭하면 요청 결과가 여기에 표시됩니다
-          </div>
-        ) : (
-          <ul className="m-0 p-0 list-none space-y-1.5">
-            {logs.map((log) => (
-              <li key={log.id} className="border border-[#eeeeee] rounded-xl overflow-hidden bg-canvas">
+        {logs.length > 0 && (
+          <ul className="m-0 mt-3 p-0 list-none space-y-1.5">
+            {logs.map(log => (
+              <li key={log.id} className="border border-hairline rounded-xl overflow-hidden bg-canvas">
                 <button
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 border-none bg-transparent cursor-pointer text-left hover:bg-canvas-soft transition-colors"
-                  onClick={() => toggleLog(log.id)}
+                  onClick={() => toggle(setExpanded, log.id)}
+                  aria-expanded={expanded.has(log.id)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 border-none bg-transparent cursor-pointer text-left hover:bg-canvas-soft transition-colors"
                 >
                   <StatusDot status={log.status} />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-mono text-xs font-semibold text-ink-secondary block truncate">{log.label}</span>
-                    <span className="text-[10px] text-ink-faint truncate block">{log.desc}</span>
-                  </div>
+                  <span className="font-mono text-[12px] font-semibold text-ink-secondary flex-1 min-w-0 truncate">{log.label}</span>
                   {log.ms !== undefined && (
-                    <span className={`text-[11px] shrink-0 font-bold tabular-nums ${log.ms < 300 ? 'text-green-600' : log.ms < 1000 ? 'text-amber-500' : 'text-red-500'}`}>
+                    <span className={`text-[11px] shrink-0 font-bold tabular-nums ${log.ms < 300 ? 'text-emerald-600' : log.ms < 1000 ? 'text-amber-600' : 'text-rose-500'}`}>
                       {log.ms}ms
                     </span>
                   )}
-                  <span className="text-[11px] text-ink-faint shrink-0 tabular-nums">
-                    {log.ts.toLocaleTimeString('ko-KR')}
-                  </span>
-                  <span className="text-[10px] text-[#ddd]">{expanded.has(log.id) ? '▲' : '▼'}</span>
+                  <span className="text-[11px] text-ink-faint shrink-0 tabular-nums hidden sm:inline">{log.ts.toLocaleTimeString('ko-KR')}</span>
+                  <span className="text-[10px] text-ink-faint shrink-0">{expanded.has(log.id) ? '▲' : '▼'}</span>
                 </button>
                 {expanded.has(log.id) && (
-                  <pre className="m-0 p-3 text-[11px] leading-relaxed bg-[#1e1e2e] text-[#cdd6f4] overflow-x-auto max-h-[320px] overflow-y-auto">
+                  <pre className="m-0 p-3 text-[11px] leading-relaxed bg-ink text-[#e8e6e3] overflow-auto max-h-[320px] select-text">
                     {log.status === 'err' ? log.err : JSON.stringify(log.data, null, 2)}
                   </pre>
                 )}
@@ -790,78 +210,207 @@ export default function DevToolsSection() {
             ))}
           </ul>
         )}
-      </div>
+      </Panel>
 
-      {/* 환경 정보 */}
-      <div className="bg-canvas-soft rounded-xl p-4">
-        <h3 className="m-0 mb-3 text-base font-bold">환경 정보</h3>
-        <div className="mb-3 px-3 py-2.5 bg-canvas border border-[#eeeeee] rounded-xl flex items-center justify-between gap-3">
-          <div>
-            <p className="m-0 text-[11px] font-bold text-ink-faint uppercase tracking-widest mb-1">최신 배포 시각</p>
-            <p className="m-0 font-mono text-sm font-bold text-ink">{formatBuildTime(process.env.NEXT_PUBLIC_BUILD_TIME)}</p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            {process.env.NEXT_PUBLIC_APP_VERSION && (
-              <span className="font-mono text-[11px] px-2 py-1 rounded-md bg-green-50 text-green-700">
-                v{process.env.NEXT_PUBLIC_APP_VERSION}
+      {/* ── 데이터베이스 ── */}
+      <Panel
+        eyebrow="database"
+        title="데이터베이스"
+        subtitle="실제 DB 카탈로그를 읽어옵니다 — 표가 추가되면 여기에도 바로 나타납니다"
+        action={
+          <TextButton onClick={loadSchema} disabled={schemaLoading}>
+            {schemaLoading ? '읽는 중…' : '다시 읽기'}
+          </TextButton>
+        }
+      >
+        {schemaError ? (
+          <p className="m-0 px-3 py-6 text-center text-[13px] text-rose-500 border border-dashed border-rose-200 rounded-xl bg-rose-50">
+            {schemaError}
+          </p>
+        ) : !schema ? (
+          <p className="m-0 px-3 py-6 text-center text-[13px] text-ink-faint">스키마를 읽는 중…</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[12px] text-ink-muted">
+              <span>표 <b className="text-ink tabular-nums">{totals!.tables}</b></span>
+              <span>전체 행 <b className="text-ink tabular-nums">{totals!.rows.toLocaleString('ko-KR')}</b></span>
+              <span>
+                RLS 미적용{' '}
+                <b className={`tabular-nums ${totals!.noRls > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{totals!.noRls}</b>
               </span>
+              {schemaMs !== null && <span className="text-ink-faint tabular-nums ml-auto">{schemaMs}ms</span>}
+            </div>
+
+            <input
+              type="text" value={tableQuery} onChange={e => setTableQuery(e.target.value)}
+              placeholder="표·컬럼 이름으로 찾기"
+              className="w-full mb-2 px-3 py-1.5 border border-hairline rounded-xl text-[12px] bg-canvas focus:outline-none focus:border-primary-700"
+            />
+
+            {visibleTables.length === 0 ? (
+              <p className="m-0 px-3 py-6 text-center text-[13px] text-ink-faint">일치하는 표가 없습니다.</p>
+            ) : (
+              <ul className="m-0 p-0 list-none space-y-1">
+                {visibleTables.map(t => {
+                  const q = tableQuery.trim().toLowerCase();
+                  const matchedColumn = q !== '' && !t.name.includes(q) && t.columns.some(c => c.name.toLowerCase().includes(q));
+                  const open = openTables.has(t.name) || matchedColumn;
+                  return (
+                    <li key={t.name} className="border border-hairline rounded-xl overflow-hidden bg-canvas">
+                      <button
+                        onClick={() => toggle(setOpenTables, t.name)}
+                        aria-expanded={open}
+                        className="w-full flex items-center gap-2 px-3 py-2 border-none bg-transparent cursor-pointer text-left hover:bg-canvas-soft transition-colors"
+                      >
+                        <span className="font-mono text-[13px] font-bold text-ink flex-1 min-w-0 truncate">{t.name}</span>
+                        <span className="text-[11px] text-ink-muted tabular-nums shrink-0">
+                          {t.rowCount.toLocaleString('ko-KR')}행
+                        </span>
+                        <span className="text-[10px] text-ink-faint tabular-nums shrink-0 hidden sm:inline">{t.columns.length}열</span>
+                        <span
+                          title={t.rls ? 'Row Level Security 적용됨' : 'RLS가 꺼져 있습니다'}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
+                            t.rls ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          RLS {t.rls ? 'ON' : 'OFF'}
+                        </span>
+                        <span className="text-[10px] text-ink-faint shrink-0">{open ? '▲' : '▼'}</span>
+                      </button>
+
+                      {open && (
+                        <div className="border-t border-hairline overflow-x-auto">
+                          <table className="w-full border-collapse text-[11px] select-text">
+                            <tbody>
+                              {t.columns.map(c => {
+                                const isPk = t.primaryKey.includes(c.name);
+                                const fk = t.foreignKeys.find(f => f.column === c.name);
+                                const hit = matchedColumn && c.name.toLowerCase().includes(q);
+                                return (
+                                  <tr key={c.name} className={`border-b border-hairline last:border-b-0 ${hit ? 'bg-primary-50' : ''}`}>
+                                    <td className="px-3 py-1.5 font-mono font-semibold text-ink whitespace-nowrap">
+                                      <CopyText value={c.name} label="컬럼명">{c.name}</CopyText>
+                                    </td>
+                                    <td className="px-2 py-1.5 font-mono text-ink-muted whitespace-nowrap">{shortType(c.type)}</td>
+                                    <td className="px-2 py-1.5 text-ink-faint whitespace-nowrap">
+                                      {!c.nullable && <span className="text-[10px]">필수</span>}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                                      {isPk && <Tag tone="key">PK</Tag>}
+                                      {fk && (
+                                        <span className="ml-1 font-mono text-[10px] text-primary-700">
+                                          → {fk.refTable}.{fk.refColumn}
+                                        </span>
+                                      )}
+                                      {c.hasDefault && !isPk && !fk && <span className="text-[10px] text-ink-faint">기본값</span>}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
-            {process.env.NEXT_PUBLIC_GIT_SHA && (
-              <span className="font-mono text-[11px] px-2 py-1 rounded-md bg-[#f0f4ff] text-[#3949AB]">
-                {process.env.NEXT_PUBLIC_GIT_SHA.slice(0, 7)}
-              </span>
-            )}
-          </div>
-        </div>
-        <ul className="m-0 p-0 list-none space-y-2">
-          <EnvRow label="NEXT_PUBLIC_SUPABASE_URL" value={process.env.NEXT_PUBLIC_SUPABASE_URL} />
-          <EnvRow label="NODE_ENV" value={process.env.NODE_ENV} />
-        </ul>
-      </div>
+          </>
+        )}
+      </Panel>
     </div>
   );
 }
 
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: 'blue' | 'gray' | 'green' | 'rose' }) {
-  const styles = { blue: 'bg-blue-50 text-blue-700', gray: 'bg-canvas text-ink-muted border border-hairline', green: 'bg-green-50 text-green-700', rose: 'bg-rose-50 text-rose-700' };
+/** 설정 화면 공통 표면 — 앱의 다른 화면(인사·급여)과 같은 카드 스타일을 쓴다 */
+function Panel({ eyebrow, title, subtitle, action, children }: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={`rounded-xl p-3 ${styles[color]}`}>
-      <p className="m-0 text-[11px] opacity-60 mb-1 font-semibold">{label}</p>
-      <p className="m-0 text-lg font-bold leading-tight">{value}</p>
-      {sub && <p className="m-0 mt-0.5 text-[10px] opacity-50">{sub}</p>}
+    <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
+      <header className="flex items-start gap-3 px-4 py-3 border-b border-hairline bg-canvas-soft">
+        <div className="min-w-0 flex-1">
+          <p className="m-0 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-faint">{eyebrow}</p>
+          <h3 className="m-0 text-[15px] font-bold text-ink leading-tight">{title}</h3>
+          {subtitle && <p className="m-0 mt-0.5 text-[11px] text-ink-muted">{subtitle}</p>}
+        </div>
+        {action && <div className="shrink-0 pt-1">{action}</div>}
+      </header>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-hairline bg-canvas-soft px-3 py-2.5">
+      <p className="m-0 mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-faint">{label}</p>
+      {children}
     </div>
   );
 }
 
+function Tag({ tone, children }: { tone: 'ok' | 'warn' | 'info' | 'key'; children: React.ReactNode }) {
+  const tones = {
+    ok: 'bg-emerald-50 text-emerald-700',
+    warn: 'bg-amber-50 text-amber-700',
+    info: 'bg-primary-50 text-primary-700',
+    key: 'bg-gold-soft text-gold',
+  };
+  return <span className={`inline-block font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-md ${tones[tone]}`}>{children}</span>;
+}
+
+function TextButton({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="px-2.5 py-1 rounded-lg border border-hairline bg-canvas text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {children}
+    </button>
+  );
+}
+
 function StatusDot({ status }: { status: 'pending' | 'ok' | 'err' }) {
-  if (status === 'pending') return <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />;
-  if (status === 'ok') return <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />;
-  return <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />;
+  const cls = status === 'pending' ? 'bg-amber-400 animate-pulse' : status === 'ok' ? 'bg-emerald-500' : 'bg-rose-500';
+  return <span className={`w-2 h-2 rounded-full shrink-0 ${cls}`} />;
 }
 
 const BUILD_TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul',
   dateStyle: 'medium',
-  timeStyle: 'medium',
+  timeStyle: 'short',
 });
 
 function formatBuildTime(value: string | undefined): string {
-  if (!value) return '(미설정)';
+  if (!value) return '미설정';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '(미설정)';
-  return `${BUILD_TIME_FORMATTER.format(d)} (KST)`;
+  if (Number.isNaN(d.getTime())) return '미설정';
+  return `${BUILD_TIME_FORMATTER.format(d)} KST`;
 }
 
-function EnvRow({ label, value }: { label: string; value: string | undefined }) {
-  const ok = !!value;
-  const display = value ? (value.length > 45 ? value.slice(0, 22) + '…' + value.slice(-10) : value) : '(미설정)';
+function EnvValue({ value }: { value: string | undefined }) {
+  if (!value) {
+    return (
+      <span className="flex items-center gap-1.5 font-mono text-[12px] font-semibold text-rose-500">
+        <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />미설정
+      </span>
+    );
+  }
   return (
-    <li className="flex items-center gap-3 text-xs bg-canvas border border-[#eeeeee] rounded-lg px-3 py-2">
-      <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-green-500' : 'bg-red-400'}`} />
-      <span className="font-mono text-ink-muted shrink-0">{label}</span>
-      <span className={`font-mono truncate ${ok ? 'text-ink-faint' : 'text-red-500 font-semibold'}`}>{display}</span>
-    </li>
+    <span className="flex items-center gap-1.5 min-w-0">
+      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+      <span className="font-mono text-[12px] text-ink-muted truncate">
+        <CopyText value={value} label="Supabase URL">{value}</CopyText>
+      </span>
+    </span>
   );
 }
