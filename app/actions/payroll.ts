@@ -5,7 +5,7 @@ import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
-import { getAuthUser, isNextInternalControlFlowError } from './_base'
+import { getAuthUser, isNextInternalControlFlowError, requireManagerOrAdmin, wrap } from './_base'
 
 export interface PayrollRow {
   staffId: number
@@ -342,4 +342,125 @@ export async function fetchPopupPayroll(popupId: number): Promise<ApiResponse<Po
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  급여 정산 상태 (지급 완료 / 조정 항목) — 브라우저 localStorage 대신 DB에 보관해
+//  기기를 바꾸거나 다른 관리자가 봐도 같은 상태가 보이고, 매달 다시 입력하지 않게 한다.
+// ────────────────────────────────────────────────────────────────
+
+/** 정산 구간 식별자 — 'month:2026-8'(month는 0-based) 또는 'popup:12' */
+export type PayrollPeriodKey = string
+
+export interface PayrollAdjustment {
+  id: number
+  label: string
+  amount: number
+}
+
+export interface PayrollSettlement {
+  paidStaffIds: number[]
+  /** staffId → 조정 항목 목록 */
+  adjustments: Record<number, PayrollAdjustment[]>
+}
+
+const PERIOD_KEY_RE = /^(month:\d{4}-(?:[0-9]|1[01])|popup:\d+)$/
+
+function assertPeriodKey(key: string) {
+  if (!PERIOD_KEY_RE.test(key)) throw new Error('잘못된 정산 구간입니다.')
+}
+
+/** 한 정산 구간의 지급 완료 + 조정 항목을 한 번에 조회 */
+export async function fetchPayrollSettlement(periodKey: PayrollPeriodKey): Promise<ApiResponse<PayrollSettlement>> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    assertPeriodKey(periodKey)
+
+    const [paidRes, adjRes] = await Promise.all([
+      supabaseAdmin.from('payroll_payments').select('staff_id').eq('period_key', periodKey),
+      supabaseAdmin.from('payroll_adjustments').select('id, staff_id, label, amount').eq('period_key', periodKey).order('id'),
+    ])
+    if (paidRes.error) throw new Error(paidRes.error.message)
+    if (adjRes.error) throw new Error(adjRes.error.message)
+
+    const adjustments: Record<number, PayrollAdjustment[]> = {}
+    for (const a of adjRes.data ?? []) {
+      (adjustments[a.staff_id] ??= []).push({ id: a.id, label: a.label, amount: a.amount })
+    }
+    return { paidStaffIds: (paidRes.data ?? []).map(p => p.staff_id), adjustments }
+  })
+}
+
+export async function setPayrollPaid(periodKey: PayrollPeriodKey, staffId: number, paid: boolean): Promise<ApiResponse> {
+  return wrap(async () => {
+    const user = await requireManagerOrAdmin()
+    assertPeriodKey(periodKey)
+
+    if (paid) {
+      // 같은 구간·직원 재체크는 unique 제약에 걸리므로 upsert로 멱등 처리
+      const { error } = await supabaseAdmin
+        .from('payroll_payments')
+        .upsert({ period_key: periodKey, staff_id: staffId, paid_by: user.id }, { onConflict: 'period_key,staff_id' })
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await supabaseAdmin
+        .from('payroll_payments').delete().eq('period_key', periodKey).eq('staff_id', staffId)
+      if (error) throw new Error(error.message)
+    }
+  })
+}
+
+export async function addPayrollAdjustment(
+  periodKey: PayrollPeriodKey, staffId: number, label: string, amount: number,
+): Promise<ApiResponse<PayrollAdjustment>> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    assertPeriodKey(periodKey)
+    const trimmed = label.trim()
+    if (!trimmed) throw new Error('항목명을 입력해주세요.')
+    if (!Number.isSafeInteger(amount)) throw new Error('금액은 정수만 입력할 수 있습니다.')
+
+    const { data, error } = await supabaseAdmin
+      .from('payroll_adjustments')
+      .insert({ period_key: periodKey, staff_id: staffId, label: trimmed, amount })
+      .select('id, label, amount')
+      .single()
+    if (error) throw new Error(error.message)
+
+    // 같은 항목명·금액 조합을 프리셋으로 축적 — 다음 달엔 클릭 한 번으로 추가
+    await supabaseAdmin
+      .from('payroll_adjustment_presets')
+      .upsert({ label: trimmed, amount }, { onConflict: 'label,amount', ignoreDuplicates: true })
+
+    return data as PayrollAdjustment
+  })
+}
+
+export async function removePayrollAdjustment(id: number): Promise<ApiResponse> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    const { error } = await supabaseAdmin.from('payroll_adjustments').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  })
+}
+
+export async function fetchAdjustmentPresets(): Promise<ApiResponse<{ id: number; label: string; amount: number }[]>> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    const { data, error } = await supabaseAdmin
+      .from('payroll_adjustment_presets')
+      .select('id, label, amount')
+      .order('created_at', { ascending: false })
+      .limit(12)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+}
+
+export async function removeAdjustmentPreset(id: number): Promise<ApiResponse> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    const { error } = await supabaseAdmin.from('payroll_adjustment_presets').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  })
 }

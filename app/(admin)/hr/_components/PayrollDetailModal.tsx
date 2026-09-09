@@ -3,11 +3,18 @@
 import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { fetchStaffMonthlyDetail, fetchStaffPopupDetail, type StaffDayDetail } from '@/app/actions/payroll'
+import {
+  fetchStaffMonthlyDetail, fetchStaffPopupDetail, addPayrollAdjustment, removePayrollAdjustment,
+  fetchAdjustmentPresets, removeAdjustmentPreset,
+  type StaffDayDetail, type PayrollAdjustment,
+} from '@/app/actions/payroll'
 import { getWorkerContracts } from '@/app/actions/contracts'
 import type { ContractRecord } from '@/app/actions/contracts'
+import CopyText from '@/components/CopyText'
+import { showMsg } from '@/lib/toast'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
+import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 
@@ -18,12 +25,6 @@ const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ),
 })
 
-interface Adjustment {
-  id: number
-  label: string
-  amount: number
-}
-
 // 월별 정산(달력 기준) 또는 팝업별 정산(행사 기간 기준, 월 경계를 넘어가도 한 번에) 중 하나로 조회
 export type PayrollPeriod =
   | { type: 'month'; year: number; month: number }
@@ -31,6 +32,12 @@ export type PayrollPeriod =
 
 interface Props {
   staffId: number
+  /** 정산 구간 키 — 조정 항목을 이 구간에 묶어 DB에 저장한다 */
+  periodKey: string
+  /** 부모(PayrollPanel)가 들고 있는 이 직원의 저장된 조정 항목 */
+  initialAdjustments: PayrollAdjustment[]
+  /** 조정 항목이 바뀌면 목록의 지급액도 다시 계산되도록 부모에 알린다 */
+  onAdjustmentsChanged: () => void
   name: string
   phone?: string | null
   bankName?: string | null
@@ -40,15 +47,14 @@ interface Props {
   onClose: () => void
 }
 
-let nextAdjId = 1
-
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')
   return `${dateStr.slice(5)} (${DAY_KO[d.getDay()]})`
 }
 
 export default function PayrollDetailModal({
-  staffId, name, phone, bankName, bankAccount, hourlyRate, period, onClose,
+  staffId, periodKey, initialAdjustments, onAdjustmentsChanged,
+  name, phone, bankName, bankAccount, hourlyRate, period, onClose,
 }: Props) {
   useBodyScrollLock()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -61,7 +67,9 @@ export default function PayrollDetailModal({
     })
   }
   const [details, setDetails] = useState<StaffDayDetail[] | null>(null)
-  const [adjustments, setAdjustments] = useState<Adjustment[]>([])
+  const [adjustments, setAdjustments] = useState<PayrollAdjustment[]>(initialAdjustments)
+  const [presets, setPresets] = useState<{ id: number; label: string; amount: number }[]>([])
+  const [savingAdj, setSavingAdj] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [copied, setCopied] = useState(false)
@@ -70,7 +78,7 @@ export default function PayrollDetailModal({
   const [contractsLoaded, setContractsLoaded] = useState(false)
 
   // period.type이 바뀌어도 안전하게 재조회되도록 두 케이스에서 다른 primitive 키를 쓴다
-  const periodKey = period.type === 'month' ? `month:${period.year}-${period.month}` : `popup:${period.popupId}`
+  const detailFetchKey = period.type === 'month' ? `month:${period.year}-${period.month}` : `popup:${period.popupId}`
   useEffect(() => {
     const detailPromise = period.type === 'month'
       ? fetchStaffMonthlyDetail(staffId, period.year, period.month)
@@ -78,13 +86,14 @@ export default function PayrollDetailModal({
     detailPromise.then(res => {
       setDetails(res.success && res.data ? res.data : [])
     })
+    fetchAdjustmentPresets().then(res => { if (res.success && res.data) setPresets(res.data) })
     setContractsLoaded(false)
     getWorkerContracts(staffId).then(res => {
       setLatestContract(res.success && res.data && res.data.length > 0 ? res.data[0] : null)
       setContractsLoaded(true)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffId, periodKey])
+  }, [staffId, detailFetchKey])
 
   const periodLabel = period.type === 'month' ? `${period.year}년 ${period.month + 1}월` : period.popupName
 
@@ -115,12 +124,37 @@ export default function PayrollDetailModal({
   }
   const formulaText = formulaLines.join('\n')
 
-  const addAdjustment = () => {
-    const amount = Number(newAmount)
-    if (!newLabel.trim() || isNaN(amount) || !newAmount.trim()) return
-    setAdjustments(p => [...p, { id: nextAdjId++, label: newLabel.trim(), amount }])
+  // 조정 항목은 DB에 저장한다 — 모달을 닫으면 사라져 매달 다시 입력해야 했던 문제 해결
+  const addAdjustment = async (label: string, amount: number) => {
+    if (!label.trim() || !Number.isFinite(amount)) return
+    setSavingAdj(true)
+    const res = await addPayrollAdjustment(periodKey, staffId, label, Math.round(amount))
+    setSavingAdj(false)
+    if (!res.success || !res.data) { showMsg(`오류: ${res.error}`); return }
+    setAdjustments(p => [...p, res.data!])
     setNewLabel('')
     setNewAmount('')
+    fetchAdjustmentPresets().then(r => { if (r.success && r.data) setPresets(r.data) })
+    onAdjustmentsChanged()
+  }
+
+  const submitNewAdjustment = () => {
+    const amount = Number(newAmount)
+    if (!newLabel.trim() || !newAmount.trim() || isNaN(amount)) return
+    void addAdjustment(newLabel, amount)
+  }
+
+  const deleteAdjustment = async (id: number) => {
+    const prev = adjustments
+    setAdjustments(p => p.filter(x => x.id !== id))
+    const res = await removePayrollAdjustment(id)
+    if (!res.success) { setAdjustments(prev); showMsg(`오류: ${res.error}`); return }
+    onAdjustmentsChanged()
+  }
+
+  const deletePreset = async (id: number) => {
+    setPresets(p => p.filter(x => x.id !== id))
+    await removeAdjustmentPreset(id)
   }
 
   const handleShare = () => {
@@ -175,7 +209,9 @@ export default function PayrollDetailModal({
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-canvas-soft sticky top-0 z-10">
           <div>
-            <h3 className="m-0 text-[16px] font-bold text-ink">{name}</h3>
+            <h3 className="m-0 text-[16px] font-bold text-ink">
+              <CopyText value={name} label="이름">{name}</CopyText>
+            </h3>
             <p className="m-0 text-[12px] text-ink-muted">{periodLabel} 급여 세부내역</p>
           </div>
           <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none w-8 h-8 flex items-center justify-center">×</button>
@@ -187,11 +223,11 @@ export default function PayrollDetailModal({
             <div className="flex flex-wrap gap-2">
               {phone && (
                 <button
-                  onClick={() => copyText('phone', phone)}
+                  onClick={() => copyText('phone', formatPhoneNumber(phone))}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
                 >
                   <span className="text-ink-muted text-[10px] font-semibold">전화</span>
-                  <span className="font-semibold">{phone}</span>
+                  <span className="font-semibold">{formatPhoneNumber(phone)}</span>
                   <span className="text-[10px] text-primary-600">{copiedKey === 'phone' ? '복사됨!' : '복사'}</span>
                 </button>
               )}
@@ -227,7 +263,7 @@ export default function PayrollDetailModal({
               <p className="text-[12px] text-ink-faint m-0">이번 달 근무 기록이 없습니다.</p>
             ) : (
               <div className="rounded-lg border border-hairline overflow-hidden">
-                <table className="w-full border-collapse text-[12px]">
+                <table className="w-full border-collapse text-[12px] select-text">
                   <thead>
                     <tr className="bg-canvas-soft border-b border-hairline">
                       <th className="text-left px-3 py-2 font-semibold text-ink-muted">날짜</th>
@@ -279,7 +315,9 @@ export default function PayrollDetailModal({
                 <span className="text-[13px] font-bold text-ink">
                   {details == null
                     ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중...</span>
-                    : basePay != null ? `${basePay.toLocaleString('ko-KR')}원` : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}
+                    : basePay != null
+                      ? <CopyText value={String(basePay)} label="기본급" toastValue={`${basePay.toLocaleString('ko-KR')}원`}>{basePay.toLocaleString('ko-KR')}원</CopyText>
+                      : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}
                 </span>
               </div>
 
@@ -292,7 +330,7 @@ export default function PayrollDetailModal({
                       {a.amount >= 0 ? '+' : ''}{a.amount.toLocaleString('ko-KR')}원
                     </span>
                     <button
-                      onClick={() => setAdjustments(p => p.filter(x => x.id !== a.id))}
+                      onClick={() => deleteAdjustment(a.id)}
                       className="text-ink-faint text-[16px] bg-transparent border-none cursor-pointer hover:text-rose-500 transition opacity-0 group-hover:opacity-100 leading-none"
                     >×</button>
                   </div>
@@ -300,25 +338,50 @@ export default function PayrollDetailModal({
               ))}
 
               {/* 조정 항목 추가 */}
-              <div className="flex gap-1.5 px-3 py-2 border-b border-hairline bg-canvas-soft">
-                <input
-                  type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)}
-                  placeholder="항목명 (식대, 교통비, 공제...)"
-                  className="flex-1 px-2 py-1.5 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700 min-w-0"
-                  onKeyDown={e => e.key === 'Enter' && addAdjustment()}
-                />
-                <input
-                  type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)}
-                  placeholder="금액 (+/-)"
-                  className="w-[88px] px-2 py-1.5 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
-                  onKeyDown={e => e.key === 'Enter' && addAdjustment()}
-                />
-                <button
-                  onClick={addAdjustment}
-                  className="px-2.5 py-1.5 rounded-lg bg-primary-700 text-white text-[11px] font-bold border-none cursor-pointer hover:bg-primary-800 transition whitespace-nowrap"
-                >
-                  + 추가
-                </button>
+              <div className="px-3 py-2 border-b border-hairline bg-canvas-soft">
+                <div className="flex gap-1.5">
+                  <input
+                    type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)}
+                    placeholder="항목명 (식대, 교통비, 공제...)"
+                    className="flex-1 px-2 py-1.5 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700 min-w-0"
+                    onKeyDown={e => e.key === 'Enter' && submitNewAdjustment()}
+                  />
+                  <input
+                    type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)}
+                    placeholder="금액 (+/-)"
+                    className="w-[88px] px-2 py-1.5 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+                    onKeyDown={e => e.key === 'Enter' && submitNewAdjustment()}
+                  />
+                  <button
+                    onClick={submitNewAdjustment}
+                    disabled={savingAdj}
+                    className="px-2.5 py-1.5 rounded-lg bg-primary-700 text-white text-[11px] font-bold border-none cursor-pointer hover:bg-primary-800 transition whitespace-nowrap disabled:opacity-50"
+                  >
+                    + 추가
+                  </button>
+                </div>
+                {/* 자주 쓰는 항목 — 한 번 쓴 조합이 프리셋으로 쌓여 다음 달엔 클릭 한 번 */}
+                {presets.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {presets.map(pr => (
+                      <span key={pr.id} className="group inline-flex items-center rounded-full border border-hairline bg-canvas overflow-hidden">
+                        <button
+                          onClick={() => addAdjustment(pr.label, pr.amount)}
+                          disabled={savingAdj}
+                          title="클릭해서 이 항목 추가"
+                          className="pl-2 pr-1 py-0.5 text-[10px] font-semibold text-ink-muted bg-transparent border-none cursor-pointer hover:text-primary-700 transition disabled:opacity-50"
+                        >
+                          {pr.label} {pr.amount >= 0 ? '+' : ''}{pr.amount.toLocaleString('ko-KR')}
+                        </button>
+                        <button
+                          onClick={() => deletePreset(pr.id)}
+                          title="이 프리셋 삭제"
+                          className="pr-1.5 pl-0.5 py-0.5 text-[11px] leading-none text-ink-faint bg-transparent border-none cursor-pointer hover:text-rose-500 transition"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 최종 합계 */}
@@ -332,7 +395,9 @@ export default function PayrollDetailModal({
                   )}
                 </div>
                 <span className="text-[18px] font-extrabold text-primary-700">
-                  {finalPay != null ? `${finalPay.toLocaleString('ko-KR')}원` : '—'}
+                  {finalPay != null
+                    ? <CopyText value={String(finalPay)} label="최종 지급액" toastValue={`${finalPay.toLocaleString('ko-KR')}원`}>{finalPay.toLocaleString('ko-KR')}원</CopyText>
+                    : '—'}
                 </span>
               </div>
             </div>
@@ -350,7 +415,7 @@ export default function PayrollDetailModal({
                   {copiedKey === 'formula' ? '복사됨!' : '계산식 복사'}
                 </button>
               </div>
-              <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words">
+              <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words select-text">
                 {formulaText}
               </div>
               <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 스케줄 화면에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
