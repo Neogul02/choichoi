@@ -9,6 +9,7 @@ import type { UserProfile } from '@/app/actions/workers'
 import type { UserAppRole } from '@/types/database'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { formatPhoneNumber } from '@/lib/utils'
+import { utcToKstDateStr } from '@/lib/date'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import CopyText from '@/components/CopyText'
 
@@ -22,10 +23,36 @@ function toAppRole(value: string): UserAppRole {
   return value === 'admin' ? 'admin' : value === 'manager' ? 'manager' : 'user'
 }
 
+type RoleFilter = UserAppRole | 'all'
+type SortKey = 'name' | 'newest' | 'oldest'
+
+const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
+  { value: 'all', label: '전체' },
+  ...ROLE_OPTIONS,
+]
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'name', label: '이름순' },
+  { value: 'newest', label: '최근 가입' },
+  { value: 'oldest', label: '오래된 가입' },
+]
+
+// 정렬은 아무것도 감추지 않는 개인 취향이라 유지한다.
+// (권한 필터는 사람을 감추므로 저장하지 않고 항상 '전체'로 시작한다)
+const SORT_KEY_STORAGE = 'user_mgmt_sort'
+
+/** 가입일 표기 — 목록이 빽빽해서 26.06.10 형태로 줄인다 (전체 날짜는 title로) */
+function signupLabel(createdAt: string | null): string {
+  if (!createdAt) return ''
+  return utcToKstDateStr(createdAt).slice(2).replace(/-/g, '.')
+}
+
 export default function UserManagementSection() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [query, setQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('name')
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
@@ -43,18 +70,44 @@ export default function UserManagementSection() {
     createSupabaseBrowserClient().auth.getUser().then(({ data }) => {
       setMyUserId(data.user?.id ?? null)
     })
+    const saved = localStorage.getItem(SORT_KEY_STORAGE)
+    if (saved === 'name' || saved === 'newest' || saved === 'oldest') setSortKey(saved)
   }, [])
+
+  const changeSort = (key: SortKey) => {
+    setSortKey(key)
+    try { localStorage.setItem(SORT_KEY_STORAGE, key) } catch { /* ignore */ }
+  }
+
+  const roleCounts = useMemo(() => ({
+    all: users.length,
+    admin: users.filter(u => toAppRole(u.worker_role) === 'admin').length,
+    manager: users.filter(u => toAppRole(u.worker_role) === 'manager').length,
+    user: users.filter(u => toAppRole(u.worker_role) === 'user').length,
+  }), [users])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return users
-    return users.filter(u =>
-      u.name.toLowerCase().includes(q) ||
-      phoneMatches(u.phone, q) ||
-      bankAccountMatches(u.bank_account, q) ||
-      (u.bank_name ?? '').toLowerCase().includes(q)
-    )
-  }, [users, query])
+    const matched = users.filter(u => {
+      if (roleFilter !== 'all' && toAppRole(u.worker_role) !== roleFilter) return false
+      if (!q) return true
+      return u.name.toLowerCase().includes(q)
+        || phoneMatches(u.phone, q)
+        || bankAccountMatches(u.bank_account, q)
+        || (u.bank_name ?? '').toLowerCase().includes(q)
+    })
+
+    // 이름순은 ko 로케일 비교라 ㄱㄴㄷ 순으로 정렬된다.
+    // 가입 시각이 없는 옛 계정은 뒤로 보내고, 같은 시각이면 이름으로 안정 정렬한다.
+    const byName = (a: UserProfile, b: UserProfile) => a.name.localeCompare(b.name, 'ko')
+    return [...matched].sort((a, b) => {
+      if (sortKey === 'name') return byName(a, b)
+      if (!a.created_at || !b.created_at) return a.created_at ? -1 : b.created_at ? 1 : byName(a, b)
+      const cmp = a.created_at.localeCompare(b.created_at)
+      if (cmp === 0) return byName(a, b)
+      return sortKey === 'newest' ? -cmp : cmp
+    })
+  }, [users, query, roleFilter, sortKey])
 
   async function handleRoleChange(userId: string, role: UserAppRole) {
     setSavingId(userId)
@@ -131,13 +184,46 @@ export default function UserManagementSection() {
         )}
       </div>
 
+      {/* 권한 필터 + 정렬 */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="flex rounded-lg overflow-hidden border border-hairline bg-canvas">
+          {ROLE_FILTERS.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setRoleFilter(f.value)}
+              className={`px-2.5 py-1 text-[11px] font-semibold border-none cursor-pointer transition-colors whitespace-nowrap ${
+                roleFilter === f.value ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+              }`}
+            >
+              {f.label}
+              <span className={`ml-1 ${roleFilter === f.value ? 'opacity-70' : 'text-ink-faint'}`}>{roleCounts[f.value]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex rounded-lg overflow-hidden border border-hairline bg-canvas ml-auto">
+          {SORT_OPTIONS.map(o => (
+            <button
+              key={o.value}
+              onClick={() => changeSort(o.value)}
+              className={`px-2.5 py-1 text-[11px] font-semibold border-none cursor-pointer transition-colors whitespace-nowrap ${
+                sortKey === o.value ? 'bg-ink text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="text-[11px] text-ink-muted mb-2">
-        {query ? `${filtered.length} / ${users.length}명` : `총 ${users.length}명`}
+        {filtered.length === users.length ? `총 ${users.length}명` : `${filtered.length} / ${users.length}명`}
       </div>
 
       <div className="rounded-xl border border-hairline overflow-hidden">
         {filtered.length === 0 ? (
-          <p className="text-[12px] text-ink-muted text-center py-6">검색 결과가 없습니다.</p>
+          <p className="text-[12px] text-ink-muted text-center py-6">
+            {query.trim() ? '검색 결과가 없습니다.' : '이 권한에 해당하는 계정이 없습니다.'}
+          </p>
         ) : filtered.map((u, idx) => {
           const role = toAppRole(u.worker_role)
           const isMe = u.id === myUserId
@@ -147,9 +233,17 @@ export default function UserManagementSection() {
             <div key={u.id} className={`flex items-center gap-3 px-4 py-2.5 hover:bg-canvas-soft transition-colors ${idx !== filtered.length - 1 ? 'border-b border-hairline' : ''}`}>
 
               {/* 이름 */}
-              <div className="w-[120px] shrink-0 text-[13px] font-bold text-ink truncate">
-                <CopyText value={u.name} label="이름">{u.name}</CopyText>
-                {isMe && <span className="ml-1.5 text-[10px] font-normal text-ink-faint">(나)</span>}
+              <div className="w-[120px] shrink-0 min-w-0">
+                <div className="text-[13px] font-bold text-ink truncate">
+                  <CopyText value={u.name} label="이름">{u.name}</CopyText>
+                  {isMe && <span className="ml-1.5 text-[10px] font-normal text-ink-faint">(나)</span>}
+                </div>
+                <div
+                  className="text-[10px] text-ink-faint truncate"
+                  title={u.created_at ? `가입 ${utcToKstDateStr(u.created_at)}` : undefined}
+                >
+                  {u.created_at ? `${signupLabel(u.created_at)} 가입` : '가입일 미상'}
+                </div>
               </div>
 
               {/* 전화 + 계좌 */}
