@@ -429,14 +429,13 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 text-right text-ink-muted">
                       {row.hourlyRate != null
-                        ? <CopyText value={String(row.hourlyRate)} label="시급" toastValue={`${row.hourlyRate.toLocaleString('ko-KR')}원`}>{row.hourlyRate.toLocaleString('ko-KR')}원</CopyText>
+                        ? <CopyText value={row.hourlyRate.toLocaleString('ko-KR')} label="시급" toastValue={`${row.hourlyRate.toLocaleString('ko-KR')}원`}>{row.hourlyRate.toLocaleString('ko-KR')}원</CopyText>
                         : <span className="text-ink-faint text-[11px]">미설정</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right font-bold text-ink">
-                      {/* 송금액은 숫자만 복사 — 은행 앱 금액칸에 그대로 붙여넣기 */}
                       {finalPay != null ? (
                         <>
-                          <CopyText value={String(finalPay)} label="총 급여" toastValue={`${finalPay.toLocaleString('ko-KR')}원`}>{finalPay.toLocaleString('ko-KR')}원</CopyText>
+                          <CopyText value={finalPay.toLocaleString('ko-KR')} label="총 급여" toastValue={`${finalPay.toLocaleString('ko-KR')}원`}>{finalPay.toLocaleString('ko-KR')}원</CopyText>
                           {adjust !== 0 && (
                             <span
                               title={`기본급 ${row.totalPay!.toLocaleString('ko-KR')}원 + 조정 ${adjust >= 0 ? '+' : ''}${adjust.toLocaleString('ko-KR')}원`}
@@ -469,7 +468,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
             </span>
             <span className="text-[15px] font-extrabold text-ink">
               {hasPayRate
-                ? <CopyText value={String(totalPay)} label="합계 급여" toastValue={`${totalPay.toLocaleString('ko-KR')}원`}>{totalPay.toLocaleString('ko-KR')}원</CopyText>
+                ? <CopyText value={totalPay.toLocaleString('ko-KR')} label="합계 급여" toastValue={`${totalPay.toLocaleString('ko-KR')}원`}>{totalPay.toLocaleString('ko-KR')}원</CopyText>
                 : '—'}
             </span>
           </div>
