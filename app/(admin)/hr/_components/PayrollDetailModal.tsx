@@ -299,7 +299,7 @@ export default function PayrollDetailModal({
                   {details == null
                     ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중...</span>
                     : basePay != null
-                      ? <CopyText value={String(basePay)} label="기본급" toastValue={`${basePay.toLocaleString('ko-KR')}원`}>{basePay.toLocaleString('ko-KR')}원</CopyText>
+                      ? <CopyText value={basePay.toLocaleString('ko-KR')} label="기본급" toastValue={`${basePay.toLocaleString('ko-KR')}원`}>{basePay.toLocaleString('ko-KR')}원</CopyText>
                       : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}
                 </span>
               </div>
@@ -379,7 +379,7 @@ export default function PayrollDetailModal({
                 </div>
                 <span className="text-[18px] font-extrabold text-primary-700">
                   {finalPay != null
-                    ? <CopyText value={String(finalPay)} label="최종 지급액" toastValue={`${finalPay.toLocaleString('ko-KR')}원`}>{finalPay.toLocaleString('ko-KR')}원</CopyText>
+                    ? <CopyText value={finalPay.toLocaleString('ko-KR')} label="최종 지급액" toastValue={`${finalPay.toLocaleString('ko-KR')}원`}>{finalPay.toLocaleString('ko-KR')}원</CopyText>
                     : '—'}
                 </span>
               </div>
