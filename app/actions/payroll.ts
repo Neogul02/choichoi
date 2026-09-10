@@ -1,11 +1,13 @@
 'use server'
 
+import { after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
 import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
-import { getAuthUser, isNextInternalControlFlowError, requireManagerOrAdmin, wrap } from './_base'
+import { decryptResidentId } from '@/lib/pii-crypto'
+import { getAuthUser, isNextInternalControlFlowError, requireAdmin, requireManagerOrAdmin, wrap } from './_base'
 
 export interface PayrollRow {
   staffId: number
@@ -462,5 +464,41 @@ export async function removeAdjustmentPreset(id: number): Promise<ApiResponse> {
     await requireManagerOrAdmin()
     const { error } = await supabaseAdmin.from('payroll_adjustment_presets').delete().eq('id', id)
     if (error) throw new Error(error.message)
+  })
+}
+
+// ────────────────────────────────────────────────────────────────
+//  근로복지공단 단기간근로자 고용신고 서식 작성용 주민등록번호 열람 — admin 전용,
+//  호출마다 Discord 감사 로그 발송(번호 원문은 절대 포함 안 함). getResidentIdForInsurance와
+//  동일한 목적이지만 이쪽은 staffId(급여정산 화면의 식별자) 기준으로 조회한다.
+// ────────────────────────────────────────────────────────────────
+export async function fetchWelfareReportResidentId(staffId: number): Promise<ApiResponse<{ residentId: string | null }>> {
+  return wrap(async () => {
+    const admin = await requireAdmin()
+
+    const { data: staff, error: staffErr } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('name, user_profile_id')
+      .eq('id', staffId)
+      .maybeSingle()
+    if (staffErr) throw new Error(staffErr.message)
+    if (!staff?.user_profile_id) return { residentId: null }
+
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from('user_profiles')
+      .select('resident_reg_no_enc')
+      .eq('id', staff.user_profile_id)
+      .maybeSingle()
+    if (profileErr) throw new Error(profileErr.message)
+    if (!profile?.resident_reg_no_enc) return { residentId: null }
+
+    const residentId = decryptResidentId(profile.resident_reg_no_enc)
+
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('edit', '🔒 주민번호 조회', `**${admin.name ?? admin.email}** → **${staff.name}** (근로복지공단 신고서 작성)`)
+    })
+
+    return { residentId }
   })
 }
