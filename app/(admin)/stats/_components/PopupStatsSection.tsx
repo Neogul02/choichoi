@@ -59,10 +59,11 @@ function MenuTooltip({ active, payload }: MenuTooltipProps) {
 
 function StatTile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
-    <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] text-center">
-      <div className="text-[11px] text-ink-muted font-medium mb-0.5">{label}</div>
-      <div className={`text-[13px] font-extrabold ${accent ? 'text-primary-700' : 'text-ink-secondary'}`}>{value}</div>
-      {sub && <div className="text-[10px] text-ink-faint mt-0.5">{sub}</div>}
+    <div className="bg-canvas rounded-xl p-2.5 md:p-3 border border-[#e4e4e4] text-center min-w-0">
+      <div className="text-[11px] text-ink-muted font-medium mb-0.5 break-keep">{label}</div>
+      {/* 금액은 절대 쪼개지지 않게 — 좁은 칸에서는 글자 크기를 줄여 한 줄로 유지 */}
+      <div className={`text-[12px] md:text-[13px] font-extrabold tabular-nums whitespace-nowrap overflow-hidden text-ellipsis ${accent ? 'text-primary-700' : 'text-ink-secondary'}`}>{value}</div>
+      {sub && <div className="text-[10px] text-ink-faint mt-0.5 break-keep">{sub}</div>}
     </div>
   );
 }
@@ -70,9 +71,9 @@ function StatTile({ label, value, sub, accent }: { label: string; value: string;
 function ChartCard({ title, children, right, className = '' }: { title: string; children: React.ReactNode; right?: React.ReactNode; className?: string }) {
   return (
     <div className={`bg-canvas rounded-xl p-3 border border-[#e4e4e4] min-w-0 ${className}`}>
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="m-0 text-sm font-bold text-ink-secondary">{title}</h4>
-        {right}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h4 className="m-0 text-sm font-bold text-ink-secondary min-w-0 break-keep">{title}</h4>
+        {right && <div className="shrink-0">{right}</div>}
       </div>
       {children}
     </div>
@@ -181,6 +182,22 @@ export default function PopupStatsSection({
 
   const popupMenuChartHeight = useMemo(() => Math.max(180, popupMenuBreakdown.length * 38), [popupMenuBreakdown.length]);
 
+  // 시간대별 차트는 09~21시 13칸이 고정이라 대부분이 빈 막대다 — 실제 판매가 있는 구간만 잘라
+  // 막대를 넓혀 모바일에서도 읽히게 한다. (판매가 전혀 없으면 hasHourlyData가 차트 자체를 가린다)
+  const hourlyChartData = useMemo(() => {
+    const first = hourlyData.findIndex((h) => h.revenue > 0 || h.orderCount > 0);
+    if (first === -1) return hourlyData;
+    let last = first;
+    hourlyData.forEach((h, i) => { if (h.revenue > 0 || h.orderCount > 0) last = i; });
+    return hourlyData.slice(first, last + 1);
+  }, [hourlyData]);
+
+  // 막대 위 값 라벨은 슬롯 폭(차트 폭 ÷ 막대 개수)보다 넓어지면 서로 겹쳐 읽을 수 없다.
+  // 모바일 차트 내부 폭(약 250px) ÷ 라벨 폭(약 36px) ≈ 7 — 8개를 넘으면 끄고 툴팁으로만 값을 보여준다.
+  const MAX_BARS_WITH_LABEL = 8;
+  const showDailyLabels = dailyChartData.length <= MAX_BARS_WITH_LABEL;
+  const showHourlyLabels = hourlyChartData.length <= MAX_BARS_WITH_LABEL;
+
   const { matrix, activeDays } = useMemo(() => buildDayHourMatrix(popupRawOrders), [popupRawOrders]);
 
   const reportData: PopupReportData | null = useMemo(() => {
@@ -251,10 +268,10 @@ export default function PopupStatsSection({
               <>
                 {/* 운영 기간 진행률 */}
                 <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="m-0 text-sm font-bold text-ink-secondary">운영 진행률</h4>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h4 className="m-0 text-sm font-bold text-ink-secondary whitespace-nowrap">운영 진행률</h4>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 whitespace-nowrap ${
                         period.status === '진행중'
                           ? 'bg-primary-700/10 text-primary-700 border-primary-700/30'
                           : period.status === '종료'
@@ -264,7 +281,7 @@ export default function PopupStatsSection({
                         {period.status}
                       </span>
                     </div>
-                    <span className="text-[11px] text-ink-muted font-medium">
+                    <span className="text-[11px] text-ink-muted font-medium whitespace-nowrap tabular-nums">
                       {selectedPopup.start_date} ~ {selectedPopup.end_date}
                     </span>
                   </div>
@@ -274,28 +291,26 @@ export default function PopupStatsSection({
                       style={{ width: `${Math.round((period.elapsedDays / period.totalDays) * 100)}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-ink-muted">
-                    <span>현재 운영 <b className="text-ink-secondary">{period.elapsedDays}일</b> / 총 {period.totalDays}일</span>
-                    <span>{period.status === '종료' ? '운영 종료' : `잔여 ${period.remainingDays}일`}</span>
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted">
+                    <span className="whitespace-nowrap">현재 운영 <b className="text-ink-secondary">{period.elapsedDays}일</b> / 총 {period.totalDays}일</span>
+                    <span className="whitespace-nowrap">{period.status === '종료' ? '운영 종료' : `잔여 ${period.remainingDays}일`}</span>
                   </div>
                 </div>
 
                 <div className="flex justify-end mb-3">
                   <button
                     onClick={() => setShowReportModal(true)}
-                    className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-primary-700 text-white border-none cursor-pointer hover:bg-primary-800 transition"
+                    className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[12px] font-bold bg-primary-700 text-white border-none cursor-pointer hover:bg-primary-800 transition"
                   >
                     PDF 보고서 생성
                   </button>
                 </div>
 
-                {/* 핵심 지표 */}
-                <div className="grid grid-cols-3 gap-2 mb-2">
+                {/* 핵심 지표 — 6칸을 한 그리드로 두어 모바일 2열에서 빈칸 없이 채운다 (sm 이상은 3열 2줄로 동일) */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
                   <StatTile label="총 매출" value={`₩${formatPrice(popupTotalRevenue)}`} accent />
                   <StatTile label="총 주문" value={`${popupTotalOrders}건`} />
                   <StatTile label="평균 객단가" value={derived.avgOrderValue > 0 ? `₩${formatPrice(derived.avgOrderValue)}` : '-'} />
-                </div>
-                <div className="grid grid-cols-3 gap-2 mb-2">
                   <StatTile
                     label="운영일수 평균 매출"
                     value={derived.avgDailyRevenue > 0 ? `₩${formatPrice(derived.avgDailyRevenue)}` : '-'}
@@ -308,7 +323,7 @@ export default function PopupStatsSection({
                   />
                   <StatTile label="판매 발생일" value={`${derived.salesDays}일`} sub={period.elapsedDays > 0 ? `운영 ${period.elapsedDays}일 중` : undefined} />
                 </div>
-                <div className={`grid ${derived.projectedTotal != null ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-4`}>
+                <div className={`grid grid-cols-2 gap-2 mb-4 ${derived.projectedTotal != null ? 'sm:grid-cols-3' : ''}`}>
                   <StatTile
                     label="최고 매출일"
                     value={derived.bestDay ? `₩${formatPrice(derived.bestDay.revenue)}` : '-'}
@@ -320,12 +335,14 @@ export default function PopupStatsSection({
                     sub={derived.worstDay ? formatDateLabel(derived.worstDay.date) : undefined}
                   />
                   {derived.projectedTotal != null && (
-                    <StatTile
-                      label="예상 총 매출"
-                      value={`₩${formatPrice(derived.projectedTotal)}`}
-                      sub="현재 일평균 기준"
-                      accent
-                    />
+                    <div className="col-span-2 sm:col-span-1">
+                      <StatTile
+                        label="예상 총 매출"
+                        value={`₩${formatPrice(derived.projectedTotal)}`}
+                        sub="현재 일평균 기준"
+                        accent
+                      />
+                    </div>
                   )}
                 </div>
 
@@ -340,22 +357,23 @@ export default function PopupStatsSection({
                           <YAxis tickFormatter={formatRevenueTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={48} />
                           <Tooltip content={<DailyTooltip />} />
                           {derived.avgDailyRevenue > 0 && (
-                            <ReferenceLine
-                              y={derived.avgDailyRevenue}
-                              stroke={CHART_ACCENT_GOLD}
-                              strokeDasharray="4 4"
-                              label={{ value: `평균 ${formatRevenueTick(derived.avgDailyRevenue)}`, position: 'insideTopRight', fontSize: 10, fill: CHART_ACCENT_GOLD }}
-                            />
+                            <ReferenceLine y={derived.avgDailyRevenue} stroke={CHART_ACCENT_GOLD} strokeDasharray="4 4" />
                           )}
                           <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
                             {dailyChartData.map((d) => (
                               <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, CHART_ACCENT_PRIMARY_SOFT)} />
                             ))}
-                            <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={CHART_VALUE_LABEL_STYLE} />
+                            {showDailyLabels && (
+                              <LabelList dataKey="revenue" position="top" formatter={(v: number) => formatRevenueTick(v)} style={CHART_VALUE_LABEL_STYLE} />
+                            )}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
-                      <p className="text-[10px] text-ink-faint mt-1 m-0">※ 파란 막대는 토요일, 빨간 막대는 일요일</p>
+                      <p className="text-[10px] text-ink-faint mt-1 m-0">
+                        ※ 파란 막대는 토요일, 빨간 막대는 일요일
+                        {derived.avgDailyRevenue > 0 && ` · 주황 점선은 평균 ${formatRevenueTick(derived.avgDailyRevenue)}`}
+                        {!showDailyLabels && ' · 막대가 많아 값은 막대를 눌러 확인'}
+                      </p>
                     </ChartCard>
 
                     <ChartCard title="누적 매출 추이">
@@ -469,7 +487,7 @@ export default function PopupStatsSection({
                 {hasHourlyData && (
                   <ChartCard title="시간대별 매출 분포">
                     <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={hourlyData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
+                      <BarChart data={hourlyChartData} margin={{ top: 20, right: 8, left: 0, bottom: 4 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
                         <XAxis dataKey="label" tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} />
                         <YAxis tickFormatter={formatRevenueTick} tick={CHART_TICK_STYLE} axisLine={false} tickLine={false} width={48} />
@@ -487,11 +505,16 @@ export default function PopupStatsSection({
                           }}
                         />
                         <Bar dataKey="revenue" fill={CHART_ACCENT_PRIMARY} radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="revenue" position="top" formatter={(v: number) => (v > 0 ? formatRevenueTick(v) : '')} style={CHART_VALUE_LABEL_STYLE} />
+                          {showHourlyLabels && (
+                            <LabelList dataKey="revenue" position="top" formatter={(v: number) => (v > 0 ? formatRevenueTick(v) : '')} style={CHART_VALUE_LABEL_STYLE} />
+                          )}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
-                    <p className="text-[10px] text-ink-faint mt-1 m-0">※ POS 주문 + 시간대별 수기 입력 합산 기준</p>
+                    <p className="text-[10px] text-ink-faint mt-1 m-0">
+                      ※ POS 주문 + 시간대별 수기 입력 합산 기준 · 판매가 있는 시간대만 표시
+                      {!showHourlyLabels && ' · 막대가 많아 값은 막대를 눌러 확인'}
+                    </p>
                   </ChartCard>
                 )}
 
@@ -505,7 +528,7 @@ export default function PopupStatsSection({
                           <button
                             key={m}
                             onClick={() => setMetric(m)}
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition-all ${metric === m ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] text-ink-muted border-hairline hover:bg-canvas-soft'}`}
+                            className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition-all ${metric === m ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] text-ink-muted border-hairline hover:bg-canvas-soft'}`}
                           >
                             {m === 'revenue' ? '매출' : '주문수'}
                           </button>
@@ -620,11 +643,11 @@ export default function PopupStatsSection({
                 )}
 
                 <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4]">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="m-0 text-sm font-bold text-ink-secondary">메뉴별 판매</h4>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <h4 className="m-0 text-sm font-bold text-ink-secondary whitespace-nowrap">메뉴별 판매</h4>
                     <button
                       onClick={() => setShowManualEntry(true)}
-                      className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer"
+                      className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer"
                     >
                       수기 입력
                     </button>

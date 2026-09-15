@@ -904,25 +904,29 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
 function PopupStats({ popup }: { popup: PopupOrderStat }) {
   const [metric, setMetric] = useState<'revenue' | 'orders'>('revenue')
   const avgRevenue = popup.daily.length > 0 ? Math.round(popup.revenue / popup.daily.length) : 0
+  // 금액은 절대 쪼개지지 않게 — 좁은 칸에서는 글자 크기를 줄여 한 줄로 유지
+  const summaryValueCls =
+    'm-0 text-[17px] sm:text-[19px] lg:text-[22px] font-black text-ink leading-tight tabular-nums whitespace-nowrap overflow-hidden text-ellipsis'
 
   return (
     <div>
-      {/* 요약 카드 */}
-      <div className='grid grid-cols-3 gap-2.5 lg:gap-3 mb-4'>
-        <div className='bg-canvas-soft rounded-xl p-3.5 lg:p-4'>
+      {/* 요약 카드 — 모바일은 2열(3열이면 칸이 88px밖에 안 돼 7자리 금액이 넘친다), sm 이상 3열 */}
+      <div className='grid grid-cols-2 sm:grid-cols-3 gap-2.5 lg:gap-3 mb-4'>
+        <div className='bg-canvas-soft rounded-xl p-3 sm:p-3.5 lg:p-4 min-w-0'>
           <p className='m-0 text-[11px] text-ink-muted mb-1'>총 주문</p>
-          <p className='m-0 text-[19px] lg:text-[22px] font-black text-ink leading-tight'>
+          <p className={summaryValueCls}>
             {popup.orders.toLocaleString()}
             <span className='text-[12px] font-normal text-ink-muted ml-0.5'>건</span>
           </p>
         </div>
-        <div className='bg-canvas-soft rounded-xl p-3.5 lg:p-4'>
+        <div className='bg-canvas-soft rounded-xl p-3 sm:p-3.5 lg:p-4 min-w-0'>
           <p className='m-0 text-[11px] text-ink-muted mb-1'>총 매출</p>
-          <p className='m-0 text-[19px] lg:text-[22px] font-black text-ink leading-tight'>{formatPrice(popup.revenue)}</p>
+          <p className={summaryValueCls}>{formatPrice(popup.revenue)}</p>
         </div>
-        <div className='bg-canvas-soft rounded-xl p-3.5 lg:p-4'>
+        {/* 2열일 때 홀로 남는 세 번째 카드는 한 줄을 다 쓴다 */}
+        <div className='bg-canvas-soft rounded-xl p-3 sm:p-3.5 lg:p-4 min-w-0 col-span-2 sm:col-span-1'>
           <p className='m-0 text-[11px] text-ink-muted mb-1'>일평균 매출</p>
-          <p className='m-0 text-[19px] lg:text-[22px] font-black text-ink leading-tight'>{formatPrice(avgRevenue)}</p>
+          <p className={summaryValueCls}>{formatPrice(avgRevenue)}</p>
         </div>
       </div>
 

@@ -43,6 +43,10 @@ body {
   margin: 0;
   color: #161616;
   background: #f6f5f4;
+  /* 한글은 기본적으로 글자 단위로 줄바꿈된다 — 좁은 칸(모바일 통계 타일·배지 등)에서 글자가
+     세로로 한 줄씩 쌓여 보이던 현상 방지. 단어 단위로 끊고, 한 단어가 칸보다 길 때만 쪼갠다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
