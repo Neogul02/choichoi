@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { fetchAllMemos, createNewMemo, editMemo, removeMemo, toggleMemoPinned } from '@/app/actions/memos';
 import { supabase } from '@/lib/supabase';
 import MemoDetailModal from './MemoDetailModal';
+import EmptyState from '@/components/EmptyState';
 import type { Memo } from '@/types/database';
 
 const MEMO_COLORS: Array<{ name: string; value: string }> = [
@@ -131,9 +132,14 @@ export default function MemoPageClient({ initialMemos }: { initialMemos: Memo[] 
       <NavBar />
       <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
         <div className="max-w-[1100px] mx-auto">
-          <div className="flex justify-end items-center mb-5">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h1 className="m-0 text-lg font-bold text-ink">
+              메모
+              {memos.length > 0 && <span className="ml-1.5 text-[13px] font-semibold text-ink-faint">{memos.length}개</span>}
+            </h1>
+            {/* 모바일에서는 아래 FAB로 대체 — 한 손으로 닿는 위치에 둔다 */}
             <button
-              className="px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition"
+              className="hidden md:block shrink-0 px-3.5 py-2 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition"
               onClick={() => setCreateMode(true)}
             >
               + 새 메모
@@ -147,14 +153,20 @@ export default function MemoPageClient({ initialMemos }: { initialMemos: Memo[] 
               ))}
             </div>
           ) : memos.length === 0 ? (
-            <p className="m-0 text-ink-faint text-sm">메모가 없습니다. 새 메모를 추가하세요.</p>
+            <EmptyState
+              icon="📝"
+              title="아직 메모가 없습니다"
+              description="공지, 인수인계, 체크리스트를 팀 전체가 같이 봅니다."
+              actionLabel="+ 첫 메모 작성"
+              onAction={() => setCreateMode(true)}
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
               {memos.map((memo) => (
                 <div
                   key={memo.id}
                   onClick={() => setSelectedMemo(memo)}
-                  className="min-w-0 overflow-hidden rounded-lg p-4 shadow-level-1 flex flex-col h-[200px] transition-all duration-200 border border-hairline hover:-translate-y-0.5 hover:shadow-level-2 cursor-pointer relative"
+                  className="min-w-0 overflow-hidden rounded-lg p-4 shadow-level-1 flex flex-col min-h-[120px] sm:h-[200px] transition-all duration-200 border border-hairline hover:-translate-y-0.5 hover:shadow-level-2 cursor-pointer relative"
                   style={{ backgroundColor: memo.color || DEFAULT_MEMO_COLOR }}
                 >
                   {memo.is_pinned && (
@@ -183,6 +195,16 @@ export default function MemoPageClient({ initialMemos }: { initialMemos: Memo[] 
           )}
         </div>
       </main>
+
+      {/* 모바일 전용 FAB — 상단 버튼은 한 손 조작 시 닿지 않는다 */}
+      <button
+        type="button"
+        onClick={() => setCreateMode(true)}
+        aria-label="새 메모 작성"
+        className="md:hidden fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 w-14 h-14 rounded-full bg-primary-700 text-white text-3xl leading-none font-light border-none shadow-level-2 cursor-pointer active:scale-95 transition-transform flex items-center justify-center"
+      >
+        +
+      </button>
 
       {createMode && (
         <MemoDetailModal
