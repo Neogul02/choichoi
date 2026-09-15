@@ -53,17 +53,18 @@ export default function TodayOrdersSection({ orders, todayRevenue, isLoading, on
           {orders.map((order) => (
             <li key={order.id} className="flex items-center gap-2 p-2.5 md:p-3 border-b border-hairline last:border-b-0">
               <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center mb-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-ink-muted text-xs font-medium">{formatKSTTime(order.created_at)}</span>
+                <div className="flex justify-between items-center gap-2 mb-0.5">
+                  {/* 좁은 화면에서 뱃지가 가격을 밀어내지 않도록 — 시간은 고정, 뱃지는 줄여서 말줄임 */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-ink-muted text-xs font-medium shrink-0 tabular-nums">{formatKSTTime(order.created_at)}</span>
                     {order.popup_name && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas text-ink-muted border border-hairline">{order.popup_name}</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas text-ink-muted border border-hairline truncate max-w-[96px]">{order.popup_name}</span>
                     )}
                     {order.cashier_name && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas text-ink-muted border border-hairline">{order.cashier_name}</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas text-ink-muted border border-hairline truncate max-w-[72px]">{order.cashier_name}</span>
                     )}
                   </div>
-                  <strong className="text-sm font-bold">₩{Number(order.total_price).toLocaleString('ko-KR')}</strong>
+                  <strong className="text-sm font-bold shrink-0 tabular-nums">₩{Number(order.total_price).toLocaleString('ko-KR')}</strong>
                 </div>
                 <p className="m-0 text-ink-muted text-xs truncate">
                   {order.items.length > 0 ? order.items.map((item) => `${item.name} × ${item.quantity}`).join(', ') : '-'}

@@ -136,7 +136,7 @@ export default function CalendarSection({ calendarSales, calendarMonth, isLoadin
                   {isManual && <span className="w-1.5 h-1.5 rounded-full bg-[#b8842f] shrink-0 mt-0.5" title="수동 정정" />}
                 </div>
                 <div
-                  className="mt-1.5 text-[10px] font-semibold leading-tight tabular-nums"
+                  className="mt-1.5 text-[10px] font-semibold leading-tight tabular-nums whitespace-nowrap overflow-hidden text-ellipsis"
                   style={{ color: swatch ? swatch.text : '#a39e98' }}
                 >
                   {formatDayRevenue(effectiveRevenue)}

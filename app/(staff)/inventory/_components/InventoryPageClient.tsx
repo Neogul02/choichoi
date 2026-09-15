@@ -17,6 +17,7 @@ import StorageBoard from './StorageBoard';
 import StorageObjectModal from './StorageObjectModal';
 import AddStorageObjectModal from './AddStorageObjectModal';
 import { InventoryGridSkeleton } from '@/components/Skeleton';
+import EmptyState from '@/components/EmptyState';
 
 const SYNC_DEBOUNCE_MS = 700;
 
@@ -32,6 +33,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
   const { objects, isLoading: boardLoading, reload: reloadBoard, applyLocalPosition } = useStorageBoard(initialStorageObjects);
 
   const [sort, setSort] = useState<SortKey>('default');
+  const [search, setSearch] = useState('');
   const [manageTarget, setManageTarget] = useState<Ingredient | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
@@ -55,6 +57,9 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
 
   const filtered = useMemo(() => {
     let list = ingredients;
+    // 검색은 정렬보다 먼저 — 공백·대소문자 무시하고 이름 부분일치
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter((i) => i.name.toLowerCase().includes(q));
     if (sort === 'qty_asc') {
       list = [...list].sort((a, b) => totalQty(a) - totalQty(b));
     } else if (sort === 'status') {
@@ -62,7 +67,7 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
       list = [...list].sort((a, b) => order[getStatus(a)] - order[getStatus(b)]);
     }
     return list;
-  }, [ingredients, sort]);
+  }, [ingredients, sort, search]);
 
   const scheduleSync = useCallback((id: string) => {
     if (timerRef.current[id]) clearTimeout(timerRef.current[id]);
@@ -148,12 +153,30 @@ export default function InventoryPageClient({ initialIngredients, initialStorage
             )}
           </div>
 
-          <FilterBar sort={sort} onSortChange={setSort} />
+          <FilterBar sort={sort} onSortChange={setSort} search={search} onSearchChange={setSearch} />
 
           {isLoading && ingredients.length === 0 ? (
             <InventoryGridSkeleton />
           ) : filtered.length === 0 ? (
-            <p className="text-[12px] text-ink-faint px-0.5">재료가 없습니다.</p>
+            search.trim() ? (
+              <EmptyState
+                icon="🔍"
+                title={`'${search.trim()}'에 맞는 재료가 없습니다`}
+                description="이름 일부만 입력해도 찾을 수 있습니다."
+                actionLabel="검색 지우기"
+                onAction={() => setSearch('')}
+              />
+            ) : (
+              <EmptyState
+                icon="📦"
+                title="등록된 재료가 없습니다"
+                description={canEdit
+                  ? '재고 종류를 추가하면 여기에서 수량을 바로 조절할 수 있습니다.'
+                  : '관리자가 재고 종류를 등록하면 여기에 표시됩니다.'}
+                actionLabel={canEdit ? '+ 재고 종류 추가' : undefined}
+                onAction={canEdit ? () => setAddOpen(true) : undefined}
+              />
+            )
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5">
               {filtered.map((ing) => (

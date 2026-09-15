@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import type { StaffProfile, StaffStatus, PopupEvent } from '@/types/database';
 import { formatPhoneNumber } from '@/lib/utils';
 import CopyText from '@/components/CopyText';
-import { STATUS_LABELS, STATUS_COLORS } from './constants';
+import { STATUS_LABELS, STATUS_COLORS, MANAGED_STATUSES, normalizeStatus } from './constants';
 
 interface RowProps {
   staff: StaffProfile;
@@ -42,6 +42,22 @@ function StaffIdentity({ staff, popup, nameClassName }: { staff: StaffProfile; p
   );
 }
 
+/** 상태 드롭다운 — 확정/퇴사 두 가지만 관리한다 (레거시 '후보'는 확정으로 표시) */
+function StatusSelect({ status, onStatusChange }: { status: StaffStatus; onStatusChange: (s: StaffStatus) => void }) {
+  const sc = STATUS_COLORS[status];
+  return (
+    <select
+      value={normalizeStatus(status)}
+      onChange={e => onStatusChange(e.target.value as StaffStatus)}
+      className={`text-[11px] font-bold px-1.5 py-1 rounded-md border cursor-pointer appearance-none text-center whitespace-nowrap ${sc.bg} ${sc.text} ${sc.border}`}
+    >
+      {MANAGED_STATUSES.map(s => (
+        <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+      ))}
+    </select>
+  );
+}
+
 /** md 이상 테이블 행 — 좌측 손잡이(⋮⋮)를 잡았을 때만 드래그로 순서 변경 */
 export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
   isDragging, isDragOver, onDragStart, onDragOver, onDragEnd, onDrop }: RowProps & {
@@ -53,7 +69,6 @@ export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRow
   onDragEnd?: () => void;
   onDrop?: () => void;
 }) {
-  const sc = STATUS_COLORS[staff.status];
   // 행 전체에 draggable을 걸어두면 HTML5 드래그가 마우스 드래그를 가로채 셀 텍스트를 선택할 수 없다.
   // 손잡이를 눌렀을 때만 draggable을 켜서, 나머지 영역에서는 드래그 선택/복사가 그대로 동작하게 한다.
   const [dragArmed, setDragArmed] = useState(false);
@@ -93,15 +108,7 @@ export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRow
         <StaffIdentity staff={staff} popup={popup} nameClassName="font-bold text-ink leading-tight" />
       </td>
       <td className="px-2 py-2.5" onClick={e => e.stopPropagation()}>
-        <select
-          value={staff.status}
-          onChange={e => onStatusChange(e.target.value as StaffStatus)}
-          className={`text-[11px] font-bold px-1.5 py-1 rounded-md border cursor-pointer appearance-none text-center ${sc.bg} ${sc.text} ${sc.border}`}
-        >
-          {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-          ))}
-        </select>
+        <StatusSelect status={staff.status} onStatusChange={onStatusChange} />
       </td>
       <td className="px-2 py-2.5 font-semibold text-ink whitespace-nowrap select-text">
         {staff.preferred_shift_ids.length === 0 ? <span className="text-ink-faint font-normal">무관</span> : shiftNames}
@@ -120,21 +127,21 @@ export function StaffRow({ staff, shiftNames, popup, isLast, contractDone, onRow
   );
 }
 
-// 테이블 행(md+)과 모바일 카드가 공유하는 액션 버튼 묶음 — fill이면 버튼이 행 폭을 균등 분할 (모바일 카드용)
-function StaffActions({ staff, contractDone, fill, onContract, onContractsList, onAssign, onCalendar }: {
+// 테이블 행(md+)과 모바일 카드가 공유하는 액션 버튼 묶음 — touch면 탭 영역을 조금 키운다 (모바일 카드용)
+function StaffActions({ staff, contractDone, touch, onContract, onContractsList, onAssign, onCalendar }: {
   staff: StaffProfile;
   contractDone: boolean;
-  fill?: boolean;
+  touch?: boolean;
   onContract: () => void;
   onContractsList: () => void;
   onAssign: () => void;
   onCalendar: () => void;
 }) {
   const btnBase = `whitespace-nowrap text-[11px] font-semibold rounded-lg border transition cursor-pointer select-none ${
-    fill ? 'flex-1 px-2 py-1.5 text-center' : 'px-2 py-1'
+    touch ? 'px-2 py-1.5' : 'px-2 py-1'
   }`;
   return (
-    <div className={`flex items-center ${fill ? 'gap-1.5' : 'gap-1 justify-end'}`}>
+    <div className="flex items-center gap-1 justify-end">
       <button
         onClick={onCalendar}
         title="근무 캘린더"
@@ -175,7 +182,7 @@ function StaffActions({ staff, contractDone, fill, onContract, onContractsList, 
   );
 }
 
-/** md 미만 전용 카드 — 테이블의 가로 스크롤 없이 한 화면(393px)에 담기는 레이아웃 */
+/** md 미만 전용 카드 — 한 사람당 2줄로 압축해 한 화면(393px)에 더 많이 담는다 */
 export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, onStatusChange, onContract, onContractsList, onAssign, onCalendar,
   isDragging, isDragOver, onReorderStart, onReorderOver, onReorderEnd, onReorderDrop }: RowProps & {
   isDragging?: boolean;
@@ -185,8 +192,6 @@ export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, 
   onReorderEnd?: () => void;
   onReorderDrop?: (targetId: number) => void;
 }) {
-  const sc = STATUS_COLORS[staff.status];
-
   // HTML5 드래그는 터치에서 동작하지 않아 모바일에선 순서 변경이 아예 불가능했다.
   // 포인터 이벤트로 직접 구현 — 손잡이를 누른 채 움직이면 손가락 아래 카드가 놓을 자리가 된다.
   const startReorder = (e: React.PointerEvent) => {
@@ -215,15 +220,19 @@ export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, 
     window.addEventListener('pointercancel', end);
   };
 
+  const unitLabel = staff.staff_role === 'cashier' ? (popup?.name ?? '팝업 미배정') : '주방';
+  const unitTone = staff.staff_role !== 'cashier' ? 'text-ink-muted' : popup ? 'text-violet-600' : 'text-amber-600';
+
   return (
     <div
       data-staff-card-id={staff.id}
       onClick={onRowClick}
-      className={`p-3 cursor-pointer active:bg-canvas-soft transition ${
+      className={`px-3 py-2 cursor-pointer active:bg-canvas-soft transition ${
         isDragOver ? 'bg-primary-50 outline outline-2 outline-primary-400 outline-offset-[-1px]' : ''
       } ${isDragging ? 'opacity-40' : ''}`}
     >
-      <div className="flex items-start justify-between gap-2">
+      {/* 1줄: 손잡이 + 이름 + 소속 + 상태 */}
+      <div className="flex items-center gap-2">
         {onReorderDrop && (
           <span
             onPointerDown={startReorder}
@@ -232,34 +241,39 @@ export function StaffCard({ staff, shiftNames, popup, contractDone, onRowClick, 
             className="shrink-0 -m-1 p-1 text-ink-faint text-[15px] leading-none select-none cursor-grab active:cursor-grabbing touch-none"
           >⋮⋮</span>
         )}
-        <div className="min-w-0 flex-1">
-          <StaffIdentity staff={staff} popup={popup} nameClassName="font-bold text-ink text-[14px] leading-tight" />
-        </div>
-        <div onClick={e => e.stopPropagation()}>
-          <select
-            value={staff.status}
-            onChange={e => onStatusChange(e.target.value as StaffStatus)}
-            className={`text-[11px] font-bold px-1.5 py-1 rounded-md border cursor-pointer appearance-none text-center ${sc.bg} ${sc.text} ${sc.border}`}
-          >
-            {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
-              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-            ))}
-          </select>
+        <span className="font-bold text-ink text-[14px] leading-tight shrink-0">
+          <CopyText value={staff.name} label="이름">{staff.name}</CopyText>
+        </span>
+        <span className={`text-[11px] font-semibold truncate select-text ${unitTone}`}>{unitLabel}</span>
+        <div className="ml-auto shrink-0" onClick={e => e.stopPropagation()}>
+          <StatusSelect status={staff.status} onStatusChange={onStatusChange} />
         </div>
       </div>
-      <div className="text-[11px] text-ink-muted mt-1.5 truncate select-text">
-        파트 <span className="font-semibold text-ink">{shiftNames || '무관'}</span>
-      </div>
-      <div className="mt-2" onClick={e => e.stopPropagation()}>
-        <StaffActions
-          staff={staff}
-          fill
-          contractDone={contractDone}
-          onContract={onContract}
-          onContractsList={onContractsList}
-          onAssign={onAssign}
-          onCalendar={onCalendar}
-        />
+
+      {/* 2줄: 전화·파트 + 액션 */}
+      <div className="flex items-center gap-2 mt-1">
+        <div className="min-w-0 flex items-center gap-1.5 text-[11px] text-ink-muted">
+          {staff.phone && (
+            <span className="shrink-0 tabular-nums">
+              <CopyText value={formatPhoneNumber(staff.phone)} label="전화번호">{formatPhoneNumber(staff.phone)}</CopyText>
+            </span>
+          )}
+          <span className="truncate select-text">
+            {staff.phone && <span className="text-ink-faint">· </span>}
+            <span className="font-semibold text-ink-secondary">{shiftNames || '파트 무관'}</span>
+          </span>
+        </div>
+        <div className="ml-auto shrink-0" onClick={e => e.stopPropagation()}>
+          <StaffActions
+            staff={staff}
+            touch
+            contractDone={contractDone}
+            onContract={onContract}
+            onContractsList={onContractsList}
+            onAssign={onAssign}
+            onCalendar={onCalendar}
+          />
+        </div>
       </div>
     </div>
   );
