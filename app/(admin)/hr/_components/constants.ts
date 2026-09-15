@@ -19,14 +19,25 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
   cashier: '캐셔',
 };
 
+// 인사 탭에서 실제로 관리하는 상태는 '확정'과 '퇴사' 두 가지뿐이다.
+// 'candidate'(후보)는 폐지된 레거시 값 — DB에 남은 행은 확정과 동일하게 취급해 보여준다.
+export const MANAGED_STATUSES: StaffStatus[] = ['confirmed', 'inactive'];
+
+/** 레거시 'candidate'를 확정으로 접어 실제 관리 상태로 정규화 */
+export function normalizeStatus(status: StaffStatus): StaffStatus {
+  return status === 'candidate' ? 'confirmed' : status;
+}
+
 export const STATUS_LABELS: Record<StaffStatus, string> = {
-  candidate: '후보',
+  candidate: '확정',
   confirmed: '확정',
   inactive: '퇴사',
 };
 
+const CONFIRMED_COLOR = { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' };
+
 export const STATUS_COLORS: Record<StaffStatus, { bg: string; text: string; border: string }> = {
-  candidate: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  confirmed: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  candidate: CONFIRMED_COLOR,
+  confirmed: CONFIRMED_COLOR,
   inactive: { bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200' },
 };

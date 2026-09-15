@@ -4,19 +4,25 @@ import { useMemo, useState } from 'react';
 import { phoneMatches } from '@/lib/phone';
 import type { StaffProfile, StaffStatus, StaffRole, RosterShift } from '@/types/database';
 
+// 상태는 확정(active)/퇴사(inactive) 두 가지만 관리한다 — 레거시 'candidate'는 확정으로 함께 집계
 export type StatusFilter = StaffStatus | 'all' | 'active';
+export const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
+  { key: 'active', label: '확정' },
+  { key: 'inactive', label: '퇴사' },
+  { key: 'all', label: '전체' },
+];
 export type StoreFilter = number | 'all' | 'none';
 export type RoleFilter = StaffRole | 'all';
 export type SortKey = 'name' | 'status' | 'shifts';
 export type SortDir = 'asc' | 'desc';
 
-const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 1, inactive: 2 };
+const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 0, inactive: 1 };
 
 /** 직원 목록의 역할·팝업·상태·검색 필터와 컬럼 정렬 상태 + 필터링 결과를 관리하는 훅 */
 export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShift[]) {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
-  // 기본값은 재직중(후보+재직)만 — 퇴사·불합격 처리된 인원은 '전체'를 눌러야 보이게
+  // 기본값은 확정(재직중)만 — 퇴사 처리된 인원은 '퇴사'나 '전체'를 눌러야 보이게
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [search, setSearch] = useState('');
 
@@ -45,7 +51,7 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
       if (roleFilter === 'cashier' && storeFilter !== 'all') {
         if (storeFilter === 'none' ? s.popup_id !== null : s.popup_id !== storeFilter) return false;
       }
-      if (statusFilter === 'active' ? (s.status !== 'candidate' && s.status !== 'confirmed') : statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (statusFilter === 'active' ? s.status === 'inactive' : statusFilter !== 'all' && s.status !== statusFilter) return false;
       if (search.trim() && !s.name.includes(search.trim()) && !phoneMatches(s.phone, search)) return false;
       return true;
     });
