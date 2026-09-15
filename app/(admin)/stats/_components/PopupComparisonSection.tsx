@@ -27,12 +27,8 @@ interface Props {
 // 팝업이 쌓인 뒤에야 의미 있는 화면 — 팝업끼리 실적을 나란히 놓고 어디가 잘 됐는지 비교한다.
 // 총매출은 운영일수가 다르면 불공정한 비교라 기본 정렬은 일평균 매출(정규화 지표)로 둔다.
 export default function PopupComparisonSection({ popupEvents }: Props) {
-  // 기본 비교 대상 = 진행중 팝업 기준 그 이전(과거) 것들 — 아직 시작 안 한 예정 팝업은 비교할 실적이
-  // 없어 기본 선택에서 제외한다 (popupEvents는 start_date 내림차순이라 필터 후에도 최신순 유지)
-  const [selectedIds, setSelectedIds] = useState<number[]>(() => {
-    const startedOnly = popupEvents.filter((p) => getPopupPeriod(p).status !== '예정');
-    return (startedOnly.length > 0 ? startedOnly : popupEvents).slice(0, 6).map((p) => p.id);
-  });
+  // 초기에는 아무것도 선택하지 않는다 — 진입 즉시 여러 팝업을 조회하지 않고, 비교할 대상을 직접 고르게 한다
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('avgDailyRevenue');
 
   const selectedPopups = useMemo(
@@ -148,9 +144,9 @@ export default function PopupComparisonSection({ popupEvents }: Props) {
               </div>
 
               <div className="bg-canvas rounded-xl border border-[#e4e4e4] overflow-x-auto">
-                <table className="w-full text-[12px] border-collapse min-w-[560px]">
+                <table className="w-full text-[12px] border-collapse min-w-max">
                   <thead>
-                    <tr className="text-left text-ink-faint border-b border-hairline">
+                    <tr className="text-left text-ink-faint border-b border-hairline [&>th]:whitespace-nowrap">
                       <th className="px-3 py-2 font-semibold">팝업</th>
                       <th className="px-3 py-2 font-semibold">상태</th>
                       <th className="px-3 py-2 font-semibold">기간</th>
@@ -164,14 +160,14 @@ export default function PopupComparisonSection({ popupEvents }: Props) {
                     {sortedRows.map((r: PopupComparisonRow) => (
                       <tr key={r.popup.id} className="border-b border-hairline last:border-0">
                         <td className="px-3 py-2 font-semibold text-ink-secondary whitespace-nowrap">{r.popup.name}</td>
-                        <td className="px-3 py-2">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${POPUP_STATUS_BADGE_CLASS[r.status]}`}>{r.status}</span>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${POPUP_STATUS_BADGE_CLASS[r.status]}`}>{r.status}</span>
                         </td>
                         <td className="px-3 py-2 text-ink-faint whitespace-nowrap">{r.popup.start_date} ~ {r.popup.end_date} ({r.elapsedDays}/{r.totalDays}일)</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-ink-secondary">₩{formatPrice(r.totalRevenue)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-ink-secondary">{r.totalOrders}건</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-ink-secondary">{r.avgOrderValue > 0 ? `₩${formatPrice(r.avgOrderValue)}` : '-'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-primary-700">{r.avgDailyRevenue > 0 ? `₩${formatPrice(r.avgDailyRevenue)}` : '-'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-ink-secondary whitespace-nowrap">₩{formatPrice(r.totalRevenue)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-ink-secondary whitespace-nowrap">{r.totalOrders}건</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-ink-secondary whitespace-nowrap">{r.avgOrderValue > 0 ? `₩${formatPrice(r.avgOrderValue)}` : '-'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-primary-700 whitespace-nowrap">{r.avgDailyRevenue > 0 ? `₩${formatPrice(r.avgDailyRevenue)}` : '-'}</td>
                       </tr>
                     ))}
                   </tbody>

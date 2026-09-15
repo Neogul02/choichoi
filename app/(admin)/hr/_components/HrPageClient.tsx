@@ -25,7 +25,8 @@ import ImportStaffFromPopupModal from './ImportStaffFromPopupModal';
 import PopupFilterPicker from './PopupFilterPicker';
 import { StaffRow, StaffCard } from './StaffList';
 import { useStaffFilters } from './useStaffFilters';
-import type { RoleFilter, StatusFilter } from './useStaffFilters';
+import { STATUS_FILTERS } from './useStaffFilters';
+import type { RoleFilter } from './useStaffFilters';
 import { STATUS_LABELS, ROLE_LABELS } from './constants';
 import { useModal } from '@/lib/useModal';
 
@@ -327,16 +328,16 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             {/* 상태 필터 + 검색 */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <div className="flex flex-wrap rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
-                {(['active', 'all', 'candidate', 'confirmed', 'inactive'] as StatusFilter[]).map(f => (
+                {STATUS_FILTERS.map(({ key, label }) => (
                   <button
-                    key={f}
-                    onClick={() => setStatusFilter(f)}
+                    key={key}
+                    onClick={() => setStatusFilter(key)}
                     className={`px-2.5 py-1.5 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${
-                      statusFilter === f ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+                      statusFilter === key ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                     }`}
                   >
-                    {f === 'active' ? '재직중' : f === 'all' ? '전체' : STATUS_LABELS[f]}
-                    <span className={`ml-0.5 ${statusFilter === f ? 'opacity-70' : 'text-ink-faint'}`}>{statusCounts[f]}</span>
+                    {label}
+                    <span className={`ml-0.5 ${statusFilter === key ? 'opacity-70' : 'text-ink-faint'}`}>{statusCounts[key]}</span>
                   </button>
                 ))}
               </div>

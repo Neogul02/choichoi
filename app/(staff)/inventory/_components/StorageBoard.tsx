@@ -169,13 +169,15 @@ export default function StorageBoard({ objects, ingredients, canEdit, onSelect, 
                 onPointerUp={(e) => handlePointerUp(e, obj.id)}
                 onPointerCancel={() => handlePointerCancel(obj.id)}
                 onClick={() => handleClick(obj)}
+                title={obj.name}
+                aria-label={`${obj.name} — 재료 ${obj.ingredient_ids.length}종`}
                 className={`relative flex flex-col items-center justify-center gap-1 w-[84px] h-[84px] rounded-xl bg-canvas shadow-level-1 border border-hairline transition-transform ${
                   canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
                 } ${isDragging ? 'scale-110 shadow-[0_8px_24px_rgba(0,0,0,0.18)] z-10' : 'hover:scale-105 z-0'}`}
                 style={{ touchAction: canEdit ? 'none' : 'auto' }}
               >
                 <span className="text-2xl leading-none">{meta.emoji}</span>
-                <span className="text-[10px] font-bold text-ink whitespace-nowrap max-w-[72px] truncate">{obj.name}</span>
+                <span className="text-[10px] font-bold text-ink leading-tight text-center px-1 w-full line-clamp-2 [overflow-wrap:anywhere]">{obj.name}</span>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-700">
                   {obj.ingredient_ids.length}종
                 </span>
