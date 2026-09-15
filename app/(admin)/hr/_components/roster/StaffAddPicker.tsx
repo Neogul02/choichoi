@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import type { StaffProfile } from '@/types/database';
-import { STATUS_LABELS } from '../constants';
 
 interface Candidate {
   staff: StaffProfile;
@@ -59,7 +58,6 @@ export default function StaffAddPicker({ candidates, onPick }: Props) {
               >
                 <span className={avail.ok ? 'text-emerald-600' : 'text-rose-500'}>{avail.ok ? '✓' : '✗'}</span>{' '}
                 <span className="font-semibold text-ink">{staff.name}</span>
-                {staff.status === 'candidate' && <span className="text-ink-faint"> ({STATUS_LABELS.candidate})</span>}
                 {!avail.ok && <span className="block text-[10px] text-ink-faint mt-0.5">{avail.reasons.join(', ')}</span>}
               </button>
             ))

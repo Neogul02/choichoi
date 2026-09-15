@@ -14,7 +14,7 @@ import { uploadHealthCert, getHealthCertUrl } from '@/app/actions/staff';
 import type { UserProfile } from '@/app/actions/workers';
 import { fetchRosterShifts } from '@/app/actions/roster';
 import { formatPhoneInput } from '@/lib/phone';
-import { STATUS_LABELS, DAY_NAMES, ROLE_LABELS } from './constants';
+import { STATUS_LABELS, MANAGED_STATUSES, normalizeStatus, DAY_NAMES, ROLE_LABELS } from './constants';
 
 interface Props {
   staff: StaffProfile | null;
@@ -47,7 +47,7 @@ export default function StaffFormModal({
   const [wantsInsurance, setWantsInsurance] = useState(staff?.wants_insurance ?? true);
   const [hourlyRate, setHourlyRate] = useState(staff?.hourly_rate?.toString() ?? '');
   const [maxDaysPerWeek, setMaxDaysPerWeek] = useState<number | null>(staff?.max_days_per_week ?? null);
-  const [status, setStatus] = useState<StaffStatus>(staff?.status ?? 'candidate');
+  const [status, setStatus] = useState<StaffStatus>(staff ? normalizeStatus(staff.status) : 'confirmed');
   const [notes, setNotes] = useState(staff?.notes ?? '');
   const [userProfileId, setUserProfileId] = useState(staff?.user_profile_id ?? '');
   const [isSaving, setIsSaving] = useState(false);
@@ -226,7 +226,7 @@ export default function StaffFormModal({
           <div className="flex flex-col gap-1">
             <label className={labelCls}>상태</label>
             <div className="flex gap-1.5 flex-wrap">
-              {(Object.keys(STATUS_LABELS) as StaffStatus[]).map(s => (
+              {MANAGED_STATUSES.map(s => (
                 <button key={s} type="button" className={chipCls(status === s)} onClick={() => setStatus(s)}>
                   {STATUS_LABELS[s]}
                 </button>

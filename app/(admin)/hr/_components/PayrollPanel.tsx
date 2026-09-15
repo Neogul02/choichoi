@@ -295,13 +295,13 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
             ))}
           </select>
         )}
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shrink-0">
             {(['kitchen', 'cashier'] as StaffRole[]).map(r => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
-                className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${
+                className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${
                   role === r ? 'bg-ink text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                 }`}
               >
@@ -311,12 +311,12 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           </div>
           {/* 주방은 팝업에 속하지 않으므로 캐셔일 때만 팝업별 정산 옵션 노출 */}
           {role === 'cashier' && (
-            <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas">
+            <div className="flex rounded-xl overflow-hidden border border-hairline bg-canvas shrink-0">
               {([['month', '월별'], ['popup', '팝업별']] as [ViewMode, string][]).map(([m, label]) => (
                 <button
                   key={m}
                   onClick={() => setMode(m)}
-                  className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition ${
+                  className={`px-3 py-1.5 text-[12px] font-bold border-none cursor-pointer transition whitespace-nowrap ${
                     mode === m ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
                   }`}
                 >
@@ -336,7 +336,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           <button
             onClick={handleExportCsv}
             disabled={rows.length === 0}
-            className="px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             CSV
           </button>
