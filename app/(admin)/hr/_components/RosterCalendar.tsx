@@ -8,8 +8,9 @@ import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/action
 import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
 import { ALL_POPUPS, isAllPopups } from '@/lib/roster/query-helpers';
 import type { StaffProfile, PopupEvent, StaffRole, RosterShift } from '@/types/database';
-import { DAY_NAMES, ROLE_LABELS } from './constants';
+import { DAY_NAMES, ROLE_LABELS, popupTint, popupTintSoft } from './constants';
 import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap, pickOngoingPopup } from '@/lib/staffing';
+import { popupsOnDate, popupTintGradient, type CalendarPopup } from '@/lib/popupPeriod';
 import { addDays, kstToday } from '@/lib/date';
 import { CalendarGridSkeleton, MatrixSkeleton } from '@/components/Skeleton';
 import { useRosterView } from './roster/useRosterView';
@@ -34,6 +35,9 @@ interface Props {
   /** 서버(page.tsx)가 프리페치한 당월 데이터 — 첫 로드 시 단위·월이 일치하면 왕복 없이 사용 */
   initialData?: { unit: RosterUnit; y: number; m: number; data: RosterMonthData };
 }
+
+/** 2026-10-02 → 10/2 — 범례처럼 좁은 자리에 기간을 넣을 때 쓴다 */
+const mdLabel = (dateStr: string) => `${Number(dateStr.slice(5, 7))}/${Number(dateStr.slice(8))}`;
 
 export default function RosterCalendar({ staffList, popups, roleFilter, refreshSignal, initialData }: Props) {
   // 단위 = 주방 전체 또는 캐셔의 특정 팝업
@@ -89,6 +93,42 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     [staffList, unit],
   );
 
+  // "전체" 보기의 파트 목록은 popup_id 조건 없이 role만으로 모아오므로 비활성 팝업이나
+  // 지금 보는 기간과 무관한(이미 끝났거나 아직 시작 전인) 팝업의 파트까지 섞여 들어온다.
+  // 전체 보기에서는 지금 살아 있는 파트만 남겨 달력·날짜 패널·주간 매트릭스가 한눈에 읽히게 한다.
+  const visibleShifts = useMemo(() => {
+    if (!isAllPopups(unit)) return shifts;
+    const activePopupIds = new Set(popups.map(p => p.id)); // popups는 이미 활성 팝업만
+    return shifts.filter(s => {
+      if (s.popup_id !== null && !activePopupIds.has(s.popup_id)) return false;
+      if (s.active_from && s.active_from > loadTo) return false;
+      if (s.active_to && s.active_to < loadFrom) return false;
+      return true;
+    });
+  }, [shifts, popups, unit, loadFrom, loadTo]);
+
+  // 달력 칸 배경에 깔 팝업 운영 기간 — 전체 보기는 모든 팝업, 개별 보기는 그 팝업 하나.
+  // 색상 인덱스는 필터 전에 매겨 개별 보기로 좁혀도 팝업 색이 바뀌지 않는다.
+  const calendarPopups = useMemo<CalendarPopup[]>(() => {
+    if (unit.staffRole !== 'cashier') return [];
+    return [...popups]
+      .sort((a, b) => a.start_date.localeCompare(b.start_date) || a.id - b.id)
+      .map((p, i) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date, colorIdx: i }))
+      .filter(p => isAllPopups(unit) || p.id === unit.popupId);
+  }, [popups, unit]);
+
+  // 날짜 → 그날 운영 중인 팝업 색을 가로 띠로 나눈 배경. MonthGrid·DayCell이 memo라 참조를 고정해야 한다
+  const getDayTint = useCallback(
+    (dateStr: string) => popupTintGradient(popupsOnDate(calendarPopups, dateStr).map(p => popupTintSoft(p.colorIdx))),
+    [calendarPopups],
+  );
+
+  // 색만으론 어느 팝업인지 알 수 없으니 달력 위에 범례를 둔다 — 지금 보는 기간에 걸치는 팝업만
+  const popupLegend = useMemo(
+    () => calendarPopups.filter(p => p.start_date <= loadTo && p.end_date >= loadFrom),
+    [calendarPopups, loadFrom, loadTo],
+  );
+
   // 팝업 id → 이름 — 전체 보기에서 동명 파트(예: 여러 팝업의 "오전")를 구분해 표시하는 데 쓴다
   const popupNameById = useMemo(() => new Map(popups.map(p => [p.id, p.name])), [popups]);
   const getShiftLabel = useCallback(
@@ -107,8 +147,8 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
 
   // 저장된 배정의 규칙 위반 — 배정 id → 사유 목록 (로드된 범위 기준 판정)
   const violations = useMemo(
-    () => findRosterViolations(assignments, shifts, unitStaff),
-    [assignments, shifts, unitStaff],
+    () => findRosterViolations(assignments, visibleShifts, unitStaff),
+    [assignments, visibleShifts, unitStaff],
   );
   const violationDates = useMemo(() => {
     const set = new Set<string>();
@@ -196,7 +236,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
       for (let i = 0; i < 7; i++) {
         const dateStr = addDays(weekStart, i);
         const dayLines: string[] = [];
-        for (const shift of shifts) {
+        for (const shift of visibleShifts) {
           const assigned = getAssigned(dateStr, shift.id);
           if (assigned.length === 0) continue;
           dayLines.push(`[${shift.name}] ${formatTimeRange(shift.start_time, shift.end_time)}`);
@@ -242,11 +282,11 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
   // 직원 드롭 처리 — 활성 파트가 하나면 즉시 배정, 여럿이면 커서 위치에 파트 선택 팝오버
   // useCallback로 안정화 — MonthGrid(memo) props가 매 렌더 새로 생성되면 memo가 무력화된다
   const handleDropStaff = useCallback((dateStr: string, staffId: number, x: number, y: number) => {
-    const active = shifts.filter(s => (!s.active_from || dateStr >= s.active_from) && (!s.active_to || dateStr <= s.active_to));
+    const active = visibleShifts.filter(s => (!s.active_from || dateStr >= s.active_from) && (!s.active_to || dateStr <= s.active_to));
     if (active.length === 0) { showMsg('이 날짜에 활성화된 파트가 없습니다'); return; }
     if (active.length === 1) { handleAdd(dateStr, active[0].id, staffId); return; }
     setDropTarget({ dateStr, staffId, x, y });
-  }, [shifts, handleAdd]);
+  }, [visibleShifts, handleAdd]);
 
   if (!cursor) return <p className="text-ink-faint text-sm">불러오는 중...</p>;
 
@@ -358,14 +398,27 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           onShowShiftManage={() => setShowShiftManage(true)}
         />
 
+        {popupLegend.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 mb-1.5">
+            {popupLegend.map(p => (
+              <span key={p.id} className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap">
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: popupTint(p.colorIdx) }} />
+                <span className="font-bold text-ink-secondary">{p.name}</span>
+                <span className="text-ink-faint tabular-nums">{mdLabel(p.start_date)}~{mdLabel(p.end_date)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
         {isLoading ? (
           viewMode === 'week' ? <MatrixSkeleton /> : <CalendarGridSkeleton />
         ) : viewMode === 'week' && weekStart ? (
           <WeekMatrix
             weekStart={weekStart}
             todayStr={todayStr}
-            shifts={shifts}
+            shifts={visibleShifts}
             staffList={unitStaff}
+            getDayTint={getDayTint}
             getAssigned={getAssigned}
             getShiftLabel={getShiftLabel}
             violations={violations}
@@ -377,10 +430,11 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
             gridDates={gridDates}
             todayStr={todayStr}
             selectedDate={selectedDate}
-            shifts={shifts}
+            shifts={visibleShifts}
             getAssigned={getAssigned}
             getRequired={getRequired}
             getShiftLabel={getShiftLabel}
+            getDayTint={getDayTint}
             violationDates={violationDates}
             onSelectDate={setSelectedDate}
             onDropStaff={handleDropStaff}
@@ -388,14 +442,14 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
         )}
 
         {fillLog && <AutoFillLogPanel fillLog={fillLog} onClose={() => setFillLog(null)} onDateClick={setSelectedDate} />}
-        <StaffTotalsPanel staffList={unitStaff} shifts={shifts} assignments={visibleAssignments} isLoading={isLoading} />
+        <StaffTotalsPanel staffList={unitStaff} shifts={visibleShifts} assignments={visibleAssignments} isLoading={isLoading} />
       </div>
 
       {/* ── 날짜 상세 패널 ── */}
       {selectedDate && (
         <DayPanel
           dateStr={selectedDate}
-          shifts={shifts}
+          shifts={visibleShifts}
           staffList={unitStaff}
           overrides={overrides}
           violations={violations}
@@ -425,7 +479,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
 
       {showBulkEdit && (
         <BulkEditModal
-          context={{ unit, unitLabel, shifts, staffList: unitStaff, assignments, todayStr }}
+          context={{ unit, unitLabel, shifts: visibleShifts, staffList: unitStaff, assignments, todayStr }}
           range={{ defaultFrom: targetFrom, defaultTo: targetTo, monthStart: loadFrom, monthEnd: loadTo }}
           onApplied={loadRange}
           onUndoable={offerUndo}
@@ -438,7 +492,7 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
         dateStr={dropTarget.dateStr}
         x={dropTarget.x}
         y={dropTarget.y}
-        shifts={shifts}
+        shifts={visibleShifts}
         getShiftLabel={getShiftLabel}
         onPick={shiftId => { handleAdd(dropTarget.dateStr, shiftId, dropTarget.staffId); setDropTarget(null); }}
         onClose={() => setDropTarget(null)}
