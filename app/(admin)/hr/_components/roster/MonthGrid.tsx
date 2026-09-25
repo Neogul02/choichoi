@@ -14,6 +14,8 @@ interface Props {
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
   getRequired: (dateStr: string, shift: RosterShift) => number;
   getShiftLabel: (shift: RosterShift) => string;
+  /** 그날 운영 중인 팝업을 칸 배경에 옅은 띠로 깔기 위한 CSS 그라데이션 — 없으면 undefined */
+  getDayTint: (dateStr: string) => string | undefined;
   /** 규칙 위반이 있는 날짜 집합 */
   violationDates: Set<string>;
   onSelectDate: (dateStr: string | null) => void;
@@ -27,7 +29,7 @@ interface Props {
  * 그리드와 무관한 상태 변화가 35~42개 셀 전체를 다시 그리지 않도록 한다.
  */
 function MonthGrid({
-  gridDates, todayStr, selectedDate, shifts, getAssigned, getRequired, getShiftLabel, violationDates, onSelectDate, onDropStaff,
+  gridDates, todayStr, selectedDate, shifts, getAssigned, getRequired, getShiftLabel, getDayTint, violationDates, onSelectDate, onDropStaff,
 }: Props) {
   return (
     <div className="grid grid-cols-7 gap-1">
@@ -52,6 +54,7 @@ function MonthGrid({
             getAssigned={getAssigned}
             getRequired={getRequired}
             getShiftLabel={getShiftLabel}
+            tint={getDayTint(dateStr)}
             onSelectDate={onSelectDate}
             onDropStaff={onDropStaff}
           />

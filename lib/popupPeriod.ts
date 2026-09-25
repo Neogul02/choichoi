@@ -27,3 +27,33 @@ export const POPUP_STATUS_BADGE_CLASS: Record<PopupStatus, string> = {
   종료: 'bg-[#f5f6f7] text-ink-muted border-hairline',
   예정: 'bg-sky-50 text-sky-600 border-sky-200',
 };
+
+// ── 달력 팝업 기간 배경 ──────────────────────────────────────────────
+// 인사 탭 달력에서 팝업 운영 기간을 칸 배경의 옅은 띠로 깐다.
+// 불투명한 막대를 날짜 줄 위에 얹으면 정작 근무 배정이 묻혀서, 배경으로 내리고 이름은 범례로 뺐다.
+
+export interface CalendarPopup {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  /** 색상 순환 인덱스 — 팝업마다 고정돼 월을 넘겨도 같은 색을 유지한다 */
+  colorIdx: number;
+}
+
+/** 그 날짜에 운영 중인 팝업만 (목록 순서 유지) */
+export function popupsOnDate<T extends Pick<PopupEvent, 'start_date' | 'end_date'>>(popups: T[], dateStr: string): T[] {
+  return popups.filter(p => dateStr >= p.start_date && dateStr <= p.end_date);
+}
+
+/**
+ * 운영 중인 팝업 색을 가로 띠로 균등 분할해 칸 배경에 까는 CSS 그라데이션 — 운영 중인 팝업이 없으면 undefined.
+ * 팝업 순서가 고정이라 여러 날에 걸쳐 같은 높이의 띠로 이어져 보이고, 겹치는 날만 띠가 위아래로 나뉜다.
+ */
+export function popupTintGradient(colors: string[]): string | undefined {
+  if (colors.length === 0) return undefined;
+  if (colors.length === 1) return `linear-gradient(${colors[0]}, ${colors[0]})`;
+  const step = 100 / colors.length;
+  const stops = colors.map((c, i) => `${c} ${(i * step).toFixed(2)}% ${((i + 1) * step).toFixed(2)}%`);
+  return `linear-gradient(to bottom, ${stops.join(', ')})`;
+}
