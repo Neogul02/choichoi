@@ -11,6 +11,9 @@ interface Props {
   todayStr: string;
   shifts: RosterShift[];
   staffList: StaffProfile[];
+  /** 그날 운영 중인 팝업을 날짜 칸 배경에 옅은 띠로 깔기 위한 CSS 그라데이션.
+   *  생략하면 띠 없이 근무자 매트릭스만 (이미 팝업별로 나눠 보여주는 일정표 화면) */
+  getDayTint?: (dateStr: string) => string | undefined;
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
   getShiftLabel: (shift: RosterShift) => string;
   /** 배정 id → 규칙 위반 사유 목록 */
@@ -20,9 +23,11 @@ interface Props {
 }
 
 export default function WeekMatrix({
-  weekStart, todayStr, shifts, staffList, getAssigned, getShiftLabel, violations, selectedDate, onDateClick,
+  weekStart, todayStr, shifts, staffList, getDayTint, getAssigned, getShiftLabel, violations, selectedDate, onDateClick,
 }: Props) {
   const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  // 팝업 기간 띠는 날짜 열 전체(헤더+근무자 칸)에 깔린다 — 주 뷰에선 세로로 이어져 운영 기간이 한눈에 보인다
+  const tintOf = (dateStr: string) => getDayTint?.(dateStr);
   // shift_id → { shift, 색상 인덱스 }
   const shiftInfoById = useMemo(() => new Map(shifts.map((s, i) => [s.id, { shift: s, idx: i }])), [shifts]);
 
@@ -75,6 +80,7 @@ export default function WeekMatrix({
             <button
               key={dateStr}
               onClick={() => onDateClick(dateStr)}
+              style={{ backgroundImage: tintOf(dateStr) }}
               className={`px-1 py-2 text-center cursor-pointer border-none transition ${
                 isSelected ? 'bg-primary-100' : `bg-canvas-soft hover:bg-primary-50/60 ${weekendTint(i, false)}`
               }`}
@@ -107,6 +113,7 @@ export default function WeekMatrix({
                   <button
                     key={dateStr}
                     onClick={() => onDateClick(dateStr)}
+                    style={{ backgroundImage: tintOf(dateStr) }}
                     className={`px-1 py-1 min-h-[46px] md:min-h-[38px] flex flex-col gap-0.5 items-stretch justify-center cursor-pointer border-none transition ${
                       isSelected ? 'bg-primary-50/70' : `${rowBase} hover:bg-primary-50/40 ${weekendTint(i, isSelected)}`
                     }`}

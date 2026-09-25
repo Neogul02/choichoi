@@ -17,13 +17,15 @@ interface Props {
   getRequired: (dateStr: string, shift: RosterShift) => number;
   /** 캐셔 "전체" 보기에서 서로 다른 팝업의 동명 파트를 구분하기 위한 표시 이름 — 기본은 shift.name */
   getShiftLabel: (shift: RosterShift) => string;
+  /** 그날 운영 중인 팝업을 칸 배경에 옅게 까는 CSS 그라데이션 (팝업 이름은 달력 위 범례로 안내) */
+  tint?: string;
   onSelectDate: (dateStr: string | null) => void;
   onDropStaff: (dateStr: string, staffId: number, x: number, y: number) => void;
 }
 
 /** 달력 셀 하나 — memo로 감싸 날짜 선택·팝오버 등 무관한 부모 상태 변화에 재렌더되지 않게 한다 */
 function DayCell({
-  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, getRequired, getShiftLabel, onSelectDate, onDropStaff,
+  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, getRequired, getShiftLabel, tint, onSelectDate, onDropStaff,
 }: Props) {
   // 드래그오버 강조는 순수 시각 상태라 셀 내부에서만 관리
   const [dragOver, setDragOver] = useState(false);
@@ -49,6 +51,7 @@ function DayCell({
         if (isNaN(staffId)) return;
         onDropStaff(dateStr, staffId, e.clientX, e.clientY);
       }}
+      style={dragOver && !isPast ? undefined : { backgroundImage: tint }}
       className={`flex flex-col gap-0.5 items-stretch rounded-lg border p-1 md:p-1.5 min-h-[64px] cursor-pointer transition text-left bg-canvas ${
         dragOver && !isPast
           ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/40'
