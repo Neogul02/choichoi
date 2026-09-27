@@ -12,7 +12,7 @@ interface Props {
   description?: string;
   confirmLabel: string;
   cancelLabel?: string;
-  /** 삭제·초기화 등 되돌리기 어려운 동작이면 true — 확인 버튼이 rose로 표시되고, 열릴 때 취소 버튼에 포커스된다 */
+  /** 삭제·초기화 등 되돌리기 어려운 동작이면 true — 확인 버튼이 rose로 표시된다 */
   danger?: boolean;
   /** 비동기 처리 중이면 true — 버튼 비활성화, 배경 클릭으로 닫히지 않음 */
   busy?: boolean;
@@ -20,7 +20,12 @@ interface Props {
   onClose: () => void;
 }
 
-/** 파괴적 동작 확인 모달 — NavBar 로그아웃 확인 UI와 동일한 스타일을 공유 컴포넌트로 추출 */
+/**
+ * 파괴적 동작 확인 모달 — NavBar 로그아웃 확인 UI와 동일한 스타일을 공유 컴포넌트로 추출.
+ * 열리면 항상 확인 버튼에 포커스가 가고, 포커스가 어디에 있든 Enter는 '확인'으로 동작한다
+ * (danger여도 마찬가지 — "팝업 뜨면 Enter로 수락"이 모든 확인 플로우에서 같아야 한다는 요구).
+ * 취소는 Esc나 취소 버튼 클릭.
+ */
 export default function ConfirmDialog({
   open, title, description, confirmLabel, cancelLabel = '취소', danger = false, busy = false, onConfirm, onClose,
 }: Props) {
@@ -29,14 +34,14 @@ export default function ConfirmDialog({
   useBodyScrollLock(open);
 
   const panelRef = useRef<HTMLDivElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   useModalKeyboard({
     active: open,
     onClose: () => { if (!busy) onClose(); },
     containerRef: panelRef,
-    initialFocusRef: danger ? cancelRef : confirmRef,
+    initialFocusRef: confirmRef,
     onConfirm: () => { if (!busy) onConfirm(); },
+    confirmOnEnterAnywhere: true,
   });
 
   if (!mounted) return null;
@@ -70,7 +75,6 @@ export default function ConfirmDialog({
             {description && <p className="m-0 mb-5 text-[13px] text-ink-muted">{description}</p>}
             <div className={`flex gap-2 ${!description ? 'mt-5' : ''}`}>
               <button
-                ref={cancelRef}
                 onClick={onClose}
                 disabled={busy}
                 className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
