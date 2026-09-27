@@ -11,17 +11,19 @@ export const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
   { key: 'inactive', label: '퇴사' },
   { key: 'all', label: '전체' },
 ];
-export type StoreFilter = number | 'all' | 'none';
 export type RoleFilter = StaffRole | 'all';
 export type SortKey = 'name' | 'status' | 'shifts';
 export type SortDir = 'asc' | 'desc';
 
 const STATUS_SORT_ORDER: Record<string, number> = { candidate: 0, confirmed: 0, inactive: 1 };
 
-/** 직원 목록의 역할·팝업·상태·검색 필터와 컬럼 정렬 상태 + 필터링 결과를 관리하는 훅 */
+/**
+ * 직원 목록의 역할·상태·검색 필터와 컬럼 정렬 상태 + 필터링 결과를 관리하는 훅.
+ * 팝업 범위는 이 훅 밖(HrPageClient의 PopupFilterPicker)에서 미리 좁힌 목록을 받는다 —
+ * 예전에는 여기서도 캐셔 전용 storeFilter로 팝업을 한 번 더 걸러 선택지가 둘로 보였다.
+ */
 export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShift[]) {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
-  const [storeFilter, setStoreFilter] = useState<StoreFilter>('all');
   // 기본값은 확정(재직중)만 — 퇴사 처리된 인원은 '퇴사'나 '전체'를 눌러야 보이게
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [search, setSearch] = useState('');
@@ -48,9 +50,6 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
 
   const filtered = useMemo(() => {
     let list = roleStaff.filter(s => {
-      if (roleFilter === 'cashier' && storeFilter !== 'all') {
-        if (storeFilter === 'none' ? s.popup_id !== null : s.popup_id !== storeFilter) return false;
-      }
       if (statusFilter === 'active' ? s.status === 'inactive' : statusFilter !== 'all' && s.status !== statusFilter) return false;
       if (search.trim() && !s.name.includes(search.trim()) && !phoneMatches(s.phone, search)) return false;
       return true;
@@ -71,11 +70,10 @@ export function useStaffFilters(staffList: StaffProfile[], allShifts: RosterShif
       });
     }
     return list;
-  }, [roleStaff, roleFilter, storeFilter, statusFilter, search, sortKey, sortDir, allShifts]);
+  }, [roleStaff, statusFilter, search, sortKey, sortDir, allShifts]);
 
   return {
     roleFilter, setRoleFilter,
-    storeFilter, setStoreFilter,
     statusFilter, setStatusFilter,
     search, setSearch,
     sortKey, sortDir, handleSort,

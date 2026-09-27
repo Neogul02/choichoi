@@ -5,20 +5,27 @@ import { getPopupPeriod, POPUP_STATUS_BADGE_CLASS } from '@/lib/popupPeriod';
 import { kstToday } from '@/lib/date';
 import type { PopupEvent } from '@/types/database';
 
+/** 직원 목록의 팝업 범위 — 전체 / 특정 팝업 / 어느 팝업에도 속하지 않은 사람 */
+export type PopupScope = number | 'all' | 'none';
+
 interface Props {
   popups: PopupEvent[];
-  value: number | 'all';
-  onChange: (value: number | 'all') => void;
+  value: PopupScope;
+  onChange: (value: PopupScope) => void;
+  /** 어느 팝업에도 속하지 않은 근무자 수 — 0이면 '미배정' 항목을 아예 숨긴다 */
+  unassignedCount?: number;
 }
 
 // 진행중 팝업 우선 정렬 + 상태 배지로 네이티브 select보다 한눈에 들어오게 만든 커스텀 드롭다운
 // (통계 탭 PopupPicker와 동일한 패턴)
-export default function PopupFilterPicker({ popups, value, onChange }: Props) {
+// 인사 탭의 팝업 범위 선택은 이 드롭다운 하나로만 한다 — 예전에는 캐셔 탭에도 같은 일을 하는
+// 팝업 버튼 줄이 따로 있어서 둘 중 무엇이 적용된 건지 헷갈렸다.
+export default function PopupFilterPicker({ popups, value, onChange, unassignedCount = 0 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const todayStr = kstToday();
 
-  const selected = value === 'all' ? null : popups.find((p) => p.id === value) ?? null;
+  const selected = typeof value === 'number' ? popups.find((p) => p.id === value) ?? null : null;
 
   const sorted = useMemo(() => {
     const withStatus = popups.map((p) => ({ popup: p, period: getPopupPeriod(p, todayStr) }));
@@ -50,7 +57,7 @@ export default function PopupFilterPicker({ popups, value, onChange }: Props) {
             </span>
           </>
         ) : (
-          <span>전체 팝업</span>
+          <span className={value === 'none' ? 'text-amber-600' : undefined}>{value === 'none' ? '미배정' : '전체 팝업'}</span>
         )}
         <span className="text-ink-faint">▾</span>
       </button>
@@ -85,6 +92,20 @@ export default function PopupFilterPicker({ popups, value, onChange }: Props) {
                 </button>
               </li>
             ))}
+            {unassignedCount > 0 && (
+              <li className="border-t border-hairline mt-1 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { onChange('none'); setOpen(false); }}
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-left text-[13px] font-semibold cursor-pointer border-none ${
+                    value === 'none' ? 'bg-amber-500 text-white' : 'bg-transparent text-amber-600 hover:bg-amber-50'
+                  }`}
+                >
+                  <span>미배정</span>
+                  <span className={`shrink-0 text-[11px] ${value === 'none' ? 'opacity-80' : 'text-amber-500'}`}>{unassignedCount}</span>
+                </button>
+              </li>
+            )}
           </ul>
         </div>
       )}

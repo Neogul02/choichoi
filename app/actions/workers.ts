@@ -583,6 +583,42 @@ export async function getResidentIdForInsurance(userId: string): Promise<ApiResp
   }
 }
 
+/**
+ * 인사탭 목록에 곧바로 띄우기 위한 전체 주민등록번호 일괄 복호화 — { userProfileId: 13자리 } 맵.
+ *
+ * 개별 열람(getResidentIdForInsurance)과 달리 한 번에 전원을 내려주므로, 감사 로그도
+ * "누구를 봤는지"가 아니라 "관리자 X가 인사탭에서 N명분을 열람했다" 단위로 남는다.
+ * 인사탭은 미들웨어(proxy.ts)와 (admin)/layout.tsx가 이중으로 admin만 통과시키는 경로다.
+ */
+export async function fetchResidentIdsForHr(): Promise<ApiResponse<Record<string, string>>> {
+  try {
+    const admin = await requireAdmin()
+
+    const { data, error } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, resident_reg_no_enc')
+      .not('resident_reg_no_enc', 'is', null)
+    if (error) return { success: false, error: error.message }
+
+    const map: Record<string, string> = {}
+    for (const row of data ?? []) {
+      // 키 교체 등으로 한 건이 깨져도 나머지 목록까지 비우지 않는다
+      try { map[row.id] = decryptResidentId(row.resident_reg_no_enc!) } catch { /* 해당 건만 미표시 */ }
+    }
+
+    const count = Object.keys(map).length
+    after(async () => {
+      const { notifyDiscord } = await import('@/lib/discord')
+      await notifyDiscord('edit', '🔒 주민번호 일괄 조회 (인사탭)', `**${admin.name ?? admin.email}** — ${count}명분`)
+    })
+
+    return { success: true, data: map }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
 /** 기존 가입자가 /my 페이지에서 본인 주민등록번호를 소급 입력 — 이미 등록된 경우 재입력 불가(관리 화면에서만 정정) */
 export async function setMyResidentId(residentIdFront: string, residentIdBack: string): Promise<ApiResponse> {
   try {
