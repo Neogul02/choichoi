@@ -1,7 +1,7 @@
 import HrPageClient from './_components/HrPageClient';
 import type { InitialRoster } from './_components/HrPageClient';
 import { fetchStaffProfiles } from '@/app/actions/staff';
-import { fetchAllUserProfiles } from '@/app/actions/workers';
+import { fetchAllUserProfiles, fetchResidentIdsForHr } from '@/app/actions/workers';
 import { fetchPopupEvents } from '@/app/actions/schedule';
 import { fetchAllRosterShifts, fetchRosterRange } from '@/app/actions/roster';
 import type { RosterUnit } from '@/app/actions/roster';
@@ -29,9 +29,10 @@ async function getHrBootstrap() {
   const monthStart = ymdToDateStr(y, m, 1);
   const monthEnd = monthEndDateStr(y, m);
 
-  const [staffRes, profileRes, shiftsRes, contractedRes, rosterRes, staffPopupRes] = await Promise.all([
+  const [staffRes, profileRes, residentRes, shiftsRes, contractedRes, rosterRes, staffPopupRes] = await Promise.all([
     fetchStaffProfiles(),
     fetchAllUserProfiles(),
+    fetchResidentIdsForHr(),
     fetchAllRosterShifts(),
     fetchContractedStaffIds(),
     fetchRosterRange(initialUnit, monthStart, monthEnd),
@@ -44,6 +45,8 @@ async function getHrBootstrap() {
   return {
     initialStaff: staffRes.success ? (staffRes.data ?? []) : [],
     initialUserProfiles: profileRes.success ? (profileRes.data ?? []) : [],
+    // 주민번호 원문 — 인사탭은 admin 전용 경로이고, 열람 사실은 fetchResidentIdsForHr가 감사 로그로 남긴다
+    initialResidentIds: residentRes.success ? (residentRes.data ?? {}) : {},
     initialPopups: popups,
     initialShifts: shiftsRes.success ? (shiftsRes.data ?? []) : [],
     initialContractedIds: contractedRes.success ? (contractedRes.data ?? []) : [],
