@@ -15,20 +15,24 @@ interface Options {
   /** 지정 시 열릴 때 이 요소에 포커스, 없으면 컨테이너 내 첫 포커스 가능 요소 */
   initialFocusRef?: RefObject<HTMLElement | null>
   /**
-   * Enter → 호출 (버튼/링크에 포커스가 있을 때는 브라우저 기본 활성화에 맡기고 건드리지 않음 —
-   * danger 다이얼로그가 취소 버튼에 포커스를 둬 실수 확인을 막는 설계를 그대로 존중하기 위함).
-   * 포커스가 컨테이너 안의 텍스트필드 등 아무 곳에나 있을 때만 이 콜백으로 직접 확인 처리한다.
-   * 포커스가 컨테이너 밖(예: body — 제목/설명처럼 포커스 불가능한 요소를 클릭하면 여기로 빠진다)이면
-   * 아무 동작도 하지 않는다 — 그렇지 않으면 danger 다이얼로그의 취소 포커스 안전장치가 무력화된다.
+   * Enter → 호출. 포커스가 컨테이너 안의 버튼/링크에 있으면 브라우저 기본 활성화에 맡긴다
+   * (사용자가 직접 '취소'에 포커스를 옮겨둔 경우 그 의도를 덮어쓰지 않기 위함).
+   * 텍스트필드 등 그 밖의 곳에 있으면 이 콜백으로 직접 확인 처리한다.
+   * textarea는 줄바꿈 입력이 우선이라 제외.
    */
   onConfirm?: () => void
+  /**
+   * true면 포커스가 컨테이너 밖(제목·설명을 클릭해 body로 빠진 경우 등)에 있어도 Enter를 확인으로 본다.
+   * 확인 다이얼로그처럼 "떠 있는 동안 Enter = 예"가 기대 동작인 모달에만 켠다.
+   */
+  confirmOnEnterAnywhere?: boolean
 }
 
 /**
  * 모달 공용 키보드 동작 — Esc로 닫기, Tab을 컨테이너 안에서만 순환, 열릴 때 초기 포커스,
  * 닫힐 때 이전 포커스 복원, (선택) Enter로 확인. 모달마다 손으로 짜던 Esc keydown useEffect를 대체한다.
  */
-export function useModalKeyboard({ active, onClose, containerRef, initialFocusRef, onConfirm }: Options) {
+export function useModalKeyboard({ active, onClose, containerRef, initialFocusRef, onConfirm, confirmOnEnterAnywhere = false }: Options) {
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -55,10 +59,14 @@ export function useModalKeyboard({ active, onClose, containerRef, initialFocusRe
       if (e.key === 'Enter' && onConfirm && !e.isComposing) {
         const target = e.target as HTMLElement | null
         const tag = target?.tagName
-        // textarea는 줄바꿈 입력이 우선, button/a는 이미 포커스된 요소의 기본 활성화(클릭)에 맡긴다.
-        // 포커스가 컨테이너 밖으로 빠진 경우(제목·설명 클릭 등으로 body에 포커스)는 제외 —
-        // danger 다이얼로그가 취소 버튼에 걸어둔 포커스 안전장치를 우회하게 된다.
-        if (tag !== 'TEXTAREA' && tag !== 'BUTTON' && tag !== 'A' && target && containerRef.current?.contains(target)) {
+        const inside = !!target && !!containerRef.current?.contains(target)
+        // textarea는 줄바꿈 입력이 우선, 컨테이너 안의 button/a는 이미 포커스된 요소의 기본 활성화(클릭)에 맡긴다.
+        // 포커스가 컨테이너 밖으로 빠진 경우(제목·설명 클릭 등으로 body에 포커스)는 기본적으로 무시하고,
+        // confirmOnEnterAnywhere를 켠 모달에서만 확인으로 처리한다.
+        const handled = inside
+          ? tag !== 'TEXTAREA' && tag !== 'BUTTON' && tag !== 'A'
+          : confirmOnEnterAnywhere
+        if (handled) {
           e.preventDefault()
           onConfirm()
           return
@@ -80,5 +88,5 @@ export function useModalKeyboard({ active, onClose, containerRef, initialFocusRe
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [active, onClose, containerRef, onConfirm])
+  }, [active, onClose, containerRef, onConfirm, confirmOnEnterAnywhere])
 }
