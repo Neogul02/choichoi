@@ -20,7 +20,7 @@ export default function StaffTotalsPanel({ staffList, shifts, assignments, isLoa
     for (const a of assignments) {
       const shift = shiftById.get(a.shift_id);
       if (!shift) continue;
-      const mins = paidMinutes(a.start_time ?? shift.start_time, a.end_time ?? shift.end_time, a.break_minutes);
+      const mins = paidMinutes(a.start_time ?? shift.start_time, a.end_time ?? shift.end_time, a.break_minutes, shift.break_minutes);
       let entry = acc.get(a.staff_id);
       if (!entry) { entry = { days: new Set(), minutes: 0 }; acc.set(a.staff_id, entry); }
       entry.days.add(a.work_date);
