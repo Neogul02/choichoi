@@ -2,7 +2,7 @@
 // 인원별 합계(StaffTotalsPanel)·직원 예상급여가 전부 이 함수를 쓴다.
 // 규칙이 바뀌면 반드시 여기만 고칠 것: 흩어진 복사본이 생기면 화면마다 금액이 달라진다.
 
-/** 급여 계산용 기본 휴게시간(분) — 근무일별 오버라이드(break_minutes)가 없을 때 적용 */
+/** 급여 계산용 기본 휴게시간(분) — 파트에도 근무일에도 설정이 없을 때 적용 */
 export const DEFAULT_BREAK_MINUTES = 60
 
 /** 하루 = 1440분. 시간대는 오전/오후로 나누지 않고 00:00~24:00 한 축 위에서 다룬다 */
@@ -57,9 +57,33 @@ export function formatTimeRange(start: string, end: string): string {
   return crossesMidnight(start, end) ? `${s}~${e} (익일)` : `${s}~${e}`
 }
 
-/** 유급 분 = 실근무 − 휴게(오버라이드 없으면 기본 1시간), 음수 방지 */
-export function paidMinutes(start: string, end: string, breakOverride: number | null | undefined): number {
-  return Math.max(0, shiftRawMinutes(start, end) - (breakOverride ?? DEFAULT_BREAK_MINUTES))
+/**
+ * 실제로 차감할 휴게 분 — 우선순위는 근무일별 오버라이드 > 파트 고정 휴게 > 기본 1시간.
+ *
+ * roster_shifts.break_minutes는 NOT NULL DEFAULT 0이라 "휴게 없음"과 "설정 안 함"을 구분하지 못한다.
+ * 파트관리 화면도 0이면 휴게 표기를 아예 숨기므로(ShiftManageModal), 0은 "미설정"으로 읽고 기본값으로 넘긴다.
+ * 특정 근무일만 휴게 없이 계산하려면 근무일별 오버라이드(roster_assignments.break_minutes = 0)를 쓴다.
+ */
+export function resolveBreakMinutes(
+  assignmentBreak: number | null | undefined,
+  shiftBreak: number | null | undefined,
+): number {
+  if (assignmentBreak != null) return assignmentBreak
+  if (shiftBreak != null && shiftBreak > 0) return shiftBreak
+  return DEFAULT_BREAK_MINUTES
+}
+
+/**
+ * 유급 분 = 실근무 − 휴게(resolveBreakMinutes 기준), 음수 방지.
+ * shiftBreak는 생략하지 말 것 — 빠뜨리면 파트에 설정한 휴게시간이 조용히 무시되고 기본 1시간이 차감된다.
+ */
+export function paidMinutes(
+  start: string,
+  end: string,
+  assignmentBreak: number | null | undefined,
+  shiftBreak: number | null | undefined,
+): number {
+  return Math.max(0, shiftRawMinutes(start, end) - resolveBreakMinutes(assignmentBreak, shiftBreak))
 }
 
 /** 분 → 시간, 0.1h 단위 반올림. 합계는 분을 모두 더한 뒤 마지막에 한 번만 이 함수를 거칠 것 */

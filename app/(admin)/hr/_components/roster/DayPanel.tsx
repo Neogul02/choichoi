@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import TimeOfDayField from '@/components/TimeOfDayField';
-import { formatTimeRange, crossesMidnight, shiftRawMinutes, minutesToHours } from '@/lib/workhours';
+import { formatTimeRange, crossesMidnight, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours';
+import { formatBreakMinutes } from '@/lib/utils';
 import { showMsg } from '@/lib/toast';
 import type { StaffProfile, RosterShift, RosterAssignment } from '@/types/database';
 import { DAY_NAMES, checkStaffAvailability, shiftTextColor } from '../constants';
@@ -239,7 +240,7 @@ export default function DayPanel({
                           a.break_minutes === 0 ? 'text-rose-500 font-bold' : a.break_minutes != null ? 'text-primary-700 font-bold' : 'text-ink-faint hover:text-primary-700'
                         }`}
                       >
-                        {a.break_minutes === 0 ? '휴게 미포함' : a.break_minutes != null ? `휴게 ${a.break_minutes}분` : '휴게 1h'}
+                        {a.break_minutes === 0 ? '휴게 미포함' : a.break_minutes != null ? `휴게 ${a.break_minutes}분` : `휴게 ${formatBreakMinutes(resolveBreakMinutes(null, shift.break_minutes))}`}
                       </button>
                       <button
                         onClick={() => onRemove(a.id)}
