@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
 import { getWeekStart, DAY_NAMES, requiredFor, toMinutes } from '@/lib/staffing'
-import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
+import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
 import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftStartPriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups } from '@/lib/roster/query-helpers'
@@ -824,7 +824,7 @@ async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
 
   const { data: assignData, error: assignError } = await supabaseAdmin
     .from('roster_assignments')
-    .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (name, start_time, end_time)')
+    .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (name, start_time, end_time, break_minutes)')
     .eq('staff_id', staffId)
     .gte('work_date', from)
     .lte('work_date', to)
@@ -832,7 +832,7 @@ async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
   if (assignError) throw new Error(assignError.message)
 
   const shifts: MyShift[] = (assignData ?? []).map(a => {
-    const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string } | null
+    const shift = a.roster_shifts as unknown as { name: string; start_time: string; end_time: string; break_minutes: number } | null
     const start = a.start_time ?? shift?.start_time ?? '00:00'
     const end = a.end_time ?? shift?.end_time ?? '00:00'
     return {
@@ -841,8 +841,8 @@ async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
       start_time: start,
       end_time: end,
       hours: minutesToHours(shiftRawMinutes(start, end)),
-      breakMinutes: a.break_minutes ?? DEFAULT_BREAK_MINUTES,
-      netHours: minutesToHours(paidMinutes(start, end, a.break_minutes)),
+      breakMinutes: resolveBreakMinutes(a.break_minutes, shift?.break_minutes),
+      netHours: minutesToHours(paidMinutes(start, end, a.break_minutes, shift?.break_minutes)),
     }
   })
 
@@ -887,7 +887,7 @@ async function fetchCumulativeWorkedHoursForUserProfileId(userProfileId: string)
   // 아직 근무하지 않은 미래 배정까지 누적시간에 잡히면 티어가 미리 올라가버린다 — 오늘까지만 합산
   const { data: assignData, error: assignError } = await supabaseAdmin
     .from('roster_assignments')
-    .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time)')
+    .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time, break_minutes)')
     .in('staff_id', staffIds)
     .lte('work_date', kstToday())
   if (assignError) throw new Error(assignError.message)
@@ -895,10 +895,10 @@ async function fetchCumulativeWorkedHoursForUserProfileId(userProfileId: string)
   let totalMinutes = 0
   const days = new Set<string>()
   for (const a of assignData ?? []) {
-    const shift = a.roster_shifts as unknown as { start_time: string; end_time: string } | null
+    const shift = a.roster_shifts as unknown as { start_time: string; end_time: string; break_minutes: number } | null
     const start = a.start_time ?? shift?.start_time ?? '00:00'
     const end = a.end_time ?? shift?.end_time ?? '00:00'
-    totalMinutes += paidMinutes(start, end, a.break_minutes)
+    totalMinutes += paidMinutes(start, end, a.break_minutes, shift?.break_minutes)
     days.add(a.work_date)
   }
 
@@ -955,17 +955,17 @@ export async function getWorkerTierRanking(): Promise<ApiResponse<WorkerTierRank
     // 아직 근무하지 않은 미래 배정까지 잡히면 티어가 미리 올라가버린다 — 오늘까지만 합산
     const { data: assignData, error: assignError } = await supabaseAdmin
       .from('roster_assignments')
-      .select('staff_id, work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time)')
+      .select('staff_id, work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time, break_minutes)')
       .in('staff_id', staffIds)
       .lte('work_date', kstToday())
     if (assignError) throw new Error(assignError.message)
 
     const minutesByStaffId = new Map<number, number>()
     for (const a of assignData ?? []) {
-      const shift = a.roster_shifts as unknown as { start_time: string; end_time: string } | null
+      const shift = a.roster_shifts as unknown as { start_time: string; end_time: string; break_minutes: number } | null
       const start = a.start_time ?? shift?.start_time ?? '00:00'
       const end = a.end_time ?? shift?.end_time ?? '00:00'
-      minutesByStaffId.set(a.staff_id, (minutesByStaffId.get(a.staff_id) ?? 0) + paidMinutes(start, end, a.break_minutes))
+      minutesByStaffId.set(a.staff_id, (minutesByStaffId.get(a.staff_id) ?? 0) + paidMinutes(start, end, a.break_minutes, shift?.break_minutes))
     }
 
     const buildRanking = (role: 'kitchen' | 'cashier'): WorkerTierRankingRow[] => {
