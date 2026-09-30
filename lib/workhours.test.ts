@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   hhmmToMinutes, minutesToHHMM, shiftRawMinutes, paidMinutes, minutesToHours,
-  crossesMidnight, isFullDay, formatTimeRange, DEFAULT_BREAK_MINUTES, MINUTES_IN_DAY,
+  crossesMidnight, isFullDay, formatTimeRange, resolveBreakMinutes,
+  DEFAULT_BREAK_MINUTES, MINUTES_IN_DAY,
 } from './workhours'
 
 describe('hhmmToMinutes', () => {
@@ -94,31 +95,65 @@ describe('formatTimeRange', () => {
   })
 })
 
+describe('resolveBreakMinutes', () => {
+  it('둘 다 없으면 기본 휴게시간', () => {
+    expect(DEFAULT_BREAK_MINUTES).toBe(60)
+    expect(resolveBreakMinutes(null, null)).toBe(60)
+    expect(resolveBreakMinutes(undefined, undefined)).toBe(60)
+  })
+
+  it('파트에 설정된 휴게시간이 기본값을 대신한다', () => {
+    expect(resolveBreakMinutes(null, 30)).toBe(30)
+    expect(resolveBreakMinutes(null, 90)).toBe(90)
+  })
+
+  it('파트 휴게 0분은 "미설정"으로 읽어 기본값으로 되돌린다', () => {
+    // roster_shifts.break_minutes는 NOT NULL DEFAULT 0 — 0은 "휴게 없음"이 아니라 한 번도 설정하지 않은 상태다.
+    // 여기서 0을 그대로 쓰면 기존 파트 전부가 소급해서 휴게 미차감이 되어 급여가 어긋난다.
+    expect(resolveBreakMinutes(null, 0)).toBe(60)
+  })
+
+  it('근무일별 오버라이드가 파트 설정보다 우선한다 (0 포함)', () => {
+    expect(resolveBreakMinutes(0, 30)).toBe(0)
+    expect(resolveBreakMinutes(45, 30)).toBe(45)
+  })
+})
+
 describe('paidMinutes', () => {
   it('오버라이드가 없으면 기본 휴게시간을 차감한다', () => {
     expect(DEFAULT_BREAK_MINUTES).toBe(60)
-    expect(paidMinutes('09:00', '18:00', null)).toBe(480)
-    expect(paidMinutes('09:00', '18:00', undefined)).toBe(480)
+    expect(paidMinutes('09:00', '18:00', null, null)).toBe(480)
+    expect(paidMinutes('09:00', '18:00', undefined, undefined)).toBe(480)
+  })
+
+  it('파트에 설정된 휴게시간을 차감한다', () => {
+    // 홍대 AK 오후 파트(16:00~22:00, 휴게 30분) = 실 근무 5.5h
+    expect(paidMinutes('16:00', '22:00', null, 30)).toBe(330)
+    expect(paidMinutes('09:00', '18:00', null, 0)).toBe(480)
   })
 
   it('휴게시간 오버라이드를 적용한다 (0 포함)', () => {
-    expect(paidMinutes('09:00', '18:00', 0)).toBe(540)
-    expect(paidMinutes('09:00', '18:00', 30)).toBe(510)
-    expect(paidMinutes('09:00', '18:00', 90)).toBe(450)
+    expect(paidMinutes('09:00', '18:00', 0, null)).toBe(540)
+    expect(paidMinutes('09:00', '18:00', 30, null)).toBe(510)
+    expect(paidMinutes('09:00', '18:00', 90, null)).toBe(450)
+    // 근무일별 오버라이드가 파트 설정을 덮어쓴다
+    expect(paidMinutes('09:00', '18:00', 0, 30)).toBe(540)
   })
 
   it('휴게시간이 근무시간보다 길면 음수가 아니라 0', () => {
-    expect(paidMinutes('09:00', '09:30', null)).toBe(0)
-    expect(paidMinutes('09:00', '10:00', 120)).toBe(0)
+    expect(paidMinutes('09:00', '09:30', null, null)).toBe(0)
+    expect(paidMinutes('09:00', '10:00', 120, null)).toBe(0)
+    expect(paidMinutes('09:00', '09:20', null, 30)).toBe(0)
   })
 
   it('종일 근무도 휴게를 차감한다', () => {
-    expect(paidMinutes('00:00', '24:00', null)).toBe(MINUTES_IN_DAY - 60)
+    expect(paidMinutes('00:00', '24:00', null, null)).toBe(MINUTES_IN_DAY - 60)
   })
 
   it('야간 근무에도 휴게 차감이 적용된다', () => {
-    expect(paidMinutes('22:00', '06:00', null)).toBe(420)
-    expect(paidMinutes('22:00', '06:00', 90)).toBe(390)
+    expect(paidMinutes('22:00', '06:00', null, null)).toBe(420)
+    expect(paidMinutes('22:00', '06:00', 90, null)).toBe(390)
+    expect(paidMinutes('22:00', '06:00', null, 30)).toBe(450)
   })
 })
 

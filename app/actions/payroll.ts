@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
-import { paidMinutes, shiftRawMinutes, minutesToHours, DEFAULT_BREAK_MINUTES } from '@/lib/workhours'
+import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import { decryptResidentId } from '@/lib/pii-crypto'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, requireManagerOrAdmin, wrap } from './_base'
@@ -82,7 +82,7 @@ export interface StaffDayDetail {
   hours: number
   /** 실근무 분 (휴게 차감 전) */
   rawMinutes: number
-  /** 휴게 차감 분 — 근무일별로 오버라이드하지 않으면 기본 1시간(DEFAULT_BREAK_MINUTES) */
+  /** 휴게 차감 분 — 근무일별 오버라이드 > 파트 고정 휴게 > 기본 1시간 (resolveBreakMinutes) */
   breakMinutes: number
   /** 유급 분 — 월 합계는 이 값을 합산 후 시간 환산해야 fetchMonthlyPayroll과 일치 */
   paidMinutes: number
@@ -117,7 +117,7 @@ export async function fetchStaffMonthlyDetail(
 
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time), popup_events(start_date, end_date)')
+      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time, break_minutes), popup_events(start_date, end_date)')
       .eq('staff_id', staffId)
       .gte('work_date', from)
       .lte('work_date', to)
@@ -163,7 +163,7 @@ export async function fetchStaffPopupDetail(
 
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')
+      .select('work_date, shift_id, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time, break_minutes)')
       .eq('staff_id', staffId)
       .eq('popup_id', popupId)
       .order('work_date', { ascending: true })
@@ -182,18 +182,20 @@ type AssignmentDetailRow = {
   start_time: string | null
   end_time: string | null
   break_minutes: number | null
-  roster_shifts: { name: string; start_time: string; end_time: string }[] | { name: string; start_time: string; end_time: string } | null
+  roster_shifts: ShiftDetailRow[] | ShiftDetailRow | null
 }
+
+type ShiftDetailRow = { name: string; start_time: string; end_time: string; break_minutes: number }
 
 function mapAssignmentsToDetails(rows: AssignmentDetailRow[]): StaffDayDetail[] {
   return rows.map(a => {
     const shiftRaw = a.roster_shifts
-    const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
+    const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as ShiftDetailRow | null
     const startTime: string = a.start_time ?? shift?.start_time ?? '00:00'
     const endTime: string = a.end_time ?? shift?.end_time ?? '00:00'
     const rawMinutes = shiftRawMinutes(startTime, endTime)
-    const breakMinutes = a.break_minutes ?? DEFAULT_BREAK_MINUTES
-    const paid = paidMinutes(startTime, endTime, a.break_minutes)
+    const breakMinutes = resolveBreakMinutes(a.break_minutes, shift?.break_minutes)
+    const paid = paidMinutes(startTime, endTime, a.break_minutes, shift?.break_minutes)
     return {
       date: a.work_date,
       shiftName: shift?.name ?? '파트 미정',
@@ -250,7 +252,7 @@ export async function fetchMonthlyPayroll(
         .eq('staff_role', staffRole),
       supabaseAdmin
         .from('roster_shifts')
-        .select('id, start_time, end_time'),
+        .select('id, start_time, end_time, break_minutes'),
     ])
 
     if (assignRes.error) return { success: false, error: assignRes.error.message }
@@ -268,7 +270,7 @@ export async function fetchMonthlyPayroll(
       if (pe && (a.work_date < pe.start_date || a.work_date > pe.end_date)) continue
       const startStr: string = a.start_time ?? shift.start_time
       const endStr: string = a.end_time ?? shift.end_time
-      const paidMin = paidMinutes(startStr, endStr, a.break_minutes)
+      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift.break_minutes)
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
@@ -311,7 +313,7 @@ export async function fetchPopupPayroll(popupId: number): Promise<ApiResponse<Po
         .eq('staff_role', 'cashier'),
       supabaseAdmin
         .from('roster_shifts')
-        .select('id, start_time, end_time'),
+        .select('id, start_time, end_time, break_minutes'),
     ])
 
     if (assignRes.error) return { success: false, error: assignRes.error.message }
@@ -327,7 +329,7 @@ export async function fetchPopupPayroll(popupId: number): Promise<ApiResponse<Po
       if (a.work_date < popup.start_date || a.work_date > popup.end_date) continue
       const startStr: string = a.start_time ?? shift.start_time
       const endStr: string = a.end_time ?? shift.end_time
-      const paidMin = paidMinutes(startStr, endStr, a.break_minutes)
+      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift.break_minutes)
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
