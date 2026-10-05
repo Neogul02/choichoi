@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
-import { getWeekStart, DAY_NAMES, requiredFor, toMinutes } from '@/lib/staffing'
+import { getWeekStart, requiredFor, toMinutes } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours'
 import { parseDate, toDateStr, addDays, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
@@ -74,13 +74,6 @@ export interface MyShift {
 
 export interface MyRosterData {
   shifts: MyShift[] // 이번 달 1일 ~ 다음 달 말일
-}
-
-export interface DailyDigestShift {
-  shiftName: string
-  startTime: string
-  endTime: string
-  names: string[]
 }
 
 export interface WeeklyRosterEntry {
@@ -709,47 +702,6 @@ export async function clearRosterRange(
     const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
     return { removed: rows.length, undo: { deleted: rows, updated: [] } }
   })
-}
-
-// 내일(KST) 배정 현황 — 디스코드 일일 근무 안내용
-export async function fetchTomorrowRosterDigest(): Promise<{ dateLabel: string; shifts: DailyDigestShift[] }> {
-  const tomorrow = addDays(kstToday(), 1)
-  const d = parseDate(tomorrow)
-  const dateLabel = `${d.getMonth() + 1}월 ${d.getDate()}일(${DAY_NAMES[d.getDay()]})`
-
-  const { data: assignData } = await supabaseAdmin
-    .from('roster_assignments')
-    .select('start_time, end_time, roster_shifts!roster_assignments_shift_id_fkey (name, start_time, end_time, sort_order), staff_profiles (name)')
-    .eq('work_date', tomorrow)
-  if (!assignData?.length) return { dateLabel, shifts: [] }
-
-  const grouped = new Map<string, { startTime: string; endTime: string; sortOrder: number; priority: number; names: string[] }>()
-  type TomorrowAssignRow = {
-    start_time: string | null
-    end_time: string | null
-    roster_shifts: { name: string; start_time: string; end_time: string; sort_order: number } | null
-    staff_profiles: { name: string } | null
-  }
-  for (const a of assignData as unknown as TomorrowAssignRow[]) {
-    const shift = a.roster_shifts
-    const name = shift?.name ?? '근무'
-    if (!grouped.has(name)) {
-      grouped.set(name, {
-        startTime: a.start_time ?? shift?.start_time ?? '00:00',
-        endTime: a.end_time ?? shift?.end_time ?? '00:00',
-        sortOrder: shift?.sort_order ?? 99,
-        priority: shiftStartPriority(a.start_time ?? shift?.start_time),
-        names: [],
-      })
-    }
-    grouped.get(name)!.names.push(a.staff_profiles?.name ?? '')
-  }
-
-  const shifts = Array.from(grouped.entries())
-    .sort(([, a], [, b]) => a.priority !== b.priority ? a.priority - b.priority : a.sortOrder - b.sortOrder)
-    .map(([shiftName, g]) => ({ shiftName, startTime: g.startTime, endTime: g.endTime, names: g.names }))
-
-  return { dateLabel, shifts }
 }
 
 export async function fetchWeeklyRosterForPrint(from: string, to: string, staffRole?: StaffRole): Promise<ApiResponse<WeeklyRosterEntry[]>> {

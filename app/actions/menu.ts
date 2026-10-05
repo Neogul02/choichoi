@@ -190,7 +190,6 @@ export async function createNewMenuItem(name: string, price: number, color: stri
   const parsed = MenuItemSchema.safeParse({ name, price, color, emoji });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   const result = await wrap(async () => { await requireAdmin(); return addMenuItem(parsed.data.name, parsed.data.price, parsed.data.color, parsed.data.emoji || null); });
-  if (result.success) after(() => notifyDiscord('add', '🍞 메뉴 추가', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
 
@@ -198,13 +197,11 @@ export async function editMenuItem(id: number, name: string, price: number, colo
   const parsed = MenuItemSchema.safeParse({ name, price, color, emoji });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
   const result = await wrap(async () => { await requireAdmin(); return updateMenuItem(id, parsed.data.name, parsed.data.price, parsed.data.color, parsed.data.emoji || null); });
-  if (result.success) after(() => notifyDiscord('edit', '✏️ 메뉴 수정', `**${name}** — ₩${price.toLocaleString('ko-KR')}`));
   return result;
 }
 
 export async function removeMenuItem(id: number): Promise<ApiResponse> {
   const result = await wrap(async () => { await requireAdmin(); return deleteMenuItem(id); });
-  if (result.success) after(() => notifyDiscord('delete', '🗑️ 메뉴 삭제', `ID: ${id}`));
   return result;
 }
 
