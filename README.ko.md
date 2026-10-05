@@ -212,7 +212,6 @@ app/
 ├── memo/                            # 운영 메모
 ├── my/                               # 내 정보 — 프로필 수정, 주문 통계, 계약서 확인·서명
 ├── my/schedule/                       # 근로자용 내 근무 스케줄 조회
-├── api/cron/daily-schedule/            # Vercel Cron — 익일 근무 배정 Discord 다이제스트
 ├── (admin)/                             # proxy.ts + layout.tsx 보호 (admin 전용)
 │   ├── stats/                            # 매출 통계 (커스텀 훅/컴포넌트 분리)
 │   ├── settings/                          # 메뉴·팝업 관리 + 유저 기본정보 + 개발자 도구
@@ -312,8 +311,7 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | RLS 우회 admin 키 | **서버 전용** |
 | `SIGNUP_CODE` | 회원가입 시 요구되는 초대 코드 | 서버 전용 |
 | `PII_ENCRYPTION_KEY` | 주민등록번호 등 고민감 정보 암호화 키(32바이트, base64) | **서버 전용** |
-| `DISCORD_WEBHOOK_URL` | 메뉴 변경/계약 서명/로그인/근무 안내 알림 (선택) | 서버 전용 |
-| `CRON_SECRET` | Vercel Cron 엔드포인트(`/api/cron/daily-schedule`) Bearer 인증 | 서버 전용, 프로덕션 필수 |
+| `DISCORD_WEBHOOK_URL` | 로그인/가입/주문 완료/메뉴 순서 변경/권한 변경/직원 탈퇴/비밀번호 초기화/오류 알림 (선택) | 서버 전용 |
 
 관리자 계정은 Supabase 대시보드 → Authentication → Users에서 직접 등록 후 `user_profiles.worker_role`을 `admin`으로 설정합니다.
 

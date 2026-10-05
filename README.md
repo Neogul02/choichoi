@@ -217,7 +217,6 @@ app/
 ├── memo/                            # Operations memos
 ├── my/                               # My info — edit profile, order stats, view/sign contracts
 ├── my/schedule/                       # Worker-facing personal shift schedule view
-├── api/cron/daily-schedule/            # Vercel Cron — next-day shift assignment Discord digest
 ├── (admin)/                             # Protected by proxy.ts + layout.tsx (admin only)
 │   ├── stats/                            # Sales analytics (split into custom hooks/components)
 │   ├── settings/                          # Menu/popup management + user basics + dev tools
@@ -317,8 +316,7 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin key that bypasses RLS | **Server only** |
 | `SIGNUP_CODE` | Invite code required for signup | Server only |
 | `PII_ENCRYPTION_KEY` | Encryption key for highly sensitive data such as national ID numbers (32 bytes, base64) | **Server only** |
-| `DISCORD_WEBHOOK_URL` | Notifications for menu changes / contract signing / login / shift digests (optional) | Server only |
-| `CRON_SECRET` | Bearer auth for the Vercel Cron endpoint (`/api/cron/daily-schedule`) | Server only, required in production |
+| `DISCORD_WEBHOOK_URL` | Notifications for login / signup / order completion / menu reorder / role change / staff removal / password reset / action-failure alerts (optional) | Server only |
 
 Register admin accounts directly in the Supabase dashboard under Authentication → Users, then set `user_profiles.worker_role` to `admin`.
 
