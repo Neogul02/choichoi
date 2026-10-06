@@ -701,19 +701,33 @@ async function fetchRosterDataForStaff(staffId: number): Promise<MyRosterData> {
  * 로그인한 근무자 본인의 확정 근무 일정.
  * staff_profiles.user_profile_id로 연결된 프로필이 없으면 data: null (섹션 숨김용).
  */
+/**
+ * 한 계정에 연결된 staff_profiles를 모두 합쳐 근무표를 만든다.
+ * 한 사람이 주방 프로필과 캐셔(팝업) 프로필을 동시에 갖는 경우가 실제로 있고,
+ * 그때 하나만 골라 보여주면 나머지 근무가 통째로 사라진다.
+ */
+async function fetchRosterDataForUserProfileId(userProfileId: string): Promise<MyRosterData> {
+  const { data: staffRows, error: staffError } = await supabaseAdmin
+    .from('staff_profiles')
+    .select('id')
+    .eq('user_profile_id', userProfileId)
+  if (staffError) throw new Error(staffError.message)
+
+  const staffIds = (staffRows ?? []).map(s => s.id)
+  if (staffIds.length === 0) return { shifts: [] }
+
+  const perStaff = await Promise.all(staffIds.map(id => fetchRosterDataForStaff(id)))
+  const shifts = perStaff.flatMap(r => r.shifts).sort((a, b) => a.work_date.localeCompare(b.work_date))
+  return { shifts }
+}
+
 export async function getMyRoster(): Promise<ApiResponse<MyRosterData | null>> {
   return wrap(async () => {
     const user = await requireAuth()
-
-    const { data: staff, error: staffError } = await supabaseAdmin
-      .from('staff_profiles')
-      .select('id')
-      .eq('user_profile_id', user.id)
-      .maybeSingle()
-    if (staffError) throw new Error(staffError.message)
-    if (!staff) return null
-
-    return fetchRosterDataForStaff(staff.id)
+    // 예전에는 maybeSingle()로 프로필이 하나라고 가정했는데, 두 개인 계정에서는 PostgREST가
+    // PGRST116("The result contains 2 rows")로 406을 돌려줘 본인만 "근무 정보 없음"으로 보였다.
+    // 관리자 조회(getRosterAsAdmin)는 처음부터 전부 합치고 있어서 관리자 화면에서는 정상으로 보였다.
+    return fetchRosterDataForUserProfileId(user.id)
   })
 }
 
@@ -845,19 +859,8 @@ export async function getWorkerTierRanking(): Promise<ApiResponse<WorkerTierRank
 export async function getRosterAsAdmin(userId: string): Promise<ApiResponse<MyRosterData>> {
   return wrap(async () => {
     await requireAdmin()
-
-    const { data: staffRows, error: staffError } = await supabaseAdmin
-      .from('staff_profiles')
-      .select('id')
-      .eq('user_profile_id', userId)
-    if (staffError) throw new Error(staffError.message)
-
-    const staffIds = (staffRows ?? []).map(s => s.id)
-    if (staffIds.length === 0) return { shifts: [] }
-
-    const perStaff = await Promise.all(staffIds.map(id => fetchRosterDataForStaff(id)))
-    const shifts = perStaff.flatMap(r => r.shifts).sort((a, b) => a.work_date.localeCompare(b.work_date))
-    return { shifts }
+    // 본인 조회(getMyRoster)와 같은 함수를 쓴다 — 갈라지면 또 한쪽만 틀어진다
+    return fetchRosterDataForUserProfileId(userId)
   })
 }
 
