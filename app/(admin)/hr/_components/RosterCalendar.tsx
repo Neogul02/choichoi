@@ -29,7 +29,10 @@ import StaffTotalsPanel from './StaffTotalsPanel';
 
 interface Props {
   staffList: StaffProfile[];
+  /** 활성 팝업만 — 캐셔 팝업 선택 버튼 줄(클러터 방지) 전용 */
   popups: PopupEvent[];
+  /** 비활성(종료·보관) 팝업 포함 전체 — "전체" 보기에서 과거 팝업 근무 기록을 계속 보여주기 위함 */
+  allPopups: PopupEvent[];
   roleFilter: StaffRole;
   refreshSignal?: number;
   /** 서버(page.tsx)가 프리페치한 당월 데이터 — 첫 로드 시 단위·월이 일치하면 왕복 없이 사용 */
@@ -39,7 +42,7 @@ interface Props {
 /** 2026-10-02 → 10/2 — 범례처럼 좁은 자리에 기간을 넣을 때 쓴다 */
 const mdLabel = (dateStr: string) => `${Number(dateStr.slice(5, 7))}/${Number(dateStr.slice(8))}`;
 
-export default function RosterCalendar({ staffList, popups, roleFilter, refreshSignal, initialData }: Props) {
+export default function RosterCalendar({ staffList, popups, allPopups, roleFilter, refreshSignal, initialData }: Props) {
   // 단위 = 주방 전체 또는 캐셔의 특정 팝업
   const [unit, setUnit] = useState<RosterUnit>({ staffRole: 'kitchen', popupId: null });
 
@@ -93,29 +96,30 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     [staffList, unit],
   );
 
-  // "전체" 보기의 파트 목록은 popup_id 조건 없이 role만으로 모아오므로 비활성 팝업이나
-  // 지금 보는 기간과 무관한(이미 끝났거나 아직 시작 전인) 팝업의 파트까지 섞여 들어온다.
-  // 전체 보기에서는 지금 살아 있는 파트만 남겨 달력·날짜 패널·주간 매트릭스가 한눈에 읽히게 한다.
+  // "전체" 보기의 파트 목록은 popup_id 조건 없이 role만으로 모아오므로 존재하지 않는(삭제된) 팝업이나
+  // 지금 보는 기간과 무관한(이미 끝났거나 아직 시작 전인) 팝업의 파트까지 섞여 들어올 수 있다.
+  // allPopups(비활성 포함 전체) 기준으로만 걸러 — 과거 달로 이동했을 때 보관된(비활성) 팝업의 근무
+  // 기록도 계속 보이게 한다. "존재하는 팝업인지"만 거르고, 나머지는 active_from/to 기간으로 거른다.
   const visibleShifts = useMemo(() => {
     if (!isAllPopups(unit)) return shifts;
-    const activePopupIds = new Set(popups.map(p => p.id)); // popups는 이미 활성 팝업만
+    const knownPopupIds = new Set(allPopups.map(p => p.id));
     return shifts.filter(s => {
-      if (s.popup_id !== null && !activePopupIds.has(s.popup_id)) return false;
+      if (s.popup_id !== null && !knownPopupIds.has(s.popup_id)) return false;
       if (s.active_from && s.active_from > loadTo) return false;
       if (s.active_to && s.active_to < loadFrom) return false;
       return true;
     });
-  }, [shifts, popups, unit, loadFrom, loadTo]);
+  }, [shifts, allPopups, unit, loadFrom, loadTo]);
 
-  // 달력 칸 배경에 깔 팝업 운영 기간 — 전체 보기는 모든 팝업, 개별 보기는 그 팝업 하나.
+  // 달력 칸 배경에 깔 팝업 운영 기간 — 전체 보기는 모든 팝업(비활성 포함), 개별 보기는 그 팝업 하나.
   // 색상 인덱스는 필터 전에 매겨 개별 보기로 좁혀도 팝업 색이 바뀌지 않는다.
   const calendarPopups = useMemo<CalendarPopup[]>(() => {
     if (unit.staffRole !== 'cashier') return [];
-    return [...popups]
+    return [...allPopups]
       .sort((a, b) => a.start_date.localeCompare(b.start_date) || a.id - b.id)
       .map((p, i) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date, colorIdx: i }))
       .filter(p => isAllPopups(unit) || p.id === unit.popupId);
-  }, [popups, unit]);
+  }, [allPopups, unit]);
 
   // 날짜 → 그날 운영 중인 팝업 색을 가로 띠로 나눈 배경. MonthGrid·DayCell이 memo라 참조를 고정해야 한다
   const getDayTint = useCallback(
