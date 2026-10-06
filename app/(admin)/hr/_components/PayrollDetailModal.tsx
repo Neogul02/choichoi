@@ -1,6 +1,5 @@
 'use client'
 
-import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -8,8 +7,7 @@ import {
   fetchAdjustmentPresets, removeAdjustmentPreset,
   type StaffDayDetail, type PayrollAdjustment,
 } from '@/app/actions/payroll'
-import { getWorkerContracts } from '@/app/actions/contracts'
-import type { ContractRecord } from '@/app/actions/contracts'
+import WelfareReportPanel from './WelfareReportPanel'
 import CopyText from '@/components/CopyText'
 import { showMsg } from '@/lib/toast'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
@@ -17,13 +15,6 @@ import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
-
-const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full text-ink-muted text-sm">계약서 로딩 중...</div>
-  ),
-})
 
 // 월별 정산(달력 기준) 또는 팝업별 정산(행사 기간 기준, 월 경계를 넘어가도 한 번에) 중 하나로 조회
 export type PayrollPeriod =
@@ -73,9 +64,6 @@ export default function PayrollDetailModal({
   const [newLabel, setNewLabel] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [copied, setCopied] = useState(false)
-  // 최근 계약서 — 서명 이미지를 포함한 실제 저장 데이터를 그대로 미리보기에 사용 (직원 정보로 새로 조립하지 않음)
-  const [latestContract, setLatestContract] = useState<ContractRecord | null>(null)
-  const [contractsLoaded, setContractsLoaded] = useState(false)
 
   // period.type이 바뀌어도 안전하게 재조회되도록 두 케이스에서 다른 primitive 키를 쓴다
   const detailFetchKey = period.type === 'month' ? `month:${period.year}-${period.month}` : `popup:${period.popupId}`
@@ -87,11 +75,6 @@ export default function PayrollDetailModal({
       setDetails(res.success && res.data ? res.data : [])
     })
     fetchAdjustmentPresets().then(res => { if (res.success && res.data) setPresets(res.data) })
-    setContractsLoaded(false)
-    getWorkerContracts(staffId).then(res => {
-      setLatestContract(res.success && res.data && res.data.length > 0 ? res.data[0] : null)
-      setContractsLoaded(true)
-    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffId, detailFetchKey])
 
@@ -316,7 +299,7 @@ export default function PayrollDetailModal({
                   {details == null
                     ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중...</span>
                     : basePay != null
-                      ? <CopyText value={String(basePay)} label="기본급" toastValue={`${basePay.toLocaleString('ko-KR')}원`}>{basePay.toLocaleString('ko-KR')}원</CopyText>
+                      ? <CopyText value={basePay.toLocaleString('ko-KR')} label="기본급" toastValue={`${basePay.toLocaleString('ko-KR')}원`}>{basePay.toLocaleString('ko-KR')}원</CopyText>
                       : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}
                 </span>
               </div>
@@ -396,7 +379,7 @@ export default function PayrollDetailModal({
                 </div>
                 <span className="text-[18px] font-extrabold text-primary-700">
                   {finalPay != null
-                    ? <CopyText value={String(finalPay)} label="최종 지급액" toastValue={`${finalPay.toLocaleString('ko-KR')}원`}>{finalPay.toLocaleString('ko-KR')}원</CopyText>
+                    ? <CopyText value={finalPay.toLocaleString('ko-KR')} label="최종 지급액" toastValue={`${finalPay.toLocaleString('ko-KR')}원`}>{finalPay.toLocaleString('ko-KR')}원</CopyText>
                     : '—'}
                 </span>
               </div>
@@ -432,34 +415,16 @@ export default function PayrollDetailModal({
         </div>
         </div>{/* 좌측 컬럼 끝 */}
 
-        {/* 우측: 근로계약서 — 실제 저장된 계약서(서명 포함)를 그대로 보여준다 */}
+        {/* 우측: 근로복지공단 단기간근로자 고용신고 서식 작성용 */}
         <div className="border-t md:border-t-0 md:border-l border-hairline flex flex-col w-full md:w-[420px] md:min-w-[420px] min-h-[420px] md:min-h-0">
-          <div className="px-4 py-4 border-b border-hairline bg-canvas-soft flex items-center justify-between gap-2">
-            <div>
-              <p className="m-0 text-[13px] font-bold text-ink">근로계약서</p>
-              <p className="m-0 text-[11px] text-ink-muted mt-0.5">{name} · 최근 계약</p>
-            </div>
-            {latestContract && (
-              latestContract.worker_signed_at ? (
-                <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">서명완료</span>
-              ) : (
-                <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">서명대기</span>
-              )
-            )}
-          </div>
-          <div className="flex-1 min-h-0">
-            {!contractsLoaded ? (
-              <div className="flex items-center justify-center h-full text-ink-muted text-sm">계약서 로딩 중...</div>
-            ) : !latestContract ? (
-              <div className="flex items-center justify-center h-full text-ink-faint text-sm">작성된 근로계약서가 없습니다.</div>
-            ) : latestContract.contract_data ? (
-              <PDFPreviewPanel contractData={latestContract.contract_data} />
-            ) : latestContract.pdf_signed_url ? (
-              <iframe src={latestContract.pdf_signed_url} className="w-full h-full border-none" title="근로계약서" />
-            ) : (
-              <div className="flex items-center justify-center h-full text-ink-faint text-sm">미리보기를 불러올 수 없습니다.</div>
-            )}
-          </div>
+          <WelfareReportPanel
+            staffId={staffId}
+            name={name}
+            phone={phone}
+            period={period}
+            details={details}
+            finalPay={finalPay}
+          />
         </div>
       </div>
     </div>,

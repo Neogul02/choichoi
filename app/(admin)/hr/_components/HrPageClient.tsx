@@ -503,7 +503,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             </div>
 
             {rightTab === 'roster'
-              ? <RosterCalendar staffList={staffList} popups={activePopups} roleFilter={concreteRole} refreshSignal={calendarRefreshKey} initialData={initialRoster ?? undefined} />
+              ? <RosterCalendar staffList={staffList} popups={activePopups} allPopups={initialPopups} roleFilter={concreteRole} refreshSignal={calendarRefreshKey} initialData={initialRoster ?? undefined} />
               : rightTab === 'payroll'
                 ? <PayrollPanel
                     defaultRole={concreteRole}
