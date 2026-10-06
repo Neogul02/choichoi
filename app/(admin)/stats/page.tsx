@@ -1,6 +1,6 @@
 import StatsPageClient from './_components/StatsPageClient';
 import { fetchTodaysSales, fetchTodaysOrdersWithItems } from '@/app/actions/orders';
-import { fetchMenuSalesBreakdown, fetchMonthlySalesCalendar, fetchManualSalesForMonth } from '@/app/actions/stats';
+import { fetchMenuSalesBreakdown, fetchMonthlySalesCalendar, fetchManualSalesForMonth, fetchLifetimeSalesTotals } from '@/app/actions/stats';
 import { fetchPopupEvents } from '@/app/actions/schedule';
 import { getPeriodBounds } from './_lib/period';
 import { kstNow } from '@/lib/date';
@@ -25,11 +25,12 @@ async function getStatsBootstrap() {
     fetchMonthlySalesCalendar(y, m),
     fetchManualSalesForMonth(y, m),
     fetchPopupEvents(),
+    fetchLifetimeSalesTotals(),
   ]);
 }
 
 export default async function StatsPage() {
-  const [summaryRes, ordersRes, breakdownRes, calRes, manualRes, popupsRes] = await getStatsBootstrap();
+  const [summaryRes, ordersRes, breakdownRes, calRes, manualRes, popupsRes, lifetimeRes] = await getStatsBootstrap();
 
   // 수동 입력 매출을 달력 데이터에 병합 — useCalendar.load()와 동일한 형태로 맞춘다
   const manualByDate: Record<string, ManualSalesEntry> = {};
@@ -47,6 +48,7 @@ export default async function StatsPage() {
       initialBreakdown={breakdownRes.success ? breakdownRes.data ?? null : null}
       initialCalendar={initialCalendar}
       initialPopupEvents={popupsRes.success ? popupsRes.data ?? null : null}
+      lifetimeTotals={lifetimeRes.success ? lifetimeRes.data ?? null : null}
     />
   );
 }

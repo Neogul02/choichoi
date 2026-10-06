@@ -12,6 +12,7 @@ import type {
   FetchDailySalesResponse,
   FetchManualSalesResponse,
   CalendarSalesData,
+  LifetimeSalesTotals,
   DailySalesItem,
   MenuSalesItem,
   OrderRecordWithItems,
@@ -363,6 +364,31 @@ async function getOrdersByDate(kstDateStr: string, popupId?: string | number | n
 export async function fetchMonthlySalesCalendar(year: number, month: number): Promise<FetchCalendarResponse> {
   return wrap(async () => { await requireAdmin(); return getMonthlySalesByDate(year, month); });
 }
+/** 첫 팝업 시작일부터 오늘까지의 누적 매출 — 통계탭 "누적 총매출" 칸 전용 */
+export async function fetchLifetimeSalesTotals(): Promise<ApiResponse<LifetimeSalesTotals>> {
+  return wrap(async () => {
+    await requireAdmin()
+    const { data, error } = await supabaseAdmin.rpc('get_lifetime_sales_totals')
+    if (error) throw error
+    const row = (data ?? [])[0] as {
+      total_revenue: number | string | null
+      total_orders: number | string | null
+      day_count: number | null
+      first_date: string | null
+      last_date: string | null
+      popup_count: number | null
+    } | undefined
+    return {
+      totalRevenue: Number(row?.total_revenue ?? 0),
+      totalOrders: Number(row?.total_orders ?? 0),
+      dayCount: Number(row?.day_count ?? 0),
+      firstDate: row?.first_date ?? null,
+      lastDate: row?.last_date ?? null,
+      popupCount: Number(row?.popup_count ?? 0),
+    }
+  })
+}
+
 export async function fetchMenuSalesBreakdown(startISO: string, endISO: string, popupId?: string | null): Promise<FetchMenuSalesResponse> {
   return wrap(async () => { await requireAdmin(); return getMenuSalesByPeriod(startISO, endISO, popupId); });
 }

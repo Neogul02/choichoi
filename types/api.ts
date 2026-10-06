@@ -35,6 +35,18 @@ export interface CalendarSalesData {
   manualByDate: Record<string, ManualSalesEntry>;
 }
 
+/** 첫 팝업 시작일부터 오늘까지의 누적 집계 — 통계탭 전용 (get_lifetime_sales_totals RPC) */
+export interface LifetimeSalesTotals {
+  totalRevenue: number;
+  totalOrders: number;
+  /** 매출이 있었던 날 수 */
+  dayCount: number;
+  /** YYYY-MM-DD, 데이터가 전혀 없으면 null */
+  firstDate: string | null;
+  lastDate: string | null;
+  popupCount: number;
+}
+
 export interface OrderRecord {
   id: number;
   total_price: number;
