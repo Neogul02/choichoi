@@ -377,6 +377,7 @@ export async function fetchLifetimeSalesTotals(): Promise<ApiResponse<LifetimeSa
       first_date: string | null
       last_date: string | null
       popup_count: number | null
+      sando_count: number | string | null
     } | undefined
     return {
       totalRevenue: Number(row?.total_revenue ?? 0),
@@ -385,6 +386,7 @@ export async function fetchLifetimeSalesTotals(): Promise<ApiResponse<LifetimeSa
       firstDate: row?.first_date ?? null,
       lastDate: row?.last_date ?? null,
       popupCount: Number(row?.popup_count ?? 0),
+      sandoCount: Number(row?.sando_count ?? 0),
     }
   })
 }
