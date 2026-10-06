@@ -59,8 +59,7 @@ async function getMonthlySalesByDate(year: number, month: number): Promise<Calen
   if (error) throw error
 
   const byDate: Record<string, number> = {}
-  let monthTotal = 0
-  let totalOrders = 0
+  const ordersByDate: Record<string, number> = {}
 
   for (const row of (data ?? []) as Array<{
     sale_date: string
@@ -68,11 +67,16 @@ async function getMonthlySalesByDate(year: number, month: number): Promise<Calen
     order_count: number
   }>) {
     byDate[row.sale_date] = Number(row.total_revenue)
-    monthTotal += Number(row.total_revenue)
-    totalOrders += Number(row.order_count)
+    ordersByDate[row.sale_date] = Number(row.order_count)
   }
 
-  return { byDate, monthTotal, totalOrders, manualByDate: {} }
+  // 합계는 날짜별 값에서 파생시킨다 — 달력 칸이 읽는 byDate와 상단 월 합계가 구조적으로 어긋날 수 없다.
+  // 예전에는 루프 안에서 monthTotal에 행마다 더했는데, RPC가 같은 날짜에 행을 둘(POS + 수동) 돌려주면
+  // byDate는 덮어써서 하나만 남고 monthTotal만 두 번 더해져 월 매출이 부풀려졌다
+  // (20261006121810 마이그레이션에서 RPC도 날짜당 1행으로 고쳤다).
+  const sum = (m: Record<string, number>) => Object.values(m).reduce((a, b) => a + b, 0)
+
+  return { byDate, monthTotal: sum(byDate), totalOrders: sum(ordersByDate), manualByDate: {} }
 }
 
 async function getDailySalesByPeriod(
