@@ -7,11 +7,15 @@ import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { fetchRosterShifts, bulkAddRosterAssignments } from '@/app/actions/roster'
 import type { RosterUnit } from '@/app/actions/roster'
-import type { StaffProfile, RosterShift } from '@/types/database'
-import { DAY_NAMES as DAY_LABELS } from '@/lib/staffing'
+import type { StaffProfile, RosterShift, PopupEvent } from '@/types/database'
+import { DAY_NAMES as DAY_LABELS, pickOngoingPopup } from '@/lib/staffing'
+import { kstToday } from '@/lib/date'
+import { getPopupPeriod } from '@/lib/popupPeriod'
 
 interface Props {
   staff: StaffProfile
+  /** 활성 팝업 목록 — 기간을 팝업 운영 기간으로 한 번에 맞추는 빠른 선택에 쓴다 */
+  popups: PopupEvent[]
   onClose: () => void
   onAssigned: (count: number) => void
 }
@@ -24,18 +28,38 @@ function dateStr(y: number, m: number, d: number) {
   return `${y}-${pad(m + 1)}-${pad(d)}`
 }
 
-export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) {
+/** 10/2 — 좁은 칩 안에 기간을 넣을 때 */
+const mdLabel = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`
+
+export default function StaffAssignModal({ staff, popups, onClose, onAssigned }: Props) {
   useBodyScrollLock()
   const unit: RosterUnit = { staffRole: staff.staff_role, popupId: staff.popup_id }
 
   const [shifts, setShifts] = useState<RosterShift[]>([])
   const [shiftId, setShiftId] = useState<number | null>(null)
 
-  const now = new Date()
-  const todayStr = dateStr(now.getFullYear(), now.getMonth(), now.getDate())
-  const [fromDate, setFromDate] = useState(todayStr)
-  const [toDate, setToDate] = useState('')
+  // 접속 시각(KST) 기준 오늘 — 브라우저 로컬 타임존을 쓰면 해외/서버 시간대에서 하루가 밀린다
+  const todayStr = kstToday()
+  // 기간 기본값 — 양쪽을 비워두면 날짜 입력기가 연도부터 고르게 해 매번 스크롤해야 했다.
+  // 캐셔는 소속 팝업을 위해 뽑은 인원이라 그 팝업의 운영 기간이 맞고,
+  // 주방은 팝업과 무관하게 상시 근무하므로 오늘 하루로 두고 팝업 칩으로 넓히게 한다.
+  const defaultRange = (() => {
+    const own = staff.popup_id != null ? popups.find(p => p.id === staff.popup_id) : undefined
+    const base = own ?? (staff.staff_role === 'cashier' ? pickOngoingPopup(popups, todayStr) : null)
+    return base ? { from: base.start_date, to: base.end_date } : { from: todayStr, to: todayStr }
+  })()
+  const [fromDate, setFromDate] = useState(defaultRange.from)
+  const [toDate, setToDate] = useState(defaultRange.to)
   const [selectedDays, setSelectedDays] = useState<boolean[]>([true, true, true, true, true, true, true])
+
+  // 기간 빠른 선택 — 진행중·예정 팝업을 앞에, 종료된 팝업은 최근 것부터 뒤에
+  const popupChips = (() => {
+    const rank: Record<string, number> = { 진행중: 0, 예정: 1, 종료: 2 }
+    return [...popups]
+      .map(p => ({ popup: p, status: getPopupPeriod(p, todayStr).status }))
+      .sort((a, b) =>
+        rank[a.status] - rank[b.status] || b.popup.start_date.localeCompare(a.popup.start_date))
+  })()
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -137,6 +161,45 @@ export default function StaffAssignModal({ staff, onClose, onAssigned }: Props) 
           {/* 날짜 범위 */}
           <div>
             <label className="block text-[11px] font-bold text-ink-muted uppercase tracking-wide mb-1.5">기간</label>
+            {popupChips.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {popupChips.map(({ popup, status }) => {
+                  const picked = fromDate === popup.start_date && toDate === popup.end_date
+                  return (
+                    <button
+                      key={popup.id}
+                      type="button"
+                      onClick={() => { setFromDate(popup.start_date); setToDate(popup.end_date) }}
+                      title={`${popup.name} ${popup.start_date} ~ ${popup.end_date}`}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer max-w-full ${
+                        picked
+                          ? 'bg-primary-700 text-white border-primary-700'
+                          : 'bg-canvas-soft text-ink-muted border-hairline hover:border-primary-300'
+                      }`}
+                    >
+                      <span className="truncate max-w-[110px]">{popup.name}</span>
+                      <span className={`tabular-nums ${picked ? 'opacity-80' : 'text-ink-faint'}`}>
+                        {mdLabel(popup.start_date)}~{mdLabel(popup.end_date)}
+                      </span>
+                      {status !== '종료' && (
+                        <span className={`text-[9px] ${picked ? 'opacity-80' : 'text-primary-600'}`}>{status}</span>
+                      )}
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={() => { setFromDate(todayStr); setToDate(todayStr) }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                    fromDate === todayStr && toDate === todayStr
+                      ? 'bg-primary-700 text-white border-primary-700'
+                      : 'bg-canvas-soft text-ink-muted border-hairline hover:border-primary-300'
+                  }`}
+                >
+                  오늘
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 type="date"

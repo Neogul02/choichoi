@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import type { StaffRole } from '@/types/database'
-import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours'
+import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import { getAuthUser, isNextInternalControlFlowError, requireManagerOrAdmin, wrap } from './_base'
 
@@ -58,7 +58,8 @@ export async function fetchStaffAssignmentsInRange(
       return {
         date: a.work_date,
         dayName: DAY_KO[d.getDay()],
-        shiftName: shift?.name ?? '파트 미정',
+        // 파트가 삭제·비활성됐으면 이름 대신 실제 근무 시간대를 보여준다 (예전엔 '파트 미정'으로만 표시)
+        shiftName: shift?.name ?? formatTimeRange(a.start_time ?? '00:00', a.end_time ?? '00:00'),
         // 근로계약서에 들어가는 시간 — 개별 수정된 근무 시간이 있으면 그 값이 실제 근무 조건이다
         startTime: a.start_time ?? shift?.start_time ?? '00:00',
         endTime: a.end_time ?? shift?.end_time ?? '00:00',
@@ -197,7 +198,7 @@ function mapAssignmentsToDetails(rows: AssignmentDetailRow[]): StaffDayDetail[] 
     const paid = paidMinutes(startTime, endTime, a.break_minutes, shift?.break_minutes)
     return {
       date: a.work_date,
-      shiftName: shift?.name ?? '파트 미정',
+      shiftName: shift?.name ?? formatTimeRange(startTime, endTime),
       startTime: startTime.slice(0, 5),
       endTime: endTime.slice(0, 5),
       hours: minutesToHours(paid),
@@ -261,15 +262,17 @@ export async function fetchMonthlyPayroll(
 
     const totals = new Map<number, { days: number; minutes: number }>()
     for (const a of assignRes.data ?? []) {
+      // 파트 행이 없어도(삭제·비활성 팝업 등) 근무 사실은 유효하다 — 예전에는 여기서 continue로 건너뛰어
+      // 그 사람의 급여가 조용히 0원이 됐다. 시간·휴게는 배정 행에 확정 기록돼 있으므로 파트는 보조값일 뿐이다.
       const shift = shiftMap.get(a.shift_id)
-      if (!shift) continue
       // 팝업 이벤트 종료 후 남은 유령 배정은 급여 합계에서 제외 (fetchStaffMonthlyDetail과 동일 기준)
       const peRaw = a.popup_events
       const pe = (Array.isArray(peRaw) ? peRaw[0] : peRaw) as { start_date: string; end_date: string } | null
       if (pe && (a.work_date < pe.start_date || a.work_date > pe.end_date)) continue
-      const startStr: string = a.start_time ?? shift.start_time
-      const endStr: string = a.end_time ?? shift.end_time
-      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift.break_minutes)
+      const startStr = a.start_time ?? shift?.start_time
+      const endStr = a.end_time ?? shift?.end_time
+      if (!startStr || !endStr) continue // 시간이 전혀 없는 행은 계산 불가 — 백필 이후로는 존재하지 않는다
+      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift?.break_minutes)
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }
@@ -322,13 +325,14 @@ export async function fetchPopupPayroll(popupId: number): Promise<ApiResponse<Po
 
     const totals = new Map<number, { days: number; minutes: number }>()
     for (const a of assignRes.data ?? []) {
+      // 파트 행이 없어도 집계에서 빼지 않는다 (fetchMonthlyPayroll과 동일한 이유)
       const shift = shiftMap.get(a.shift_id)
-      if (!shift) continue
       // 팝업 기간 밖 날짜로 남은 배정은 제외 (fetchStaffMonthlyDetail과 동일 기준의 방어 로직)
       if (a.work_date < popup.start_date || a.work_date > popup.end_date) continue
-      const startStr: string = a.start_time ?? shift.start_time
-      const endStr: string = a.end_time ?? shift.end_time
-      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift.break_minutes)
+      const startStr = a.start_time ?? shift?.start_time
+      const endStr = a.end_time ?? shift?.end_time
+      if (!startStr || !endStr) continue
+      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift?.break_minutes)
       const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
       totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
     }

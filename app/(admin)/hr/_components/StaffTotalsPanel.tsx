@@ -18,9 +18,13 @@ export default function StaffTotalsPanel({ staffList, shifts, assignments, isLoa
     const shiftById = new Map(shifts.map(s => [s.id, s]));
     const acc = new Map<number, { days: Set<string>; minutes: number }>();
     for (const a of assignments) {
+      // 파트 행을 못 찾아도(비활성 팝업·삭제된 파트) 근무 사실은 유효하다 — 예전에는 continue로 건너뛰어
+      // 합계에서 그 사람의 시간이 조용히 사라졌다. 시간·휴게는 배정 행에 확정 기록돼 있다.
       const shift = shiftById.get(a.shift_id);
-      if (!shift) continue;
-      const mins = paidMinutes(a.start_time ?? shift.start_time, a.end_time ?? shift.end_time, a.break_minutes, shift.break_minutes);
+      const start = a.start_time ?? shift?.start_time;
+      const end = a.end_time ?? shift?.end_time;
+      if (!start || !end) continue;
+      const mins = paidMinutes(start, end, a.break_minutes, shift?.break_minutes);
       let entry = acc.get(a.staff_id);
       if (!entry) { entry = { days: new Set(), minutes: 0 }; acc.set(a.staff_id, entry); }
       entry.days.add(a.work_date);

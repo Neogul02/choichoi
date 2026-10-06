@@ -130,10 +130,13 @@ export default function WeekMatrix({
                           } ${shiftTextColor(info?.idx ?? 0)}`}
                         >
                           {reasons && '⚠️'}
-                          {info ? getShiftLabel(info.shift) : '?'}
-                          {(a.start_time || a.end_time) && (
+                          {/* 파트 행을 못 찾으면(비활성 팝업·삭제된 파트) '?' 대신 실제 근무 시간대를 라벨로 쓴다 */}
+                          {info
+                            ? getShiftLabel(info.shift)
+                            : formatTimeRange(a.start_time ?? '00:00', a.end_time ?? '00:00')}
+                          {info && (a.start_time || a.end_time) && (
                             <span className="ml-0.5 font-semibold opacity-70">
-                              {formatTimeRange(a.start_time ?? info?.shift.start_time ?? '00:00', a.end_time ?? info?.shift.end_time ?? '00:00')}
+                              {formatTimeRange(a.start_time ?? info.shift.start_time, a.end_time ?? info.shift.end_time)}
                             </span>
                           )}
                         </span>
