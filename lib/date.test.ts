@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, dayGroup, monthEndDateStr, kstToday, getKSTDateBounds, utcToKst, utcToKstDateStr } from './date'
+import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, monthEndDateStr, kstToday, getKSTDateBounds, utcToKst, utcToKstDateStr } from './date'
 
 describe('addDays / prevDate', () => {
   it('월 경계를 넘는다', () => {
@@ -38,18 +38,11 @@ describe('ymdToDateStr / monthEndDateStr', () => {
   })
 })
 
-describe('dayOfWeek / dayGroup', () => {
+describe('dayOfWeek', () => {
   it('요일을 구한다 (2026-08-02는 일요일)', () => {
     expect(dayOfWeek('2026-08-02')).toBe(0)
     expect(dayOfWeek('2026-08-03')).toBe(1)
     expect(dayOfWeek('2026-08-08')).toBe(6)
-  })
-
-  it('목금토=A, 일월화수=B', () => {
-    expect(dayGroup('2026-08-06')).toBe('A') // 목
-    expect(dayGroup('2026-08-08')).toBe('A') // 토
-    expect(dayGroup('2026-08-02')).toBe('B') // 일
-    expect(dayGroup('2026-08-05')).toBe('B') // 수
   })
 })
 

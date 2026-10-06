@@ -582,6 +582,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
       {assigning.value && (
         <StaffAssignModal
           staff={assigning.value}
+          popups={activePopups}
           onClose={assigning.close}
           onAssigned={(count) => {
             showMsg(count > 0 ? `${count}일 배정 완료` : '새로 배정된 날짜가 없습니다 (이미 배정됨)');

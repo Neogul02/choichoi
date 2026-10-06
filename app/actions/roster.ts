@@ -2,14 +2,12 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
-import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffProfile, StaffRole } from '@/types/database'
-import { getWeekStart, DAY_NAMES, requiredFor, toMinutes } from '@/lib/staffing'
+import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffRole } from '@/types/database'
+import { DAY_NAMES } from '@/lib/staffing'
 import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours'
-import { parseDate, toDateStr, addDays, dayGroup, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
+import { parseDate, addDays, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
-import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftStartPriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups } from '@/lib/roster/query-helpers'
-import type { InsertRow, GreedyCtx } from '@/lib/roster/autofill'
-import { scoreInserts, shuffleStaff, runGreedy } from '@/lib/roster/autofill'
+import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftStartPriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups, materializeFromShift } from '@/lib/roster/query-helpers'
 
 // 스케줄 단위(unit) = 주방 전체(popupId null) 또는 캐셔의 특정 팝업
 export interface RosterUnit {
@@ -43,23 +41,12 @@ export interface RosterAssignmentSnapshot {
   popup_id: number | null
   start_time: string | null
   end_time: string | null
+  break_minutes: number | null
 }
 
 export interface RosterUndoPayload {
   deleted: RosterAssignmentSnapshot[]
-  updated: { id: number; shift_id?: number; staff_id?: number; start_time?: string | null; end_time?: string | null }[]
-}
-
-export interface AutoFillLogEntry {
-  date: string
-  shiftName: string
-  names: string[]
-}
-
-export interface AutoFillResult {
-  added: number
-  holes: { date: string; shiftName: string; missing: number }[]
-  log: AutoFillLogEntry[]
+  updated: { id: number; shift_id?: number; staff_id?: number; start_time?: string | null; end_time?: string | null; break_minutes?: number | null }[]
 }
 
 export interface MyShift {
@@ -253,13 +240,19 @@ export async function addRosterAssignment(
     // 일반 모드에서는 shift.popup_id === unit.popupId라 동작이 그대로다.
     const { data: shift, error: shiftError } = await supabaseAdmin
       .from('roster_shifts')
-      .select('popup_id')
+      .select('popup_id, start_time, end_time, break_minutes')
       .eq('id', shiftId)
       .single()
     if (shiftError || !shift) throw new Error('파트 정보를 찾을 수 없습니다.')
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
-      .insert([{ work_date: workDate, shift_id: shiftId, staff_id: staffId, staff_role: unit.staffRole, popup_id: shift.popup_id }])
+      .insert([{
+        work_date: workDate, shift_id: shiftId, staff_id: staffId,
+        staff_role: unit.staffRole, popup_id: shift.popup_id,
+        // 파트 시간을 빌려 쓰지 않고 이 근무일의 확정 시간으로 복사해 둔다 — 파트를 나중에 수정·삭제해도
+        // 이미 기록된 근로내역이 흔들리지 않는다 (20261006164500 마이그레이션과 같은 기준).
+        ...materializeFromShift(shift),
+      }])
       .select(ASSIGNMENT_COLUMNS)
       .single()
     if (error) {
@@ -358,9 +351,15 @@ export async function moveStaffAssignments(
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 편집을 사용할 수 없습니다. 팝업을 선택하세요.')
     if (fromShiftId === toShiftId) throw new Error('같은 파트로는 이동할 수 없습니다.')
+    const { data: toShift, error: toShiftError } = await supabaseAdmin
+      .from('roster_shifts')
+      .select('start_time, end_time, break_minutes')
+      .eq('id', toShiftId)
+      .single()
+    if (toShiftError || !toShift) throw new Error('대상 파트 정보를 찾을 수 없습니다.')
     // 원본 배정과 대상 파트의 기존 배정을 함께 조회 — 같은 날 대상 파트에 이미 있으면 unique 충돌
     const { data, error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, start_time, end_time'),
+      supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, start_time, end_time, break_minutes'),
       unit,
     )
       .eq('staff_id', staffId)
@@ -368,17 +367,18 @@ export async function moveStaffAssignments(
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
     if (error) throw new Error(error.message)
-    const rows = (data ?? []) as { id: number; work_date: string; shift_id: number; start_time: string | null; end_time: string | null }[]
+    const rows = (data ?? []) as { id: number; work_date: string; shift_id: number; start_time: string | null; end_time: string | null; break_minutes: number | null }[]
     const targetDates = new Set(rows.filter(r => r.shift_id === toShiftId).map(r => r.work_date))
     const source = rows.filter(r => r.shift_id === fromShiftId)
     const toMove = source.filter(r => !targetDates.has(r.work_date))
     const toMerge = source.filter(r => targetDates.has(r.work_date))
 
     if (toMove.length > 0) {
-      // 개별 시간 오버라이드는 이전 파트 기준 시간이므로 파트 기본 시간으로 리셋
+      // 기존 시간은 이전 파트 기준이므로 대상 파트의 시간·휴게로 바꿔 쓴다.
+      // NULL로 비우면 다시 파트 조인에 의존하게 되므로 확정값을 그대로 기록한다.
       const { error: moveError } = await supabaseAdmin
         .from('roster_assignments')
-        .update({ shift_id: toShiftId, start_time: null, end_time: null })
+        .update({ shift_id: toShiftId, ...materializeFromShift(toShift) })
         .in('id', toMove.map(r => r.id))
       if (moveError) throw new Error(moveError.message)
     }
@@ -393,9 +393,9 @@ export async function moveStaffAssignments(
       deleted: toMerge.map(r => ({
         work_date: r.work_date, shift_id: fromShiftId, staff_id: staffId,
         staff_role: unit.staffRole, popup_id: unit.popupId,
-        start_time: r.start_time, end_time: r.end_time,
+        start_time: r.start_time, end_time: r.end_time, break_minutes: r.break_minutes,
       })),
-      updated: toMove.map(r => ({ id: r.id, shift_id: fromShiftId, start_time: r.start_time, end_time: r.end_time })),
+      updated: toMove.map(r => ({ id: r.id, shift_id: fromShiftId, start_time: r.start_time, end_time: r.end_time, break_minutes: r.break_minutes })),
     }
     return { moved: toMove.length, merged: toMerge.length, undo }
   })
@@ -510,119 +510,6 @@ export async function clearShiftRequirement(workDate: string, shiftId: number): 
   })
 }
 
-/**
- * 빈 자리 자동 배정 (fromDate~toDate, 양끝 포함). 단위(주방/팝업)별로 독립 동작.
- * - 해당 단위의 확정(confirmed) 직원만 대상
- * - 파트/요일/가용기간 조건이 모두 맞는 직원만 배정
- * - 같은 날 여러 파트 중복 배정 금지
- * - 주 최대 근무일(max_days_per_week) 초과 배정 금지 (주 = 일~토, 달력 표시 기준)
- * - 기간 내 근무일이 적은 직원부터 우선 배정해 균등하게 분배
- */
-export async function autoFillRoster(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<AutoFillResult>> {
-  return wrap(async () => {
-    await requireAdmin()
-    if (isAllPopups(unit)) throw new Error('전체 보기에서는 자동 채우기를 사용할 수 없습니다. 팝업을 선택하세요.')
-    const shiftsRes = await fetchRosterShifts(unit)
-    if (!shiftsRes.success || !shiftsRes.data) throw new Error(shiftsRes.error ?? '파트를 불러올 수 없습니다.')
-    const shifts = shiftsRes.data
-    const shiftIds = shifts.map(s => s.id)
-
-    const weekFrom = getWeekStart(fromDate)
-    const weekTo = addDays(getWeekStart(toDate), 6)
-    // 자동배정 알고리즘(lib/roster/autofill.ts)이 실제 쓰는 컬럼만 select — available_ranges(jsonb) 등 불필요한 컬럼 제외
-    const staffQuery = supabaseAdmin
-      .from('staff_profiles')
-      .select('id, name, max_days_per_week, preferred_shift_ids, preferred_days, available_ranges')
-      .eq('status', 'confirmed')
-      .eq('staff_role', unit.staffRole)
-    const [staffRes, assignRes, reqRes] = await Promise.all([
-      unit.popupId === null ? staffQuery.is('popup_id', null) : staffQuery.eq('popup_id', unit.popupId),
-      applyUnitFilter(
-        supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id, start_time, end_time'),
-        unit,
-      )
-        .gte('work_date', weekFrom)
-        .lte('work_date', weekTo),
-      supabaseAdmin
-        .from('roster_shift_requirements')
-        .select('*')
-        .in('shift_id', shiftIds)
-        .gte('work_date', fromDate)
-        .lte('work_date', toDate),
-    ])
-    if (staffRes.error) throw new Error(staffRes.error.message)
-    if (assignRes.error) throw new Error(assignRes.error.message)
-    if (reqRes.error) throw new Error(reqRes.error.message)
-
-    const staff = (staffRes.data ?? []) as StaffProfile[]
-    const overrides = Object.fromEntries((reqRes.data ?? []).map(q => [`${q.work_date}|${q.shift_id}`, q.required as number]))
-
-    // 캘린더 화면(RosterCalendar)이 쓰는 requiredFor와 동일 규칙 — 기간 무제한 파트는 override 없는 날짜에 자동 배정하지 않는다
-    const getRequired = (dateStr: string, shift: RosterShift): number => requiredFor(dateStr, shift, overrides)
-
-    const shiftById = new Map(shifts.map(s => [s.id, s]))
-    const filledCount = new Map<string, number>()         // `${date}|${shift_id}` → 배정 수
-    const assignedByDate = new Map<string, Set<number>>() // date → 그날 배정된 staff_id
-    const workload = new Map<number, number>()             // staff_id → 기간 내 근무일 수
-    const weeklyCount = new Map<string, number>()          // `${staff_id}|${주 시작일}` → 주 근무일 수
-    const groupLoad = new Map<string, number>()            // `${staff_id}|${그룹}` → 목금토/일월화수 그룹 내 근무일 수
-    const staffEndByDate = new Map<string, number>()       // `${date}|${staff_id}` → 그날 00:00 기준 퇴근 시각(분, 자정 넘기면 1440 초과)
-    for (const a of assignRes.data ?? []) {
-      filledCount.set(`${a.work_date}|${a.shift_id}`, (filledCount.get(`${a.work_date}|${a.shift_id}`) ?? 0) + 1)
-      if (!assignedByDate.has(a.work_date)) assignedByDate.set(a.work_date, new Set())
-      assignedByDate.get(a.work_date)!.add(a.staff_id)
-      workload.set(a.staff_id, (workload.get(a.staff_id) ?? 0) + 1)
-      weeklyCount.set(`${a.staff_id}|${getWeekStart(a.work_date)}`, (weeklyCount.get(`${a.staff_id}|${getWeekStart(a.work_date)}`) ?? 0) + 1)
-      const grpKey = `${a.staff_id}|${dayGroup(a.work_date)}`
-      groupLoad.set(grpKey, (groupLoad.get(grpKey) ?? 0) + 1)
-      // 실제 퇴근 시각 — 개별 시간 오버라이드가 있으면 그 값이 진짜 퇴근 시각이다 (findRosterViolations와 동일 규칙)
-      const sh = shiftById.get(a.shift_id)
-      if (sh) {
-        const st = a.start_time ?? sh.start_time
-        staffEndByDate.set(`${a.work_date}|${a.staff_id}`, toMinutes(st) + shiftRawMinutes(st, a.end_time ?? sh.end_time))
-      }
-    }
-
-    const dates: string[] = []
-    for (const cur = parseDate(fromDate), end = parseDate(toDate); cur <= end; cur.setDate(cur.getDate() + 1))
-      dates.push(toDateStr(cur))
-
-    const existingAssignments = (assignRes.data ?? []) as { work_date: string; staff_id: number }[]
-    const ctx: GreedyCtx = {
-      dates, shifts, shiftById, getRequired,
-      filledCount, assignedByDate, workload, weeklyCount, groupLoad, staffEndByDate,
-      unit,
-    }
-
-    // 12개 후보 생성 → 연속성 점수 최저 채택
-    const CANDIDATES = 12
-    let bestInserts: InsertRow[] = []
-    let bestHoles: AutoFillResult['holes'] = []
-    let bestLog: AutoFillLogEntry[] = []
-    let bestScore = Infinity
-
-    for (let trial = 0; trial < CANDIDATES; trial++) {
-      const staffList = trial === 0 ? [...staff] : shuffleStaff(staff, trial)
-      const candidate = runGreedy(staffList, ctx)
-      const score = scoreInserts(candidate.inserts, existingAssignments, fromDate, toDate)
-      if (score < bestScore) {
-        bestScore = score
-        bestInserts = candidate.inserts
-        bestHoles = candidate.holes
-        bestLog = candidate.log
-        if (bestScore === 0) break // 고립 근무일 없음 — 이보다 좋은 결과 없으므로 조기종료
-      }
-    }
-
-    if (bestInserts.length > 0) {
-      const { error: insertError } = await supabaseAdmin.from('roster_assignments').insert(bestInserts)
-      if (insertError) throw new Error(insertError.message)
-    }
-
-    return { added: bestInserts.length, holes: bestHoles, log: bestLog }
-  })
-}
-
 export async function bulkAddRosterAssignments(
   unit: RosterUnit,
   shiftId: number,
@@ -633,12 +520,20 @@ export async function bulkAddRosterAssignments(
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 배정을 사용할 수 없습니다. 팝업을 선택하세요.')
     if (dates.length === 0) return { added: 0, skipped: 0 }
+    const { data: shift, error: shiftError } = await supabaseAdmin
+      .from('roster_shifts')
+      .select('start_time, end_time, break_minutes')
+      .eq('id', shiftId)
+      .single()
+    if (shiftError || !shift) throw new Error('파트 정보를 찾을 수 없습니다.')
+    const materialized = materializeFromShift(shift)
     const inserts = dates.map(date => ({
       work_date: date,
       shift_id: shiftId,
       staff_id: staffId,
       staff_role: unit.staffRole,
       popup_id: unit.popupId,
+      ...materialized,
     }))
     const { data, error } = await supabaseAdmin
       .from('roster_assignments')
@@ -659,7 +554,7 @@ export async function copyPreviousWeek(
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 지난주 복사를 사용할 수 없습니다. 팝업을 선택하세요.')
     const { data, error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_assignments').select('work_date, shift_id, staff_id, start_time, end_time'),
+      supabaseAdmin.from('roster_assignments').select('work_date, shift_id, staff_id, start_time, end_time, break_minutes'),
       unit,
     )
       .gte('work_date', addDays(weekStart, -7))
@@ -676,6 +571,8 @@ export async function copyPreviousWeek(
         popup_id: unit.popupId,
         start_time: a.start_time,
         end_time: a.end_time,
+        // 휴게 오버라이드도 함께 복사한다 — 빠뜨리면 복사된 주만 기본 휴게로 계산돼 급여가 어긋났다
+        break_minutes: a.break_minutes,
       }))
       .filter(r => r.work_date >= today)
     if (candidates.length === 0) return { added: 0, skipped: 0 }

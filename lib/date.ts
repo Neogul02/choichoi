@@ -61,6 +61,3 @@ export const monthEndDateStr = (y: number, m: number): string => {
 export const prevDate = (s: string): string => addDays(s, -1)
 
 export const dayOfWeek = (s: string): number => parseDate(s).getDay()
-
-// 목금토(4,5,6)='A', 일월화수(0,1,2,3)='B'
-export const dayGroup = (s: string): 'A' | 'B' => (dayOfWeek(s) >= 4 ? 'A' : 'B')

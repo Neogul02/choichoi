@@ -10,7 +10,6 @@ interface Props {
   weekEndStr: string;
   todayStr: string;
   isLoading: boolean;
-  isAutoFilling: boolean;
   /** 캐셔 "전체" 보기 — 특정 팝업에 귀속되는 일괄/파트 편집 액션은 비활성화(단건 배정 추가/삭제는 계속 가능) */
   disableUnitActions?: boolean;
   setCursor: Dispatch<SetStateAction<{ y: number; m: number } | null>>;
@@ -20,7 +19,6 @@ interface Props {
   syncCursorToDate: (ds: string) => void;
   onCopyPrevWeek: () => void;
   onCopyWeekText: () => void;
-  onAutoFill: () => void;
   onClearRoster: () => void;
   onShowBulkEdit: () => void;
   onShowShiftManage: () => void;
@@ -28,9 +26,9 @@ interface Props {
 
 /** 달력 헤더 툴바 — 월/주 이동, 뷰 토글, 지난주 복사·자동 채우기 등 액션 버튼 */
 export default function CalendarToolbar({
-  viewMode, cursor, weekStart, weekEndStr, todayStr, isLoading, isAutoFilling, disableUnitActions,
+  viewMode, cursor, weekStart, weekEndStr, todayStr, isLoading, disableUnitActions,
   setCursor, setWeekStart, moveWeek, switchView, syncCursorToDate,
-  onCopyPrevWeek, onCopyWeekText, onAutoFill, onClearRoster, onShowBulkEdit, onShowShiftManage,
+  onCopyPrevWeek, onCopyWeekText, onClearRoster, onShowBulkEdit, onShowShiftManage,
 }: Props) {
   const unitActionTitle = disableUnitActions ? '전체 보기에서는 사용할 수 없습니다 — 팝업을 선택하세요' : undefined;
   return (
@@ -109,14 +107,6 @@ export default function CalendarToolbar({
             </button>
           </>
         )}
-        <button
-          onClick={onAutoFill}
-          disabled={isAutoFilling || isLoading || disableUnitActions}
-          title={unitActionTitle}
-          className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg border-none bg-primary-700 text-white text-[11px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isAutoFilling ? '배정 중...' : '자동 채우기'}
-        </button>
         <button
           onClick={onClearRoster}
           disabled={isLoading || disableUnitActions}

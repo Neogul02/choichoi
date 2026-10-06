@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { showMsg } from '@/lib/toast';
+import { resolveBreakMinutes } from '@/lib/workhours';
 import {
   fetchRosterRange, addRosterAssignment, removeRosterAssignment,
   updateRosterAssignmentTime, updateRosterAssignmentBreak, setShiftRequirement, clearShiftRequirement,
@@ -98,6 +99,9 @@ export function useRosterRange({
   // useCallback로 안정화 — MonthGrid에 이 함수(경유 핸들러)를 props로 내려 memo 경계를 두기 위함
   const handleAdd = useCallback(async (dateStr: string, shiftId: number, staffId: number) => {
     const staff = staffList.find(s => s.id === staffId);
+    // 서버도 파트 시간을 확정값으로 복사해 저장하므로(addRosterAssignment) 낙관적 행도 같은 값을 보여준다 —
+    // null로 두면 저장 직후 "기본시간"이 잠깐 보였다가 실제 시간으로 바뀌어 깜빡였다.
+    const shift = shifts.find(s => s.id === shiftId);
     const tempId = tempIdRef.current--;
     const optimistic: RosterAssignment = {
       id: tempId,
@@ -106,9 +110,9 @@ export function useRosterRange({
       staff_id: staffId,
       staff_role: unit.staffRole,
       popup_id: unit.popupId,
-      start_time: null,
-      end_time: null,
-      break_minutes: null,
+      start_time: shift?.start_time ?? null,
+      end_time: shift?.end_time ?? null,
+      break_minutes: shift ? resolveBreakMinutes(null, shift.break_minutes) : null,
       created_at: new Date().toISOString(),
       staff_profiles: staff ? { id: staff.id, name: staff.name, phone: staff.phone, status: staff.status } : undefined,
     };
@@ -121,7 +125,7 @@ export function useRosterRange({
       setAssignments(p => p.filter(a => a.id !== tempId));
       showMsg(`오류: ${r.error}`);
     }
-  }, [staffList, unit, invalidatePayroll]);
+  }, [staffList, shifts, unit, invalidatePayroll]);
 
   // 낙관적 삭제 — 즉시 제거 후 실패 시 원복
   const handleRemove = async (id: number) => {

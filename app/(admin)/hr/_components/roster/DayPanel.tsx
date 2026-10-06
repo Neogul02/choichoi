@@ -234,7 +234,10 @@ export default function DayPanel({
                         {a.start_time && a.end_time ? formatTimeRange(a.start_time, a.end_time) : '기본시간'}
                       </button>
                       <button
-                        onClick={() => onBreakChange(a.id, a.break_minutes == null ? 0 : null)}
+                        // 휴게 미포함(0) ↔ 파트 기준 휴게 사이를 토글한다. 예전에는 null을 저장해
+                        // "파트 값을 빌려 쓰는" 상태로 되돌렸는데, 그러면 파트를 수정·삭제했을 때
+                        // 이미 지난 근무일의 급여까지 같이 바뀌었다 — 항상 확정값을 기록한다.
+                        onClick={() => onBreakChange(a.id, a.break_minutes === 0 ? resolveBreakMinutes(null, shift.break_minutes) : 0)}
                         title="휴게시간 포함 여부 (클릭해서 전환)"
                         className={`shrink-0 text-[10px] bg-transparent border-none cursor-pointer transition whitespace-nowrap ${
                           a.break_minutes === 0 ? 'text-rose-500 font-bold' : a.break_minutes != null ? 'text-primary-700 font-bold' : 'text-ink-faint hover:text-primary-700'

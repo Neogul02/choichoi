@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatTimeRange } from '@/lib/workhours';
 import { showMsg } from '@/lib/toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { autoFillRoster, clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
-import type { RosterUnit, RosterMonthData, AutoFillLogEntry } from '@/app/actions/roster';
+import { clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
+import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
 import { ALL_POPUPS, isAllPopups } from '@/lib/roster/query-helpers';
 import type { StaffProfile, PopupEvent, StaffRole, RosterShift } from '@/types/database';
 import { DAY_NAMES, ROLE_LABELS, popupTint, popupTintSoft } from './constants';
@@ -24,7 +24,6 @@ import ShiftPickerPopover from './roster/ShiftPickerPopover';
 import ShiftManageModal from './ShiftManageModal';
 import BulkEditModal from './BulkEditModal';
 import WeekMatrix from './WeekMatrix';
-import AutoFillLogPanel from './AutoFillLogPanel';
 import StaffTotalsPanel from './StaffTotalsPanel';
 
 interface Props {
@@ -82,10 +81,8 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
 
   const [showShiftManage, setShowShiftManage] = useState(false);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
-  const [isAutoFilling, setIsAutoFilling] = useState(false);
-  const [fillLog, setFillLog] = useState<AutoFillLogEntry[] | null>(null);
   const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
-  const [confirmAction, setConfirmAction] = useState<'autofill' | 'copyPrevWeek' | 'clear' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'copyPrevWeek' | 'clear' | null>(null);
 
   // 현재 단위 소속 직원만 (주방 전체 / 해당 팝업 캐셔 / 캐셔 전체 보기는 팝업 무관 전원)
   const unitStaff = useMemo(
@@ -107,14 +104,15 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     });
   }, [shifts, popups, unit, loadFrom, loadTo]);
 
-  // 달력 칸 배경에 깔 팝업 운영 기간 — 전체 보기는 모든 팝업, 개별 보기는 그 팝업 하나.
+  // 달력 칸 배경에 깔 팝업 운영 기간 — 캐셔 전체 보기와 주방은 모든 팝업, 캐셔 개별 보기는 그 팝업 하나.
+  // 주방은 팝업에 귀속되지 않지만 팝업이 열리는 날 주방 일이 늘어나므로 운영 기간이 보여야 한다.
   // 색상 인덱스는 필터 전에 매겨 개별 보기로 좁혀도 팝업 색이 바뀌지 않는다.
   const calendarPopups = useMemo<CalendarPopup[]>(() => {
-    if (unit.staffRole !== 'cashier') return [];
-    return [...popups]
+    const colored = [...popups]
       .sort((a, b) => a.start_date.localeCompare(b.start_date) || a.id - b.id)
-      .map((p, i) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date, colorIdx: i }))
-      .filter(p => isAllPopups(unit) || p.id === unit.popupId);
+      .map((p, i) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date, colorIdx: i }));
+    if (unit.staffRole === 'kitchen' || isAllPopups(unit)) return colored;
+    return colored.filter(p => p.id === unit.popupId);
   }, [popups, unit]);
 
   // 날짜 → 그날 운영 중인 팝업 색을 가로 띠로 나눈 배경. MonthGrid·DayCell이 memo라 참조를 고정해야 한다
@@ -129,10 +127,16 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     [calendarPopups, loadFrom, loadTo],
   );
 
-  // 팝업 id → 이름 — 전체 보기에서 동명 파트(예: 여러 팝업의 "오전")를 구분해 표시하는 데 쓴다
+  // 팝업 id → 이름 — 전체 보기에서 동명 파트(예: 여러 팝업의 "오전")를 구분해 표시하는 데 쓴다.
+  // 지난 팝업을 비활성화하면 그 팝업은 이 맵에 없다 — 예전에는 '?'가 그대로 라벨에 찍혔으므로
+  // 이름을 못 찾으면 접두어 없이 파트 이름만 보여준다.
   const popupNameById = useMemo(() => new Map(popups.map(p => [p.id, p.name])), [popups]);
   const getShiftLabel = useCallback(
-    (shift: RosterShift) => isAllPopups(unit) ? `${popupNameById.get(shift.popup_id ?? -1) ?? '?'} · ${shift.name}` : shift.name,
+    (shift: RosterShift) => {
+      if (!isAllPopups(unit)) return shift.name;
+      const popupName = shift.popup_id != null ? popupNameById.get(shift.popup_id) : undefined;
+      return popupName ? `${popupName} · ${shift.name}` : shift.name;
+    },
     [unit, popupNameById],
   );
 
@@ -178,34 +182,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
     const dateSet = new Set(visibleDates.filter((d): d is string => d !== null));
     return assignments.filter(a => dateSet.has(a.work_date));
   }, [assignments, visibleDates]);
-
-  const handleAutoFill = () => {
-    if (!cursor) return;
-    // 지난 날짜는 건드리지 않는다
-    const from = todayStr > targetFrom ? todayStr : targetFrom;
-    if (from > targetTo) { showMsg('지난 날짜는 자동 배정할 수 없습니다'); return; }
-    setConfirmAction('autofill');
-  };
-
-  const runAutoFill = async () => {
-    setConfirmAction(null);
-    if (!cursor) return;
-    const from = todayStr > targetFrom ? todayStr : targetFrom;
-    setIsAutoFilling(true);
-    const r = await autoFillRoster(unit, from, targetTo);
-    if (r.success && r.data) {
-      const { added, holes, log } = r.data;
-      const msg = added === 0
-        ? '배정할 수 있는 빈 자리가 없습니다'
-        : `${added}자리 배정 완료${holes.length > 0 ? ` · ${holes.length}개 파트 인원 부족` : ''}`;
-      showMsg(msg);
-      setFillLog(log.length > 0 ? log : null);
-      await loadRange();
-    } else {
-      showMsg(`오류: ${r.error}`);
-    }
-    setIsAutoFilling(false);
-  };
 
   const handleCopyPrevWeek = () => {
     if (!weekStart) return;
@@ -299,14 +275,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
   const prevWeekLabel = weekStart ? `${addDays(weekStart, -7)} ~ ${addDays(weekStart, -1)}` : '';
   const confirmDialogProps = (() => {
     switch (confirmAction) {
-      case 'autofill':
-        return {
-          title: `${targetLabel} 빈 자리를 자동 배정할까요?`,
-          description: '오늘 이후 날짜 · 확정 직원 중 조건이 맞는 사람 · 근무일 균등 분배',
-          confirmLabel: '자동 배정',
-          danger: false,
-          onConfirm: runAutoFill,
-        };
       case 'copyPrevWeek':
         return {
           title: `직전 주(${prevWeekLabel}) 배정을 이번 주 같은 요일로 복사할까요?`,
@@ -383,7 +351,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           weekEndStr={weekEndStr}
           todayStr={todayStr}
           isLoading={isLoading}
-          isAutoFilling={isAutoFilling}
           disableUnitActions={isAllPopups(unit)}
           setCursor={setCursor}
           setWeekStart={setWeekStart}
@@ -392,7 +359,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           syncCursorToDate={syncCursorToDate}
           onCopyPrevWeek={handleCopyPrevWeek}
           onCopyWeekText={handleCopyWeekText}
-          onAutoFill={handleAutoFill}
           onClearRoster={handleClearRoster}
           onShowBulkEdit={() => setShowBulkEdit(true)}
           onShowShiftManage={() => setShowShiftManage(true)}
@@ -441,7 +407,6 @@ export default function RosterCalendar({ staffList, popups, roleFilter, refreshS
           />
         )}
 
-        {fillLog && <AutoFillLogPanel fillLog={fillLog} onClose={() => setFillLog(null)} onDateClick={setSelectedDate} />}
         <StaffTotalsPanel staffList={unitStaff} shifts={visibleShifts} assignments={visibleAssignments} isLoading={isLoading} />
       </div>
 
