@@ -45,6 +45,8 @@ export interface LifetimeSalesTotals {
   firstDate: string | null;
   lastDate: string | null;
   popupCount: number;
+  /** 누적 판매 산도 개수 — 메뉴명에 '산도'가 들어간 품목만 (아이스팩·보냉백 등 부자재 제외) */
+  sandoCount: number;
 }
 
 export interface OrderRecord {

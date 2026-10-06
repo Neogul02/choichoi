@@ -37,8 +37,15 @@ export default function LifetimeTotalCard({ totals }: Props) {
         <div className="text-[18px] md:text-[20px] font-black leading-none text-primary-700 tabular-nums">
           ₩{formatPrice(totals.totalRevenue)}
         </div>
-        <div className="mt-1 text-[11px] font-semibold text-ink-muted tabular-nums">
-          {totals.totalOrders.toLocaleString('ko-KR')}건
+        <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] font-semibold text-ink-muted tabular-nums">
+          <span>{totals.totalOrders.toLocaleString('ko-KR')}건</span>
+          {totals.sandoCount > 0 && (
+            <>
+              <span className="text-ink-faint">·</span>
+              {/* 부자재(아이스팩·보냉백)는 빼고 메뉴명에 '산도'가 들어간 것만 센다 */}
+              <span className="text-primary-600">🥪 {totals.sandoCount.toLocaleString('ko-KR')}개</span>
+            </>
+          )}
         </div>
       </div>
     </div>
