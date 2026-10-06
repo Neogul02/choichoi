@@ -242,7 +242,7 @@ export async function addRosterAssignment(
         work_date: workDate, shift_id: shiftId, staff_id: staffId,
         staff_role: unit.staffRole, popup_id: shift.popup_id,
         // 파트 시간을 빌려 쓰지 않고 이 근무일의 확정 시간으로 복사해 둔다 — 파트를 나중에 수정·삭제해도
-        // 이미 기록된 근로내역이 흔들리지 않는다 (20261006164500 마이그레이션과 같은 기준).
+        // 이미 기록된 근로내역이 흔들리지 않는다 (20261006082614 마이그레이션과 같은 기준).
         ...materializeFromShift(shift),
       }])
       .select(ASSIGNMENT_COLUMNS)
