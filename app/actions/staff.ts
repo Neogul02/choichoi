@@ -238,13 +238,20 @@ export async function getMyStaffProfile(): Promise<ApiResponse<StaffProfile | nu
   try {
     const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
+    // 한 계정에 staff_profiles가 둘 이상 붙어 있는 경우가 실제로 있다(주방 프로필 + 지난 팝업의
+    // 캐셔 프로필 등). maybeSingle()을 쓰면 그런 계정에서 PostgREST가 PGRST116으로 406을 돌려줘
+    // 본인 화면만 통째로 비었다 — 전부 받아서 현재 유효한 프로필을 고른다.
     const { data, error } = await supabaseAdmin
       .from('staff_profiles')
       .select(STAFF_COLUMNS)
       .eq('user_profile_id', user.id)
-      .maybeSingle()
     if (error) return { success: false, error: error.message }
-    return { success: true, data: data as StaffProfile | null }
+
+    // 우선순위: 확정 > 후보 > 퇴사/비활성, 같은 등급이면 최근에 만든 것
+    const rank = (s: StaffProfile) => (s.status === 'confirmed' ? 0 : s.status === 'candidate' ? 1 : 2)
+    const profiles = ((data ?? []) as unknown as StaffProfile[])
+      .sort((a, b) => rank(a) - rank(b) || b.id - a.id)
+    return { success: true, data: profiles[0] ?? null }
   } catch (err) {
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }

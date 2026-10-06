@@ -8,6 +8,7 @@ import { getMyRoster, getStaffRosterAsManager, type MyShift } from '@/app/action
 import { minutesToHours } from '@/lib/workhours'
 import { formatBreakMinutes } from '@/lib/utils'
 import { DAY_NAMES } from '@/lib/staffing'
+import { showMsg } from '@/lib/toast'
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 function todayStr() {
@@ -62,6 +63,9 @@ export default function ScheduleTab({ initial, staffPicker }: { initial: Initial
   const loadRoster = useCallback(async (targetId: number, own: boolean) => {
     const res = own ? await getMyRoster() : await getStaffRosterAsManager(targetId)
     if (res.success && res.data) setAllShifts(res.data.shifts)
+    // 조회 실패를 조용히 넘기면 "근무 정보 없음" 화면과 구분되지 않는다 —
+    // 실제로 서버 오류를 배정이 없는 것으로 오해해 문의가 들어온 적이 있다
+    else if (!res.success) showMsg(`근무 일정을 불러오지 못했습니다: ${res.error}`)
   }, [])
 
   useEffect(() => {
@@ -76,6 +80,9 @@ export default function ScheduleTab({ initial, staffPicker }: { initial: Initial
       }
       if (rosterRes.success && rosterRes.data) {
         setAllShifts(rosterRes.data.shifts)
+      }
+      if (!profileRes.success || !rosterRes.success) {
+        showMsg(`근무 일정을 불러오지 못했습니다: ${profileRes.error ?? rosterRes.error}`)
       }
       setLoaded(true)
     })
