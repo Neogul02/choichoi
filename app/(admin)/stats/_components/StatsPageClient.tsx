@@ -11,7 +11,8 @@ import { usePopupStats } from '../_hooks/usePopupStats';
 import TodaySummary from './TodaySummary';
 import TodayOrdersSection from './TodayOrdersSection';
 import CalendarSection from './CalendarSection';
-import type { TodaysSales, OrderRecordWithItems, MenuSalesItem, CalendarSalesData } from '@/types/api';
+import LifetimeTotalCard from './LifetimeTotalCard';
+import type { TodaysSales, OrderRecordWithItems, MenuSalesItem, CalendarSalesData, LifetimeSalesTotals } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
 // recharts를 쓰는 차트 섹션들은 지연 로드 — 초기 번들에서 recharts(수백 KB)를 제외
@@ -27,11 +28,13 @@ interface Props {
   initialBreakdown: MenuSalesItem[] | null;
   initialCalendar: CalendarSalesData | null;
   initialPopupEvents: PopupEvent[] | null;
+  /** 첫 팝업부터 오늘까지의 누적 집계 — 통계탭에만 노출 */
+  lifetimeTotals: LifetimeSalesTotals | null;
 }
 
 // 초기 데이터는 서버 컴포넌트(page.tsx)가 병렬 조회해 props로 내려준다 — hr 페이지와 동일 패턴
 // null인 항목은 각 훅이 기존 경로로 직접 조회한다
-export default function StatsPageClient({ initialSummary, initialOrders, initialBreakdown, initialCalendar, initialPopupEvents }: Props) {
+export default function StatsPageClient({ initialSummary, initialOrders, initialBreakdown, initialCalendar, initialPopupEvents, lifetimeTotals }: Props) {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats({ summary: initialSummary, orders: initialOrders });
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown(initialBreakdown);
   const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, saveDay, removeDay } = useCalendar(initialCalendar);
@@ -47,6 +50,10 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
         <div className="max-w-[800px] lg:max-w-none mx-auto flex flex-col gap-3 md:gap-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
           <div className="lg:col-span-2">
             <TodaySummary summary={summary} isLoading={isLoading} onRefresh={refresh} />
+          </div>
+
+          <div className="lg:col-span-2">
+            <LifetimeTotalCard totals={lifetimeTotals} />
           </div>
 
           <div className="lg:col-span-2 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">

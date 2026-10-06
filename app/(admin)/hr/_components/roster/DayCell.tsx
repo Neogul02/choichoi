@@ -89,19 +89,18 @@ function DayCell({
         }
 
         const names = assigned.map(a => a.staff_profiles?.name).filter((n): n is string => !!n);
-        const label = names.length === 0
-          ? `${getShiftLabel(shift)} ${assigned.length}명`
-          : names.length === 1
-            ? `${getShiftLabel(shift)} ${names[0]}`
-            : `${getShiftLabel(shift)} ${names[0]} 외 ${names.length - 1}`;
         const short = required > 0 && assigned.length < required;
         return (
           <span
             key={shift.id}
             title={`${names.length > 0 ? names.join(', ') : `${assigned.length}명`}${required > 0 ? ` (${assigned.length}/${required}명)` : ''}`}
-            className="text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-none truncate bg-canvas-soft text-ink-muted"
+            // 배정된 사람은 전원 이름이 보여야 한다 — 예전에는 "홍길동 외 2" 식으로 줄여서
+            // 누가 나오는 날인지 달력만 보고는 알 수 없었다. 줄바꿈을 허용해 칸이 늘어나게 둔다.
+            // break-keep: 한국어 이름이 글자 단위로 쪼개지지 않게 (이름 사이에서만 줄바꿈)
+            className="text-[9px] md:text-[10px] font-bold rounded px-1 py-0.5 leading-snug whitespace-normal break-keep bg-canvas-soft text-ink-muted text-left"
           >
-            {label}
+            <span className="text-ink-faint">{getShiftLabel(shift)}</span>
+            {names.length > 0 ? ` ${names.join(', ')}` : ` ${assigned.length}명`}
             {short && <span className="ml-0.5 text-amber-600">{assigned.length}/{required}</span>}
           </span>
         );
