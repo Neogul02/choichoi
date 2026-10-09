@@ -82,7 +82,13 @@ export interface InitialMyData {
 
 export default function MyPageClient({ initial }: { initial: InitialMyData | null }) {
   // 탭 병합 전에는 /my/schedule이 별도 라우트였다 — 탭이 많아 헷갈린다는 피드백으로 MY 페이지 안 탭으로 흡수
-  const [tab, setTab] = useState<'info' | 'schedule'>('info')
+  // ?tab=schedule 이면 근무 일정으로 열린다. useSearchParams 대신 location을 읽는 이유는
+  // Suspense 경계를 추가로 요구하지 않기 때문 — 초기값 계산에만 쓰므로 한 번이면 충분하다.
+  const [tab, setTab] = useState<'info' | 'schedule'>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('tab') === 'schedule' ? 'schedule' : 'info'
+    } catch { return 'info' }
+  })
   const [profile, setProfile] = useState<UserProfile | null>(initial?.profile ?? null)
   const [authName, setAuthName] = useState<string | null>(null)
   const [authEmail, setAuthEmail] = useState<string | null>(null)

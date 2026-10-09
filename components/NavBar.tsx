@@ -9,7 +9,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { withTimeout } from '@/lib/utils';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import type { UserAppRole } from '@/types/database';
-import { CASHIER_NAME_KEY, POPUP_NAME_KEY, APP_ROLE_KEY, clearChoichoiStorage } from '@/lib/storage-keys';
+import { CASHIER_NAME_KEY, POPUP_NAME_KEY, APP_ROLE_KEY, WORKER_ROLE_KEY, clearChoichoiStorage } from '@/lib/storage-keys';
 
 function toAppRole(value: unknown): UserAppRole {
   return value === 'admin' ? 'admin' : value === 'manager' ? 'manager' : 'user';
@@ -37,6 +37,9 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [role, setRole] = useState<UserAppRole>('user');
+  // 주방으로 접속했으면 POS 탭을 감춘다 — 주방 인원은 결제를 치지 않는다.
+  // localStorage는 서버 렌더 때 없으므로 effect에서 읽어 hydration 불일치를 피한다.
+  const [isKitchen, setIsKitchen] = useState(false);
   const [cashierName, setCashierName] = useState<string | null>(null);
   const [popupName, setPopupName] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -113,9 +116,15 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    try { setIsKitchen(localStorage.getItem(WORKER_ROLE_KEY) === 'kitchen'); } catch { /* ignore */ }
+  }, [pathname]);
+
   const visibleLinks = useMemo(
-    () => ALL_NAV_LINKS.filter((l) => ROLE_RANK[role] >= ROLE_RANK[l.minRole]),
-    [role]
+    () => ALL_NAV_LINKS.filter(
+      (l) => ROLE_RANK[role] >= ROLE_RANK[l.minRole] && !(isKitchen && l.href === '/pos'),
+    ),
+    [role, isKitchen]
   );
 
   const toggle = () => {
@@ -160,7 +169,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                 {/* 1단: 로고 + 접속자 + 모바일 전용 액션 */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Link href="/pos" className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0 no-underline hover:opacity-70 transition-opacity">ChoiChoi</Link>
+                    <Link href={visibleLinks[0]?.href ?? '/my'} className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0 no-underline hover:opacity-70 transition-opacity">ChoiChoi</Link>
                     {popupName && (
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
                         {popupName}
