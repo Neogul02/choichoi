@@ -111,23 +111,36 @@ async function getTodaysSales(popupId?: string | number | null): Promise<TodaysS
 
 async function getTodaysSalesByPopup(): Promise<TodayPopupSales[]> {
   const { start, end } = getKSTDateBounds()
-  const { data, error } = await supabaseAdmin.rpc('get_todays_sales_by_popup', {
+  // 팝업 × 시각 단위 행을 받아 팝업별로 접는다 — 합계도 이 행들에서 파생시켜
+  // 곡선과 범례 숫자가 서로 다른 출처에서 나오는 일이 없게 한다.
+  const { data, error } = await supabaseAdmin.rpc('get_todays_hourly_sales_by_popup', {
     p_start: start,
     p_end: end,
   })
   if (error) throw error
 
-  return ((data ?? []) as Array<{
+  const byPopup = new Map<number, TodayPopupSales>()
+  for (const r of (data ?? []) as Array<{
     popup_id: number | string
     popup_name: string
+    hour_kst: number | string
     total_revenue: number | string
     total_orders: number | string
-  }>).map(r => ({
-    popupId: Number(r.popup_id),
-    popupName: r.popup_name,
-    totalRevenue: Number(r.total_revenue),
-    totalOrders: Number(r.total_orders),
-  }))
+  }>) {
+    const id = Number(r.popup_id)
+    let entry = byPopup.get(id)
+    if (!entry) {
+      entry = { popupId: id, popupName: r.popup_name, totalRevenue: 0, totalOrders: 0, hourly: [] }
+      byPopup.set(id, entry)
+    }
+    const revenue = Number(r.total_revenue)
+    entry.totalRevenue += revenue
+    entry.totalOrders += Number(r.total_orders)
+    entry.hourly.push({ hour: Number(r.hour_kst), revenue })
+  }
+
+  for (const entry of byPopup.values()) entry.hourly.sort((a, b) => a.hour - b.hour)
+  return [...byPopup.values()].sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
 
 async function getTodaysOrderList(popupId?: string | number | null): Promise<OrderRecord[]> {
