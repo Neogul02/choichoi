@@ -75,10 +75,16 @@ export default function SalesBattle({ rows, currentPopupId, hidden, onToggle }: 
         <SalesBattleChart rows={rows} currentPopupId={currentPopupId} colorOf={colorOf} />
       )}
 
-      {/* 범례 — 곡선만으로는 정확한 금액을 알 수 없으므로 현재 합계를 같이 둔다 */}
-      <div className="mt-2 flex flex-col gap-1">
+      {/* 현재 합계 막대 — 곡선은 흐름을, 막대는 지금 격차를 보여준다.
+          막대 색이 곧 위 곡선의 색이라 범례 역할도 겸한다. */}
+      <div className="mt-2 flex flex-col gap-1.5">
         {rows.map((row, i) => {
           const isMine = row.popupId === currentPopupId;
+          // 1등을 100%로 둔 상대 길이. 0원이어도 0으로 나누지 않게 방어하고,
+          // 아주 작은 값도 색이 보이도록 최소 폭을 준다.
+          const pct = hidden
+            ? 100 / rows.length
+            : Math.max(4, (row.totalRevenue / Math.max(leader.totalRevenue, 1)) * 100);
           return (
             <div
               key={row.popupId}
@@ -89,25 +95,34 @@ export default function SalesBattle({ rows, currentPopupId, hidden, onToggle }: 
               <span className="w-[16px] shrink-0 text-center text-[11px] leading-none">
                 {hidden ? '•' : (MEDALS[i] ?? `${i + 1}`)}
               </span>
+
               <span
-                className="h-[3px] w-[14px] shrink-0 rounded-full"
-                style={{ backgroundColor: hidden ? 'var(--color-hairline)' : colorOf(row, i) }}
-              />
-              <span
-                className={`flex-1 min-w-0 truncate text-[11px] leading-tight ${
+                className={`w-[64px] shrink-0 truncate text-[11px] leading-tight ${
                   isMine ? 'font-extrabold text-primary-700' : 'font-semibold text-ink-secondary'
                 }`}
                 title={row.popupName}
               >
                 {row.popupName}
+              </span>
+
+              <div className="relative h-[16px] flex-1 min-w-0 overflow-hidden rounded-full bg-canvas-soft">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500"
+                  style={{
+                    width: `${pct}%`,
+                    backgroundColor: hidden ? 'var(--color-hairline)' : colorOf(row, i),
+                  }}
+                />
                 {isMine && !hidden && (
-                  <span className="ml-1 rounded-full bg-primary-700 px-1 py-[1px] text-[8px] font-black tracking-wide text-white align-middle">
+                  // 막대가 진한 브랜드 초록이라 흰 알약 + 초록 글자가 대비가 가장 높다
+                  <span className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-white px-1.5 py-[1px] text-[8px] font-black leading-[11px] tracking-wide text-primary-700 shadow-sm ring-1 ring-primary-700/25">
                     MY
                   </span>
                 )}
-              </span>
+              </div>
+
               <span
-                className={`shrink-0 text-right text-[11px] font-bold tabular-nums ${
+                className={`w-[52px] shrink-0 text-right text-[11px] font-bold tabular-nums ${
                   isMine ? 'text-primary-700' : 'text-ink-secondary'
                 }`}
               >
