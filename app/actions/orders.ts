@@ -125,15 +125,17 @@ async function getTodaysSalesByPopup(): Promise<TodayPopupSales[]> {
     popup_name: string
     hour_kst: number | string
     total_revenue: number | string
+    total_orders: number | string
   }>) {
     const id = Number(r.popup_id)
     let entry = byPopup.get(id)
     if (!entry) {
-      entry = { popupId: id, popupName: r.popup_name, totalRevenue: 0, hourly: [] }
+      entry = { popupId: id, popupName: r.popup_name, totalRevenue: 0, totalOrders: 0, hourly: [] }
       byPopup.set(id, entry)
     }
     const revenue = Number(r.total_revenue)
     entry.totalRevenue += revenue
+    entry.totalOrders += Number(r.total_orders)
     entry.hourly.push({ hour: Number(r.hour_kst), revenue })
   }
 
