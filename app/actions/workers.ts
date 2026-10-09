@@ -343,6 +343,67 @@ export interface CreateWorkerAccountInput {
 }
 
 /**
+ * 근무지(팝업) 접근 권한 검증 — 인사탭에서 그 팝업에 배정해둔 캐셔만 그 팝업으로 로그인된다.
+ *
+ * 주방은 누구나 들어갈 수 있다(운영 방침). 관리자·매니저는 전 팝업을 오가야 하므로 통과시킨다.
+ * 배정 판정은 staff_profiles.popup_id(현재 소속)와 staff_popup_assignments(겸직·이력) 둘 다 본다 —
+ * 한 캐셔가 여러 팝업을 오가는 경우가 실제로 있어서 한쪽만 보면 멀쩡한 사람이 잠긴다.
+ *
+ * 로그인 직후, 화면을 열어주기 전에 호출한다. 판정은 전부 서버에서 한다.
+ */
+export async function checkPopupAccess(
+  popupId: number | null,
+): Promise<ApiResponse<{ allowed: boolean }>> {
+  try {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+
+    // 주방(popupId null)은 제한 없음
+    if (popupId == null) return { success: true, data: { allowed: true } }
+
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('worker_role')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profile?.worker_role === 'admin' || profile?.worker_role === 'manager') {
+      return { success: true, data: { allowed: true } }
+    }
+
+    const { data: staffRows, error: staffError } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('id, name, popup_id, staff_role, popup_events(name)')
+      .eq('user_profile_id', user.id)
+    if (staffError) throw new Error(staffError.message)
+
+    const profiles = staffRows ?? []
+    if (profiles.some(p => p.popup_id === popupId)) return { success: true, data: { allowed: true } }
+
+    // 겸직은 N:M 테이블에만 있을 수 있다
+    const staffIds = profiles.map(p => p.id)
+    if (staffIds.length > 0) {
+      const { data: assigned } = await supabaseAdmin
+        .from('staff_popup_assignments')
+        .select('popup_id')
+        .in('staff_id', staffIds)
+        .eq('popup_id', popupId)
+      if ((assigned ?? []).length > 0) return { success: true, data: { allowed: true } }
+    }
+
+    // 어디로 가야 하는지 알려준다 — 그냥 "권한 없음"만 띄우면 현장에서 문의가 몰린다
+    const mine = profiles
+      .map(p => (Array.isArray(p.popup_events) ? p.popup_events[0] : p.popup_events) as { name: string } | null)
+      .map(e => e?.name)
+      .filter((n): n is string => !!n)
+    const hint = mine.length > 0 ? ` 배정된 근무지는 ${[...new Set(mine)].join(', ')}입니다.` : ''
+    return { success: false, error: `이 근무지에 배정되어 있지 않습니다.${hint}` }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
+/**
  * 관리자 2차 코드 검증 — 비밀번호만으로는 관리자 화면에 들어오지 못하게 한다.
  *
  * 로그인(signInWithPassword) 직후, 아직 화면을 열어주기 전에 호출한다.

@@ -5,7 +5,7 @@ import { formatBankAccountInput, isValidBankAccount, normalizeBankAccount, BANK_
 import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchActivePopupEvents } from '@/app/actions/schedule'
-import { createWorkerAccount, resolveLoginEmail, checkAdminLoginCode } from '@/app/actions/workers'
+import { createWorkerAccount, resolveLoginEmail, checkAdminLoginCode, checkPopupAccess } from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
 import { formatPhoneInput, isValidKoreanPhone, normalizePhone } from '@/lib/phone'
 import { notifyLoginEvent } from '@/app/actions/discord'
@@ -181,6 +181,19 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
       if (authError || !data.user) {
         setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+        return
+      }
+
+      // 고른 근무지에 배정된 사람인지 먼저 확인한다 — 인사탭 배정이 곧 접근 권한이다.
+      // 주방은 제한이 없어 null로 보낸다.
+      const access = await withTimeout(
+        checkPopupAccess(selectedPopupId === 'kitchen' ? null : Number(selectedPopupId)),
+        8000,
+        '근무지 확인',
+      )
+      if (!access.success || !access.data?.allowed) {
+        await supabase.auth.signOut()
+        setError(access.error ?? '근무지 확인에 실패했습니다. 다시 시도해주세요.')
         return
       }
 
