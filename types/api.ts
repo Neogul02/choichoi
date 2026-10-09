@@ -16,6 +16,7 @@ export interface TodayPopupSales {
   popupId: number;
   popupName: string;
   totalRevenue: number;
+  totalOrders: number;
   /** KST 시각(0-23)별 그 시간대 매출 — 시간 순. 누적 곡선은 화면에서 더해 그린다 */
   hourly: { hour: number; revenue: number }[];
 }
