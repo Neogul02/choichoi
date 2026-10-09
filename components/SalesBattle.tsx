@@ -13,7 +13,12 @@ interface Props {
   onToggle: () => void;
 }
 
-const BAR_COLORS = ['bg-amber-400', 'bg-primary-500', 'bg-sky-400', 'bg-rose-400', 'bg-violet-400'];
+// 이 프로젝트의 primary 음영은 globals.css에 50·100·200·600·700·800만 정의돼 있다.
+// bg-primary-500처럼 없는 음영을 쓰면 클래스가 통째로 무시돼 막대가 투명하게 렌더된다
+// (실제로 2등 막대가 안 보였던 원인). 등수 색은 전부 기본 팔레트에서 고른다.
+const BAR_COLORS = ['bg-amber-400', 'bg-sky-500', 'bg-rose-400', 'bg-violet-400', 'bg-teal-500'];
+// 내 팝업 막대는 등수 색 대신 브랜드 초록으로 덮어 한눈에 구분되게 한다
+const MINE_BAR = 'bg-primary-700';
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 /** 1,234,500 → 123만 (좁은 줄에 들어가도록 만 단위 반올림, 1만 미만은 그대로) */
@@ -39,7 +44,7 @@ export default function SalesBattle({ rows, currentPopupId, hidden, onToggle }: 
       onClick={onToggle}
       aria-label={hidden ? '매출 배틀 보기' : '매출 배틀 가리기'}
       aria-pressed={hidden}
-      className="w-full text-left rounded-xl border border-hairline bg-canvas px-3.5 py-3 mb-3 md:mb-4 cursor-pointer transition hover:border-primary-300"
+      className="w-full text-left rounded-xl border border-hairline bg-canvas px-3.5 py-3 mb-3 md:mb-4 cursor-pointer transition hover:border-primary-200"
     >
       <div className="flex items-center justify-between mb-2.5">
         <p className="m-0 text-[10px] font-bold tracking-[0.12em] uppercase text-ink-faint">
@@ -79,15 +84,19 @@ export default function SalesBattle({ rows, currentPopupId, hidden, onToggle }: 
               <div className="relative h-[18px] flex-1 min-w-0 rounded-full bg-canvas-soft overflow-hidden">
                 <motion.div
                   className={`absolute inset-y-0 left-0 rounded-full ${
-                    hidden ? 'bg-ink-faint/20' : BAR_COLORS[i % BAR_COLORS.length]
+                    hidden
+                      ? 'bg-ink-faint/20'
+                      : isMine
+                        ? MINE_BAR
+                        : BAR_COLORS[i % BAR_COLORS.length]
                   }`}
                   initial={false}
                   animate={{ width: `${pct}%` }}
                   transition={{ type: 'spring', stiffness: 120, damping: 20 }}
                 />
                 {isMine && !hidden && (
-                  // 어두운 알약 + 흰 테두리 — 밝은 막대(노랑)든 진한 막대(초록)든 회색 트랙이든 다 읽힌다
-                  <span className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-ink/85 px-1.5 py-[1px] text-[8px] font-black leading-[11px] tracking-wide text-white ring-1 ring-white/70">
+                  // 내 막대가 진한 브랜드 초록이므로 흰 알약 + 초록 글자가 대비가 가장 높다
+                  <span className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-white px-1.5 py-[1px] text-[8px] font-black leading-[11px] tracking-wide text-primary-700 shadow-sm ring-1 ring-primary-700/25">
                     MY
                   </span>
                 )}
