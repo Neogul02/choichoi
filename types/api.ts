@@ -11,6 +11,14 @@ export interface TodaysSales {
   totalRevenue: number;
 }
 
+/** 오늘 매출이 난 팝업 한 곳 — POS 매출 배틀용 (매출 내림차순) */
+export interface TodayPopupSales {
+  popupId: number;
+  popupName: string;
+  totalRevenue: number;
+  totalOrders: number;
+}
+
 export interface SaveOrderResponse {
   success: boolean;
   orderId?: number;
@@ -114,6 +122,7 @@ export type FetchManualHourlySalesResponse = ApiResponse<ManualHourlyEntry[]>;
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
 export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;
 export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;
+export type FetchTodayPopupSalesResponse = ApiResponse<TodayPopupSales[]>;
 export type FetchMenuSalesResponse = ApiResponse<MenuSalesItem[]>;
 export type FetchCalendarResponse = ApiResponse<CalendarSalesData>;
 export type FetchOrdersResponse = ApiResponse<OrderRecord[]>;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, useAnimate, AnimatePresence, animate } from 'framer-motion';
 import { getTier } from '@/lib/tiers';
 
@@ -26,6 +26,9 @@ interface Props {
   totalOrders: number;
   flashKey: number;
   lastPayment: { amount: number; id: number } | null;
+  /** 블라인드 상태는 부모(PosPageClient)가 들고 있다 — 바로 아래 매출 배틀 칸과 함께 열고 닫기 위함 */
+  hidden: boolean;
+  onToggle: () => void;
 }
 
 const UNRANKED_BG = 'linear-gradient(135deg, #084431 0%, #0d6b4e 55%, #3d9966 100%)';
@@ -34,8 +37,7 @@ const UNRANKED_LABEL = '#6ee7b7';
 const HIDDEN_BG = 'linear-gradient(135deg, #1f2a26 0%, #2f3d36 55%, #3d4a43 100%)';
 const HIDDEN_SHADOW = '0 6px 28px rgba(30,40,35,0.35)';
 
-export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastPayment }: Props) {
-  const [hidden, setHidden] = useState(true);
+export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastPayment, hidden, onToggle }: Props) {
   const [bannerScope, animateBanner] = useAnimate();
   const [revenueScope, animateRevenue] = useAnimate();
   const isFirst = useRef(true);
@@ -71,7 +73,7 @@ export default function SalesBanner({ totalRevenue, totalOrders, flashKey, lastP
     <button
       type="button"
       ref={bannerScope}
-      onClick={() => setHidden((v) => !v)}
+      onClick={onToggle}
       aria-label={hidden ? '매출 보기' : '매출 가리기'}
       aria-pressed={hidden}
       className="group relative w-full text-left text-white rounded-xl p-4 md:p-5 mb-3 md:mb-4 will-change-transform overflow-hidden cursor-pointer border-none active:scale-[0.997] transition-all duration-500"
