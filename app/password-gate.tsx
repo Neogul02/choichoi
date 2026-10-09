@@ -5,7 +5,7 @@ import { formatBankAccountInput, isValidBankAccount, normalizeBankAccount, BANK_
 import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchActivePopupEvents } from '@/app/actions/schedule'
-import { createWorkerAccount, resolveLoginEmail } from '@/app/actions/workers'
+import { createWorkerAccount, resolveLoginEmail, checkAdminLoginCode } from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
 import { formatPhoneInput, isValidKoreanPhone, normalizePhone } from '@/lib/phone'
 import { notifyLoginEvent } from '@/app/actions/discord'
@@ -17,7 +17,7 @@ import {
   setPopupIdCookie, clearChoichoiStorage,
 } from '@/lib/storage-keys'
 
-type View = 'login' | 'signup'
+type View = 'login' | 'signup' | 'admin-code'
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -48,6 +48,9 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // 관리자 2차 코드 단계 — 로그인은 통과했지만 아직 화면을 열어주지 않은 상태의 보류 정보
+  const [adminCode, setAdminCode] = useState('')
+  const [pendingAuth, setPendingAuth] = useState<{ user: { id: string; user_metadata?: { name?: string } }; email: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const loginPasswordRef = useRef<HTMLInputElement>(null)
   const signupEmailRef = useRef<HTMLInputElement>(null)
@@ -181,12 +184,59 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
         return
       }
 
+      // 관리자는 비밀번호만으로 들어올 수 없다 — 코드가 필요한 계정인지 서버에 묻는다.
+      // 판정이 실패하면(네트워크 등) 열어주지 않고 로그인을 되돌린다.
+      const gate = await withTimeout(checkAdminLoginCode(null), 8000, '관리자 확인')
+      if (!gate.success || !gate.data) {
+        await supabase.auth.signOut()
+        setError(gate.error ?? '관리자 확인에 실패했습니다. 다시 시도해주세요.')
+        return
+      }
+      if (gate.data.required) {
+        setPendingAuth({ user: data.user, email: resolved.data.email })
+        setAdminCode('')
+        setError('')
+        setView('admin-code')
+        return
+      }
+
       await finishAuth(data.user, resolved.data.email)
     } catch (err) {
       setError(err instanceof Error ? err.message : '로그인 중 오류가 발생했습니다.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const onAdminCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pendingAuth) { setView('login'); return }
+    if (!adminCode.trim()) { setError('관리자 코드를 입력해주세요.'); return }
+    setError('')
+    setIsSubmitting(true)
+    try {
+      const r = await withTimeout(checkAdminLoginCode(adminCode), 8000, '관리자 코드 확인')
+      if (!r.success || !r.data?.verified) {
+        setError(r.error ?? '관리자 코드가 올바르지 않습니다.')
+        return
+      }
+      await finishAuth(pendingAuth.user, pendingAuth.email)
+      setPendingAuth(null)
+      setAdminCode('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '확인 중 오류가 발생했습니다.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // 코드를 포기하면 세션을 남겨두지 않는다 — 남겨두면 다음 방문 때 코드 없이 들어올 여지가 생긴다
+  const onAdminCodeCancel = async () => {
+    setPendingAuth(null)
+    setAdminCode('')
+    setError('')
+    setView('login')
+    await createSupabaseBrowserClient().auth.signOut()
   }
 
   const onSignup = async (e: React.FormEvent) => {
@@ -306,9 +356,40 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
           <div className='text-center mb-5'>
             <h1 className='text-2xl font-black text-ink m-0 mb-1'>ChoiChoi 직원</h1>
             <p className='m-0 text-ink-muted text-sm'>
-              {view === 'login' ? '직원 계정으로 로그인해주세요.' : '처음 오셨다면 직원 계정을 만들어주세요.'}
+              {view === 'login'
+                ? '직원 계정으로 로그인해주세요.'
+                : view === 'admin-code'
+                  ? '관리자 확인이 한 단계 남았습니다.'
+                  : '처음 오셨다면 직원 계정을 만들어주세요.'}
             </p>
           </div>
+
+          {view === 'admin-code' && (
+            <form className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline' onSubmit={onAdminCodeSubmit}>
+              <div className='text-[12px] text-ink-muted bg-canvas-soft rounded-lg px-3 py-2 mb-3'>
+                🔐 관리자 계정입니다. 관리자 코드를 입력해야 로그인이 완료됩니다.
+              </div>
+              <input
+                type='password'
+                inputMode='numeric'
+                autoFocus
+                autoComplete='one-time-code'
+                className={inputClass}
+                value={adminCode}
+                onChange={(e) => setAdminCode(e.target.value)}
+                placeholder='관리자 코드'
+              />
+              {error && <div className='text-rose-600 text-[13px] mt-2'>{error}</div>}
+              <button type='submit' disabled={isSubmitting}
+                className='w-full mt-3 py-3 rounded-xl border-none bg-primary-700 text-white text-[15px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60'>
+                {isSubmitting ? '확인 중...' : '확인'}
+              </button>
+              <button type='button' onClick={onAdminCodeCancel} disabled={isSubmitting}
+                className='w-full mt-2 py-2.5 rounded-xl border border-hairline bg-transparent text-ink-muted text-[13px] cursor-pointer hover:bg-canvas-soft transition disabled:opacity-60'>
+                취소하고 다시 로그인
+              </button>
+            </form>
+          )}
 
           {view === 'login' && (
             <form className='bg-canvas rounded-xl p-5 shadow-level-1 border border-hairline' onSubmit={onLogin}>

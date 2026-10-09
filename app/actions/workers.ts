@@ -342,6 +342,43 @@ export interface CreateWorkerAccountInput {
   residentIdBack: string
 }
 
+/**
+ * 관리자 2차 코드 검증 — 비밀번호만으로는 관리자 화면에 들어오지 못하게 한다.
+ *
+ * 로그인(signInWithPassword) 직후, 아직 화면을 열어주기 전에 호출한다.
+ * code 없이 부르면 "코드가 필요한 계정인지"만 알려주고, code를 주면 맞는지 판정한다.
+ * 역할 판정과 코드 비교는 전부 서버에서 한다 — 코드 값이 브라우저 번들에 실리면 의미가 없다.
+ *
+ * ADMIN_LOGIN_CODE가 설정돼 있지 않으면 게이트를 끈 것으로 본다.
+ * 미설정을 "항상 실패"로 다루면 환경변수를 빠뜨린 배포에서 관리자 둘 다 영영 못 들어온다.
+ */
+export async function checkAdminLoginCode(
+  code?: string | null,
+): Promise<ApiResponse<{ required: boolean; verified: boolean }>> {
+  try {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: '로그인이 필요합니다.' }
+
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('worker_role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const expected = process.env.ADMIN_LOGIN_CODE?.trim()
+    const isAdmin = profile?.worker_role === 'admin'
+    if (!isAdmin || !expected) return { success: true, data: { required: false, verified: true } }
+
+    if (code == null) return { success: true, data: { required: true, verified: false } }
+    if (code.trim() !== expected) return { success: false, error: '관리자 코드가 올바르지 않습니다.' }
+
+    return { success: true, data: { required: true, verified: true } }
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err
+    return { success: false, error: String(err) }
+  }
+}
+
 export async function createWorkerAccount(
   input: CreateWorkerAccountInput,
 ): Promise<ApiResponse<{ userId: string }>> {
