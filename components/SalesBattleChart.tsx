@@ -6,8 +6,8 @@ import { CHART_GRID_STROKE } from '@/app/(admin)/stats/_lib/chartTheme';
 import type { TodayPopupSales } from '@/types/api';
 
 /** 영업 시간대 기본 축 — 매출이 없는 시간도 축에 남겨야 "하루 중 어디쯤인지"가 읽힌다 */
-export const AXIS_FROM = 7;
-export const AXIS_TO = 22;
+const AXIS_FROM = 7;
+const AXIS_TO = 22;
 
 interface Props {
   rows: TodayPopupSales[];

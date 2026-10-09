@@ -153,6 +153,12 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
     notifyLoginEvent(name, email).catch(() => {})
     setIsAuthed(true)
+
+    // 주방은 POS를 쓰지 않으므로 바로 내 근무 일정으로 보낸다.
+    // 이미 /my에 있으면 그대로 두어 불필요한 새로고침을 막는다.
+    if (isKitchen && !window.location.pathname.startsWith('/my')) {
+      window.location.href = '/my?tab=schedule'
+    }
   }
 
   const onLogin = async (e: React.FormEvent) => {
@@ -186,11 +192,21 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
       // 고른 근무지에 배정된 사람인지 먼저 확인한다 — 인사탭 배정이 곧 접근 권한이다.
       // 주방은 제한이 없어 null로 보낸다.
-      const access = await withTimeout(
-        checkPopupAccess(selectedPopupId === 'kitchen' ? null : Number(selectedPopupId)),
-        8000,
-        '근무지 확인',
-      )
+      //
+      // signInWithPassword 직후에는 세션 쿠키가 아직 서버 액션 요청에 실리지 않는 순간이 있을 수
+      // 있다. 그때 "로그인이 필요합니다"로 떨어지면 멀쩡한 사람이 못 들어오므로 한 번만 다시 묻는다.
+      // 로그인은 영업 중 가장 치명적인 경로라 이 한 번이 보험 역할을 한다.
+      const askAccess = () =>
+        withTimeout(
+          checkPopupAccess(selectedPopupId === 'kitchen' ? null : Number(selectedPopupId)),
+          8000,
+          '근무지 확인',
+        )
+      let access = await askAccess()
+      if (!access.success && access.error?.includes('로그인이 필요')) {
+        await new Promise(r => setTimeout(r, 400))
+        access = await askAccess()
+      }
       if (!access.success || !access.data?.allowed) {
         await supabase.auth.signOut()
         setError(access.error ?? '근무지 확인에 실패했습니다. 다시 시도해주세요.')
