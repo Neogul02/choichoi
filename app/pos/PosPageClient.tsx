@@ -3,6 +3,7 @@
 import NavBar from '@/components/NavBar'
 import { usePresence } from '@/hooks/usePresence'
 import SalesBanner from '@/components/SalesBanner'
+import SalesBattle from '@/components/SalesBattle'
 import { memo, useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -13,13 +14,14 @@ import PosNoteWidget from '@/components/PosNoteWidget'
 import MenuStockModal from '@/components/MenuStockModal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { fetchMenuItems } from '@/app/actions/menu';
-import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales } from '@/app/actions/orders'
+import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales, fetchTodaysSalesByPopup } from '@/app/actions/orders'
 import type { MenuItem } from '@/types/database'
 import { supabase, type OrderItemInput } from '@/lib/supabase'
 import type {
   SaveOrderResponse,
   OrderRecordWithItems,
   TodaysSales,
+  TodayPopupSales,
 } from '@/types/api'
 import {
   formatPrice,
@@ -155,6 +157,8 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
     totalOrders: 0,
   })
   const [flashKey, setFlashKey] = useState(0)
+  // 오늘 매출 배너와 매출 배틀이 같은 블라인드 상태를 쓴다 — 한 번 탭하면 둘 다 열린다
+  const [salesHidden, setSalesHidden] = useState(true)
   const [lastPayment, setLastPayment] = useState<{
     amount: number
     id: number
@@ -197,6 +201,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
         () => {
           queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
           queryClient.invalidateQueries({ queryKey: ['today-sales'] })
+          queryClient.invalidateQueries({ queryKey: ['today-sales-by-popup'] })
           queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
         },
       )
@@ -297,6 +302,20 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
       setTodaySales(salesQuery.data)
     }
   }, [salesQuery.data])
+
+  // 오늘 매출이 난 팝업별 집계 — 2곳 이상일 때만 배틀 칸이 뜬다.
+  // 실시간 구독은 자기 팝업(popup_id=eq.${popupId})만 받으므로 상대 팝업 매출은 주기 조회로 따라간다.
+  const battleQuery = useQuery<TodayPopupSales[]>({
+    queryKey: ['today-sales-by-popup'],
+    queryFn: async () => {
+      const result = await fetchTodaysSalesByPopup()
+      if (!result.success) throw new Error(result.error || '팝업별 매출 로딩 실패')
+      return result.data ?? []
+    },
+    staleTime: 60_000,
+    refetchInterval: 90_000,
+    refetchOnWindowFocus: true,
+  })
 
   const menuQuery = useQuery<MenuItem[]>({
     queryKey: ['menu-items'],
@@ -453,6 +472,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
         fireConfetti()
         queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
+        queryClient.invalidateQueries({ queryKey: ['today-sales-by-popup'] })
       } else {
         if (context?.previousCounts) setCounts(context.previousCounts)
         toast.error(result.error || '결제 오류가 발생했습니다', {
@@ -792,6 +812,15 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
           totalOrders={todaySales.totalOrders}
           flashKey={flashKey}
           lastPayment={lastPayment}
+          hidden={salesHidden}
+          onToggle={() => setSalesHidden((v) => !v)}
+        />
+
+        <SalesBattle
+          rows={battleQuery.data ?? []}
+          currentPopupId={popupId && popupId !== '0' ? Number(popupId) : null}
+          hidden={salesHidden}
+          onToggle={() => setSalesHidden((v) => !v)}
         />
 
 

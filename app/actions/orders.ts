@@ -3,7 +3,7 @@
 import { after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { z } from 'zod';
-import { wrap, extractErrorMessage, requireAdmin, isNextInternalControlFlowError } from './_base';
+import { wrap, extractErrorMessage, requireAdmin, requireAuth, isNextInternalControlFlowError } from './_base';
 import { getKSTDateBounds } from '@/lib/date';
 import { getMenuSalesByPeriod } from './menu';
 import type { OrderItemInput } from '@/lib/supabase';
@@ -12,9 +12,11 @@ import type {
   ApiResponse,
   SaveOrderResponse,
   FetchTodaysSalesResponse,
+  FetchTodayPopupSalesResponse,
   FetchOrdersResponse,
   FetchOrdersWithItemsResponse,
   TodaysSales,
+  TodayPopupSales,
   OrderRecord,
   OrderRecordWithItems,
 } from '@/types/api';
@@ -105,6 +107,27 @@ async function getTodaysSales(popupId?: string | number | null): Promise<TodaysS
     totalOrders: Number(row?.total_orders ?? 0),
     totalRevenue: Number(row?.total_revenue ?? 0),
   }
+}
+
+async function getTodaysSalesByPopup(): Promise<TodayPopupSales[]> {
+  const { start, end } = getKSTDateBounds()
+  const { data, error } = await supabaseAdmin.rpc('get_todays_sales_by_popup', {
+    p_start: start,
+    p_end: end,
+  })
+  if (error) throw error
+
+  return ((data ?? []) as Array<{
+    popup_id: number | string
+    popup_name: string
+    total_revenue: number | string
+    total_orders: number | string
+  }>).map(r => ({
+    popupId: Number(r.popup_id),
+    popupName: r.popup_name,
+    totalRevenue: Number(r.total_revenue),
+    totalOrders: Number(r.total_orders),
+  }))
 }
 
 async function getTodaysOrderList(popupId?: string | number | null): Promise<OrderRecord[]> {
@@ -322,6 +345,10 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
 
 export async function fetchTodaysSales(popupId?: string | null): Promise<FetchTodaysSalesResponse> { return wrap(() => getTodaysSales(popupId)); }
 export async function fetchTodaysOrders(popupId?: string | null): Promise<FetchOrdersResponse> { return wrap(() => getTodaysOrderList(popupId)); }
+/** 오늘 매출이 난 팝업별 집계 — POS 매출 배틀. 자기 팝업 밖 숫자를 돌려주므로 로그인은 요구한다 */
+export async function fetchTodaysSalesByPopup(): Promise<FetchTodayPopupSalesResponse> {
+  return wrap(async () => { await requireAuth(); return getTodaysSalesByPopup(); });
+}
 export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit, popupId)); }
 export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getPendingOrders(popupId)); }
 // /stats(admin 전용) 시간대별 매출 화면에서만 쓰는 조회 — 다른 orders.ts 함수와 달리 여기만 admin 게이트가 필요
