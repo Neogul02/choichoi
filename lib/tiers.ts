@@ -8,6 +8,9 @@ export type Tier = {
   shadow: string;
   labelText: string;
   mute: string;
+  /** 진행바 색 — 최고 등급대만 특별 그라데이션. 없으면 흰색.
+   *  예전엔 화면에서 `tier.lv === 7`로 하드코딩해, 등급을 하나 늘리면 조용히 어긋났다. */
+  bar?: string;
 };
 
 export const TIERS: Tier[] = [
@@ -38,13 +41,21 @@ export const TIERS: Tier[] = [
   { threshold: 5_000_000, lv: 7, name: 'CHALLENGER', ko: '챌린저',
     bg: 'linear-gradient(135deg,#0f172a 0%,#475569 18%,#fbbf24 45%,#fde68a 60%,#f59e0b 78%,#dc2626 100%)',
     accent: '#fde68a', shadow: '0 14px 48px rgba(220,38,38,0.45), 0 0 60px rgba(251,191,36,0.30)',
-    labelText: '#fde68a', mute: 'rgba(255,255,255,0.92)' },
+    labelText: '#fde68a', mute: 'rgba(255,255,255,0.92)',
+    bar: 'linear-gradient(90deg,#fde68a,#f59e0b)' },
+  { threshold: 10_000_000, lv: 8, name: 'LEGEND', ko: '레전드',
+    bg: 'linear-gradient(135deg,#1a0033 0%,#4c1d95 22%,#db2777 48%,#f472b6 66%,#fbbf24 86%,#fff7ed 100%)',
+    accent: '#fce7f3', shadow: '0 16px 56px rgba(219,39,119,0.50), 0 0 72px rgba(251,191,36,0.35)',
+    labelText: '#fce7f3', mute: 'rgba(255,255,255,0.94)',
+    bar: 'linear-gradient(90deg,#fce7f3,#f472b6,#fbbf24)' },
 ];
 
 // 누적 유급 근무시간(시간 단위) 기준 — 주방/캐셔 모두 roster_assignments로 공평하게 쌓인다.
 // 실사용 분포를 보고 조정할 값이므로 이 배열만 바꾸면 됨.
 export const WORKER_TIER_HOUR_THRESHOLDS = [0, 40, 100, 200, 400, 800, 1500]
-export const WORKER_TIERS = TIERS.map((t, i) => ({ ...t, threshold: WORKER_TIER_HOUR_THRESHOLDS[i] }))
+// 시간 기준 배열을 축으로 map한다 — TIERS를 map하면 매출 등급을 하나 늘릴 때마다
+// 근무자 등급이 threshold: undefined로 딸려 생긴다(아래 색 배열과도 길이가 어긋난다).
+export const WORKER_TIERS = WORKER_TIER_HOUR_THRESHOLDS.map((threshold, i) => ({ ...TIERS[i], threshold }))
 
 export const TIER_DOT_COLORS = ['#cd7f32','#a8b1bd','#f59e0b','#2dd4bf','#60a5fa','#a78bfa','#fbbf24']
 const TIER_BG_COLORS    = ['#f4d4b020','#f3f4f620','#fef3c720','#ccfbf120','#dbeafe20','#ede9fe20','#fde68a20']

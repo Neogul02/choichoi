@@ -18,6 +18,7 @@ const SWATCHES: Omit<TierSwatch, 'lv' | 'name'>[] = [
   { bg: '#e6edfd', ring: '#60a5fa', text: '#1e40af' }, // DIAMOND
   { bg: '#efe7fb', ring: '#a78bfa', text: '#5b21b6' }, // MASTER
   { bg: '#fdece0', ring: '#f59e0b', text: '#9a3412' }, // CHALLENGER
+  { bg: '#fce7f3', ring: '#db2777', text: '#9d174d' }, // LEGEND
 ];
 
 export function getDayTierSwatch(revenue: number): TierSwatch | null {
