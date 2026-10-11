@@ -21,7 +21,14 @@ function TierEmblem({ lv, size = 14 }: { lv: number; size?: number }) {
   if (lv === 4) return <svg {...common}><polygon points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5"/></svg>;
   if (lv === 5) return <svg {...common}><polygon points="12,2 22,12 12,22 2,12"/></svg>;
   if (lv === 6) return <svg {...common}><path d="M12 2l2.5 7.5H22l-6.2 4.5 2.4 7.5L12 17l-6.2 4.5 2.4-7.5L2 9.5h7.5z"/></svg>;
-  return <svg {...common}><path d="M3 18l2-10 5 5 2-9 2 9 5-5 2 10z"/></svg>;
+  if (lv === 7) return <svg {...common}><path d="M3 18l2-10 5 5 2-9 2 9 5-5 2 10z"/></svg>;
+  // LEGEND(lv 8) — 왕관 위에 광채를 얹어 챌린저와 구분한다
+  return (
+    <svg {...common}>
+      <path d="M3 19l2-9 5 4.5L12 5l2 9.5L19 10l2 9z"/>
+      <path d="M12 2v1.5M5.5 4l.9 1.2M18.5 4l-.9 1.2"/>
+    </svg>
+  );
 }
 
 export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
@@ -115,9 +122,7 @@ export default function TodaySummary({ summary, isLoading, onRefresh }: Props) {
                 className="h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${progressPct}%`,
-                  background: tier.lv === 7
-                    ? 'linear-gradient(90deg,#fde68a,#f59e0b)'
-                    : '#fff',
+                  background: tier.bar ?? '#fff',
                 }}
               />
             </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getWorkerTier, WORKER_TIER_HOUR_THRESHOLDS } from './tiers'
+import { getWorkerTier, getTier, TIERS, WORKER_TIERS, WORKER_TIER_HOUR_THRESHOLDS } from './tiers'
 
 describe('getWorkerTier', () => {
   it('0시간이면 BRONZE', () => {
@@ -32,5 +32,21 @@ describe('getWorkerTier', () => {
 
   it('WORKER_TIER_HOUR_THRESHOLDS는 7단계 오름차순 배열이다', () => {
     expect(WORKER_TIER_HOUR_THRESHOLDS).toEqual([0, 40, 100, 200, 400, 800, 1500])
+  })
+})
+
+describe('getTier (매출 등급)', () => {
+  it('챌린저 위에 LEGEND가 있다 — 1000만 기준', () => {
+    expect(getTier(9_999_999).tier!.name).toBe('CHALLENGER')
+    expect(getTier(10_000_000).tier!.name).toBe('LEGEND')
+    expect(getTier(10_000_000).next).toBeNull()
+  })
+
+  // 등급을 늘릴 때 가장 쉽게 깨지는 지점 — 근무자 등급은 시간 기준 배열 길이를 따라야 한다.
+  // TIERS를 map하던 시절에는 매출 등급을 하나 늘리면 threshold: undefined인 근무자 등급이 딸려 생겼다.
+  it('매출 등급이 늘어도 근무자 등급은 시간 기준 배열 길이를 따른다', () => {
+    expect(WORKER_TIERS.length).toBe(WORKER_TIER_HOUR_THRESHOLDS.length)
+    expect(WORKER_TIERS.every(t => typeof t.threshold === 'number')).toBe(true)
+    expect(TIERS.length).toBeGreaterThan(WORKER_TIERS.length)
   })
 })
