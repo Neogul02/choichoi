@@ -9,6 +9,7 @@ import { minutesToHours } from '@/lib/workhours'
 import { formatBreakMinutes } from '@/lib/utils'
 import { DAY_NAMES } from '@/lib/staffing'
 import { showMsg } from '@/lib/toast'
+import NavBar from '@/components/NavBar'
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 function todayStr() {
@@ -26,7 +27,7 @@ function dDayLabel(dateStr: string, today: string): string {
   return `${diff}일 후`
 }
 
-// 서버 컴포넌트(app/my/page.tsx)가 프리페치한 초기 데이터 — null이면 기존 클라이언트 조회로 폴백
+// 서버 컴포넌트(app/schedule/page.tsx)가 프리페치한 초기 데이터 — null이면 기존 클라이언트 조회로 폴백
 export interface InitialSchedule {
   staffId: number | null
   staffName: string
@@ -35,9 +36,9 @@ export interface InitialSchedule {
   cursor: { y: number; m: number }
 }
 
-// MY 페이지의 "일정" 탭 콘텐츠 — 과거 독립 라우트였던 /my/schedule을 흡수한 것
-// (탭이 많아 헷갈린다는 피드백으로 2026-08-24 MY 페이지 안 탭으로 병합)
-export default function ScheduleTab({ initial, staffPicker }: { initial: InitialSchedule | null; staffPicker: StaffPickerItem[] | null }) {
+// 근무자가 자기 근무 일정을 보는 화면 — nav의 "스케줄" 탭.
+// MY 페이지 안 탭으로 있었지만(2026-08-24) 가장 자주 보는 화면이라 다시 nav로 끌어올렸다.
+export default function ScheduleClient({ initial, staffPicker }: { initial: InitialSchedule | null; staffPicker: StaffPickerItem[] | null }) {
   // 관리자/매니저는 본인 근무 기록이 없어도 다른 직원의 스케줄을 조회할 수 있어야 하므로
   // "내 staffId"(ownStaffId, 고정)와 "현재 화면에 보이는 staffId"(viewingId)를 분리한다
   const [ownStaffId, setOwnStaffId] = useState<number | null>(initial?.staffId ?? null)
@@ -151,28 +152,33 @@ export default function ScheduleTab({ initial, staffPicker }: { initial: Initial
   const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
 
   if (!loaded || !cursor) {
-    return <p className="text-ink-faint text-sm text-center py-10">불러오는 중...</p>
+    return <Shell><p className="text-ink-faint text-sm text-center py-10">불러오는 중...</p></Shell>
   }
 
   if (!viewingId) {
-    // 관리자/매니저는 본인 근무 기록이 없어도 선택기를 바로 띄운다 — "할 게 없는 빈 탭" 대신 다른 직원 조회로 안내
+    // 관리자/매니저는 본인 근무 기록이 없어도 선택기를 바로 띄운다 — "할 게 없는 빈 화면" 대신 다른 직원 조회로 안내
     if (canPickStaff) {
       return (
-        <div className="space-y-4">
-          <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
-          <p className="m-0 text-[14px] text-ink-muted">조회할 직원을 선택하세요.</p>
-        </div>
+        <Shell>
+          <div className="space-y-4">
+            <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
+            <p className="m-0 text-[14px] text-ink-muted">조회할 직원을 선택하세요.</p>
+          </div>
+        </Shell>
       )
     }
     return (
-      <div className="text-center py-10">
-        <p className="text-[16px] font-bold text-ink mb-2">아직 등록된 근무 정보가 없습니다</p>
-        <p className="text-[14px] text-ink-muted">관리자에게 문의해 주세요.</p>
-      </div>
+      <Shell>
+        <div className="text-center py-10">
+          <p className="text-[16px] font-bold text-ink mb-2">아직 등록된 근무 정보가 없습니다</p>
+          <p className="text-[14px] text-ink-muted">관리자에게 문의해 주세요.</p>
+        </div>
+      </Shell>
     )
   }
 
   return (
+    <Shell>
     <div className="space-y-4 lg:space-y-5">
 
       <h2 className="m-0 text-title text-ink">{staffName}님의 근무 일정</h2>
@@ -274,6 +280,20 @@ export default function ScheduleTab({ initial, staffPicker }: { initial: Initial
       </div>
 
     </div>
+    </Shell>
+  )
+}
+
+// 로딩·빈 상태·본문이 모두 같은 틀 안에서 그려지도록 셸을 하나로 둔다 —
+// MY 페이지 탭이었을 때는 MY 페이지가 NavBar와 main을 줬다.
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <NavBar />
+      <main className="min-h-screen p-4 pb-10">
+        <div className="max-w-[560px] lg:max-w-[900px] mx-auto">{children}</div>
+      </main>
+    </>
   )
 }
 

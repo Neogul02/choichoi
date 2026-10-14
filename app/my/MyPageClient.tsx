@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { getWorkerTier } from '@/lib/tiers'
 import { DAY_NAMES } from '@/lib/staffing'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import Link from 'next/link'
 import NavBar from '@/components/NavBar'
 import {
   getMyProfile, getMyOrderStats, updateMyProfile, changeMyPassword, deleteMyAccount, setMyResidentId,
@@ -18,20 +19,13 @@ import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativ
 import { formatPrice } from '@/lib/utils'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
-import type { StaffPickerItem } from '@/app/actions/staff'
 import dynamic from 'next/dynamic'
-import type { InitialSchedule } from './_components/ScheduleTab'
 
 const WorkerSignModal = dynamic(() => import('@/components/WorkerSignModal'), { ssr: false })
 // recharts(무거운 차트 라이브러리)를 본 번들에서 분리 — 차트가 보이는 경우에만 로드
 const DailyRevenueChart = dynamic(() => import('./_components/DailyRevenueChart'), {
   ssr: false,
   loading: () => <div className='h-[180px] rounded-xl bg-canvas-soft animate-pulse' />,
-})
-// 일정 탭 — 과거 /my/schedule 독립 라우트였던 것을 탭으로 흡수(탭 개수가 많아 헷갈린다는 피드백)
-const ScheduleTab = dynamic(() => import('./_components/ScheduleTab'), {
-  ssr: false,
-  loading: () => <div className='h-[400px] rounded-2xl bg-canvas-soft animate-pulse' />,
 })
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -76,19 +70,9 @@ export interface InitialMyData {
   contracts: ContractRecord[]
   shifts: MyShift[] | null
   cumulativeHours: number | null
-  schedule: InitialSchedule | null
-  staffPicker: StaffPickerItem[] | null
 }
 
 export default function MyPageClient({ initial }: { initial: InitialMyData | null }) {
-  // 탭 병합 전에는 /my/schedule이 별도 라우트였다 — 탭이 많아 헷갈린다는 피드백으로 MY 페이지 안 탭으로 흡수
-  // ?tab=schedule 이면 근무 일정으로 열린다. useSearchParams 대신 location을 읽는 이유는
-  // Suspense 경계를 추가로 요구하지 않기 때문 — 초기값 계산에만 쓰므로 한 번이면 충분하다.
-  const [tab, setTab] = useState<'info' | 'schedule'>(() => {
-    try {
-      return new URLSearchParams(window.location.search).get('tab') === 'schedule' ? 'schedule' : 'info'
-    } catch { return 'info' }
-  })
   const [profile, setProfile] = useState<UserProfile | null>(initial?.profile ?? null)
   const [authName, setAuthName] = useState<string | null>(null)
   const [authEmail, setAuthEmail] = useState<string | null>(null)
@@ -376,29 +360,6 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       <main className='min-h-screen p-4 pb-10'>
         <div className='max-w-[560px] lg:max-w-[900px] mx-auto space-y-4 lg:space-y-5'>
 
-          {/* 탭 전환 — 과거 별도 라우트였던 /my/schedule을 흡수, 탭이 많아 헷갈린다는 피드백 반영 */}
-          <div className='flex gap-1 rounded-xl bg-canvas-soft p-1 border border-hairline'>
-            {(['info', 'schedule'] as const).map(t => (
-              <button
-                key={t}
-                type='button'
-                onClick={() => setTab(t)}
-                className={`flex-1 py-2 rounded-lg text-[13px] font-bold cursor-pointer transition ${
-                  tab === t ? 'bg-canvas text-primary-700 shadow-level-1' : 'text-ink-muted'
-                }`}
-              >
-                {t === 'info' ? '내 정보' : '근무 일정'}
-              </button>
-            ))}
-          </div>
-
-          {tab === 'schedule' && (
-            <ScheduleTab initial={initial?.schedule ?? null} staffPicker={initial?.staffPicker ?? null} />
-          )}
-
-          {tab === 'info' && (
-          <>
-
           {/* 직원 선택기 (관리자 전용) — 다른 근무자의 MY 페이지를 조회 */}
           {isAdmin && userPicker && userPicker.length > 0 && (
             <UserPicker users={userPicker} ownUserId={ownUserId} viewingUserId={viewingUserId} disabled={isSwitchingUser} onPick={handlePickUser} />
@@ -500,7 +461,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             )
           })()}
 
-          {/* 다음 근무 미리보기 → 근무 일정 바로가기 (다른 근무자 조회 중에는 본인 스케줄 탭으로 링크하지 않음) */}
+          {/* 다음 근무 미리보기 → 스케줄 화면 바로가기 (다른 근무자 조회 중에는 본인 스케줄로 링크하지 않음) */}
           {myShifts !== null && (() => {
             const body = (
               <div className='flex items-center gap-3 h-full'>
@@ -526,9 +487,9 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
               </div>
             )
             return isOwnView ? (
-              <button type='button' onClick={() => setTab('schedule')} className='block w-full text-left rounded-2xl bg-canvas border border-hairline shadow-level-1 p-4 hover:border-primary-200 hover:shadow-level-2 transition h-full cursor-pointer'>
+              <Link href='/schedule' className='block w-full text-left rounded-2xl bg-canvas border border-hairline shadow-level-1 p-4 hover:border-primary-200 hover:shadow-level-2 transition h-full no-underline'>
                 {body}
-              </button>
+              </Link>
             ) : (
               <div className='rounded-2xl bg-canvas border border-hairline shadow-level-1 p-4 h-full'>{body}</div>
             )
@@ -882,9 +843,6 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
               </div>
             )}
           </div>
-          )}
-
-          </>
           )}
 
           {/* 근로계약서 서명 모달 (본인 조회 시에만 상태 세팅됨) */}

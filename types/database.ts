@@ -126,17 +126,6 @@ export interface RosterAssignment {
   staff_profiles?: Pick<StaffProfile, 'id' | 'name' | 'phone' | 'status'>;
 }
 
-export interface Memo {
-  id: number;
-  title: string | null;
-  content: string;
-  color: string;
-  is_pinned: boolean;
-  type: 'note' | 'checklist';
-  created_at: string;
-  updated_at: string;
-}
-
 // ── Inventory ─────────────────────────────────────────────────────────────────
 
 export interface Ingredient {

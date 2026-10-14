@@ -155,9 +155,9 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
     setIsAuthed(true)
 
     // 주방은 POS를 쓰지 않으므로 바로 내 근무 일정으로 보낸다.
-    // 이미 /my에 있으면 그대로 두어 불필요한 새로고침을 막는다.
-    if (isKitchen && !window.location.pathname.startsWith('/my')) {
-      window.location.href = '/my?tab=schedule'
+    // 이미 /schedule에 있으면 그대로 두어 불필요한 새로고침을 막는다.
+    if (isKitchen && !window.location.pathname.startsWith('/schedule')) {
+      window.location.href = '/schedule'
     }
   }
 

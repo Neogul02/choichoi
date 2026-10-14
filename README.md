@@ -89,8 +89,7 @@ app/actions/
 ├── workers.ts                 # Staff accounts/profiles, invite-code signup
 ├── contracts.ts                # Employment contract creation, e-signature, deletion
 ├── pos-note.ts                  # POS announcement memo
-├── discord.ts                    # Discord notifications
-└── memos.ts                       # Operations memos
+└── discord.ts                    # Discord notifications
 ```
 
 ### Migrating from a temporary password/token scheme to a unified Supabase Auth system
@@ -194,8 +193,8 @@ lib/supabase.ts          ← ANON_KEY, dedicated singleton for client realtime c
 | Role | Description | Accessible routes |
 |------|-------------|-------------------|
 | **Guest** | Ordering customer | `/display` |
-| **Staff** (user) | Cashier / kitchen worker | `/pos`, `/orders`, `/memo`, `/my`, `/my/schedule` |
-| **Manager** | On-site manager | All of the above + `/inventory`, `/roster` |
+| **Staff** (user) | Cashier / kitchen worker | `/pos`, `/orders`, `/my`, `/schedule`, `/inventory` (read-only) |
+| **Manager** | On-site manager | All of the above + `/inventory` (edit), `/roster` |
 | **Admin** | Overall operations lead | All routes + `/stats`, `/hr`, `/settings` |
 
 All roles share the same Supabase Auth account system; permissions are distinguished solely by `user_metadata.role`. The role read on the client is only used to decide what to show in the UI — actual access control is entirely enforced by `proxy.ts` and the in-action guards in Server Actions.
@@ -214,9 +213,8 @@ app/
 ├── pos/                          # Cashier POS main screen
 ├── display/                       # Customer display (view/order modes, no auth required)
 ├── orders/                         # Order status
-├── memo/                            # Operations memos
-├── my/                               # My info — edit profile, order stats, view/sign contracts
-├── my/schedule/                       # Worker-facing personal shift schedule view
+├── my/                              # My info — edit profile, order stats, view/sign contracts
+├── schedule/                         # Worker-facing personal shift schedule view
 ├── (admin)/                             # Protected by proxy.ts + layout.tsx (admin only)
 │   ├── stats/                            # Sales analytics (split into custom hooks/components)
 │   ├── settings/                          # Menu/popup management + user basics + dev tools
@@ -288,7 +286,7 @@ types/
 
 | Table | Key columns | Notes |
 |-------|-------------|-------|
-| `memos` | `id`, `title`, `content`, `color`, `is_pinned`, `type` (`note`\|`checklist`) | Cashier operations memos |
+| `memos` | `id`, `title`, `content`, `color`, `is_pinned`, `type` (`note`\|`checklist`) | **Unused** — the memo screen was removed 2026-10-09; the table is kept until the data is confirmed disposable |
 | `pos_note` | `content`, `updated_by`, `updated_at` | POS announcement, always a single row |
 | `manual_menu_sales` / `manual_daily_menu_sales` / `manual_hourly_sales` | `popup_id`, `menu_item_id`/`hour`, `quantity`/`total_revenue` | Manual sales-correction entries per popup |
 
