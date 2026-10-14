@@ -32,6 +32,16 @@ export interface PopupEvent {
   created_at: string;
 }
 
+// 팝업 휴무일 — 운영 기간 안이지만 영업하지 않는 날(백화점 정기휴점 등).
+// 행이 있으면 휴무, 없으면 영업. 판정은 lib/closedDays.ts가 유일한 기준이다.
+export interface PopupClosedDay {
+  id: number;
+  popup_id: number;
+  closed_date: string; // YYYY-MM-DD
+  reason: string | null;
+  created_at: string;
+}
+
 // ── HR (인사관리) ─────────────────────────────────────────────────────────────
 
 export interface AvailabilityRange {

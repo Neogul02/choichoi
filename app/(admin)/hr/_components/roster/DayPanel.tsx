@@ -28,6 +28,12 @@ interface Props {
   onBreakChange: (id: number, breakMinutes: number | null) => Promise<void>;
   onRequirementChange: (d: string, shiftId: number, required: number) => Promise<void>;
   onRequirementReset: (d: string, shiftId: number) => Promise<void>;
+  /** 휴무일이면 사유(사유 미입력은 null), 휴무일이 아니면 undefined */
+  closedReason: string | null | undefined;
+  /** 휴무일 토글 — 주방·캐셔 "전체" 보기처럼 대상 팝업이 하나로 정해지지 않으면 null */
+  onToggleClosed: (() => void) | null;
+  /** 이 날 배정 전체 삭제 — 휴무로 지정한 날에 남은 배정을 한 번에 치우는 용도. 불가한 단위에서는 null */
+  onClearDay: (() => void) | null;
   onClose: () => void;
 }
 
@@ -35,9 +41,14 @@ interface Props {
 export default function DayPanel({
   dateStr, shifts, staffList, overrides, violations,
   getAssigned, getRequired, getShiftLabel, getWeeklyDayCount, onAdd, onRemove, onTimeChange, onBreakChange,
-  onRequirementChange, onRequirementReset, onClose,
+  onRequirementChange, onRequirementReset, closedReason, onToggleClosed, onClearDay, onClose,
 }: Props) {
   const day = dayOfWeek(dateStr);
+  const isClosed = closedReason !== undefined;
+  // 휴무일인데 배정이 남아 있으면 그 사람은 급여가 계산된다 — 휴무 지정이 배정을 자동으로 지우지
+  // 않기 때문이다(급여는 배정 행이 기준). 그래서 건수를 눈에 보이게 띄우고 치우는 버튼을 붙인다.
+  const assignedCount = shifts.reduce((sum, s) => sum + getAssigned(dateStr, s.id).length, 0);
+
   const [editingTimeId, setEditingTimeId] = useState<number | null>(null);
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
@@ -74,6 +85,8 @@ export default function DayPanel({
       const dateLabel = `${m}월 ${dd}일(${DAY_NAMES[day]})`;
 
       const lines: string[] = [`📋 ${dateLabel} 근무 안내`, ''];
+      // 휴무는 배정과 별개로 먼저 적는다 — 받는 사람이 "배정을 빠뜨린 날"로 오해하지 않게
+      if (isClosed) lines.push(`휴무${closedReason ? ` · ${closedReason}` : ''}`, '');
       let hasAny = false;
 
       for (const shift of shifts) {
@@ -95,7 +108,11 @@ export default function DayPanel({
       }
 
       if (!hasAny) {
-        await navigator.clipboard.writeText(`📋 ${dateLabel} 근무 안내\n\n배정된 근무자가 없습니다.`);
+        await navigator.clipboard.writeText(
+          isClosed
+            ? lines.join('\n').trimEnd()
+            : `📋 ${dateLabel} 근무 안내\n\n배정된 근무자가 없습니다.`,
+        );
       } else {
         await navigator.clipboard.writeText(lines.join('\n').trimEnd());
       }
@@ -123,6 +140,19 @@ export default function DayPanel({
           <span className={`ml-1 ${day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'}`}>({DAY_NAMES[day]})</span>
         </h3>
         <div className="flex items-center gap-2">
+          {onToggleClosed && (
+            <button
+              onClick={onToggleClosed}
+              title={isClosed ? '휴무 해제 — 다시 영업하는 날로 되돌립니다' : '이 날을 휴무일로 지정합니다 (배정은 지워지지 않습니다)'}
+              className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer transition ${
+                isClosed
+                  ? 'bg-ink/5 border-hairline text-ink-secondary hover:bg-ink/10'
+                  : 'bg-canvas-soft border-hairline text-ink-muted hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700'
+              }`}
+            >
+              {isClosed ? '휴무 해제' : '휴무일 지정'}
+            </button>
+          )}
           <button
             onClick={handleCopy}
             disabled={copying}
@@ -133,6 +163,27 @@ export default function DayPanel({
           <button onClick={onClose} aria-label="날짜 상세 닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
       </div>
+
+      {isClosed && (
+        <div className="mb-3 rounded-xl border border-hairline bg-canvas-soft px-3 py-2">
+          <p className="m-0 text-[12px] font-bold text-ink-secondary">
+            휴무일{closedReason ? ` · ${closedReason}` : ''}
+          </p>
+          <p className="m-0 mt-0.5 text-[11px] text-ink-muted leading-snug">
+            {assignedCount === 0
+              ? '영업하지 않는 날입니다. 요구 인원은 0으로 보고, 일괄 배정·지난주 복사에서도 제외됩니다.'
+              : `배정 ${assignedCount}건이 남아 있습니다 — 급여는 배정 기준이라 휴무 지정만으로는 지워지지 않습니다.`}
+          </p>
+          {assignedCount > 0 && onClearDay && (
+            <button
+              onClick={onClearDay}
+              className="mt-1.5 px-2.5 py-1 rounded-lg border border-rose-200 bg-rose-50 text-[11px] font-bold text-rose-600 cursor-pointer hover:bg-rose-100 transition"
+            >
+              이 날 배정 {assignedCount}건 삭제
+            </button>
+          )}
+        </div>
+      )}
 
       {shifts.map((shift, shiftIdx) => {
         const assigned = getAssigned(dateStr, shift.id);

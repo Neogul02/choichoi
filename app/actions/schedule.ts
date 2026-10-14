@@ -1,12 +1,12 @@
 'use server';
 
 import { z } from 'zod';
-import { wrap, requireAdmin } from './_base';
+import { wrap, requireAdmin, requireAuth } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import { classifyStaffByPopupSchedule } from './staffPopups';
 import { createDefaultCashierShifts } from './roster';
 import type { ApiResponse, FetchEventsResponse } from '@/types/api';
-import type { PopupEvent } from '@/types/database';
+import type { PopupClosedDay, PopupEvent } from '@/types/database';
 
 const PopupEventSchema = z.object({
   name: z.string().min(1, '행사명을 입력해주세요').max(50),
@@ -99,4 +99,76 @@ export async function editPopupEvent(id: number, name: string, startDate: string
   // 기간을 수정하면(연장 등) 새로 기간에 들어온 근무자를 다시 분류
   if (res.success && res.data) await classifyStaffByPopupSchedule(id);
   return res;
+}
+
+// ── Popup Closed Days (휴무일) ────────────────────────────────────────────────
+// 운영 기간 안이지만 영업하지 않는 날. 행이 있으면 휴무, 없으면 영업 — 판정 규칙은
+// lib/closedDays.ts가 유일한 기준이다.
+//
+// 휴무일 지정은 급여를 바꾸지 않는다. 이미 배정이 찍힌 날을 휴무로 지정해도 배정 행은 그대로
+// 남으며, 지우려면 관리자가 건수를 보고 clearPopupAssignmentsOnDates(roster.ts)를 따로 실행해야 한다.
+
+const ClosedDaySchema = z.object({
+  popupId: z.number().int().positive(),
+  dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식이 올바르지 않습니다')).min(1, '날짜를 선택하세요'),
+  reason: z.string().max(100).nullable(),
+});
+
+/**
+ * 휴무일 조회 — 팝업 id 목록(비면 전체)과 날짜 범위로 좁힌다.
+ * 근무표·일정표·내 일정이 모두 쓰는 읽기라 역할 제한 없이 로그인만 요구한다
+ * (휴무일 자체는 "그날 가게가 쉰다"는 사실뿐이라 민감 정보가 아니다).
+ */
+export async function fetchPopupClosedDays(
+  popupIds?: number[],
+  fromDate?: string,
+  toDate?: string,
+): Promise<ApiResponse<PopupClosedDay[]>> {
+  return wrap(async () => {
+    await requireAuth();
+    let q = supabaseAdmin.from('popup_closed_days').select('*').order('closed_date');
+    // 빈 배열을 .in()에 그대로 넘기면 항상 0건이 되므로 "전체 조회"와 구분한다
+    if (popupIds && popupIds.length > 0) q = q.in('popup_id', popupIds);
+    if (fromDate) q = q.gte('closed_date', fromDate);
+    if (toDate) q = q.lte('closed_date', toDate);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return (data ?? []) as PopupClosedDay[];
+  });
+}
+
+/** 휴무일 지정 (여러 날짜 한 번에 — "매주 ○요일" 일괄 지정용). 이미 휴무인 날은 건너뛴다 */
+export async function addPopupClosedDays(
+  popupId: number,
+  dates: string[],
+  reason: string | null,
+): Promise<ApiResponse<{ added: PopupClosedDay[]; skipped: number }>> {
+  const parsed = ClosedDaySchema.safeParse({ popupId, dates, reason: reason?.trim() || null });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  return wrap(async () => {
+    await requireAdmin();
+    const rows = parsed.data.dates.map(d => ({ popup_id: parsed.data.popupId, closed_date: d, reason: parsed.data.reason }));
+    // ignoreDuplicates — 이미 휴무로 지정된 날의 사유를 덮어쓰지 않는다 ("매주 월요일"을 다시
+    // 눌렀을 때 손으로 적어둔 "명절 휴점" 같은 사유가 조용히 날아가면 안 된다)
+    const { data, error } = await supabaseAdmin
+      .from('popup_closed_days')
+      .upsert(rows, { onConflict: 'popup_id,closed_date', ignoreDuplicates: true })
+      .select('*');
+    if (error) throw new Error(error.message);
+    const added = (data ?? []) as PopupClosedDay[];
+    return { added, skipped: rows.length - added.length };
+  });
+}
+
+/** 휴무일 해제 — 휴점일에 특별 영업을 하는 예외도 있어 날짜 단위로 되돌릴 수 있어야 한다 */
+export async function removePopupClosedDay(popupId: number, date: string): Promise<ApiResponse> {
+  return wrap(async () => {
+    await requireAdmin();
+    const { error } = await supabaseAdmin
+      .from('popup_closed_days')
+      .delete()
+      .eq('popup_id', popupId)
+      .eq('closed_date', date);
+    if (error) throw new Error(error.message);
+  });
 }

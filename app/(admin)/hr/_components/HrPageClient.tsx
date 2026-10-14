@@ -584,8 +584,9 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
           staff={assigning.value}
           popups={activePopups}
           onClose={assigning.close}
-          onAssigned={(count) => {
-            showMsg(count > 0 ? `${count}일 배정 완료` : '새로 배정된 날짜가 없습니다 (이미 배정됨)');
+          onAssigned={(count, closedSkipped) => {
+            const closedNote = closedSkipped > 0 ? ` · 휴무일 ${closedSkipped}일 제외` : '';
+            showMsg((count > 0 ? `${count}일 배정 완료` : '새로 배정된 날짜가 없습니다 (이미 배정됨)') + closedNote);
             assigning.close();
             if (count > 0) setCalendarRefreshKey(k => k + 1);
           }}

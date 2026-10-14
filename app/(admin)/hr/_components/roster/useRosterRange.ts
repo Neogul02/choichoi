@@ -9,6 +9,8 @@ import {
   updateRosterAssignmentTime, updateRosterAssignmentBreak, setShiftRequirement, clearShiftRequirement,
 } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
+import { fetchPopupClosedDays, addPopupClosedDays, removePopupClosedDay } from '@/app/actions/schedule';
+import { buildClosedDayIndex, isClosedDay, type ClosedDayIndex } from '@/lib/closedDays';
 import type { RosterShift, RosterAssignment, StaffProfile } from '@/types/database';
 
 interface Options {
@@ -38,6 +40,9 @@ export function useRosterRange({
   const [shifts, setShifts] = useState<RosterShift[]>([]);
   const [assignments, setAssignments] = useState<RosterAssignment[]>([]);
   const [overrides, setOverrides] = useState<Record<string, number>>({}); // `${date}|${shiftId}` → required
+  // 팝업 휴무일 — 보는 기간의 모든 팝업을 한 번에 담는다. 캐셔 "전체" 보기는 여러 팝업의 파트가
+  // 섞여 있어 파트의 popup_id로 판정해야 하므로 팝업별로 걸러 받지 않는다.
+  const [closedDays, setClosedDays] = useState<ClosedDayIndex>(() => new Map());
   const [isLoading, setIsLoading] = useState(true);
   // 서버 프리페치 데이터는 최초 1회만 판정·소비 — 월 이동 후 복귀 시 낡은 데이터 재사용 방지
   const initialDataConsumed = useRef(!initialData);
@@ -62,6 +67,16 @@ export function useRosterRange({
       setOverrides(Object.fromEntries(r.data.requirements.map(q => [`${q.work_date}|${q.shift_id}`, q.required])));
     }
   };
+
+  // 휴무일은 배정과 독립이라(프리페치 대상도 아니다) 보는 기간이 바뀔 때만 따로 불러온다 —
+  // 서버 프리페치로 배정 조회를 건너뛰는 첫 로드에서도 빠지지 않게 한다
+  const loadClosedDays = useCallback(async () => {
+    const r = await fetchPopupClosedDays(undefined, loadFrom, loadTo);
+    if (r.success && r.data) setClosedDays(buildClosedDayIndex(r.data));
+    else if (!r.success) showMsg(`휴무일을 불러오지 못했습니다: ${r.error}`);
+  }, [loadFrom, loadTo]);
+
+  useEffect(() => { void loadClosedDays(); }, [loadClosedDays]);
 
   // 외부 배정(StaffAssignModal) 후 캘린더 데이터 재로드
   useEffect(() => {
@@ -168,6 +183,26 @@ export function useRosterRange({
     }
   };
 
+  /**
+   * 휴무일 토글 — 그 팝업의 그 날이 휴무인지 뒤집는다.
+   * 이미 찍힌 배정은 건드리지 않는다 — 급여는 배정 행이 기준이라 자동으로 지우면 유급 시간이
+   * 조용히 줄어든다. 남은 배정 건수는 DayPanel이 보여주고, 삭제는 거기서 따로 확인받는다.
+   */
+  const handleToggleClosedDay = async (dateStr: string, popupId: number) => {
+    const wasClosed = isClosedDay(closedDays, popupId, dateStr);
+    const r = wasClosed
+      ? await removePopupClosedDay(popupId, dateStr)
+      : await addPopupClosedDays(popupId, [dateStr], null);
+    if (!r.success) { showMsg(`오류: ${r.error}`); return; }
+    setClosedDays(prev => {
+      const next = new Map(prev);
+      if (wasClosed) next.delete(`${popupId}|${dateStr}`);
+      else next.set(`${popupId}|${dateStr}`, null);
+      return next;
+    });
+    showMsg(wasClosed ? '휴무일이 해제됐습니다' : '휴무일로 지정됐습니다');
+  };
+
   const handleRequirementChange = async (dateStr: string, shiftId: number, required: number) => {
     const r = await setShiftRequirement(dateStr, shiftId, required);
     if (r.success && r.data) setOverrides(p => ({ ...p, [`${dateStr}|${shiftId}`]: r.data!.required }));
@@ -184,8 +219,11 @@ export function useRosterRange({
     shifts, setShifts,
     assignments, setAssignments,
     overrides,
+    closedDays,
     isLoading,
     loadRange,
+    loadClosedDays,
     handleAdd, handleRemove, handleTimeChange, handleBreakChange, handleRequirementChange, handleRequirementReset,
+    handleToggleClosedDay,
   };
 }

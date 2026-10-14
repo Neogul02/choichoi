@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { StaffProfile } from '@/types/database'
 import { requiredFor, buildAssignMap, getWeekStart, checkStaffAvailability, findRosterViolations } from './staffing'
+import { buildClosedDayIndex } from './closedDays'
 
 // 2026-08-02(일) ~ 2026-08-08(토) 주간을 기준으로 테스트한다
 const SUN = '2026-08-02'
@@ -12,6 +13,7 @@ const SAT = '2026-08-08'
 
 const shift = (over: Partial<Parameters<typeof requiredFor>[1]> = {}) => ({
   id: 1,
+  popup_id: 7,
   active_from: null,
   active_to: null,
   weekday_required: 2,
@@ -49,6 +51,18 @@ describe('requiredFor', () => {
     expect(requiredFor(MON, s, {})).toBe(2)
     expect(requiredFor(WED, s, {})).toBe(2)
     expect(requiredFor(THU, s, {})).toBe(0)
+  })
+
+  // 휴무일은 날짜별 override보다 앞선다 — 영업하지 않는 날이 미충원으로 빨갛게 남으면 안 된다
+  it('팝업 휴무일이면 override가 있어도 0', () => {
+    const s = shift({ active_from: SUN, active_to: SAT })
+    const closed = buildClosedDayIndex([{ popup_id: 7, closed_date: MON, reason: '정기휴점' }])
+    expect(requiredFor(MON, s, {}, closed)).toBe(0)
+    expect(requiredFor(MON, s, { [`${MON}|1`]: 5 }, closed)).toBe(0)
+    // 휴무가 아닌 날은 그대로
+    expect(requiredFor(TUE, s, {}, closed)).toBe(2)
+    // 다른 팝업의 파트는 영향받지 않는다
+    expect(requiredFor(MON, shift({ popup_id: 8, active_from: SUN, active_to: SAT }), {}, closed)).toBe(2)
   })
 })
 

@@ -11,6 +11,7 @@ import type { StaffProfile, PopupEvent, StaffRole, RosterShift } from '@/types/d
 import { DAY_NAMES, ROLE_LABELS, popupTint, popupTintSoft } from './constants';
 import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap, pickOngoingPopup } from '@/lib/staffing';
 import { popupsOnDate, popupTintGradient, type CalendarPopup } from '@/lib/popupPeriod';
+import { closedDayReason, isClosedDay } from '@/lib/closedDays';
 import { addDays, kstToday } from '@/lib/date';
 import { CalendarGridSkeleton, MatrixSkeleton } from '@/components/Skeleton';
 import { useRosterView } from './roster/useRosterView';
@@ -73,8 +74,9 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
 
   // 데이터(파트·배정·요구 인원) 로딩 + 단건 변경
   const {
-    shifts, setShifts, assignments, setAssignments, overrides, isLoading, loadRange,
+    shifts, setShifts, assignments, setAssignments, overrides, closedDays, isLoading, loadRange,
     handleAdd, handleRemove, handleTimeChange, handleBreakChange, handleRequirementChange, handleRequirementReset,
+    handleToggleClosedDay,
   } = useRosterRange({
     unit, staffList, cursor, viewMode, weekStart, loadFrom, loadTo,
     initialData, refreshSignal, onCursorChange: resetOnCursorChange,
@@ -85,7 +87,7 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
   const [showShiftManage, setShowShiftManage] = useState(false);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [dropTarget, setDropTarget] = useState<{ dateStr: string; staffId: number; x: number; y: number } | null>(null);
-  const [confirmAction, setConfirmAction] = useState<'copyPrevWeek' | 'clear' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'copyPrevWeek' | 'clear' | 'clearDay' | null>(null);
 
   // 현재 단위 소속 직원만 (주방 전체 / 해당 팝업 캐셔 / 캐셔 전체 보기는 팝업 무관 전원)
   const unitStaff = useMemo(
@@ -166,9 +168,28 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
   }, [assignments, violations]);
 
   const getRequired = useCallback(
-    (dateStr: string, shift: RosterShift): number => requiredFor(dateStr, shift, overrides),
-    [overrides],
+    (dateStr: string, shift: RosterShift): number => requiredFor(dateStr, shift, overrides, closedDays),
+    [overrides, closedDays],
   );
+
+  // 휴무일 토글의 대상 팝업 — 캐셔 개별 보기에서만 하나로 정해진다.
+  // 주방은 팝업에 귀속되지 않고, "전체" 보기는 어느 팝업을 쉬게 할지 알 수 없다.
+  const closablePopupId = unit.staffRole === 'cashier' && !isAllPopups(unit) ? unit.popupId : null;
+
+  /**
+   * 달력 칸의 휴무 라벨 — 개별 팝업 보기는 `휴무`, 여러 팝업이 섞이는 보기는 쉬는 팝업 이름을 붙인다.
+   * 주방은 팝업 휴무와 무관하므로 라벨을 달지 않는다(팝업이 쉬어도 준비·손질 일은 돌아간다).
+   */
+  const getClosedLabel = useCallback((dateStr: string): string | null => {
+    if (unit.staffRole === 'kitchen') return null;
+    if (closablePopupId != null) {
+      const reason = closedDayReason(closedDays, closablePopupId, dateStr);
+      if (reason === undefined) return null;
+      return reason ? `휴무 · ${reason}` : '휴무';
+    }
+    const names = calendarPopups.filter(p => isClosedDay(closedDays, p.id, dateStr)).map(p => p.name);
+    return names.length === 0 ? null : `휴무 · ${names.join(', ')}`;
+  }, [unit.staffRole, closablePopupId, closedDays, calendarPopups]);
 
   // 해당 날짜가 속한 주(일~토)에 이 직원이 근무하는 날 수 — 이달 데이터 기준 근사치, 서버 자동 배정은 정확히 검사함
   const getWeeklyDayCount = (staffId: number, dateStr: string): number => {
@@ -198,9 +219,10 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
     if (!weekStart) return;
     const r = await copyPreviousWeek(unit, weekStart);
     if (r.success && r.data) {
+      const closedNote = r.data.closedSkipped > 0 ? ` · 휴무일 ${r.data.closedSkipped}건 제외` : '';
       showMsg(r.data.added === 0
-        ? '복사할 배정이 없습니다'
-        : `${r.data.added}건 복사됨${r.data.skipped > 0 ? ` · ${r.data.skipped}건 건너뜀` : ''}`);
+        ? `복사할 배정이 없습니다${closedNote}`
+        : `${r.data.added}건 복사됨${r.data.skipped > 0 ? ` · ${r.data.skipped}건 건너뜀` : ''}${closedNote}`);
       await loadRange();
     } else {
       showMsg(`오류: ${r.error}`);
@@ -248,6 +270,19 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
     setConfirmAction('clear');
   };
 
+  // 휴무로 지정한 날에 남은 배정을 하루치만 치운다 — 되돌리기는 초기화와 같은 스냅샷을 쓴다
+  const runClearDay = async () => {
+    setConfirmAction(null);
+    if (!selectedDate) return;
+    const r = await clearRosterRange(unit, selectedDate, selectedDate);
+    if (r.success && r.data) {
+      setAssignments(p => p.filter(a => a.work_date !== selectedDate));
+      offerUndo(`${r.data.removed}건 삭제됨`, r.data.undo);
+    } else {
+      showMsg(`오류: ${r.error}`);
+    }
+  };
+
   const runClearRoster = async () => {
     setConfirmAction(null);
     const r = await clearRosterRange(unit, targetFrom, targetTo);
@@ -263,11 +298,13 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
   // 직원 드롭 처리 — 활성 파트가 하나면 즉시 배정, 여럿이면 커서 위치에 파트 선택 팝오버
   // useCallback로 안정화 — MonthGrid(memo) props가 매 렌더 새로 생성되면 memo가 무력화된다
   const handleDropStaff = useCallback((dateStr: string, staffId: number, x: number, y: number) => {
+    // 휴무일에는 드래그로 배정하지 않는다 — 꼭 필요한 근무(진열·철수 등)는 날짜 상세 패널에서 추가한다
+    if (getClosedLabel(dateStr)) { showMsg('휴무일입니다 — 날짜를 선택해 상세 패널에서 추가하세요'); return; }
     const active = visibleShifts.filter(s => (!s.active_from || dateStr >= s.active_from) && (!s.active_to || dateStr <= s.active_to));
     if (active.length === 0) { showMsg('이 날짜에 활성화된 파트가 없습니다'); return; }
     if (active.length === 1) { handleAdd(dateStr, active[0].id, staffId); return; }
     setDropTarget({ dateStr, staffId, x, y });
-  }, [visibleShifts, handleAdd]);
+  }, [visibleShifts, handleAdd, getClosedLabel]);
 
   if (!cursor) return <p className="text-ink-faint text-sm">불러오는 중...</p>;
 
@@ -287,6 +324,14 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
           confirmLabel: '복사',
           danger: false,
           onConfirm: runCopyPrevWeek,
+        };
+      case 'clearDay':
+        return {
+          title: `${selectedDate ? `${Number(selectedDate.slice(5, 7))}월 ${Number(selectedDate.slice(8))}일` : ''} 배정을 모두 삭제할까요?`,
+          description: '휴무일로 지정한 날에 남아 있는 근무 배정을 지웁니다. 되돌리기로 복구할 수 있습니다.',
+          confirmLabel: '삭제',
+          danger: true,
+          onConfirm: runClearDay,
         };
       case 'clear':
         return {
@@ -393,6 +438,7 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
             getAssigned={getAssigned}
             getShiftLabel={getShiftLabel}
             violations={violations}
+            getClosedLabel={getClosedLabel}
             selectedDate={selectedDate}
             onDateClick={ds => setSelectedDate(prev => (prev === ds ? null : ds))}
           />
@@ -407,6 +453,7 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
             getShiftLabel={getShiftLabel}
             getDayTint={getDayTint}
             violationDates={violationDates}
+            getClosedLabel={getClosedLabel}
             onSelectDate={setSelectedDate}
             onDropStaff={handleDropStaff}
           />
@@ -433,6 +480,9 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
           onBreakChange={handleBreakChange}
           onRequirementChange={handleRequirementChange}
           onRequirementReset={handleRequirementReset}
+          closedReason={closablePopupId != null ? closedDayReason(closedDays, closablePopupId, selectedDate) : undefined}
+          onToggleClosed={closablePopupId != null ? () => handleToggleClosedDay(selectedDate, closablePopupId) : null}
+          onClearDay={isAllPopups(unit) ? null : () => setConfirmAction('clearDay')}
           onClose={() => setSelectedDate(null)}
         />
       )}

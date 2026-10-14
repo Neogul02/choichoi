@@ -11,6 +11,11 @@ interface Props {
   isSelected: boolean;
   isPast: boolean;
   hasViolation: boolean;
+  /**
+   * 그날이 팝업 휴무일이면 칸에 띄울 라벨(예: `휴무`, `휴무 · 정기휴점`), 아니면 null.
+   * 캐셔 "전체" 보기는 팝업이 섞여 있어 쉬는 팝업 이름까지 부모가 만들어 넘긴다.
+   */
+  closedLabel: string | null;
   shifts: RosterShift[];
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
   /** 그날 그 파트에 필요한 인원 — 0이면 운영하지 않는 파트 */
@@ -25,7 +30,7 @@ interface Props {
 
 /** 달력 셀 하나 — memo로 감싸 날짜 선택·팝오버 등 무관한 부모 상태 변화에 재렌더되지 않게 한다 */
 function DayCell({
-  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, shifts, getAssigned, getRequired, getShiftLabel, tint, onSelectDate, onDropStaff,
+  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, closedLabel, shifts, getAssigned, getRequired, getShiftLabel, tint, onSelectDate, onDropStaff,
 }: Props) {
   // 드래그오버 강조는 순수 시각 상태라 셀 내부에서만 관리
   const [dragOver, setDragOver] = useState(false);
@@ -34,7 +39,9 @@ function DayCell({
     <button
       onClick={() => onSelectDate(isSelected ? null : dateStr)}
       onDragOver={e => {
-        if (!isPast && e.dataTransfer.types.includes('application/staff-id')) {
+        // 휴무일에는 드래그 배정을 받지 않는다 — 영업하지 않는 날에 실수로 떨어뜨리는 걸 막는다.
+        // 진열·철수처럼 휴점일에 꼭 나와야 하는 근무는 날짜 상세 패널에서 명시적으로 추가한다.
+        if (!isPast && !closedLabel && e.dataTransfer.types.includes('application/staff-id')) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'copy';
           setDragOver(true);
@@ -56,7 +63,7 @@ function DayCell({
         dragOver && !isPast
           ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/40'
           : isSelected ? 'border-primary-700 ring-2 ring-primary-700/20' : 'border-hairline hover:border-primary-400'
-      } ${isPast ? 'opacity-50' : ''}`}
+      } ${isPast ? 'opacity-50' : ''} ${closedLabel ? 'border-dashed' : ''}`}
     >
       <span className="flex items-center gap-0.5 mb-0.5">
         <span className={`text-[11px] font-bold leading-none ${
@@ -67,6 +74,14 @@ function DayCell({
         </span>
         {hasViolation && (
           <span className="text-[9px] leading-none" title="근무 규칙 위반 있음 (휴식 9시간 미만 또는 주 최대일 초과)">⚠️</span>
+        )}
+        {closedLabel && (
+          <span
+            title={`${closedLabel} — 영업하지 않는 날입니다`}
+            className="text-[9px] md:text-[10px] font-bold leading-none px-1 py-0.5 rounded bg-canvas-soft text-ink-faint truncate"
+          >
+            {closedLabel}
+          </span>
         )}
       </span>
       {shifts.map(shift => {

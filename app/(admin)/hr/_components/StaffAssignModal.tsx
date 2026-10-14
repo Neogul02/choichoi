@@ -6,6 +6,8 @@ import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { fetchRosterShifts, bulkAddRosterAssignments } from '@/app/actions/roster'
+import { fetchPopupClosedDays } from '@/app/actions/schedule'
+import { buildClosedDayIndex, isClosedDay, type ClosedDayIndex } from '@/lib/closedDays'
 import type { RosterUnit } from '@/app/actions/roster'
 import type { StaffProfile, RosterShift, PopupEvent } from '@/types/database'
 import { DAY_NAMES as DAY_LABELS, pickOngoingPopup } from '@/lib/staffing'
@@ -17,7 +19,7 @@ interface Props {
   /** 활성 팝업 목록 — 기간을 팝업 운영 기간으로 한 번에 맞추는 빠른 선택에 쓴다 */
   popups: PopupEvent[]
   onClose: () => void
-  onAssigned: (count: number) => void
+  onAssigned: (count: number, closedSkipped: number) => void
 }
 
 function pad(n: number) {
@@ -51,6 +53,9 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
   const [fromDate, setFromDate] = useState(defaultRange.from)
   const [toDate, setToDate] = useState(defaultRange.to)
   const [selectedDays, setSelectedDays] = useState<boolean[]>([true, true, true, true, true, true, true])
+  // 팝업 휴무일 — 기간을 요일로 펼쳐 한 번에 채우는 화면이라 정기휴점일까지 같이 채워지던 것이
+  // 이 기능의 출발점이다. 미리보기에서 미리 빼고, 서버(bulkAddRosterAssignments)에서도 한 번 더 거른다.
+  const [closedDays, setClosedDays] = useState<ClosedDayIndex>(() => new Map())
 
   // 기간 빠른 선택 — 진행중·예정 팝업을 앞에, 종료된 팝업은 최근 것부터 뒤에
   const popupChips = (() => {
@@ -80,7 +85,20 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const previewDates: string[] = (() => {
+  // 휴무일은 팝업 소속 캐셔에게만 적용된다 — 주방(popup_id null)은 팝업이 쉬어도 일이 돌아간다.
+  // 기간은 사용자가 팝업 칩으로 크게 바꾸므로 기간 변화마다 다시 불러온다.
+  useEffect(() => {
+    if (unit.popupId == null || !fromDate || !toDate || fromDate > toDate) return undefined
+    let alive = true
+    fetchPopupClosedDays([unit.popupId], fromDate, toDate).then(res => {
+      if (alive && res.success && res.data) setClosedDays(buildClosedDayIndex(res.data))
+    })
+    return () => { alive = false }
+  }, [unit.popupId, fromDate, toDate])
+
+  // 선택한 기간·요일에 해당하는 날짜 전체 (휴무일 포함) — 휴무로 몇 일이 빠졌는지 보여주려면
+  // 제외 전 목록이 필요하다
+  const matchedDates: string[] = (() => {
     if (!fromDate || !toDate || fromDate > toDate || !shiftId) return []
     const results: string[] = []
     const cur = new Date(fromDate + 'T00:00:00')
@@ -94,6 +112,9 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
     return results
   })()
 
+  const previewDates = matchedDates.filter(d => !isClosedDay(closedDays, unit.popupId, d))
+  const closedCount = matchedDates.length - previewDates.length
+
   const toggleDay = (i: number) => {
     setSelectedDays(prev => prev.map((v, idx) => idx === i ? !v : v))
   }
@@ -104,7 +125,8 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
     const res = await bulkAddRosterAssignments(unit, shiftId, staff.id, previewDates)
     setIsSubmitting(false)
     if (res.success && res.data) {
-      onAssigned(res.data.added)
+      // 서버도 휴무일을 한 번 더 거른다 — 미리보기를 띄워둔 사이 다른 관리자가 휴무를 추가했을 수 있다
+      onAssigned(res.data.added, res.data.closedSkipped)
       onClose()
     }
   }
@@ -246,12 +268,17 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
           {/* 미리보기 */}
           <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 min-h-[48px]">
             {previewDates.length === 0 ? (
-              <p className="text-[12px] text-ink-faint m-0">날짜와 요일을 선택하면 배정 예정 목록이 표시됩니다.</p>
+              <p className="text-[12px] text-ink-faint m-0">
+                {closedCount > 0
+                  ? `선택한 기간·요일이 모두 휴무일입니다 (${closedCount}일).`
+                  : '날짜와 요일을 선택하면 배정 예정 목록이 표시됩니다.'}
+              </p>
             ) : (
               <>
                 <p className="text-[11px] font-bold text-ink-muted m-0 mb-1">
                   배정 예정 <span className="text-primary-700">{previewDates.length}일</span>
                   {selectedShift && <span className="ml-1 text-ink-faint">· {selectedShift.name}</span>}
+                  {closedCount > 0 && <span className="ml-1 text-ink-faint">· 휴무일 {closedCount}일 제외</span>}
                 </p>
                 <p className="text-[11px] text-ink m-0 leading-relaxed">
                   {previewDates.map(d => {
