@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { wrap, requireManagerOrAdmin } from './_base';
+import { wrap, requireAuth, requireManagerOrAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import type {
   ApiResponse,
@@ -102,8 +102,9 @@ async function updateIngredientMeta(
   return data as Ingredient
 }
 
+/** 재고탭은 로그인한 모든 직원(user 포함)이 조회 가능 — 편집은 아래 쓰기 액션들이 requireManagerOrAdmin()으로 막는다 */
 export async function fetchIngredients(): Promise<FetchIngredientsResponse> {
-  return wrap(async () => { await requireManagerOrAdmin(); return getIngredients(); });
+  return wrap(async () => { await requireAuth(); return getIngredients(); });
 }
 
 export async function restockIngredient(id: string, delta: number, note?: string, by?: string): Promise<ApiResponse> {

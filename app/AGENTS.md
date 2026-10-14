@@ -11,8 +11,8 @@ Next.js 16 App Router. 모든 데이터 접근은 **Server Actions**(`app/action
 | `/display` | `display/page.tsx` | **없음** — 고객용 미러링(결제 기능 없음). 같이 면제된다 |
 | `/pos` | `pos/page.tsx` | 루트 `PasswordGate` |
 | `/orders` | `orders/page.tsx` | 루트 `PasswordGate` |
-| `/memo` | `memo/page.tsx` | 루트 `PasswordGate` |
-| `/my`, `/my/schedule` | `my/` | 루트 `PasswordGate` (본인 데이터) |
+| `/my` | `my/` | 루트 `PasswordGate` (본인 데이터) |
+| `/schedule` | `schedule/` | 루트 `PasswordGate` (본인 근무 일정) |
 | `/inventory` | `(staff)/inventory/` | `(staff)/layout.tsx` — 로그인만 |
 | `/roster` | `(staff)/roster/` | `(staff)/roster/layout.tsx` — admin\|manager |
 | `/hr` | `(admin)/hr/` | `(admin)/layout.tsx` — admin |
@@ -64,7 +64,7 @@ export async function myAction(arg: string): Promise<ApiResponse<MyType>> {
 | `schedule.ts` | 팝업 이벤트(popup_events) CRUD, 활성 토글 |
 | `orders.ts` · `menu.ts` · `inventory.ts` · `storage.ts` | POS·메뉴·재고·보관함 |
 | `stats.ts` | 매출 통계, 수동 입력 매출 |
-| `memos.ts` · `pos-note.ts` · `discord.ts` · `error-report.ts` · `devtools.ts` | 부가 기능 |
+| `pos-note.ts` · `discord.ts` · `error-report.ts` · `devtools.ts` | 부가 기능 |
 
 ## (admin)/hr — 가장 복잡한 화면
 

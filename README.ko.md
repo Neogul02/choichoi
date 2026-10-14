@@ -89,8 +89,7 @@ app/actions/
 ├── workers.ts                 # 직원 계정·프로필·초대코드 회원가입
 ├── contracts.ts                # 근로계약서 생성·전자서명·삭제
 ├── pos-note.ts                  # POS 공지 메모
-├── discord.ts                    # Discord 알림
-└── memos.ts                       # 운영 메모
+└── discord.ts                    # Discord 알림
 ```
 
 ### 임시 비밀번호·토큰 인증 → Supabase Auth 단일 시스템 전환
@@ -189,8 +188,8 @@ lib/supabase.ts          ← ANON_KEY, 클라이언트 실시간 채널 전용 �
 | 역할 | 설명 | 접근 경로 |
 |------|------|-----------|
 | **손님** (Guest) | 주문하는 고객 | `/display` |
-| **직원** (user) | 캐셔·주방 근무자 | `/pos`, `/orders`, `/memo`, `/my`, `/my/schedule` |
-| **매니저** (manager) | 현장 관리자 | 위 전체 + `/inventory`, `/roster` |
+| **직원** (user) | 캐셔·주방 근무자 | `/pos`, `/orders`, `/my`, `/schedule`, `/inventory`(조회만) |
+| **매니저** (manager) | 현장 관리자 | 위 전체 + `/inventory`(편집), `/roster` |
 | **관리자** (admin) | 운영 총괄 | 전체 라우트 + `/stats`, `/hr`, `/settings` |
 
 전 역할이 같은 Supabase Auth 계정 체계를 쓰고, `user_metadata.role`로만 권한이 구분됩니다. 클라이언트에서 읽는 role은 UI 노출 여부 판단에만 쓰이고, 실제 접근 통제는 전적으로 `proxy.ts`와 Server Action 내부 가드가 담당합니다.
@@ -209,9 +208,8 @@ app/
 ├── pos/                          # 캐셔 POS 메인
 ├── display/                       # 고객 디스플레이 (보기/주문 모드, 인증 불필요)
 ├── orders/                         # 주문 현황
-├── memo/                            # 운영 메모
-├── my/                               # 내 정보 — 프로필 수정, 주문 통계, 계약서 확인·서명
-├── my/schedule/                       # 근로자용 내 근무 스케줄 조회
+├── my/                              # 내 정보 — 프로필 수정, 주문 통계, 계약서 확인·서명
+├── schedule/                         # 근로자용 내 근무 스케줄 조회
 ├── (admin)/                             # proxy.ts + layout.tsx 보호 (admin 전용)
 │   ├── stats/                            # 매출 통계 (커스텀 훅/컴포넌트 분리)
 │   ├── settings/                          # 메뉴·팝업 관리 + 유저 기본정보 + 개발자 도구
@@ -283,7 +281,7 @@ Supabase(PostgreSQL) 기준 20개 테이블.
 
 | 테이블 | 주요 컬럼 | 비고 |
 |--------|-----------|------|
-| `memos` | `id`, `title`, `content`, `color`, `is_pinned`, `type`(`note`\|`checklist`) | 캐셔 운영 메모 |
+| `memos` | `id`, `title`, `content`, `color`, `is_pinned`, `type`(`note`\|`checklist`) | **미사용** — 2026-10-09 메모 화면 삭제. 데이터를 버려도 되는지 확인될 때까지 테이블만 남겨둔다 |
 | `pos_note` | `content`, `updated_by`, `updated_at` | POS 공지, 항상 단일 row |
 | `manual_menu_sales` / `manual_daily_menu_sales` / `manual_hourly_sales` | `popup_id`, `menu_item_id`/`hour`, `quantity`/`total_revenue` | 팝업별 수기 매출 보정 입력 |
 

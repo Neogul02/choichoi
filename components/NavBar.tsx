@@ -26,7 +26,7 @@ const ALL_NAV_LINKS = [
   { href: '/roster', label: '일정표', minRole: 'manager' },
   { href: '/hr', label: '인사', minRole: 'admin' },
   { href: '/inventory', label: '재고', minRole: 'user' },
-  { href: '/memo', label: '메모', minRole: 'user' },
+  { href: '/schedule', label: '스케줄', minRole: 'user' },
   { href: '/my', label: 'MY', minRole: 'user' },
   { href: '/settings', label: '설정', minRole: 'admin' },
 ] as const;
