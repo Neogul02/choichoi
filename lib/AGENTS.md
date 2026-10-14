@@ -68,6 +68,8 @@
 - **출퇴근 기록이 붙은 배정은 일괄 편집이 건드리지 않는다** (`roster.ts`의 `fetchAttendedAssignments`).
   지난주 복사는 실측이 아니라 계획값을 복사한다. 삭제·직원 교환은 DB FK
   (`attendance_records_assignment_fkey`, `on delete/update restrict`)도 막는다 — 파트 삭제도 같이 막힌다.
+- 출근·퇴근은 그 직원의 전화번호(인사 프로필 → 없으면 연결 계정)를 입력해야 기록된다
+  (`app/actions/attendance.ts` `verifyStaffPhone`). 번호가 없는 직원은 출근부를 쓸 수 없다.
 - 역할 `kiosk`는 `UserAppRole`에 넣지 않은 별도 역할이다(설정 화면 역할 선택지에 노출되지 않게).
   `requireKioskOrAdmin()`은 출근부 액션 전용.
 

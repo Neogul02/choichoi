@@ -180,3 +180,13 @@ button, a {
   .sales-pulse-halo { animation: none; transform: scale(2); opacity: 0.3; }
   .sales-pulse-core { animation: none; }
 }
+
+/* 출근부 — 근무 중인 직원 카드가 은은하게 숨 쉬듯 빛난다(멀리서도 누가 일하는 중인지 보이게) */
+@keyframes attendance-working-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(16 185 129 / 0.35); }
+  50% { box-shadow: 0 0 0 6px rgb(16 185 129 / 0); }
+}
+.attendance-working { animation: attendance-working-glow 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .attendance-working { animation: none; }
+}

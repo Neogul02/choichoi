@@ -8,9 +8,10 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import { kstToday } from '@/lib/date'
 import {
-  OPEN_WINDOW_HOURS, isAttendanceBreak, isWithinOpenWindow, kstDateOf, kstHHMMOf,
+  OPEN_WINDOW_HOURS, isAttendanceBreak, isWithinOpenWindow, kstDateOf, kstHHMMOf, kstHHMMSSOf,
   resolveClockOutTimes, isBreakShort, payrollMonthKey,
 } from '@/lib/attendance'
+import { normalizePhone } from '@/lib/phone'
 import { materializeFromShift, shiftStartPriority } from '@/lib/roster/query-helpers'
 import { wrap, requireAdmin, requireKioskOrAdmin } from './_base'
 
@@ -19,12 +20,13 @@ export type AttendanceStatus = 'open' | 'closed' | 'voided'
 export interface AttendanceBoardItem {
   staffId: number
   name: string
-  /** 오늘 근무표의 주방 계획 시간 — 없으면 null(미예정) */
-  planned: { start: string; end: string } | null
+  /** 오늘 주방 근무표에 있는지 — 계획 시간은 키오스크에 보여주지 않고 정렬에만 쓴다 */
+  scheduledToday: boolean
   record: {
     id: number
     status: AttendanceStatus
     workDate: string
+    /** 'HH:MM:SS' — 화면 표시용 실제 찍은 시각 */
     clockIn: string
     clockOut: string | null
     breakMinutes: number | null
@@ -91,7 +93,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
         .order('sort_order', { ascending: true }),
       supabaseAdmin
         .from('roster_assignments')
-        .select('staff_id, start_time, end_time, staff_profiles (name)')
+        .select('staff_id, staff_profiles (name)')
         .eq('staff_role', 'kitchen')
         .eq('work_date', today),
       fetchLiveRecords(nowMs, today),
@@ -105,7 +107,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
       names.set(s.id, s.name)
       order.push(s.id)
     }
-    const planned = new Map<number, { start: string; end: string }>()
+    const scheduled = new Set<number>()
     for (const a of assignRes.data ?? []) {
       const prof = (Array.isArray(a.staff_profiles) ? a.staff_profiles[0] : a.staff_profiles) as { name: string } | null
       if (!names.has(a.staff_id)) {
@@ -113,7 +115,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
         names.set(a.staff_id, prof?.name ?? '?')
         order.push(a.staff_id)
       }
-      if (a.start_time && a.end_time) planned.set(a.staff_id, { start: a.start_time, end: a.end_time })
+      scheduled.add(a.staff_id)
     }
     const byStaff = new Map<number, RecordRow[]>()
     for (const r of records) {
@@ -126,19 +128,23 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
       return {
         staffId,
         name: names.get(staffId) ?? '?',
-        planned: planned.get(staffId) ?? null,
+        scheduledToday: scheduled.has(staffId),
         record: rec && {
           id: rec.id,
           status: rec.status,
           workDate: rec.work_date,
-          clockIn: kstHHMMOf(Date.parse(rec.clock_in_at)),
-          clockOut: rec.clock_out_at ? kstHHMMOf(Date.parse(rec.clock_out_at)) : null,
+          clockIn: kstHHMMSSOf(Date.parse(rec.clock_in_at)),
+          clockOut: rec.clock_out_at ? kstHHMMSSOf(Date.parse(rec.clock_out_at)) : null,
           breakMinutes: rec.break_minutes,
         },
       }
     })
-    // 오늘 근무표에 있는 사람을 앞으로 — 키오스크에서 찾기 쉽게
-    items.sort((a, b) => Number(!a.planned) - Number(!b.planned))
+    // 근무 중 → 출근 전 → 퇴근 완료. 근무 중은 먼저 온 순, 출근 전은 오늘 근무표에 있는 사람이 앞
+    const rank = (i: AttendanceBoardItem) => (!i.record ? 1 : i.record.status === 'open' ? 0 : 2)
+    items.sort((a, b) =>
+      rank(a) - rank(b)
+      || (rank(a) === 0 ? a.record!.clockIn.localeCompare(b.record!.clockIn) : 0)
+      || Number(!a.scheduledToday) - Number(!b.scheduledToday))
     return { today, items }
   })
 }
@@ -174,18 +180,33 @@ async function pickDefaultKitchenShift(today: string) {
   return shift
 }
 
-export async function clockIn(staffId: number): Promise<ApiResponse<{ name: string; time: string }>> {
+/**
+ * 본인 확인 — 키오스크는 이름만 누르면 남의 출퇴근도 찍을 수 있어서, 그 직원의 전화번호를 입력해야 기록한다.
+ * 인사 프로필 번호를 우선하고, 비어 있으면 연결된 계정(user_profiles)의 번호를 쓴다. 비교는 숫자만.
+ */
+async function verifyStaffPhone(staffId: number, phoneInput: string): Promise<{ name: string }> {
+  const { data, error } = await supabaseAdmin
+    .from('staff_profiles')
+    .select('name, phone, user_profiles (phone)')
+    .eq('id', staffId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('직원을 찾을 수 없습니다.')
+  const account = (Array.isArray(data.user_profiles) ? data.user_profiles[0] : data.user_profiles) as { phone: string | null } | null
+  const registered = normalizePhone(data.phone || account?.phone || '')
+  if (!registered) throw new Error(`${data.name}님의 전화번호가 등록되어 있지 않습니다. 관리자에게 문의하세요.`)
+  if (normalizePhone(phoneInput) !== registered) throw new Error('전화번호가 일치하지 않습니다.')
+  return { name: data.name }
+}
+
+export async function clockIn(staffId: number, phone: string): Promise<ApiResponse<{ name: string; time: string }>> {
   return wrap(async () => {
     await requireKioskOrAdmin()
     if (!Number.isInteger(staffId)) throw new Error('잘못된 요청입니다.')
+    const staff = await verifyStaffPhone(staffId, String(phone ?? ''))
     // 시각은 서버 기준 — 아이패드 시계가 틀어져 있어도 기록이 흔들리지 않는다
     const nowMs = Date.now()
     const workDate = kstDateOf(nowMs)
-
-    const { data: staff, error: staffError } = await supabaseAdmin
-      .from('staff_profiles').select('id, name').eq('id', staffId).maybeSingle()
-    if (staffError) throw new Error(staffError.message)
-    if (!staff) throw new Error('직원을 찾을 수 없습니다.')
 
     const current = pickCurrentRecord(await fetchLiveRecords(nowMs, workDate, staffId), workDate, nowMs)
     if (current?.work_date === workDate) throw new Error(`${staff.name}님은 오늘 이미 출근 처리되었습니다.`)
@@ -236,28 +257,29 @@ export async function clockIn(staffId: number): Promise<ApiResponse<{ name: stri
       if (insertError.code === '23505') throw new Error(`${staff.name}님은 오늘 이미 출근 처리되었습니다.`)
       throw new Error(insertError.message)
     }
-    return { name: staff.name, time: kstHHMMOf(nowMs) }
+    return { name: staff.name, time: kstHHMMSSOf(nowMs) }
   })
 }
 
 export async function clockOut(
   recordId: number,
   breakMinutes: number,
-): Promise<ApiResponse<{ name: string; start: string; end: string; breakMinutes: number }>> {
+  phone: string,
+): Promise<ApiResponse<{ name: string; time: string }>> {
   return wrap(async () => {
     await requireKioskOrAdmin()
     if (!isAttendanceBreak(breakMinutes)) throw new Error('휴게시간을 선택하세요.')
-    const nowMs = Date.now()
 
     const { data, error } = await supabaseAdmin
       .from('attendance_records')
-      .select(`${RECORD_COLUMNS}, staff_profiles (name)`)
+      .select(RECORD_COLUMNS)
       .eq('id', recordId)
       .maybeSingle()
     if (error) throw new Error(error.message)
     if (!data) throw new Error('출근 기록을 찾을 수 없습니다.')
-    const rec = data as unknown as RecordRow & { staff_profiles: { name: string } | null }
-    const name = rec.staff_profiles?.name ?? ''
+    const rec = data as RecordRow
+    const { name } = await verifyStaffPhone(rec.staff_id, String(phone ?? ''))
+    const nowMs = Date.now()
     if (rec.status !== 'open') throw new Error(`${name}님은 이미 퇴근 처리되었습니다.`)
     const clockInMs = Date.parse(rec.clock_in_at)
     if (!isWithinOpenWindow(clockInMs, nowMs)) {
@@ -288,7 +310,7 @@ export async function clockOut(
       if (rpcError.message.includes('ATTENDANCE_NOT_OPEN')) throw new Error(`${name}님은 이미 퇴근 처리되었습니다.`)
       throw new Error(rpcError.message)
     }
-    return { name, start: times.startTime, end: times.endTime, breakMinutes }
+    return { name, time: kstHHMMSSOf(nowMs) }
   })
 }
 

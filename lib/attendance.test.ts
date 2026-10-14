@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  kstDateOf, kstHHMMOf, kstInstant, isWithinOpenWindow, resolveClockOutTimes,
+  kstDateOf, kstHHMMOf, kstHHMMSSOf, kstSlashDateOf, kstInstant, isWithinOpenWindow, resolveClockOutTimes,
   requiredBreakMinutes, isBreakShort, payrollMonthKey, isAttendanceBreak, OPEN_WINDOW_HOURS,
 } from './attendance'
 
@@ -11,6 +11,10 @@ describe('KST 변환', () => {
   it('UTC 자정 전후에도 KST 날짜·시각으로 읽는다', () => {
     expect(kstDateOf(Date.parse('2026-10-13T15:30:00Z'))).toBe('2026-10-14')
     expect(kstHHMMOf(Date.parse('2026-10-13T15:30:59Z'))).toBe('00:30')
+  })
+  it('화면 표시용은 초까지, 날짜는 슬래시로', () => {
+    expect(kstHHMMSSOf(Date.parse('2026-10-13T15:30:59Z'))).toBe('00:30:59')
+    expect(kstSlashDateOf(Date.parse('2026-10-13T15:30:59Z'))).toBe('2026/10/14')
   })
   it('kstInstant는 KST 날짜+시각의 순간이다', () => {
     expect(kstInstant('2026-10-14', '10:00')).toBe(at('2026-10-14', '10:00:00'))

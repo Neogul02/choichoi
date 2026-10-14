@@ -16,6 +16,8 @@ interface Props {
   danger?: boolean;
   /** 비동기 처리 중이면 true — 버튼 비활성화, 배경 클릭으로 닫히지 않음 */
   busy?: boolean;
+  /** false면 배경을 눌러도 닫히지 않는다 — 공용 기기(출근부 키오스크)에서 실수로 닫히는 것을 막는다 */
+  dismissOnBackdrop?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }
@@ -27,7 +29,7 @@ interface Props {
  * 취소는 Esc나 취소 버튼 클릭.
  */
 export default function ConfirmDialog({
-  open, title, description, confirmLabel, cancelLabel = '취소', danger = false, busy = false, onConfirm, onClose,
+  open, title, description, confirmLabel, cancelLabel = '취소', danger = false, busy = false, dismissOnBackdrop = true, onConfirm, onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -60,7 +62,7 @@ export default function ConfirmDialog({
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="confirm-dialog-title"
-          onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+          onClick={(e) => { if (dismissOnBackdrop && e.target === e.currentTarget && !busy) onClose(); }}
         >
           <motion.div
             key="confirm-panel"
