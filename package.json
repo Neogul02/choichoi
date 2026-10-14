@@ -25,6 +25,7 @@
     "react-dom": "19.2.8",
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
+    "yjs": "^13.6.33",
     "zod": "^4.4.3"
   },
   "devDependencies": {
