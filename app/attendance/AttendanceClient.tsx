@@ -7,7 +7,8 @@ import { showMsg } from '@/lib/toast'
 import { addDays, kstToday } from '@/lib/date'
 import { formatTimeRange } from '@/lib/workhours'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
-import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, kstHHMMOf } from '@/lib/attendance'
+import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
+import { formatPhoneInput, isValidKoreanPhone } from '@/lib/phone'
 import {
   clockIn, clockOut, fetchAttendanceBoard, fetchAttendanceLog, voidAttendance,
   type AttendanceBoard, type AttendanceBoardItem, type AttendanceLogEntry,
@@ -71,7 +72,7 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
         </div>
       </main>
       {selected && (
-        <PunchDialog item={selected} onClose={() => setSelected(null)} onDone={() => { setSelected(null); reload() }} />
+        <PunchDialog item={selected} onClose={() => { setSelected(null); reload() }} onDone={() => { setSelected(null); reload() }} />
       )}
     </>
   )
@@ -79,28 +80,34 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
 
 // 시계는 브라우저 시각이다(화면 안내용). 실제 기록 시각은 서버가 정한다
 function Clock() {
-  const [now, setNow] = useState<number | null>(null)
-  useEffect(() => {
-    setNow(Date.now())
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [])
+  const now = useNow()
   return (
     <div className="text-center pt-2">
-      <p className="m-0 text-[14px] text-ink-muted">{kstToday()}</p>
-      <p className="m-0 text-[44px] font-extrabold text-ink tabular-nums leading-tight">
-        {now == null ? '--:--' : kstHHMMOf(now)}
+      <p className="m-0 text-[16px] font-semibold text-ink-muted tabular-nums">{now == null ? '\u00a0' : kstSlashDateOf(now)}</p>
+      <p className="m-0 text-[48px] font-extrabold text-ink tabular-nums leading-tight">
+        {now == null ? '--:--:--' : kstHHMMSSOf(now)}
       </p>
       <p className="m-0 text-[13px] text-ink-faint">이름을 눌러 출근·퇴근하세요. 출근과 퇴근은 각각 한 번만 누를 수 있습니다.</p>
     </div>
   )
 }
 
+// 1초마다 갱신되는 현재 시각 — 서버 렌더 때는 null(하이드레이션 불일치 방지)
+function useNow(): number | null {
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => {
+    setNow(Date.now())
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  return now
+}
+
 function StaffCard({ item, onPick }: { item: AttendanceBoardItem; onPick: (i: AttendanceBoardItem) => void }) {
   const phase = phaseOf(item)
   const rec = item.record
   const tone =
-    phase === 'working' ? 'border-emerald-300 bg-emerald-50'
+    phase === 'working' ? 'border-emerald-400 bg-emerald-50 attendance-working'
     : phase === 'done' ? 'border-hairline bg-canvas-soft opacity-70'
     : 'border-hairline bg-canvas'
   return (
@@ -108,45 +115,67 @@ function StaffCard({ item, onPick }: { item: AttendanceBoardItem; onPick: (i: At
       type="button"
       disabled={phase === 'done'}
       onClick={() => onPick(item)}
-      className={`text-left rounded-xl border-2 p-4 min-h-[128px] flex flex-col justify-between cursor-pointer transition-colors disabled:cursor-default ${tone}`}
+      className={`text-left rounded-xl border-2 p-4 min-h-[120px] flex flex-col justify-between cursor-pointer transition-colors disabled:cursor-default ${tone}`}
     >
-      <div>
-        <p className="m-0 text-[22px] font-bold text-ink">{item.name}</p>
-        <p className="m-0 mt-0.5 text-[13px] text-ink-muted">
-          {item.planned ? `계획 ${formatTimeRange(item.planned.start, item.planned.end)}` : '오늘 근무표 없음'}
+      <p className="m-0 text-[22px] font-bold text-ink">{item.name}</p>
+      {phase === 'working' && rec ? (
+        <div className="mt-3">
+          <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-emerald-700">
+            <span className="relative flex w-2.5 h-2.5">
+              <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+              <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            </span>
+            근무 중
+          </span>
+          <p className="m-0 mt-0.5 text-[13px] text-emerald-800 tabular-nums">{rec.clockIn} 출근</p>
+        </div>
+      ) : (
+        <p className="m-0 mt-3 text-[14px] font-semibold text-ink-secondary tabular-nums">
+          {phase === 'before' && '출근 전'}
+          {phase === 'done' && rec && `퇴근 완료 · ${rec.clockIn}~${rec.clockOut} · 휴게 ${breakLabel(rec.breakMinutes ?? 0)}`}
         </p>
-      </div>
-      <p className={`m-0 mt-3 text-[14px] font-semibold ${phase === 'working' ? 'text-emerald-700' : 'text-ink-secondary'}`}>
-        {phase === 'before' && '출근 전'}
-        {phase === 'working' && rec && `근무 중 · ${rec.clockIn} 출근`}
-        {phase === 'done' && rec && `퇴근 완료 · ${rec.clockIn}~${rec.clockOut} · 휴게 ${breakLabel(rec.breakMinutes ?? 0)}`}
-      </p>
+      )}
     </button>
   )
 }
 
+const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'] as const
+
+// 배경을 눌러도 닫히지 않는다 — 공용 아이패드에서 번호를 누르다 바깥을 스쳐 입력이 날아가지 않게.
+// 닫기는 취소 버튼으로만.
 function PunchDialog({ item, onClose, onDone }: { item: AttendanceBoardItem; onClose: () => void; onDone: () => void }) {
   useBodyScrollLock(true)
   const isOut = phaseOf(item) === 'working'
-  const [shownAt] = useState(() => kstHHMMOf(Date.now()))
+  const now = useNow()
   const [brk, setBrk] = useState<AttendanceBreak | null>(null)
+  const [digits, setDigits] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const press = (k: (typeof KEYPAD)[number]) => {
+    setError(null)
+    if (k === 'clear') setDigits('')
+    else if (k === 'back') setDigits(d => d.slice(0, -1))
+    else setDigits(d => (d.length < 11 ? d + k : d))
+  }
+
+  const ready = isValidKoreanPhone(digits) && (!isOut || brk != null)
+
   const submit = async () => {
-    if (busy) return
+    if (busy || !ready) return
     setBusy(true)
-    if (isOut) {
-      if (brk == null || !item.record) { setBusy(false); return }
-      const r = await clockOut(item.record.id, brk)
-      if (r.success && r.data) showMsg(`${r.data.name}님 ${r.data.end} 퇴근 완료`)
-      else showMsg(`오류: ${r.error}`)
-    } else {
-      const r = await clockIn(item.staffId)
-      if (r.success && r.data) showMsg(`${r.data.name}님 ${r.data.time} 출근 완료`)
-      else showMsg(`오류: ${r.error}`)
+    const r = isOut && item.record
+      ? await clockOut(item.record.id, brk!, digits)
+      : await clockIn(item.staffId, digits)
+    setBusy(false)
+    if (r.success && r.data) {
+      showMsg(`${r.data.name}님 ${r.data.time} ${isOut ? '퇴근' : '출근'} 완료`)
+      onDone()
+      return
     }
-    // 실패해도 닫고 새로 고친다 — 다른 기기에서 이미 처리됐을 수 있어 최신 상태를 보여주는 게 맞다
-    onDone()
+    // 실패하면 창을 유지하고 번호만 지운다 — 번호를 잘못 눌렀으면 바로 다시 입력할 수 있게
+    setError(r.error ?? '기록하지 못했습니다.')
+    setDigits('')
   }
 
   return (
@@ -155,15 +184,14 @@ function PunchDialog({ item, onClose, onDone }: { item: AttendanceBoardItem; onC
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       role="dialog"
       aria-modal="true"
-      onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
     >
-      <div className="bg-canvas w-full max-w-[420px] rounded-2xl shadow-level-2 border border-hairline p-6">
+      <div className="bg-canvas w-full max-w-[460px] max-h-[100dvh] overflow-y-auto rounded-2xl shadow-level-2 border border-hairline p-6">
         <p className="m-0 text-[24px] font-bold text-ink">{item.name}님</p>
         <p className="m-0 mt-1 text-[18px] text-ink-secondary">
-          <span className="font-bold text-ink tabular-nums">{shownAt}</span>에 {isOut ? '퇴근' : '출근'}합니다
+          <span className="font-bold text-ink tabular-nums">{now == null ? '--:--:--' : kstHHMMSSOf(now)}</span>에 {isOut ? '퇴근' : '출근'}합니다
         </p>
         {isOut && (
-          <div className="mt-5">
+          <div className="mt-4">
             <p className="m-0 mb-2 text-[15px] font-semibold text-ink">쉬는시간이 있었나요?</p>
             <div className="grid grid-cols-3 gap-2">
               {ATTENDANCE_BREAK_OPTIONS.map(m => (
@@ -171,20 +199,44 @@ function PunchDialog({ item, onClose, onDone }: { item: AttendanceBoardItem; onC
                   key={m}
                   type="button"
                   onClick={() => setBrk(m)}
-                  className={`py-3.5 rounded-xl border-2 text-[16px] font-bold cursor-pointer transition-colors ${
+                  className={`py-3 rounded-xl border-2 text-[16px] font-bold cursor-pointer transition-colors ${
                     brk === m ? 'border-primary-700 bg-primary-700 text-white' : 'border-hairline bg-canvas text-ink'
                   }`}
                 >
-                  {m === 0 ? '없음' : breakLabel(m)}
+                  {breakLabel(m)}
                 </button>
               ))}
             </div>
           </div>
         )}
+        <div className="mt-4">
+          <p className="m-0 mb-2 text-[15px] font-semibold text-ink">본인 확인 — 전화번호를 입력하세요</p>
+          <div className={`h-[52px] rounded-xl border-2 flex items-center justify-center text-[24px] font-bold tabular-nums tracking-wide ${
+            error ? 'border-rose-400 text-rose-600' : 'border-hairline text-ink'
+          }`}>
+            {digits ? formatPhoneInput(digits) : <span className="text-[16px] font-medium text-ink-faint">010-0000-0000</span>}
+          </div>
+          {error && <p className="m-0 mt-1.5 text-[13px] font-semibold text-rose-600">{error}</p>}
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {KEYPAD.map(k => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => press(k)}
+                disabled={busy}
+                className={`py-3 rounded-xl border border-hairline text-[20px] font-bold cursor-pointer active:bg-primary-50 disabled:opacity-50 ${
+                  k === 'clear' || k === 'back' ? 'bg-canvas-soft text-ink-secondary text-[15px]' : 'bg-canvas text-ink'
+                }`}
+              >
+                {k === 'clear' ? '전체 지움' : k === 'back' ? '←' : k}
+              </button>
+            ))}
+          </div>
+        </div>
         <p className="m-0 mt-4 text-[12px] text-ink-faint">
           {isOut ? '퇴근은 한 번만 기록됩니다.' : '출근은 한 번만 기록됩니다.'} 잘못 눌렀다면 관리자에게 알려주세요.
         </p>
-        <div className="flex gap-2 mt-5">
+        <div className="flex gap-2 mt-4">
           <button
             type="button"
             onClick={onClose}
@@ -196,7 +248,7 @@ function PunchDialog({ item, onClose, onDone }: { item: AttendanceBoardItem; onC
           <button
             type="button"
             onClick={submit}
-            disabled={busy || (isOut && brk == null)}
+            disabled={busy || !ready}
             className="flex-1 py-3.5 rounded-xl border-none bg-primary-700 text-white text-[16px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy ? '기록 중…' : isOut ? '퇴근' : '출근'}
@@ -273,6 +325,7 @@ function AdminLog({ entries, onChanged }: { entries: AttendanceLogEntry[]; onCha
         confirmLabel="기록 취소"
         danger
         busy={busy}
+        dismissOnBackdrop={false}
         onConfirm={runVoid}
         onClose={() => setTarget(null)}
       />

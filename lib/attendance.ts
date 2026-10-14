@@ -36,6 +36,16 @@ export function kstHHMMOf(ms: number): string {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
+/** 순간(ms) → KST 'HH:MM:SS' — 출근부 화면 표시용. 근무표에 쓰는 값은 kstHHMMOf(분 단위) */
+export function kstHHMMSSOf(ms: number): string {
+  return new Date(ms + KST_OFFSET_MS).toISOString().slice(11, 19)
+}
+
+/** 순간(ms) → KST 'YYYY/MM/DD' — 출근부 화면 표시용 */
+export function kstSlashDateOf(ms: number): string {
+  return kstDateOf(ms).replace(/-/g, '/')
+}
+
 /** KST 날짜 + 'HH:MM' → 순간(ms). '24:00'은 그 날의 끝(다음 날 00:00) */
 export function kstInstant(date: string, hhmm: string): number {
   return Date.parse(`${date}T00:00:00Z`) - KST_OFFSET_MS + hhmmToMinutes(hhmm) * MINUTE_MS
