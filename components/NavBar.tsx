@@ -25,6 +25,7 @@ const ALL_NAV_LINKS = [
   { href: '/stats', label: '통계', minRole: 'admin' },
   { href: '/roster', label: '일정표', minRole: 'manager' },
   { href: '/hr', label: '인사', minRole: 'admin' },
+  { href: '/attendance', label: '출근부', minRole: 'admin' },
   { href: '/inventory', label: '재고', minRole: 'user' },
   { href: '/schedule', label: '스케줄', minRole: 'user' },
   { href: '/my', label: 'MY', minRole: 'user' },
@@ -40,6 +41,8 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   // 주방으로 접속했으면 POS 탭을 감춘다 — 주방 인원은 결제를 치지 않는다.
   // localStorage는 서버 렌더 때 없으므로 effect에서 읽어 hydration 불일치를 피한다.
   const [isKitchen, setIsKitchen] = useState(false);
+  // 주방 출근부 키오스크 계정 — 출근부 탭 하나만 보인다(그 외 경로는 proxy.ts가 돌려보낸다)
+  const [isKiosk, setIsKiosk] = useState(false);
   const [cashierName, setCashierName] = useState<string | null>(null);
   const [popupName, setPopupName] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -57,6 +60,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
       // 마지막으로 확인된 역할을 즉시 적용 — 아래 세션 조회가 실패해도 관리자 탭이 사라지지 않는다
       const cachedRole = localStorage.getItem(APP_ROLE_KEY);
       if (cachedRole === 'admin' || cachedRole === 'manager') setRole(cachedRole);
+      if (cachedRole === 'kiosk') setIsKiosk(true);
     } catch { /* ignore */ }
 
     const supabase = createSupabaseBrowserClient();
@@ -64,7 +68,8 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
     const applyRole = (value: unknown) => {
       const appRole = toAppRole(value);
       setRole(appRole);
-      try { localStorage.setItem(APP_ROLE_KEY, appRole); } catch { /* ignore */ }
+      setIsKiosk(value === 'kiosk');
+      try { localStorage.setItem(APP_ROLE_KEY, value === 'kiosk' ? 'kiosk' : appRole); } catch { /* ignore */ }
     };
 
     const loadProfile = async () => {
@@ -108,6 +113,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
           sessionStorage.removeItem(PROFILE_SYNCED_KEY);
         } catch { /* ignore */ }
         setRole('user');
+        setIsKiosk(false);
       } else if (session) {
         applyRole(session.user.user_metadata?.role);
       }
@@ -121,10 +127,12 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
   }, [pathname]);
 
   const visibleLinks = useMemo(
-    () => ALL_NAV_LINKS.filter(
-      (l) => ROLE_RANK[role] >= ROLE_RANK[l.minRole] && !(isKitchen && l.href === '/pos'),
+    () => ALL_NAV_LINKS.filter((l) =>
+      isKiosk
+        ? l.href === '/attendance'
+        : ROLE_RANK[role] >= ROLE_RANK[l.minRole] && !(isKitchen && l.href === '/pos'),
     ),
-    [role, isKitchen]
+    [role, isKitchen, isKiosk]
   );
 
   const toggle = () => {

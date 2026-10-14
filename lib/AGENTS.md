@@ -59,6 +59,18 @@
   아예 생략해 role만으로 걸러 모든 팝업을 합쳐 보여준다.
 - `shiftStartPriority()` — 파트 정렬 기준은 이름이 아니라 **시작 시각**이다.
 
+## attendance.ts — 주방 출근부 시각 규칙
+
+- 퇴근하면 `roster_assignments` 행의 시간·휴게가 **실측으로 덮어써지고**, 덮어쓰기 전 계획값은
+  `attendance_records.planned_*`에 남는다. 급여는 배정 행을 그대로 읽으므로 workhours.ts는 바뀌지 않는다.
+- 시작 = max(실제 출근, 계획 시작) — 일찍 와도 계획 시각부터(운영 방침). 분 단위 내림.
+  시작·종료가 같은 `HH:MM`이 되면 24시간 근무로 읽히므로 `resolveClockOutTimes`가 거부한다.
+- **출퇴근 기록이 붙은 배정은 일괄 편집이 건드리지 않는다** (`roster.ts`의 `fetchAttendedAssignments`).
+  지난주 복사는 실측이 아니라 계획값을 복사한다. 삭제·직원 교환은 DB FK
+  (`attendance_records_assignment_fkey`, `on delete/update restrict`)도 막는다 — 파트 삭제도 같이 막힌다.
+- 역할 `kiosk`는 `UserAppRole`에 넣지 않은 별도 역할이다(설정 화면 역할 선택지에 노출되지 않게).
+  `requireKioskOrAdmin()`은 출근부 액션 전용.
+
 ## closedDays.ts — 팝업 휴무일
 
 운영 기간 안이지만 영업하지 않는 날(백화점 정기휴점 등). **"그 날이 휴무인가"의 유일한 기준이다** —

@@ -35,6 +35,20 @@ export async function proxy(request: NextRequest) {
   }
 
   const role = (claims.user_metadata as { role?: string } | undefined)?.role
+  const pathname = request.nextUrl.pathname
+
+  // 주방 아이패드에 상시 로그인해 두는 출근부 계정 — 출근부 밖의 화면은 열어주지 않는다
+  if (role === 'kiosk') {
+    if (pathname.startsWith('/attendance')) return supabaseResponse
+    const url = request.nextUrl.clone()
+    url.pathname = '/attendance'
+    return NextResponse.redirect(url)
+  }
+  if (pathname.startsWith('/attendance') && role !== 'admin') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/pos'
+    return NextResponse.redirect(url)
+  }
   const adminOnlyPrefixes = ['/settings', '/hr', '/stats']
   // 재고탭은 로그인한 모든 직원(user 포함)이 조회 가능 — 편집은 서버 액션 내 requireManagerOrAdmin()이 담당
   const managerPrefixes = ['/roster']
@@ -66,5 +80,6 @@ export const config = {
     '/hr/:path*',
     // 로그인만 필요한 개인 페이지 — 미인증 요청을 SSR 전에 걸러 서버 액션이 인증 오류로 실패하지 않게 한다
     '/my/:path*',
+    '/attendance/:path*',
   ],
 }

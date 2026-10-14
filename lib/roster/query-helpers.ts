@@ -50,3 +50,6 @@ export function applyUnitFilter<T>(query: T, unit: RosterUnit): T {
 export const DEFAULT_SHIFTS = [
   { name: '종일', start_time: '00:00', end_time: '24:00', weekday_required: 1, weekend_required: 1, sort_order: 0 },
 ]
+
+// 일괄 해제·초기화가 출근부 기록이 붙은 근무를 남겼을 때 결과 문구에 붙인다 (app/actions/roster.ts deleteUnattended)
+export const keptSuffix = (kept: number) => (kept > 0 ? ` (출퇴근 기록이 있는 ${kept}건은 유지)` : '')
