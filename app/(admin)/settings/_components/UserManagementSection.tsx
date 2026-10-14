@@ -6,24 +6,23 @@ import { phoneMatches } from '@/lib/phone'
 import { toast } from 'sonner'
 import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount, getResidentIdForInsurance, resetWorkerPassword } from '@/app/actions/workers'
 import type { UserProfile } from '@/app/actions/workers'
-import type { UserAppRole } from '@/types/database'
+import { ACCOUNT_ROLE_LABEL, type AccountRole } from '@/types/database'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { formatPhoneNumber } from '@/lib/utils'
 import { utcToKstDateStr } from '@/lib/date'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import CopyText from '@/components/CopyText'
 
-const ROLE_OPTIONS: { value: UserAppRole; label: string }[] = [
-  { value: 'admin', label: '관리자' },
-  { value: 'manager', label: '매니저' },
-  { value: 'user', label: '직원' },
-]
+// 출근부(kiosk)는 주방 아이패드 전용 계정 — 여기서 빠져 있으면 "직원"으로 보이고, 그걸 누르는 순간
+// 출근부 권한이 사라졌다. 계정에 실제로 저장된 역할을 그대로 보여주고 고를 수 있게 둔다.
+const ROLE_OPTIONS: { value: AccountRole; label: string }[] =
+  (['admin', 'manager', 'user', 'kiosk'] as const).map(value => ({ value, label: ACCOUNT_ROLE_LABEL[value] }))
 
-function toAppRole(value: string): UserAppRole {
-  return value === 'admin' ? 'admin' : value === 'manager' ? 'manager' : 'user'
+function toAccountRole(value: string): AccountRole {
+  return value in ACCOUNT_ROLE_LABEL ? (value as AccountRole) : 'user'
 }
 
-type RoleFilter = UserAppRole | 'all'
+type RoleFilter = AccountRole | 'all'
 type SortKey = 'name' | 'newest' | 'oldest'
 
 const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
@@ -81,15 +80,16 @@ export default function UserManagementSection() {
 
   const roleCounts = useMemo(() => ({
     all: users.length,
-    admin: users.filter(u => toAppRole(u.worker_role) === 'admin').length,
-    manager: users.filter(u => toAppRole(u.worker_role) === 'manager').length,
-    user: users.filter(u => toAppRole(u.worker_role) === 'user').length,
+    admin: users.filter(u => toAccountRole(u.worker_role) === 'admin').length,
+    manager: users.filter(u => toAccountRole(u.worker_role) === 'manager').length,
+    user: users.filter(u => toAccountRole(u.worker_role) === 'user').length,
+    kiosk: users.filter(u => toAccountRole(u.worker_role) === 'kiosk').length,
   }), [users])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const matched = users.filter(u => {
-      if (roleFilter !== 'all' && toAppRole(u.worker_role) !== roleFilter) return false
+      if (roleFilter !== 'all' && toAccountRole(u.worker_role) !== roleFilter) return false
       if (!q) return true
       return u.name.toLowerCase().includes(q)
         || phoneMatches(u.phone, q)
@@ -109,7 +109,7 @@ export default function UserManagementSection() {
     })
   }, [users, query, roleFilter, sortKey])
 
-  async function handleRoleChange(userId: string, role: UserAppRole) {
+  async function handleRoleChange(userId: string, role: AccountRole) {
     setSavingId(userId)
     const res = await setUserRole(userId, role)
     setSavingId(null)
@@ -225,7 +225,7 @@ export default function UserManagementSection() {
             {query.trim() ? '검색 결과가 없습니다.' : '이 권한에 해당하는 계정이 없습니다.'}
           </p>
         ) : filtered.map((u, idx) => {
-          const role = toAppRole(u.worker_role)
+          const role = toAccountRole(u.worker_role)
           const isMe = u.id === myUserId
           const isSaving = savingId === u.id
 

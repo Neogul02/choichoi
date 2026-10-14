@@ -12,7 +12,7 @@ import { isValidResidentRegistrationNumber, maskResidentId } from '@/lib/residen
 import { isValidKoreanPhone, normalizePhone } from '@/lib/phone'
 import { isValidBankAccount, normalizeBankAccount, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
 import type { ApiResponse } from '@/types/api'
-import type { UserAppRole } from '@/types/database'
+import { ACCOUNT_ROLE_LABEL, type AccountRole } from '@/types/database'
 
 const USER_PROFILE_COLUMNS = 'id, name, phone, bank_name, bank_account, health_cert_url, worker_role, resident_reg_no_masked, created_at'
 
@@ -541,9 +541,11 @@ export async function createWorkerAccount(
   }
 }
 
-export async function setUserRole(userId: string, role: UserAppRole): Promise<ApiResponse> {
+export async function setUserRole(userId: string, role: AccountRole): Promise<ApiResponse> {
   return wrap(async () => {
     await requireAdmin()
+    // 직접 호출로 임의 문자열이 역할로 저장되지 않게 — 역할 값은 proxy·게이트가 그대로 신뢰한다
+    if (!(role in ACCOUNT_ROLE_LABEL)) throw new Error('알 수 없는 권한입니다.')
 
     const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
 
@@ -557,7 +559,7 @@ export async function setUserRole(userId: string, role: UserAppRole): Promise<Ap
     const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId)
     await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { ...authUser?.user?.user_metadata, role } })
 
-    const label = role === 'admin' ? '관리자' : role === 'manager' ? '매니저' : '직원'
+    const label = ACCOUNT_ROLE_LABEL[role]
     after(async () => {
       const { notifyDiscord } = await import('@/lib/discord')
       await notifyDiscord('edit', `🔐 권한 변경`, `**${profile?.name ?? userId}** → ${label}`)

@@ -56,6 +56,14 @@ export type StaffRole = 'kitchen' | 'cashier';
 // (근무 역할인 StaffRole과는 별개 개념)
 export type UserAppRole = 'admin' | 'manager' | 'user';
 
+// 계정 관리에서 고를 수 있는 역할 — 주방 출근부 키오스크 계정(kiosk)을 포함한다.
+// kiosk를 UserAppRole에 넣지 않은 이유: NavBar·useCurrentRole의 권한 서열(user < manager < admin)에
+// 끼울 자리가 없고, 출근부 외 화면에서는 일반 직원보다도 좁게 다뤄야 한다.
+export type AccountRole = UserAppRole | 'kiosk';
+export const ACCOUNT_ROLE_LABEL: Record<AccountRole, string> = {
+  admin: '관리자', manager: '매니저', user: '직원', kiosk: '출근부',
+};
+
 export interface StaffProfile {
   id: number;
   name: string;
