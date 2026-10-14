@@ -171,6 +171,24 @@ export async function deleteRosterShift(id: number): Promise<ApiResponse> {
   })
 }
 
+/**
+ * 그 팝업의 기간 내 휴무일 날짜 집합 — 일괄 배정·지난주 복사가 휴무일을 건너뛰는 데 쓴다.
+ * 화면이 휴무일을 미리 걸러주지만(StaffAssignModal), 서버에서도 거른다 — 휴무일 지정과
+ * 일괄 배정 사이에 다른 관리자가 휴무를 추가했을 수 있고, 과거 UI가 열려 있던 탭에서도 들어온다.
+ * popupId가 null인 주방은 팝업에 귀속되지 않으므로 항상 빈 집합이다.
+ */
+async function fetchClosedDateSet(popupId: number | null, fromDate: string, toDate: string): Promise<Set<string>> {
+  if (popupId == null) return new Set()
+  const { data, error } = await supabaseAdmin
+    .from('popup_closed_days')
+    .select('closed_date')
+    .eq('popup_id', popupId)
+    .gte('closed_date', fromDate)
+    .lte('closed_date', toDate)
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map(r => r.closed_date as string))
+}
+
 // 역할 검사 없는 내부 구현 — 위 fetchRosterShiftsUnchecked와 동일한 이유로 export 금지.
 async function fetchRosterRangeUnchecked(unit: RosterUnit, fromDate: string, toDate: string): Promise<RosterMonthData> {
   // 배정 조회는 파트 목록과 독립이므로 병렬 실행 — 날짜별 요구 인원 예외만 파트 id에 의존
@@ -507,11 +525,20 @@ export async function bulkAddRosterAssignments(
   shiftId: number,
   staffId: number,
   dates: string[],
-): Promise<ApiResponse<{ added: number; skipped: number }>> {
+): Promise<ApiResponse<{ added: number; skipped: number; closedSkipped: number }>> {
   return wrap(async () => {
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 배정을 사용할 수 없습니다. 팝업을 선택하세요.')
-    if (dates.length === 0) return { added: 0, skipped: 0 }
+    if (dates.length === 0) return { added: 0, skipped: 0, closedSkipped: 0 }
+
+    // 휴무일은 배정하지 않는다 — 기간을 요일로 펼쳐 한 번에 채우는 게 이 액션의 용도라
+    // 정기휴점일까지 같이 채워지고, 그걸 매번 손으로 지우던 것이 휴무일 기능의 출발점이다
+    const sorted = [...dates].sort()
+    const closed = await fetchClosedDateSet(unit.popupId, sorted[0], sorted[sorted.length - 1])
+    const openDates = dates.filter(d => !closed.has(d))
+    const closedSkipped = dates.length - openDates.length
+    if (openDates.length === 0) return { added: 0, skipped: 0, closedSkipped }
+
     const { data: shift, error: shiftError } = await supabaseAdmin
       .from('roster_shifts')
       .select('start_time, end_time, break_minutes')
@@ -519,7 +546,7 @@ export async function bulkAddRosterAssignments(
       .single()
     if (shiftError || !shift) throw new Error('파트 정보를 찾을 수 없습니다.')
     const materialized = materializeFromShift(shift)
-    const inserts = dates.map(date => ({
+    const inserts = openDates.map(date => ({
       work_date: date,
       shift_id: shiftId,
       staff_id: staffId,
@@ -533,15 +560,15 @@ export async function bulkAddRosterAssignments(
       .select('id')
     if (error) throw new Error(error.message)
     const added = (data ?? []).length
-    return { added, skipped: dates.length - added }
+    return { added, skipped: openDates.length - added, closedSkipped }
   })
 }
 
-/** 직전 주(일~토) 배정을 대상 주의 같은 요일로 복사 — 이미 있는 배정·지난 날짜는 건너뜀 */
+/** 직전 주(일~토) 배정을 대상 주의 같은 요일로 복사 — 이미 있는 배정·지난 날짜·휴무일은 건너뜀 */
 export async function copyPreviousWeek(
   unit: RosterUnit,
   weekStart: string, // 대상 주의 일요일 (YYYY-MM-DD)
-): Promise<ApiResponse<{ added: number; skipped: number }>> {
+): Promise<ApiResponse<{ added: number; skipped: number; closedSkipped: number }>> {
   return wrap(async () => {
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 지난주 복사를 사용할 수 없습니다. 팝업을 선택하세요.')
@@ -554,6 +581,8 @@ export async function copyPreviousWeek(
     if (error) throw new Error(error.message)
 
     const today = kstToday()
+    // 복사 대상 주의 휴무일 — 지난주에 일했어도 이번 주 그 요일이 휴점이면 복사하지 않는다
+    const closed = await fetchClosedDateSet(unit.popupId, weekStart, addDays(weekStart, 6))
     const candidates = (data ?? [])
       .map(a => ({
         work_date: addDays(a.work_date, 7),
@@ -567,15 +596,17 @@ export async function copyPreviousWeek(
         break_minutes: a.break_minutes,
       }))
       .filter(r => r.work_date >= today)
-    if (candidates.length === 0) return { added: 0, skipped: 0 }
+    const closedSkipped = candidates.filter(r => closed.has(r.work_date)).length
+    const open = candidates.filter(r => !closed.has(r.work_date))
+    if (open.length === 0) return { added: 0, skipped: 0, closedSkipped }
 
     const { data: inserted, error: insertError } = await supabaseAdmin
       .from('roster_assignments')
-      .upsert(candidates, { onConflict: 'work_date,shift_id,staff_id', ignoreDuplicates: true })
+      .upsert(open, { onConflict: 'work_date,shift_id,staff_id', ignoreDuplicates: true })
       .select('id')
     if (insertError) throw new Error(insertError.message)
     const added = (inserted ?? []).length
-    return { added, skipped: candidates.length - added }
+    return { added, skipped: open.length - added, closedSkipped }
   })
 }
 
@@ -593,6 +624,54 @@ export async function clearRosterRange(
     )
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
+      .select(SNAPSHOT_COLUMNS)
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
+    return { removed: rows.length, undo: { deleted: rows, updated: [] } }
+  })
+}
+
+// ── 휴무일에 남아 있는 배정 ───────────────────────────────────────────────────
+// 휴무일 지정은 급여를 바꾸지 않는다 — 이미 찍힌 배정 행을 자동으로 지우면 그 사람의
+// 유급 시간이 조용히 줄어든다. 그래서 "몇 건 남아 있는지"를 먼저 보여주고(아래 조회),
+// 삭제는 관리자가 건수를 확인한 뒤 따로 실행한다(아래 삭제, 되돌리기 스냅샷 포함).
+
+/** 날짜별 그 팝업의 배정 건수 — 휴무일 목록에 "배정 N건 남아 있음"을 표시하는 데 쓴다 */
+export async function fetchPopupAssignmentCounts(
+  popupId: number,
+  dates: string[],
+): Promise<ApiResponse<Record<string, number>>> {
+  return wrap(async () => {
+    await requireAdmin()
+    if (dates.length === 0) return {}
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('work_date')
+      .eq('popup_id', popupId)
+      .in('work_date', dates)
+    if (error) throw new Error(error.message)
+    const counts: Record<string, number> = {}
+    for (const row of data ?? []) {
+      const d = row.work_date as string
+      counts[d] = (counts[d] ?? 0) + 1
+    }
+    return counts
+  })
+}
+
+/** 그 팝업의 특정 날짜 배정을 모두 삭제 — 휴무일로 지정한 날 정리용. 되돌리기 가능 */
+export async function clearPopupAssignmentsOnDates(
+  popupId: number,
+  dates: string[],
+): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
+  return wrap(async () => {
+    await requireAdmin()
+    if (dates.length === 0) return { removed: 0, undo: { deleted: [], updated: [] } }
+    const { data, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .delete()
+      .eq('popup_id', popupId)
+      .in('work_date', dates)
       .select(SNAPSHOT_COLUMNS)
     if (error) throw new Error(error.message)
     const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]

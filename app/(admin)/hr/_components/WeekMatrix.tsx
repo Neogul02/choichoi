@@ -18,12 +18,14 @@ interface Props {
   getShiftLabel: (shift: RosterShift) => string;
   /** 배정 id → 규칙 위반 사유 목록 */
   violations: Map<number, string[]>;
+  /** 그날이 팝업 휴무일이면 날짜 헤더에 띄울 라벨, 아니면 null. 생략하면 표시하지 않는다 */
+  getClosedLabel?: (dateStr: string) => string | null;
   selectedDate: string | null;
   onDateClick: (dateStr: string) => void;
 }
 
 export default function WeekMatrix({
-  weekStart, todayStr, shifts, staffList, getDayTint, getAssigned, getShiftLabel, violations, selectedDate, onDateClick,
+  weekStart, todayStr, shifts, staffList, getDayTint, getAssigned, getShiftLabel, violations, getClosedLabel, selectedDate, onDateClick,
 }: Props) {
   const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   // 팝업 기간 띠는 날짜 열 전체(헤더+근무자 칸)에 깔린다 — 주 뷰에선 세로로 이어져 운영 기간이 한눈에 보인다
@@ -76,6 +78,7 @@ export default function WeekMatrix({
         {dates.map((dateStr, i) => {
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDate;
+          const closedLabel = getClosedLabel?.(dateStr) ?? null;
           return (
             <button
               key={dateStr}
@@ -91,6 +94,11 @@ export default function WeekMatrix({
               }`}>
                 {Number(dateStr.slice(8))}
               </span>
+              {closedLabel && (
+                <span className="block mt-0.5 text-[9px] font-bold text-ink-faint leading-none truncate" title={`${closedLabel} — 영업하지 않는 날입니다`}>
+                  {closedLabel}
+                </span>
+              )}
             </button>
           );
         })}

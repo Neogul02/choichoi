@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import {
@@ -8,6 +8,7 @@ import {
 } from '@/app/actions/schedule';
 import type { PopupEvent } from '@/types/database';
 import { DAY_NAMES } from '@/lib/staffing';
+import PopupClosedDaysPanel from './PopupClosedDaysPanel';
 
 type EventForm = { name: string; startDate: string; endDate: string };
 
@@ -34,12 +35,21 @@ export default function PopupManagementSection() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PopupEvent | null>(null);
+  // 휴무일 패널을 펼친 팝업 id — 백화점 정기휴점처럼 팝업마다 따로 관리한다
+  const [closedDaysOpenId, setClosedDaysOpenId] = useState<number | null>(null);
+  const [closedCounts, setClosedCounts] = useState<Record<number, number>>({});
 
   useEffect(() => {
     fetchPopupEvents().then(res => {
       if (res.success && res.data) setEvents(res.data);
       setIsLoading(false);
     });
+  }, []);
+
+  // 패널을 펼쳐 조회한 팝업의 휴무일 개수만 배지로 표시한다 — 목록을 그릴 때마다 팝업 50개의
+  // 휴무일을 미리 긁어오지 않기 위해 열어본 것만 캐시한다
+  const handleClosedCountChange = useCallback((popupId: number, count: number) => {
+    setClosedCounts(prev => (prev[popupId] === count ? prev : { ...prev, [popupId]: count }));
   }, []);
 
   // ── 추가 ──────────────────────────────────────────────
@@ -219,6 +229,18 @@ export default function PopupManagementSection() {
                       </span>
                     </div>
                     <div className="flex gap-1.5 shrink-0">
+                      <button
+                        onClick={() => setClosedDaysOpenId(prev => (prev === ev.id ? null : ev.id))}
+                        title="운영 기간 중 영업하지 않는 날 (백화점 정기휴점 등)"
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold border-none cursor-pointer transition ${
+                          closedDaysOpenId === ev.id
+                            ? 'bg-primary-700 text-white'
+                            : 'bg-canvas-soft text-ink-muted hover:bg-primary-50 hover:text-primary-700'
+                        }`}
+                      >
+                        휴무일
+                        {closedCounts[ev.id] ? <span className="ml-1 tabular-nums">{closedCounts[ev.id]}</span> : null}
+                      </button>
                       <button onClick={() => startEdit(ev)}
                         className="px-2.5 py-1 rounded-md text-xs font-semibold border-none bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer transition-colors">
                         수정
@@ -229,6 +251,9 @@ export default function PopupManagementSection() {
                       </button>
                     </div>
                   </div>
+                )}
+                {closedDaysOpenId === ev.id && !isEditing && (
+                  <PopupClosedDaysPanel popup={ev} onCountChange={count => handleClosedCountChange(ev.id, count)} />
                 )}
               </li>
             );

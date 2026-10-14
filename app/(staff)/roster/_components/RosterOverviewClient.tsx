@@ -9,6 +9,7 @@ import { shiftBgColor, shiftTextColor } from '@/app/(admin)/hr/_components/const
 import { fetchRosterOverview } from '@/app/actions/roster-view';
 import type { RosterOverview, RosterUnitOverview } from '@/app/actions/roster-view';
 import { DAY_NAMES, findRosterViolations, getWeekStart, buildAssignMap } from '@/lib/staffing';
+import { buildClosedDayIndex, closedDayReason, type ClosedDayIndex } from '@/lib/closedDays';
 import { addDays, dayOfWeek } from '@/lib/date';
 import { MatrixSkeleton } from '@/components/Skeleton';
 import { showMsg } from '@/lib/toast';
@@ -111,6 +112,10 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
     setSelectedDate(dateStr);
   };
 
+  // 팝업 휴무일 — "근무 없음"과 "영업하지 않는 날"은 다르다. 전자는 배정을 빠뜨린 것일 수 있고
+  // 후자는 그게 정상이다. 섞여 보이면 매니저가 매번 확인 연락을 하게 된다.
+  const closedDays = useMemo(() => buildClosedDayIndex(overview?.closedDays ?? []), [overview]);
+
   return (
     <>
       <NavBar />
@@ -160,7 +165,7 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
             : <p className="text-ink-faint text-sm">근무표를 불러오지 못했습니다. 새로고침해 주세요.</p>
         ) : (
           <div className="flex flex-col gap-3 md:gap-4">
-            <DayDetailCard overview={overview} dateStr={selectedDate} today={today} />
+            <DayDetailCard overview={overview} dateStr={selectedDate} today={today} closedDays={closedDays} />
 
             {overview.units.map(u => (
               <UnitSection
@@ -171,6 +176,7 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
                 todayStr={today}
                 selectedDate={selectedDate}
                 onDateClick={handleDateClick}
+                closedDays={closedDays}
               />
             ))}
           </div>
@@ -182,10 +188,11 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
 
 // ── 선택한 날짜의 근무 인원 요약 — 모바일에서 매트릭스 스크롤 없이 핵심만 ──────
 
-function DayDetailCard({ overview, dateStr, today }: {
+function DayDetailCard({ overview, dateStr, today, closedDays }: {
   overview: RosterOverview;
   dateStr: string;
   today: string;
+  closedDays: ClosedDayIndex;
 }) {
   const [copying, setCopying] = useState(false);
 
@@ -196,6 +203,12 @@ function DayDetailCard({ overview, dateStr, today }: {
       const lines: string[] = [`📋 ${fmtDate(dateStr)} 근무 안내`, ''];
       let hasAny = false;
       for (const u of overview.units) {
+        // 휴무는 배정이 없어도 적는다 — "그 팝업이 빠졌나"를 묻는 연락이 오지 않게
+        if (closedDayReason(closedDays, u.unit.popupId, dateStr) !== undefined) {
+          hasAny = true;
+          lines.push(`◾ ${u.label} — 휴무`, '');
+          continue;
+        }
         const unitLines: string[] = [];
         for (const shift of u.data.shifts) {
           const assigned = u.data.assignments.filter(a => a.work_date === dateStr && a.shift_id === shift.id);
@@ -250,11 +263,20 @@ function DayDetailCard({ overview, dateStr, today }: {
               assigned: u.data.assignments.filter(a => a.work_date === dateStr && a.shift_id === shift.id),
             }))
             .filter(r => r.assigned.length > 0);
+          const reason = closedDayReason(closedDays, u.unit.popupId, dateStr);
+          const isClosed = reason !== undefined;
           return (
             <div key={u.key} className="rounded-xl border border-hairline bg-canvas p-3 min-w-0">
-              <p className="m-0 mb-2 text-[14px] font-extrabold text-ink">{u.label}</p>
+              <p className="m-0 mb-2 text-[14px] font-extrabold text-ink">
+                {u.label}
+                {isClosed && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-canvas-soft text-ink-muted align-middle">
+                    휴무{reason ? ` · ${reason}` : ''}
+                  </span>
+                )}
+              </p>
               {rows.length === 0 ? (
-                <p className="m-0 text-[12px] text-ink-faint">근무 없음</p>
+                <p className="m-0 text-[12px] text-ink-faint">{isClosed ? '영업하지 않는 날입니다' : '근무 없음'}</p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {rows.map(({ shift, idx, assigned }) => (
@@ -292,13 +314,14 @@ function DayDetailCard({ overview, dateStr, today }: {
 
 // ── 단위별(주방/팝업) 읽기 전용 주간 매트릭스 ─────────────────────────────────
 
-function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, onDateClick }: {
+function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, onDateClick, closedDays }: {
   unitOverview: RosterUnitOverview;
   staff: RosterOverview['staff'];
   weekStart: string;
   todayStr: string;
   selectedDate: string | null;
   onDateClick: (dateStr: string) => void;
+  closedDays: ClosedDayIndex;
 }) {
   const { label, unit, data } = unitOverview;
 
@@ -327,6 +350,7 @@ function UnitSection({ unitOverview, staff, weekStart, todayStr, selectedDate, o
         getAssigned={getAssigned}
         getShiftLabel={s => s.name}
         violations={violations}
+        getClosedLabel={d => (closedDayReason(closedDays, unit.popupId, d) !== undefined ? '휴무' : null)}
         selectedDate={selectedDate}
         onDateClick={onDateClick}
       />

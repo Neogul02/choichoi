@@ -18,6 +18,8 @@ interface Props {
   getDayTint: (dateStr: string) => string | undefined;
   /** 규칙 위반이 있는 날짜 집합 */
   violationDates: Set<string>;
+  /** 그날이 팝업 휴무일이면 칸에 띄울 라벨, 아니면 null */
+  getClosedLabel: (dateStr: string) => string | null;
   onSelectDate: (dateStr: string | null) => void;
   /** 직원 드롭 — 활성 파트 판정과 배정은 부모가 처리 (파트가 여럿이면 팝오버) */
   onDropStaff: (dateStr: string, staffId: number, x: number, y: number) => void;
@@ -29,7 +31,7 @@ interface Props {
  * 그리드와 무관한 상태 변화가 35~42개 셀 전체를 다시 그리지 않도록 한다.
  */
 function MonthGrid({
-  gridDates, todayStr, selectedDate, shifts, getAssigned, getRequired, getShiftLabel, getDayTint, violationDates, onSelectDate, onDropStaff,
+  gridDates, todayStr, selectedDate, shifts, getAssigned, getRequired, getShiftLabel, getDayTint, violationDates, getClosedLabel, onSelectDate, onDropStaff,
 }: Props) {
   return (
     <div className="grid grid-cols-7 gap-1">
@@ -50,6 +52,7 @@ function MonthGrid({
             isSelected={dateStr === selectedDate}
             isPast={dateStr < todayStr}
             hasViolation={violationDates.has(dateStr)}
+            closedLabel={getClosedLabel(dateStr)}
             shifts={shifts}
             getAssigned={getAssigned}
             getRequired={getRequired}

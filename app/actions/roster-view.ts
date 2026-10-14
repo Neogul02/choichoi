@@ -2,11 +2,11 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
-import type { StaffProfile } from '@/types/database'
+import type { PopupClosedDay, StaffProfile } from '@/types/database'
 import { fetchRosterRangeForOverview } from './roster'
 import type { RosterMonthData, RosterUnit } from './roster'
 import { fetchStaffProfiles } from './staff'
-import { fetchPopupEvents } from './schedule'
+import { fetchPopupEvents, fetchPopupClosedDays } from './schedule'
 import { extractErrorMessage, isNextInternalControlFlowError } from './_base'
 
 // 일정표는 매니저도 접근하는 화면이라 레이아웃 게이트만 믿지 않고 액션에서도 역할을 검사한다
@@ -28,6 +28,8 @@ export interface RosterUnitOverview {
 export interface RosterOverview {
   staff: StaffProfile[]
   units: RosterUnitOverview[]
+  /** 조회 기간에 걸친 팝업 휴무일 — 영업하지 않는 날을 "근무 없음"과 구분해 표시한다 */
+  closedDays: PopupClosedDay[]
 }
 
 /** 주방 + 팝업별 캐셔 근무표를 한 번에 — 일정표(읽기 전용) 화면용 */
@@ -45,9 +47,10 @@ export async function fetchRosterOverview(fromDate: string, toDate: string): Pro
       ...visiblePopups.map(p => ({ key: `cashier-${p.id}`, label: p.name, unit: { staffRole: 'cashier' as const, popupId: p.id } })),
     ]
 
-    const [staffRes, rangeResults] = await Promise.all([
+    const [staffRes, rangeResults, closedRes] = await Promise.all([
       fetchStaffProfiles(),
       Promise.all(unitDefs.map(u => fetchRosterRangeForOverview(u.unit, fromDate, toDate))),
+      fetchPopupClosedDays(visiblePopups.map(p => p.id), fromDate, toDate),
     ])
     if (!staffRes.success || !staffRes.data) return { success: false, error: staffRes.error ?? '직원 목록을 불러올 수 없습니다.' }
 
@@ -66,6 +69,8 @@ export async function fetchRosterOverview(fromDate: string, toDate: string): Pro
       data: {
         staff: staffRes.data,
         units,
+        // 휴무일 조회 실패가 근무표 전체를 가리지 않도록 — 빈 목록이면 휴무 표시만 빠진다
+        closedDays: closedRes.success && closedRes.data ? closedRes.data : [],
       },
     }
   } catch (err) {

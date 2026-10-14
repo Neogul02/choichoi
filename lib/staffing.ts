@@ -1,6 +1,7 @@
 import type { PopupEvent, StaffProfile } from '@/types/database';
 import { prevDate, dayOfWeek } from '@/lib/date';
 import { shiftRawMinutes } from '@/lib/workhours';
+import { isClosedDay, type ClosedDayIndex } from '@/lib/closedDays';
 
 export const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -14,6 +15,7 @@ export function pickOngoingPopup<T extends Pick<PopupEvent, 'start_date' | 'end_
 
 export interface ShiftRequirementSource {
   id: number;
+  popup_id: number | null;
   active_from: string | null;
   active_to: string | null;
   weekday_required: number;
@@ -21,11 +23,20 @@ export interface ShiftRequirementSource {
 }
 
 /**
- * 파트의 해당 날짜 요구 인원 — 활성 기간 밖이면 0, 날짜별 예외(overrides) 우선.
+ * 파트의 해당 날짜 요구 인원 — 팝업 휴무일이거나 활성 기간 밖이면 0, 날짜별 예외(overrides) 우선.
  * 활성 기간을 아예 설정하지 않은 파트(무제한)는 평일/주말 기본값을 전체 날짜에 자동 적용하지 않는다 —
  * 그러면 기간 없는 파트가 모든 날짜에서 미충원(빨간색)으로 표시되므로, 날짜별 override로만 수동 배정한다.
+ *
+ * 휴무일은 날짜별 override보다 앞선다 — 영업하지 않는 날에 요구 인원이 살아 있으면 달력이
+ * 계속 미충원으로 빨갛게 표시되고, 그걸 없애려고 override를 0으로 손수 눌러왔다.
  */
-export function requiredFor(dateStr: string, shift: ShiftRequirementSource, overrides: Record<string, number>): number {
+export function requiredFor(
+  dateStr: string,
+  shift: ShiftRequirementSource,
+  overrides: Record<string, number>,
+  closedDays?: ClosedDayIndex,
+): number {
+  if (isClosedDay(closedDays, shift.popup_id, dateStr)) return 0;
   if (shift.active_from && dateStr < shift.active_from) return 0;
   if (shift.active_to && dateStr > shift.active_to) return 0;
   const override = overrides[`${dateStr}|${shift.id}`];
