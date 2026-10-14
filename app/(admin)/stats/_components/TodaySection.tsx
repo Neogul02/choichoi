@@ -42,7 +42,7 @@ function Delta({ label, now, before }: { label: string; now: number; before: num
  * "오늘 이 팝업이 뭘 몇 개 팔았나"를 볼 방법이 없었다.
  */
 export default function TodaySection({ initialPopups }: Props) {
-  const { popups, selected, scope, setScope, breakdown, comparison, totals, isLoading } =
+  const { popups, selected, scope, setScope, breakdown, comparison, totals, todayUptoNow, yesterdayCurve, isLoading } =
     useToday(initialPopups);
 
   if (popups.length === 0) {
@@ -104,13 +104,27 @@ export default function TodaySection({ initialPopups }: Props) {
       </div>
 
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
-        <Delta label="어제" now={totals.revenue} before={comparison.yesterday} />
-        <Delta label="지난주 같은 요일" now={totals.revenue} before={comparison.lastWeek} />
+        <Delta label="어제 같은 시각" now={todayUptoNow} before={comparison.yesterday} />
+        <Delta label="지난주 같은 시각" now={todayUptoNow} before={comparison.lastWeek} />
       </div>
 
-      {/* 시간대 흐름 — 전체면 팝업끼리 겹쳐 비교, 개별이면 한 줄 */}
+      {/* 시간대 흐름 — 전체면 팝업끼리 겹쳐 비교, 개별이면 한 줄. 어제 같은 범위를 점선으로 뒤에 깐다 */}
       <div className="mt-3">
-        <p className="m-0 mb-1 text-[11px] font-bold text-ink-muted">시간대별 누적</p>
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <p className="m-0 text-[11px] font-bold text-ink-muted">시간대별 누적</p>
+          {yesterdayCurve && (
+            <span className="flex items-center gap-1 text-[10px] text-ink-faint whitespace-nowrap">
+              {yesterdayCurve.hasData ? (
+                <>
+                  <span className="inline-block h-0 w-3 border-t-2 border-dashed border-[#b4b0aa]" />
+                  어제 같은 시각 <span className="font-bold tabular-nums">₩{formatPrice(yesterdayCurve.uptoNow)}</span>
+                </>
+              ) : (
+                '어제 이 팝업 매출 없음'
+              )}
+            </span>
+          )}
+        </div>
         <SalesBattleChart
           rows={selected}
           currentPopupId={scope === 'all' ? null : scope}
@@ -118,6 +132,9 @@ export default function TodaySection({ initialPopups }: Props) {
             const idx = popups.findIndex(p => p.popupId === row.popupId);
             return LINE_COLORS[(idx < 0 ? 0 : idx) % LINE_COLORS.length];
           }}
+          reference={
+            yesterdayCurve?.hasData ? { label: '어제', hourly: yesterdayCurve.hourly } : null
+          }
         />
       </div>
 

@@ -11,7 +11,7 @@ function getInitialMonth(): Date {
   return new Date(now.getUTCFullYear(), now.getUTCMonth(), 1);
 }
 
-const EMPTY: CalendarSalesData = { byDate: {}, monthTotal: 0, totalOrders: 0, manualByDate: {} };
+const EMPTY: CalendarSalesData = { byDate: {}, monthTotal: 0, totalOrders: 0, manualByDate: {}, popupByDate: {} };
 
 // initialData: 서버 컴포넌트가 당월 기준으로 프리페치한 데이터 — 있으면 마운트 직후 재조회를 건너뛴다
 export function useCalendar(initialData?: CalendarSalesData | null) {

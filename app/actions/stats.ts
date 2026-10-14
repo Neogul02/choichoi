@@ -12,6 +12,7 @@ import type {
   FetchDailySalesResponse,
   FetchManualSalesResponse,
   CalendarSalesData,
+  DayPopupSales,
   LifetimeSalesTotals,
   DailySalesItem,
   MenuSalesItem,
@@ -51,11 +52,44 @@ const ManualHourlySalesSchema = z.object({
   })),
 });
 
-async function getMonthlySalesByDate(year: number, month: number): Promise<CalendarSalesData> {
-  const { data, error } = await supabaseAdmin.rpc('get_monthly_sales_by_date', {
+/**
+ * 날짜별 팝업 내역 — 달력 칸에 팝업을 겹쳐 보여주기 위한 POS 기준 집계.
+ * popup_id가 NULL인 주문은 떨어뜨리지 않고 "팝업 미지정"으로 남긴다 —
+ * 2026-05처럼 미지정이 매출의 28%였던 달이 있어, 버리면 팝업 합이 그날 매출보다 조용히 작아진다.
+ */
+async function getMonthlySalesByDatePopup(year: number, month: number): Promise<Record<string, DayPopupSales[]>> {
+  const { data, error } = await supabaseAdmin.rpc('get_monthly_sales_by_date_popup', {
     p_year: year,
     p_month: month,
   })
+  if (error) throw error
+
+  const byDate: Record<string, DayPopupSales[]> = {}
+  for (const row of (data ?? []) as Array<{
+    sale_date: string
+    popup_id: number | string | null
+    popup_name: string | null
+    total_revenue: number | string
+    order_count: number | string
+  }>) {
+    const list = (byDate[row.sale_date] ??= [])
+    list.push({
+      popupId: row.popup_id == null ? null : Number(row.popup_id),
+      popupName: row.popup_name ?? '팝업 미지정',
+      revenue: Number(row.total_revenue),
+      orders: Number(row.order_count),
+    })
+  }
+  for (const list of Object.values(byDate)) list.sort((a, b) => b.revenue - a.revenue)
+  return byDate
+}
+
+async function getMonthlySalesByDate(year: number, month: number): Promise<CalendarSalesData> {
+  // 두 집계는 서로 무관하므로 병렬로 — 달력은 두 결과가 함께 있어야 한 번에 그려진다
+  const [{ data, error }, popupByDate] = await Promise.all([
+    supabaseAdmin.rpc('get_monthly_sales_by_date', { p_year: year, p_month: month }),
+    getMonthlySalesByDatePopup(year, month),
+  ])
 
   if (error) throw error
 
@@ -77,7 +111,7 @@ async function getMonthlySalesByDate(year: number, month: number): Promise<Calen
   // (20261006121810 마이그레이션에서 RPC도 날짜당 1행으로 고쳤다).
   const sum = (m: Record<string, number>) => Object.values(m).reduce((a, b) => a + b, 0)
 
-  return { byDate, monthTotal: sum(byDate), totalOrders: sum(ordersByDate), manualByDate: {} }
+  return { byDate, monthTotal: sum(byDate), totalOrders: sum(ordersByDate), manualByDate: {}, popupByDate }
 }
 
 async function getDailySalesByPeriod(

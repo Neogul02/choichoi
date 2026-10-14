@@ -3,19 +3,21 @@
 import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { CHART_GRID_STROKE } from '@/app/(admin)/stats/_lib/chartTheme';
+import { buildSalesCurve, curveKeyOf, REFERENCE_KEY } from '@/lib/salesCurve';
 import type { TodayPopupSales } from '@/types/api';
-
-/** 영업 시간대 기본 축 — 매출이 없는 시간도 축에 남겨야 "하루 중 어디쯤인지"가 읽힌다 */
-const AXIS_FROM = 7;
-const AXIS_TO = 22;
 
 interface Props {
   rows: TodayPopupSales[];
   currentPopupId: number | null;
   colorOf: (row: TodayPopupSales, index: number) => string;
+  /**
+   * 뒤에 겹쳐 그릴 기준 곡선(통계탭의 "어제"). 시간대별 매출을 주면 누적은 여기서 만든다 —
+   * 오늘 곡선과 같은 누적 규칙을 써야 두 선을 같은 눈으로 비교할 수 있다.
+   */
+  reference?: { label: string; hourly: { hour: number; revenue: number }[] } | null;
 }
 
-const keyOf = (popupId: number) => `p${popupId}`;
+const REFERENCE_COLOR = '#b4b0aa';
 
 interface BattleTooltipProps {
   active?: boolean;
@@ -50,41 +52,61 @@ function BattleTooltip({ active, payload, label, nameByKey }: BattleTooltipProps
   );
 }
 
-export default function SalesBattleChart({ rows, currentPopupId, colorOf }: Props) {
-  const { data, from, to } = useMemo(() => {
-    const hours = rows.flatMap(r => r.hourly.map(h => h.hour));
-    // 07~22를 기본 틀로 쓰되, 그 밖 시간대에 매출이 있으면 축을 넓힌다 — 데이터가 조용히 잘리면 안 된다
-    const f = Math.min(AXIS_FROM, ...(hours.length ? hours : [AXIS_FROM]));
-    const t = Math.max(AXIS_TO, ...(hours.length ? hours : [AXIS_TO]));
-    // 마지막으로 매출이 있던 시각 이후는 선을 끊는다. 끝까지 수평으로 이으면
-    // 아직 남은 영업시간이 이미 끝난 것처럼 보인다.
-    const lastActive = hours.length ? Math.max(...hours) : f;
+interface LeadDotProps {
+  cx?: number;
+  cy?: number;
+  index?: number;
+  /** 이 선의 마지막 값이 찍힌 지점 — 여기서만 빛이 켜진다 */
+  leadIndex: number;
+  color: string;
+  emphasis: boolean;
+}
 
-    const acc = new Map<number, number>(rows.map(r => [r.popupId, 0]));
-    const byPopupHour = new Map<string, number>();
-    for (const r of rows) for (const h of r.hourly) byPopupHour.set(`${r.popupId}|${h.hour}`, h.revenue);
-
-    const out: Array<Record<string, number | null>> = [];
-    for (let h = f; h <= t; h++) {
-      const point: Record<string, number | null> = { hour: h };
-      for (const r of rows) {
-        const next = (acc.get(r.popupId) ?? 0) + (byPopupHour.get(`${r.popupId}|${h}`) ?? 0);
-        acc.set(r.popupId, next);
-        point[keyOf(r.popupId)] = h <= lastActive ? next : null;
-      }
-      out.push(point);
-    }
-    return { data: out, from: f, to: t };
-  }, [rows]);
-
-  const nameByKey = useMemo(
-    () => new Map(rows.map(r => [keyOf(r.popupId), r.popupName])),
-    [rows],
+/**
+ * 곡선 선두에서 숨쉬는 빛. 주식 호가창의 "지금 값" 표시처럼, 선이 어디까지 그려졌는지를
+ * 가만히 보고 있어도 알게 하는 장치다.
+ *
+ * recharts의 dot 렌더러는 모든 지점에 대해 호출되므로 선두가 아니면 null을 돌려준다.
+ * (null이 아니라 빈 <g/>를 돌려주면 지점마다 빈 노드가 쌓인다.)
+ */
+function LeadDot({ cx, cy, index, leadIndex, color, emphasis }: LeadDotProps) {
+  if (cx == null || cy == null || index !== leadIndex) return null;
+  return (
+    <g>
+      {/* 퍼져나가는 테두리 — 커지며 사라진다.
+          non-scaling-stroke가 없으면 scale에 선 굵기까지 딸려 커져서 번지는 대신 두꺼워진다 */}
+      <circle
+        className="sales-pulse-halo"
+        cx={cx} cy={cy} r={3}
+        fill="none" stroke={color} strokeWidth={1.5}
+        vectorEffect="non-scaling-stroke"
+      />
+      {/* 번져 보이게 하는 고정 후광 */}
+      <circle cx={cx} cy={cy} r={emphasis ? 6 : 5} fill={color} opacity={0.18} />
+      {/* 심지 */}
+      <circle className="sales-pulse-core" cx={cx} cy={cy} r={emphasis ? 3.2 : 2.6} fill={color} />
+      <circle cx={cx} cy={cy} r={emphasis ? 1.3 : 1} fill="#fff" opacity={0.9} />
+    </g>
   );
+}
+
+export default function SalesBattleChart({ rows, currentPopupId, colorOf, reference }: Props) {
+  const { data, from, to, leadIndexByKey } = useMemo(
+    () => buildSalesCurve(rows, reference),
+    [rows, reference],
+  );
+
+  const nameByKey = useMemo(() => {
+    const m = new Map(rows.map(r => [curveKeyOf(r.popupId), r.popupName]));
+    if (reference) m.set(REFERENCE_KEY, reference.label);
+    return m;
+  }, [rows, reference]);
 
   return (
     <ResponsiveContainer width="100%" height={128}>
-      <LineChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: 6 }}>
+      {/* 위·오른쪽 여백은 선두 글로우(최대 반지름 11px)가 잘리지 않을 만큼 둔다 —
+          1등 선의 선두 점은 항상 Y축 최댓값, 즉 그래프 천장에 붙는다 */}
+      <LineChart data={data} margin={{ top: 13, right: 12, bottom: 0, left: 6 }}>
         <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="hour"
@@ -104,19 +126,48 @@ export default function SalesBattleChart({ rows, currentPopupId, colorOf }: Prop
           content={<BattleTooltip nameByKey={nameByKey} />}
           cursor={{ stroke: 'var(--color-ink-faint)', strokeWidth: 1, strokeDasharray: '4 2' }}
         />
-        {rows.map((row, i) => (
+        {/* 기준 곡선을 먼저 그려 오늘 곡선 뒤에 깔린다 */}
+        {reference && reference.hourly.length > 0 && (
           <Line
-            key={row.popupId}
+            key={REFERENCE_KEY}
             type="monotone"
-            dataKey={keyOf(row.popupId)}
-            stroke={colorOf(row, i)}
-            strokeWidth={row.popupId === currentPopupId ? 3 : 2}
-            dot={false}
-            activeDot={{ r: 3.5 }}
+            dataKey={REFERENCE_KEY}
+            stroke={REFERENCE_COLOR}
+            strokeWidth={2}
+            strokeDasharray="4 3"
+            dot={
+              leadIndexByKey[REFERENCE_KEY] != null
+                ? <LeadDot leadIndex={leadIndexByKey[REFERENCE_KEY]} color={REFERENCE_COLOR} emphasis={false} />
+                : false
+            }
+            activeDot={{ r: 3 }}
             connectNulls={false}
             isAnimationActive={false}
           />
-        ))}
+        )}
+        {rows.map((row, i) => {
+          const key = curveKeyOf(row.popupId);
+          const lead = leadIndexByKey[key];
+          const color = colorOf(row, i);
+          return (
+            <Line
+              key={row.popupId}
+              type="monotone"
+              dataKey={key}
+              stroke={color}
+              strokeWidth={row.popupId === currentPopupId ? 3 : 2}
+              // 선두에서만 빛나는 점 — 나머지 지점은 그리지 않는다
+              dot={
+                lead != null
+                  ? <LeadDot leadIndex={lead} color={color} emphasis={row.popupId === currentPopupId} />
+                  : false
+              }
+              activeDot={{ r: 3.5 }}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          );
+        })}
       </LineChart>
     </ResponsiveContainer>
   );

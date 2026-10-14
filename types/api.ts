@@ -38,11 +38,24 @@ export interface MenuSalesItem {
   totalRevenue: number;
 }
 
+/** 하루 안에서 한 팝업이 올린 POS 매출 — popupId가 null이면 주문에 팝업이 안 붙어 있던 건 */
+export interface DayPopupSales {
+  popupId: number | null;
+  popupName: string;
+  revenue: number;
+  orders: number;
+}
+
 export interface CalendarSalesData {
   byDate: Record<string, number>;
   monthTotal: number;
   totalOrders: number;
   manualByDate: Record<string, ManualSalesEntry>;
+  /**
+   * 날짜별 팝업 내역 — 매출 내림차순. **POS 주문 기준**이라 수동 입력으로 정정한 날에는
+   * byDate(수동값)와 합이 다를 수 있다. 수동 입력은 날짜 단위라 팝업으로 나눌 수 없다.
+   */
+  popupByDate: Record<string, DayPopupSales[]>;
 }
 
 /** 첫 팝업 시작일부터 오늘까지의 누적 집계 — 통계탭 전용 (get_lifetime_sales_totals RPC) */
