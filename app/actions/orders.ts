@@ -109,8 +109,12 @@ async function getTodaysSales(popupId?: string | number | null): Promise<TodaysS
   }
 }
 
-async function getTodaysSalesByPopup(): Promise<TodayPopupSales[]> {
-  const { start, end } = getKSTDateBounds()
+/**
+ * 주어진 구간의 팝업 × KST 시각별 매출. 오늘·어제 모두 이 함수를 쓴다 —
+ * 어제 곡선을 따로 집계하면 시간대 분해 규칙이 둘로 갈려 같은 화면의 두 선이 다른 기준을 쓴다.
+ * (RPC 이름은 get_todays_… 지만 구간을 인자로 받는다.)
+ */
+async function getHourlySalesByPopup(start: string, end: string): Promise<TodayPopupSales[]> {
   // 팝업 × 시각 단위 행을 받아 팝업별로 접는다 — 합계도 이 행들에서 파생시켜
   // 곡선과 범례 숫자가 서로 다른 출처에서 나오는 일이 없게 한다.
   const { data, error } = await supabaseAdmin.rpc('get_todays_hourly_sales_by_popup', {
@@ -141,6 +145,11 @@ async function getTodaysSalesByPopup(): Promise<TodayPopupSales[]> {
 
   for (const entry of byPopup.values()) entry.hourly.sort((a, b) => a.hour - b.hour)
   return [...byPopup.values()].sort((a, b) => b.totalRevenue - a.totalRevenue)
+}
+
+async function getTodaysSalesByPopup(): Promise<TodayPopupSales[]> {
+  const { start, end } = getKSTDateBounds()
+  return getHourlySalesByPopup(start, end)
 }
 
 async function getTodaysOrderList(popupId?: string | number | null): Promise<OrderRecord[]> {
@@ -361,6 +370,10 @@ export async function fetchTodaysOrders(popupId?: string | null): Promise<FetchO
 /** 오늘 매출이 난 팝업별 집계 — POS 매출 배틀. 자기 팝업 밖 숫자를 돌려주므로 로그인은 요구한다 */
 export async function fetchTodaysSalesByPopup(): Promise<FetchTodayPopupSalesResponse> {
   return wrap(async () => { await requireAuth(); return getTodaysSalesByPopup(); });
+}
+/** 임의 구간(통계탭 '오늘 현황'의 어제 비교 곡선)의 팝업별 시간대 매출 — 오늘과 같은 게이트 */
+export async function fetchHourlySalesByPopup(startISO: string, endISO: string): Promise<FetchTodayPopupSalesResponse> {
+  return wrap(async () => { await requireAuth(); return getHourlySalesByPopup(startISO, endISO); });
 }
 export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit, popupId)); }
 export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getPendingOrders(popupId)); }

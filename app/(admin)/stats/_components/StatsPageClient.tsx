@@ -104,6 +104,7 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
 
           <CalendarSection
             calendarSales={calendarSales}
+            popupEvents={popupEvents}
             calendarMonth={calendarMonth}
             isLoading={isCalendarLoading}
             todayStr={todayStr}

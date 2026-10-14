@@ -146,3 +146,37 @@ button, a {
 ::-webkit-scrollbar-track  { background: transparent; }
 ::-webkit-scrollbar-thumb  { background: var(--color-hairline); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: #ccc; }
+
+/* ── 매출 곡선 선두 글로우 ──
+   POS 매출 배틀·통계탭 "오늘 현황"의 곡선 끝에서 켜지는 숨쉬는 빛.
+   "지금 이 순간까지 그려진 선"이 어디인지 가만히 보고 있어도 들어오게 하는 표시다.
+
+   SVG 도형은 기본 변형 기준점이 SVG 좌표계 원점(0,0)이라, scale을 그냥 걸면 점이
+   차트 밖으로 날아간다. transform-box: fill-box로 기준을 도형 자신의 중심으로 옮긴다.
+   (r을 CSS로 직접 움직이는 방법은 지오메트리 속성 지원이 브라우저마다 갈려서 피했다.) */
+@keyframes sales-pulse-halo {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  70%  { transform: scale(3.6); opacity: 0;   }
+  100% { transform: scale(3.6); opacity: 0;   }
+}
+
+@keyframes sales-pulse-core {
+  0%, 100% { opacity: 1;    }
+  50%      { opacity: 0.55; }
+}
+
+.sales-pulse-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sales-pulse-halo 1.9s ease-out infinite;
+}
+
+.sales-pulse-core {
+  animation: sales-pulse-core 1.9s ease-in-out infinite;
+}
+
+/* 모션을 줄여 달라고 설정한 사용자에게는 깜빡임 없이 점만 남긴다 */
+@media (prefers-reduced-motion: reduce) {
+  .sales-pulse-halo { animation: none; transform: scale(2); opacity: 0.3; }
+  .sales-pulse-core { animation: none; }
+}
