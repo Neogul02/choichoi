@@ -57,24 +57,47 @@ export function transformIndex(index: number, delta: TextDelta): number {
   return Math.max(0, result);
 }
 
-// 이름 → 색. 해시로 고정 배정해 누가 어느 기기에서 열든 같은 사람은 같은 색이다.
-// 흰 배경 13px 글자에서 읽히도록 채도를 낮춘 진한 색만 쓴다.
+// 이름 → 색. 흰 배경 13px 글자에서 읽히는 진한 색 중 색상(hue)이 서로 확실히 갈리는 것만 쓴다 —
+// 주황·장미·황토처럼 붉은 계열이 둘 이상 섞이면 나란히 놓였을 때 구분이 안 됐다(2026-10-14 피드백).
+// 빨강은 "가득 참" 경고색이라 뺐다.
 export const AUTHOR_COLORS = [
-  '#c2410c', // 주황
   '#1d4ed8', // 파랑
-  '#047857', // 초록
+  '#c2410c', // 주황
+  '#15803d', // 초록
   '#7e22ce', // 보라
-  '#be123c', // 장미
+  '#be185d', // 분홍
   '#0e7490', // 청록
-  '#a16207', // 황토
-  '#4338ca', // 남색
+  '#713f12', // 갈색
 ] as const;
 
-export function authorColor(author: string | null | undefined): string | null {
-  if (!author) return null;
+function hashSlot(author: string): number {
   let h = 0;
   for (let i = 0; i < author.length; i++) h = (h * 31 + author.charCodeAt(i)) | 0;
-  return AUTHOR_COLORS[Math.abs(h) % AUTHOR_COLORS.length];
+  return Math.abs(h) % AUTHOR_COLORS.length;
+}
+
+// 메모에 글이 있는 사람들끼리 색이 겹치지 않게 배정한다. 해시만 쓰면 이름 두 개가 같은 칸에 걸려
+// 같은 색이 된다(황형진·이지솔이 실제로 그랬다). 각자 해시 칸을 먼저 쓰고, 이미 찬 칸이면 다음 칸으로 민다.
+// 이름순으로 처리하므로 같은 작성자 목록이면 어느 기기에서 열든 결과가 같다. 색보다 사람이 많으면 다시 겹친다.
+export function assignAuthorColors(authors: Iterable<string>): Map<string, string> {
+  const names = [...new Set(authors)].filter(Boolean).sort();
+  const taken = new Set<number>();
+  const out = new Map<string, string>();
+  for (const name of names) {
+    let slot = hashSlot(name);
+    if (taken.size < AUTHOR_COLORS.length) {
+      while (taken.has(slot)) slot = (slot + 1) % AUTHOR_COLORS.length;
+    }
+    taken.add(slot);
+    out.set(name, AUTHOR_COLORS[slot]);
+  }
+  return out;
+}
+
+// 배정표에 없는 이름(아직 글을 안 쓴 입력 중인 사람)은 해시 칸 색으로 둔다
+export function authorColor(author: string | null | undefined, assigned?: Map<string, string>): string | null {
+  if (!author) return null;
+  return assigned?.get(author) ?? AUTHOR_COLORS[hashSlot(author)];
 }
 
 // 서버 액션 인자와 DB(text 컬럼)로 Yjs 바이너리를 오가기 위한 base64. 브라우저·Node 공용.

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { fetchPosNote, updatePosNote } from '@/app/actions/pos-note';
 import {
-  POS_NOTE_TEXT_KEY, diffText, transformIndex, authorColor, deltaToRuns, overlayRuns,
+  POS_NOTE_TEXT_KEY, diffText, transformIndex, authorColor, assignAuthorColors, deltaToRuns, overlayRuns,
   bytesToBase64, base64ToBytes, type AuthorRun, type TextDelta,
 } from '@/lib/posNoteSync';
 
@@ -294,6 +294,7 @@ function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLT
 }
 
 type CollabNote = ReturnType<typeof useCollabNote>;
+type AuthorColors = Map<string, string>;
 
 function useEditorPresence(name?: string | null) {
   const [editors, setEditors] = useState<string[]>([]);
@@ -357,14 +358,14 @@ function MetaLine({ meta, saving, dirty }: { meta: { updated_by: string | null; 
   );
 }
 
-function EditingBadge({ names }: { names: string[] }) {
+function EditingBadge({ names, colors }: { names: string[]; colors: AuthorColors }) {
   if (names.length === 0) return null;
   return (
     <div className="flex items-center gap-1 text-[10px] font-semibold text-primary-700 mb-1.5 min-w-0">
       <span className="w-1.5 h-1.5 rounded-full bg-primary-700 animate-pulse shrink-0" />
       <span className="truncate">
         {names.map((n, i) => (
-          <span key={n} style={{ color: authorColor(n) ?? undefined }}>{i > 0 ? ', ' : ''}{n}</span>
+          <span key={n} style={{ color: authorColor(n, colors) ?? undefined }}>{i > 0 ? ', ' : ''}{n}</span>
         ))}
         님 입력 중
       </span>
@@ -375,7 +376,7 @@ function EditingBadge({ names }: { names: string[] }) {
 // 글자색만으로는 누가 누군지 알 수 없으므로 메모에 글이 남아 있는 사람을 색과 함께 나열한다.
 // 최근에 쓴 사람이 앞에 온다(runs를 뒤에서부터 훑는다). 작성자 없는 글(동시편집 이전 글)은 빼고,
 // 한도에 가까워지면 남은 글자 수를 같은 줄 오른쪽에 보여준다.
-function NoteFooter({ runs, length }: { runs: AuthorRun[]; length: number }) {
+function NoteFooter({ runs, length, colors }: { runs: AuthorRun[]; length: number; colors: AuthorColors }) {
   const authors: string[] = [];
   for (let i = runs.length - 1; i >= 0; i--) {
     const a = runs[i].author;
@@ -388,8 +389,8 @@ function NoteFooter({ runs, length }: { runs: AuthorRun[]; length: number }) {
     <div className="flex items-start justify-between gap-2 text-[10px] font-semibold min-w-0">
       <div className="flex flex-wrap gap-x-2 gap-y-0.5 min-w-0">
         {authors.map((a) => (
-          <span key={a} className="flex items-center gap-1" style={{ color: authorColor(a) ?? undefined }}>
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: authorColor(a) ?? undefined }} />
+          <span key={a} className="flex items-center gap-1" style={{ color: authorColor(a, colors) ?? undefined }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: authorColor(a, colors) ?? undefined }} />
             {a}
           </span>
         ))}
@@ -411,8 +412,9 @@ const EDITOR_GUTTER = { scrollbarGutter: 'stable' } as const;
 
 // 작성자별 글자색: textarea 글자는 투명하게 두고(커서·선택·IME는 textarea가 그대로 담당),
 // 같은 위치에 겹친 레이어가 Y.Text의 작성자 속성대로 색칠한 글자를 보여준다.
-function NoteEditor({ note, textareaRef, author, rows, className, onFocusChange }: {
+function NoteEditor({ note, colors, textareaRef, author, rows, className, onFocusChange }: {
   note: CollabNote;
+  colors: AuthorColors;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   author: string | null;
   rows: number;
@@ -446,7 +448,7 @@ function NoteEditor({ note, textareaRef, author, rows, className, onFocusChange 
         style={EDITOR_GUTTER}
       >
         {shown.map((run, i) => (
-          <span key={i} style={{ color: authorColor(run.author) ?? undefined }}>{run.text}</span>
+          <span key={i} style={{ color: authorColor(run.author, colors) ?? undefined }}>{run.text}</span>
         ))}
         {/* 끝 줄바꿈은 빈 줄로 그려지지 않으므로 textarea와 높이를 맞추려 한 글자 덧붙인다 */}
         {'\u200b'}
@@ -477,6 +479,11 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
   const isDesktop = useIsDesktop();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const note = useCollabNote(cashierName ?? null, textareaRef);
+  // 색 배정은 메모에 글이 있는 사람 전체를 보고 정해야 겹치지 않는다 — 본문·범례·입력 중 표시가 같은 표를 쓴다
+  const colors = useMemo(
+    () => assignAuthorColors(note.runs.flatMap((r) => (r.author ? [r.author] : []))),
+    [note.runs],
+  );
   const { editors, notifyEditing } = useEditorPresence(cashierName);
   const panelRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
@@ -558,18 +565,19 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
             <span className="text-[12px] font-extrabold text-ink shrink-0">공유 메모장</span>
             <MetaLine meta={note.meta} saving={note.saving} dirty={note.dirty} />
           </div>
-          <EditingBadge names={editors} />
+          <EditingBadge names={editors} colors={colors} />
         </div>
         <div className="p-3 flex flex-col gap-2 flex-1 min-h-0" onPointerDownCapture={(e) => e.stopPropagation()}>
           <NoteEditor
             note={note}
+            colors={colors}
             textareaRef={textareaRef}
             author={cashierName ?? null}
             rows={5}
             className="flex-1 min-h-0"
             onFocusChange={notifyEditing}
           />
-          <NoteFooter runs={note.runs} length={note.value.length} />
+          <NoteFooter runs={note.runs} length={note.value.length} colors={colors} />
         </div>
         <div
           onPointerDownCapture={handleResizeStart}
@@ -595,10 +603,10 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
         <h2 className="m-0 text-[16px] font-bold text-ink">공유 메모장</h2>
         <MetaLine meta={note.meta} saving={note.saving} dirty={note.dirty} />
       </div>
-      <EditingBadge names={editors} />
-      <NoteEditor note={note} textareaRef={textareaRef} author={cashierName ?? null} rows={4} onFocusChange={notifyEditing} />
+      <EditingBadge names={editors} colors={colors} />
+      <NoteEditor note={note} colors={colors} textareaRef={textareaRef} author={cashierName ?? null} rows={4} onFocusChange={notifyEditing} />
       <div className="mt-2">
-        <NoteFooter runs={note.runs} length={note.value.length} />
+        <NoteFooter runs={note.runs} length={note.value.length} colors={colors} />
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as Y from 'yjs';
-import { diffText, transformIndex, authorColor, bytesToBase64, base64ToBytes, overlayRuns, deltaToRuns, loadNoteDoc, POS_NOTE_TEXT_KEY } from './posNoteSync';
+import { diffText, transformIndex, authorColor, assignAuthorColors, bytesToBase64, base64ToBytes, overlayRuns, deltaToRuns, loadNoteDoc, POS_NOTE_TEXT_KEY } from './posNoteSync';
 
 function apply(prev: string, next: string): string {
   const d = diffText(prev, next);
@@ -80,6 +80,19 @@ describe('authorColor', () => {
     expect(authorColor('민수')).toBe(authorColor('민수'));
     expect(authorColor(null)).toBeNull();
     expect(authorColor('')).toBeNull();
+  });
+
+  it('해시가 같은 칸에 걸리는 이름끼리도 서로 다른 색을 받는다', () => {
+    // 황형진·이지솔은 해시 칸이 같아 예전엔 둘 다 주황이었다
+    const colors = assignAuthorColors(['황형진', '최진형', '이지솔']);
+    expect(new Set(colors.values()).size).toBe(3);
+    expect(authorColor('이지솔', colors)).toBe(colors.get('이지솔'));
+  });
+
+  it('입력 순서와 무관하게 같은 목록이면 같은 배정 — 기기마다 색이 달라지지 않는다', () => {
+    const a = assignAuthorColors(['이지솔', '황형진', '최진형']);
+    const b = assignAuthorColors(['최진형', '황형진', '이지솔', '황형진']);
+    expect([...a.entries()].sort()).toEqual([...b.entries()].sort());
   });
 });
 
