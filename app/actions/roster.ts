@@ -189,6 +189,31 @@ async function fetchClosedDateSet(popupId: number | null, fromDate: string, toDa
   return new Set((data ?? []).map(r => r.closed_date as string))
 }
 
+interface AttendedAssignment {
+  status: 'open' | 'closed'
+  planned_start_time: string | null
+  planned_end_time: string | null
+  planned_break_minutes: number | null
+}
+
+/**
+ * 출근부 기록이 붙은 배정 — 퇴근을 찍은 행에는 실측 시간이 들어 있다(app/actions/attendance.ts).
+ * 일괄 편집(이동·교환·해제·초기화·되돌리기)이 이 행을 덮어쓰거나 지우면 실제 일한 시간이 급여에서
+ * 조용히 바뀌므로 건너뛴다. 삭제·직원 변경은 DB FK(attendance_records_assignment_fkey)도 막는다.
+ */
+async function fetchAttendedAssignments(ids: number[]): Promise<Map<number, AttendedAssignment>> {
+  if (ids.length === 0) return new Map()
+  const { data, error } = await supabaseAdmin
+    .from('attendance_records')
+    .select('assignment_id, status, planned_start_time, planned_end_time, planned_break_minutes')
+    .in('assignment_id', ids)
+    .neq('status', 'voided')
+  if (error) throw new Error(error.message)
+  return new Map((data ?? []).map(r => [r.assignment_id as number, r as AttendedAssignment]))
+}
+
+const ATTENDED_DELETE_MESSAGE = '출근부에 출퇴근 기록이 있는 근무는 삭제할 수 없습니다. 출근부에서 기록을 먼저 취소하세요.'
+
 // 역할 검사 없는 내부 구현 — 위 fetchRosterShiftsUnchecked와 동일한 이유로 export 금지.
 async function fetchRosterRangeUnchecked(unit: RosterUnit, fromDate: string, toDate: string): Promise<RosterMonthData> {
   // 배정 조회는 파트 목록과 독립이므로 병렬 실행 — 날짜별 요구 인원 예외만 파트 id에 의존
@@ -276,8 +301,12 @@ export async function addRosterAssignment(
 export async function removeRosterAssignment(id: number): Promise<ApiResponse> {
   return wrap(async () => {
     await requireAdmin()
+    if ((await fetchAttendedAssignments([id])).size > 0) throw new Error(ATTENDED_DELETE_MESSAGE)
     const { error } = await supabaseAdmin.from('roster_assignments').delete().eq('id', id)
-    if (error) throw new Error(error.message)
+    if (error) {
+      if (error.code === '23503') throw new Error(ATTENDED_DELETE_MESSAGE)
+      throw new Error(error.message)
+    }
   })
 }
 
@@ -334,15 +363,18 @@ export async function undoRosterChange(payload: RosterUndoPayload): Promise<ApiR
       if (error) throw new Error(error.message)
       restored += (data ?? []).length
     }
-    if (payload.updated.length > 0) {
+    // 스냅샷을 뜬 뒤에 퇴근이 찍혔을 수 있다 — 되돌리면 실측 시간이 계획값으로 돌아간다
+    const attended = await fetchAttendedAssignments(payload.updated.map(u => u.id))
+    const updatable = payload.updated.filter(u => !attended.has(u.id))
+    if (updatable.length > 0) {
       const results = await Promise.all(
-        payload.updated.map(({ id, ...fields }) =>
+        updatable.map(({ id, ...fields }) =>
           supabaseAdmin.from('roster_assignments').update(fields).eq('id', id),
         ),
       )
       const failed = results.find(r => r.error)
       if (failed?.error) throw new Error(failed.error.message)
-      restored += payload.updated.length
+      restored += updatable.length
     }
     return { restored }
   })
@@ -377,8 +409,11 @@ export async function moveStaffAssignments(
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
     if (error) throw new Error(error.message)
-    const rows = (data ?? []) as { id: number; work_date: string; shift_id: number; start_time: string | null; end_time: string | null; break_minutes: number | null }[]
-    const targetDates = new Set(rows.filter(r => r.shift_id === toShiftId).map(r => r.work_date))
+    const allRows = (data ?? []) as { id: number; work_date: string; shift_id: number; start_time: string | null; end_time: string | null; break_minutes: number | null }[]
+    // 출근부 기록이 붙은 원본은 옮기지 않는다 — 대상 파트 시간으로 덮어쓰면 실측 시간이 사라진다
+    const attended = await fetchAttendedAssignments(allRows.filter(r => r.shift_id === fromShiftId).map(r => r.id))
+    const rows = allRows.filter(r => !attended.has(r.id))
+    const targetDates = new Set(allRows.filter(r => r.shift_id === toShiftId).map(r => r.work_date))
     const source = rows.filter(r => r.shift_id === fromShiftId)
     const toMove = source.filter(r => !targetDates.has(r.work_date))
     const toMerge = source.filter(r => targetDates.has(r.work_date))
@@ -411,6 +446,23 @@ export async function moveStaffAssignments(
   })
 }
 
+/**
+ * 일괄 해제·초기화 공통 — 출근부 기록이 붙은 배정은 남기고 나머지만 지운다.
+ * keptIds는 화면이 남은 행을 지우지 않고 "N건은 출퇴근 기록이 있어 남겼다"고 알리는 데 쓴다.
+ */
+async function deleteUnattended(
+  rows: (RosterAssignmentSnapshot & { id: number })[],
+): Promise<{ removed: number; keptIds: number[]; undo: RosterUndoPayload }> {
+  const attended = await fetchAttendedAssignments(rows.map(r => r.id))
+  const targets = rows.filter(r => !attended.has(r.id))
+  if (targets.length > 0) {
+    const { error } = await supabaseAdmin.from('roster_assignments').delete().in('id', targets.map(r => r.id))
+    if (error) throw new Error(error.code === '23503' ? ATTENDED_DELETE_MESSAGE : error.message)
+  }
+  const deleted: RosterAssignmentSnapshot[] = targets.map(({ id: _id, ...snapshot }) => snapshot)
+  return { removed: targets.length, keptIds: rows.filter(r => attended.has(r.id)).map(r => r.id), undo: { deleted, updated: [] } }
+}
+
 /** 특정 근무자의 기간 내 배정 일괄 해제 — shiftId를 주면 해당 파트만 */
 export async function clearStaffAssignments(
   unit: RosterUnit,
@@ -418,22 +470,21 @@ export async function clearStaffAssignments(
   fromDate: string,
   toDate: string,
   shiftId: number | null,
-): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
+): Promise<ApiResponse<{ removed: number; keptIds: number[]; undo: RosterUndoPayload }>> {
   return wrap(async () => {
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 일괄 편집을 사용할 수 없습니다. 팝업을 선택하세요.')
     let q = applyUnitFilter(
-      supabaseAdmin.from('roster_assignments').delete(),
+      supabaseAdmin.from('roster_assignments').select(`id, ${SNAPSHOT_COLUMNS}`),
       unit,
     )
       .eq('staff_id', staffId)
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
     if (shiftId !== null) q = q.eq('shift_id', shiftId)
-    const { data, error } = await q.select(SNAPSHOT_COLUMNS)
+    const { data, error } = await q
     if (error) throw new Error(error.message)
-    const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
-    return { removed: rows.length, undo: { deleted: rows, updated: [] } }
+    return deleteUnattended((data ?? []) as unknown as (RosterAssignmentSnapshot & { id: number })[])
   })
 }
 
@@ -458,11 +509,14 @@ export async function swapStaffAssignments(
       .lte('work_date', toDate)
     if (error) throw new Error(error.message)
     const rows = (data ?? []) as { id: number; work_date: string; shift_id: number; staff_id: number }[]
+    // 출근부 기록이 붙은 근무는 교환하지 않는다 — 실측 급여가 다른 사람에게 넘어간다(DB FK도 막는다).
+    // 슬롯 충돌 판정(aKeys/bKeys)에는 그대로 남겨 둔다: 그 자리는 여전히 차 있다
+    const attended = await fetchAttendedAssignments(rows.map(r => r.id))
     const slotKey = (r: { work_date: string; shift_id: number }) => `${r.work_date}|${r.shift_id}`
     const aKeys = new Set(rows.filter(r => r.staff_id === staffAId).map(slotKey))
     const bKeys = new Set(rows.filter(r => r.staff_id === staffBId).map(slotKey))
-    const aRows = rows.filter(r => r.staff_id === staffAId && !bKeys.has(slotKey(r)))
-    const bRows = rows.filter(r => r.staff_id === staffBId && !aKeys.has(slotKey(r)))
+    const aRows = rows.filter(r => r.staff_id === staffAId && !bKeys.has(slotKey(r)) && !attended.has(r.id))
+    const bRows = rows.filter(r => r.staff_id === staffBId && !aKeys.has(slotKey(r)) && !attended.has(r.id))
     if (aRows.length + bRows.length === 0) return { swapped: 0, undo: { deleted: [], updated: [] } }
 
     if (aRows.length > 0) {
@@ -573,17 +627,23 @@ export async function copyPreviousWeek(
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 지난주 복사를 사용할 수 없습니다. 팝업을 선택하세요.')
     const { data, error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_assignments').select('work_date, shift_id, staff_id, start_time, end_time, break_minutes'),
+      supabaseAdmin.from('roster_assignments').select('id, work_date, shift_id, staff_id, start_time, end_time, break_minutes'),
       unit,
     )
       .gte('work_date', addDays(weekStart, -7))
       .lte('work_date', addDays(weekStart, -1))
     if (error) throw new Error(error.message)
+    // 퇴근을 찍은 날은 배정 행에 실측(예: 10:00~20:37)이 들어 있다 — 다음 주 계획은 덮어쓰기 전 계획값으로 복사한다
+    const attended = await fetchAttendedAssignments((data ?? []).map(a => a.id))
 
     const today = kstToday()
     // 복사 대상 주의 휴무일 — 지난주에 일했어도 이번 주 그 요일이 휴점이면 복사하지 않는다
     const closed = await fetchClosedDateSet(unit.popupId, weekStart, addDays(weekStart, 6))
     const candidates = (data ?? [])
+      .map(a => ({ ...a, planned: attended.get(a.id) }))
+      .map(({ planned, ...a }) => planned?.status === 'closed'
+        ? { ...a, start_time: planned.planned_start_time, end_time: planned.planned_end_time, break_minutes: planned.planned_break_minutes }
+        : a)
       .map(a => ({
         work_date: addDays(a.work_date, 7),
         shift_id: a.shift_id,
@@ -614,20 +674,18 @@ export async function clearRosterRange(
   unit: RosterUnit,
   fromDate: string,
   toDate: string,
-): Promise<ApiResponse<{ removed: number; undo: RosterUndoPayload }>> {
+): Promise<ApiResponse<{ removed: number; keptIds: number[]; undo: RosterUndoPayload }>> {
   return wrap(async () => {
     await requireAdmin()
     if (isAllPopups(unit)) throw new Error('전체 보기에서는 초기화를 사용할 수 없습니다. 팝업을 선택하세요.')
     const { data, error } = await applyUnitFilter(
-      supabaseAdmin.from('roster_assignments').delete(),
+      supabaseAdmin.from('roster_assignments').select(`id, ${SNAPSHOT_COLUMNS}`),
       unit,
     )
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
-      .select(SNAPSHOT_COLUMNS)
     if (error) throw new Error(error.message)
-    const rows = (data ?? []) as unknown as RosterAssignmentSnapshot[]
-    return { removed: rows.length, undo: { deleted: rows, updated: [] } }
+    return deleteUnattended((data ?? []) as unknown as (RosterAssignmentSnapshot & { id: number })[])
   })
 }
 

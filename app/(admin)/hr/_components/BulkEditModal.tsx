@@ -6,6 +6,7 @@ import { showMsg } from '@/lib/toast';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { keptSuffix } from '@/lib/roster/query-helpers';
 import { moveStaffAssignments, clearStaffAssignments, swapStaffAssignments } from '@/app/actions/roster';
 import type { RosterUnit, RosterUndoPayload } from '@/app/actions/roster';
 import type { RosterAssignment, RosterShift, StaffProfile } from '@/types/database';
@@ -185,7 +186,7 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
       setIsBusy(true);
       const r = await clearStaffAssignments(unit, staffId, from, to, clearShiftId);
       if (r.success && r.data) {
-        showMsg(`${r.data.removed}건 해제 완료`);
+        showMsg(`${r.data.removed}건 해제 완료${keptSuffix(r.data.keptIds.length)}`);
         onUndoable(`${staffName} ${r.data.removed}건 해제됨`, r.data.undo);
         await onApplied();
         onClose();

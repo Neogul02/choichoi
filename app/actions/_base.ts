@@ -97,3 +97,14 @@ export async function requireManagerOrAdmin() {
   if (!user || (user.role !== 'admin' && user.role !== 'manager')) throw new AuthError('권한이 없습니다.');
   return user;
 }
+
+/**
+ * 주방 출근부 키오스크 계정(user_metadata.role = 'kiosk') 또는 admin.
+ * 키오스크는 주방 아이패드에 상시 로그인해 두는 계정이라 출근부 액션 외에는 열어주지 않는다 —
+ * 다른 액션은 이 함수를 쓰지 말 것.
+ */
+export async function requireKioskOrAdmin() {
+  const user = await getAuthUser();
+  if (!user || (user.role !== 'admin' && user.role !== 'kiosk')) throw new AuthError('권한이 없습니다.');
+  return user;
+}

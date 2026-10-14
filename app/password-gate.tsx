@@ -131,9 +131,11 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
       '프로필 조회',
     )
 
+    // kiosk는 주방 출근부 전용 계정(UserAppRole에 넣지 않은 별도 역할) — 'user'로 뭉개면 proxy가 출근부를 막는다
     const syncedRole =
       profile?.worker_role === 'admin' ? 'admin' :
-      profile?.worker_role === 'manager' ? 'manager' : 'user'
+      profile?.worker_role === 'manager' ? 'manager' :
+      profile?.worker_role === 'kiosk' ? 'kiosk' : 'user'
     // user_metadata.role 동기화는 백그라운드로 — 실패해도 로그인을 막지 않는다
     supabase.auth.updateUser({
       data: { role: syncedRole, name: profile?.name ?? user.user_metadata?.name },
@@ -153,6 +155,11 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
 
     notifyLoginEvent(name, email).catch(() => {})
     setIsAuthed(true)
+
+    if (syncedRole === 'kiosk') {
+      if (!window.location.pathname.startsWith('/attendance')) window.location.href = '/attendance'
+      return
+    }
 
     // 주방은 POS를 쓰지 않으므로 바로 내 근무 일정으로 보낸다.
     // 이미 /schedule에 있으면 그대로 두어 불필요한 새로고침을 막는다.

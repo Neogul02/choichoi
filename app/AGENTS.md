@@ -18,6 +18,7 @@ Next.js 16 App Router. 모든 데이터 접근은 **Server Actions**(`app/action
 | `/hr` | `(admin)/hr/` | `(admin)/layout.tsx` — admin |
 | `/stats` | `(admin)/stats/` | `(admin)/layout.tsx` — admin |
 | `/settings` | `(admin)/settings/` | `(admin)/layout.tsx` — admin |
+| `/attendance` | `attendance/` | `proxy.ts` — admin \| kiosk. **kiosk 계정은 이 경로 밖으로 나가면 proxy가 돌려보낸다** |
 
 인증은 **Supabase Auth**다. 역할은 `session.user.user_metadata.role`에 `admin` / `manager` /
 `user`로 들어 있다. 세션 쿠키 갱신은 `proxy.ts`(미들웨어)가 담당한다.
@@ -64,6 +65,7 @@ export async function myAction(arg: string): Promise<ApiResponse<MyType>> {
 | `schedule.ts` | 팝업 이벤트(popup_events) CRUD, 활성 토글 |
 | `orders.ts` · `menu.ts` · `inventory.ts` · `storage.ts` | POS·메뉴·재고·보관함 |
 | `stats.ts` | 매출 통계, 수동 입력 매출 |
+| `attendance.ts` | 주방 출근부(키오스크) 출근·퇴근, 관리자 기록 확인·취소. 퇴근이 그날 배정 행을 실측으로 덮어쓴다 |
 | `pos-note.ts` · `discord.ts` · `error-report.ts` · `devtools.ts` | 부가 기능 |
 
 ## (admin)/hr — 가장 복잡한 화면

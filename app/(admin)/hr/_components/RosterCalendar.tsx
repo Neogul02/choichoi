@@ -6,7 +6,7 @@ import { showMsg } from '@/lib/toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
 import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
-import { ALL_POPUPS, isAllPopups } from '@/lib/roster/query-helpers';
+import { ALL_POPUPS, isAllPopups, keptSuffix } from '@/lib/roster/query-helpers';
 import type { StaffProfile, PopupEvent, StaffRole, RosterShift } from '@/types/database';
 import { DAY_NAMES, ROLE_LABELS, popupTint, popupTintSoft } from './constants';
 import { getWeekStart, findRosterViolations, requiredFor, buildAssignMap, pickOngoingPopup } from '@/lib/staffing';
@@ -276,8 +276,9 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
     if (!selectedDate) return;
     const r = await clearRosterRange(unit, selectedDate, selectedDate);
     if (r.success && r.data) {
-      setAssignments(p => p.filter(a => a.work_date !== selectedDate));
-      offerUndo(`${r.data.removed}건 삭제됨`, r.data.undo);
+      const kept = new Set(r.data.keptIds);
+      setAssignments(p => p.filter(a => a.work_date !== selectedDate || kept.has(a.id)));
+      offerUndo(`${r.data.removed}건 삭제됨${keptSuffix(kept.size)}`, r.data.undo);
     } else {
       showMsg(`오류: ${r.error}`);
     }
@@ -287,9 +288,10 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
     setConfirmAction(null);
     const r = await clearRosterRange(unit, targetFrom, targetTo);
     if (r.success && r.data) {
-      setAssignments(p => p.filter(a => a.work_date < targetFrom || a.work_date > targetTo));
+      const kept = new Set(r.data.keptIds);
+      setAssignments(p => p.filter(a => a.work_date < targetFrom || a.work_date > targetTo || kept.has(a.id)));
       showMsg('스케줄이 초기화됐습니다');
-      offerUndo(`${r.data.removed}건 삭제됨`, r.data.undo);
+      offerUndo(`${r.data.removed}건 삭제됨${keptSuffix(kept.size)}`, r.data.undo);
     } else {
       showMsg(`오류: ${r.error}`);
     }

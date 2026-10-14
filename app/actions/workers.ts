@@ -360,6 +360,8 @@ export async function checkPopupAccess(
 
     // 주방(popupId null)은 제한 없음
     if (popupId == null) return { success: true, data: { allowed: true } }
+    // 출근부 키오스크 계정은 주방 아이패드 전용 — 팝업 POS로 들어가 결제를 칠 이유가 없다
+    if (user.role === 'kiosk') return { success: false, error: '출근부 계정은 근무지를 "주방"으로 선택해 로그인하세요.' }
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
