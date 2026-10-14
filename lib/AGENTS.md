@@ -81,3 +81,12 @@
 `staff-columns.ts`(공통 select 목록) · `storage-keys.ts`(localStorage 키) ·
 `toast.ts`(`showMsg`) · `discord.ts`(웹훅) · `utils.ts`(`formatPrice`·`formatBreakMinutes` 등) ·
 `useModal`·`useModalKeyboard`·`useBodyScrollLock`·`useCurrentRole`(공통 훅)
+
+## posNoteSync.ts — 공유 메모장 동시편집
+
+- 본문은 Yjs `Y.Text`(키 `content`) 하나. 변경분은 Realtime broadcast 채널 `pos-note-collab`으로 주고받고,
+  DB `pos_note.ydoc`(base64)은 새 기기의 출발점·백업이다. `pos_note`는 RLS 정책이 없어 anon 클라이언트에
+  `postgres_changes`가 오지 않는다 — DB 변경 구독으로 동기화하려 하지 말 것.
+- 글자마다 `{ author }` 속성. 삽입 시 author를 **반드시 명시**한다(생략하면 앞 글자의 작성자를 이어받는다).
+- ydoc 시드·구버전 화면의 content 덮어쓰기 편입은 서버(`loadNoteDoc`, CAS 아래)에서만 한다.
+  클라이언트가 content로 문서를 만들면 기기마다 다른 삽입이 돼 합칠 때 글이 중복된다.
