@@ -27,7 +27,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body>
+      {/* suppressHydrationWarning — 브라우저 확장이 React 하이드레이션 전에 <body>에 제 표식을
+          심는다(`__processed_<uuid>__="true"` 같은 속성). 확장이 고친 DOM이 React에게는 "서버가 보낸
+          HTML"로 보여 매번 하이드레이션 불일치로 잡힌다. 우리 코드는 <body>에 속성을 하나도 주지 않으므로
+          여기서 가릴 진짜 불일치가 없다.
+          이 플래그는 **이 엘리먼트 한 개**의 속성·텍스트에만 적용되고 자식 트리는 그대로 검사된다 —
+          앱 안의 실제 하이드레이션 버그를 덮지 않는다. */}
+      <body suppressHydrationWarning>
         <Providers>
           <PasswordGate>{children}</PasswordGate>
         </Providers>
