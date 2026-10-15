@@ -11,6 +11,7 @@ import {
   OPEN_WINDOW_HOURS, isAttendanceBreak, isWithinOpenWindow, kstDateOf, kstHHMMOf, kstHHMMSSOf,
   resolveClockOutTimes, isBreakShort, payrollMonthKey,
 } from '@/lib/attendance'
+import { paidMinutes } from '@/lib/workhours'
 import { normalizePhone } from '@/lib/phone'
 import { materializeFromShift, shiftStartPriority } from '@/lib/roster/query-helpers'
 import { wrap, requireAdmin, requireKioskOrAdmin } from './_base'
@@ -30,7 +31,20 @@ export interface AttendanceBoardItem {
     clockIn: string
     clockOut: string | null
     breakMinutes: number | null
+    /** 퇴근 완료 기록의 유급 분 — 배정 행(관리자 정정 반영) 기준, 급여와 같은 숫자. 근무 중이면 null */
+    paidMinutes: number | null
   } | null
+}
+
+/** 퇴근 결과 — 키오스크 완료 팝업에 그대로 보여준다 */
+export interface ClockOutDone {
+  name: string
+  time: string
+  /** 급여에 들어가는 인정 시작·종료(계획보다 일찍 오면 계획 시각부터) */
+  startTime: string
+  endTime: string
+  breakMinutes: number
+  paidMinutes: number
 }
 
 export interface AttendanceBoard {
@@ -50,7 +64,27 @@ interface RecordRow {
   unscheduled: boolean
 }
 
+interface LiveRecordRow extends RecordRow {
+  roster_assignments: {
+    start_time: string | null
+    end_time: string | null
+    break_minutes: number | null
+    roster_shifts: { break_minutes: number | null } | null
+  } | null
+}
+
+const livePaidMinutes = (r: LiveRecordRow): number | null => {
+  const a = r.roster_assignments
+  if (r.status !== 'closed' || !a?.start_time || !a.end_time) return null
+  return paidMinutes(a.start_time, a.end_time, a.break_minutes, a.roster_shifts?.break_minutes)
+}
+
 const RECORD_COLUMNS = 'id, staff_id, work_date, assignment_id, clock_in_at, clock_out_at, break_minutes, status, unscheduled'
+
+// 퇴근 완료 카드의 근무시간을 배정 행에서 읽는다 — 관리자가 근무표에서 정정한 값까지 급여와 같게 보인다
+const LIVE_RECORD_COLUMNS = `${RECORD_COLUMNS},
+  roster_assignments!attendance_records_assignment_fkey (start_time, end_time, break_minutes,
+    roster_shifts!roster_assignments_shift_id_fkey (break_minutes))`
 
 const openWindowStartIso = (nowMs: number) => new Date(nowMs - OPEN_WINDOW_HOURS * 3600 * 1000).toISOString()
 
@@ -58,23 +92,23 @@ const openWindowStartIso = (nowMs: number) => new Date(nowMs - OPEN_WINDOW_HOURS
  * 직원의 "지금" 기록 — 오늘 출근한 기록, 없으면 아직 퇴근할 수 있는 어제 기록(자정 넘긴 근무).
  * 키오스크 화면과 출근·퇴근 액션이 같은 판정을 써야 버튼 상태와 서버 결과가 어긋나지 않는다.
  */
-function pickCurrentRecord(rows: RecordRow[], today: string, nowMs: number): RecordRow | null {
+function pickCurrentRecord<R extends RecordRow>(rows: R[], today: string, nowMs: number): R | null {
   const todays = rows.find(r => r.work_date === today)
   if (todays) return todays
   return rows.find(r => r.status === 'open' && isWithinOpenWindow(Date.parse(r.clock_in_at), nowMs)) ?? null
 }
 
-async function fetchLiveRecords(nowMs: number, today: string, staffId?: number): Promise<RecordRow[]> {
+async function fetchLiveRecords(nowMs: number, today: string, staffId?: number): Promise<LiveRecordRow[]> {
   let q = supabaseAdmin
     .from('attendance_records')
-    .select(RECORD_COLUMNS)
+    .select(LIVE_RECORD_COLUMNS)
     .neq('status', 'voided')
     .or(`work_date.eq.${today},and(status.eq.open,clock_in_at.gt.${openWindowStartIso(nowMs)})`)
     .order('clock_in_at', { ascending: false })
   if (staffId != null) q = q.eq('staff_id', staffId)
   const { data, error } = await q
   if (error) throw new Error(error.message)
-  return (data ?? []) as RecordRow[]
+  return (data ?? []) as unknown as LiveRecordRow[]
 }
 
 /** 키오스크 화면 — 재직 중인 주방 직원 + 오늘 주방 근무표에 있는 사람 */
@@ -117,7 +151,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
       }
       scheduled.add(a.staff_id)
     }
-    const byStaff = new Map<number, RecordRow[]>()
+    const byStaff = new Map<number, LiveRecordRow[]>()
     for (const r of records) {
       if (!byStaff.has(r.staff_id)) byStaff.set(r.staff_id, [])
       byStaff.get(r.staff_id)!.push(r)
@@ -136,6 +170,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
           clockIn: kstHHMMSSOf(Date.parse(rec.clock_in_at)),
           clockOut: rec.clock_out_at ? kstHHMMSSOf(Date.parse(rec.clock_out_at)) : null,
           breakMinutes: rec.break_minutes,
+          paidMinutes: livePaidMinutes(rec),
         },
       }
     })
@@ -265,7 +300,7 @@ export async function clockOut(
   recordId: number,
   breakMinutes: number,
   phone: string,
-): Promise<ApiResponse<{ name: string; time: string }>> {
+): Promise<ApiResponse<ClockOutDone>> {
   return wrap(async () => {
     await requireKioskOrAdmin()
     if (!isAttendanceBreak(breakMinutes)) throw new Error('휴게시간을 선택하세요.')
@@ -289,11 +324,11 @@ export async function clockOut(
 
     const { data: assignment, error: assignError } = await supabaseAdmin
       .from('roster_assignments')
-      .select('start_time, roster_shifts!roster_assignments_shift_id_fkey (start_time)')
+      .select('start_time, roster_shifts!roster_assignments_shift_id_fkey (start_time, break_minutes)')
       .eq('id', rec.assignment_id)
       .single()
     if (assignError) throw new Error(assignError.message)
-    const shift = assignment.roster_shifts as unknown as { start_time: string } | null
+    const shift = assignment.roster_shifts as unknown as { start_time: string; break_minutes: number | null } | null
     const plannedStart = assignment.start_time ?? shift?.start_time ?? null
 
     const times = resolveClockOutTimes({ workDate: rec.work_date, clockInMs, clockOutMs: nowMs, plannedStart })
@@ -310,7 +345,14 @@ export async function clockOut(
       if (rpcError.message.includes('ATTENDANCE_NOT_OPEN')) throw new Error(`${name}님은 이미 퇴근 처리되었습니다.`)
       throw new Error(rpcError.message)
     }
-    return { name, time: kstHHMMSSOf(nowMs) }
+    return {
+      name,
+      time: kstHHMMSSOf(nowMs),
+      startTime: times.startTime,
+      endTime: times.endTime,
+      breakMinutes,
+      paidMinutes: paidMinutes(times.startTime, times.endTime, breakMinutes, shift?.break_minutes),
+    }
   })
 }
 

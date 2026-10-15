@@ -27,15 +27,17 @@ export async function proxy(request: NextRequest) {
   // — getUser()의 매 요청 Auth 서버 왕복을 제거. 페이지 이동·서버 액션 POST 전부에 붙던 비용이었다.
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims
+  const pathname = request.nextUrl.pathname
 
   if (!claims) {
+    // /pos가 로그인 화면(PasswordGate)이다 — 여기서 되돌리면 무한 리다이렉트
+    if (pathname.startsWith('/pos')) return supabaseResponse
     const url = request.nextUrl.clone()
     url.pathname = '/pos'
     return NextResponse.redirect(url)
   }
 
   const role = (claims.user_metadata as { role?: string } | undefined)?.role
-  const pathname = request.nextUrl.pathname
 
   // 주방 아이패드에 상시 로그인해 두는 출근부 계정 — 출근부 밖의 화면은 열어주지 않는다
   if (role === 'kiosk') {
@@ -81,5 +83,8 @@ export const config = {
     // 로그인만 필요한 개인 페이지 — 미인증 요청을 SSR 전에 걸러 서버 액션이 인증 오류로 실패하지 않게 한다
     '/my/:path*',
     '/attendance/:path*',
+    // 홈 화면 앱(manifest start_url)이 /pos로 열린다 — 여기를 안 거치면 로그인해 둔 kiosk 아이패드가 POS를 띄운다
+    '/pos/:path*',
+    '/orders/:path*',
   ],
 }

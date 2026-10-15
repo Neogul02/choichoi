@@ -135,3 +135,19 @@ architect 서브에이전트(opus) 완료 알림 채널이 요약 문구("Idle."
 - 이번 세션 변경 파일 전체(마이그레이션 2개, storage.ts, useCurrentRole.ts, useStorageBoard.ts, StorageBoard/StorageObjectModal/AddStorageObjectModal/storageIcons, InventoryPageClient.tsx, IngredientCard.tsx, layout 2개, NavBar.tsx, proxy.ts, types 2개)를 직접 스캔.
 - 검토했지만 손대지 않기로 판단한 항목: `lib/useCurrentRole.ts`와 `components/NavBar.tsx`의 역할(role) 감지 로직이 겹침(둘 다 getSession()+localStorage 캐시+onAuthStateChange 패턴). NavBar가 이 훅을 재사용하도록 리팩터하는 안을 검토했으나, NavBar의 role 로직은 cashierName/popupName 동기화·프로필 이름 조회와 하나의 useEffect·하나의 supabase 클라이언트·하나의 onAuthStateChange 구독에 얽혀 있어, 억지로 분리하면 오히려 페이지마다 Supabase Auth 리스너가 2개(NavBar 자체 + useCurrentRole) 중복 등록되는 결과가 됨 — 코드 줄 수는 줄어도 런타임 비용/복잡도는 늘어나는 트레이드오프라 그대로 둠. `StorageObjectModal.tsx`의 handleAdd/handleRemove 2개 함수도 거의 동일하지만 5줄 남짓짜리가 2곳뿐이라 공유 헬퍼로 뽑는 게 오히려 간접화만 늘림 — 유지.
 - 코드 변경 없음(클린업할 슬롭이 없었음, architect 재검증 라운드에서 이미 실질적 버그 수정이 끝난 상태). 회귀만 재확인: yarn build 성공, yarn lint(0 errors, 기존 경고 2건 유지), yarn test(6 files/66 tests 통과).
+
+[Ralph 세션 0e0a7e55] 의존성 최신화 2026-10-15 (plan: .omc/plans/deps-upgrade-2026-10.md)
+- US-1: next 16.4.1 / react 19.3.1 외 minor 전부 최신. react-is 19.3.1 명시 추가(recharts peer, 호이스팅본이 16.13.1이었음).
+  audit critical 3(next) → 0. 남은 vuln은 brace-expansion 등 낡은 lock 항목 → 해당 lock 블록 삭제 후 재해석으로 해결. 최종 high 1(braces, 패치 버전 없음, lint 경로만).
+- US-2: tsconfig baseUrl·ignoreDeprecations 제거(TS7 대비), target ES2022, engines.node "24.x"(Vercel은 ">=" 범위를 메이저 자동 상향으로 해석할 수 있어 고정).
+- US-3: framer-motion 14.2(13.0의 @emotion/is-prop-valid 제거는 미설치라 무관), vitest 5.0.4 — vite가 진짜 peer가 되어 vite ^8 devDep 추가 필요(안 넣으면 ERR_MODULE_NOT_FOUND 'vite').
+- 보류: typescript 7(typescript-eslint peer <6.1), eslint 10(eslint-plugin-react peer ^9.7), @types/node 26(런타임 24).
+- next 16.4 신규 lint 규칙 no-location-assign-relative-destination 경고 4건(에러 아님).
+- 검증: tsc/lint/test 177/177/build 모두 0. lib/workhours.ts 변경 0.
+
+[세션 0e0a7e55] 출근부 키오스크 진입 + 퇴근 결과 팝업 (plan: .omc/plans/kiosk-attendance-ux-2026-10.md)
+- 문제1 원인: manifest start_url=/pos인데 proxy matcher에 /pos 없음 → 로그인 유지된 kiosk가 앱을 다시 열면 POS.
+  matcher에 /pos·/orders 추가, 미인증 /pos는 로그인 화면이므로 통과(루프 방지). curl: 미인증 /pos 200, /orders 307→/pos.
+- 문제2: clockOut이 ClockOutDone(인정 시작·종료·휴게·유급분) 반환, 유급분은 workhours.paidMinutes 재사용.
+  퇴근 결과 팝업(primary 초록, 큰 "6h 30m", 8초 자동 닫힘) + 퇴근 완료 카드에 "Nh Mm 근무" 배지(배정 행 기준).
+  lib/attendance.ts formatWorkedDuration + 테스트 2건. 179 tests 통과.

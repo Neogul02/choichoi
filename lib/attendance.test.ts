@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   kstDateOf, kstHHMMOf, kstHHMMSSOf, kstSlashDateOf, kstInstant, isWithinOpenWindow, resolveClockOutTimes,
   requiredBreakMinutes, isBreakShort, payrollMonthKey, isAttendanceBreak, OPEN_WINDOW_HOURS,
+  formatWorkedDuration,
 } from './attendance'
 
 // KST 벽시계 시각 → 순간(ms)
@@ -88,5 +89,18 @@ describe('기타', () => {
     expect(isAttendanceBreak(30)).toBe(true)
     expect(isAttendanceBreak(45)).toBe(false)
     expect(isAttendanceBreak('60')).toBe(false)
+  })
+})
+
+describe('formatWorkedDuration', () => {
+  it('정시는 시간만, 나머지는 분까지', () => {
+    expect(formatWorkedDuration(360)).toBe('6h')
+    expect(formatWorkedDuration(390)).toBe('6h 30m')
+    expect(formatWorkedDuration(61)).toBe('1h 1m')
+  })
+  it('1시간 미만은 분만, 음수는 0m', () => {
+    expect(formatWorkedDuration(45)).toBe('45m')
+    expect(formatWorkedDuration(0)).toBe('0m')
+    expect(formatWorkedDuration(-5)).toBe('0m')
   })
 })

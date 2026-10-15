@@ -102,3 +102,12 @@ export function isBreakShort(start: string, end: string, breakMinutes: number): 
 export function payrollMonthKey(workDate: string): string {
   return `month:${Number(workDate.slice(0, 4))}-${Number(workDate.slice(5, 7)) - 1}`
 }
+
+/** 유급 분 → 키오스크 표기 '6h' / '6h 30m' / '45m'. 분 계산은 lib/workhours.ts paidMinutes가 한다 */
+export function formatWorkedDuration(min: number): string {
+  const m = Math.max(0, Math.round(min))
+  const h = Math.floor(m / 60)
+  const rest = m % 60
+  if (h === 0) return `${rest}m`
+  return rest === 0 ? `${h}h` : `${h}h ${rest}m`
+}
