@@ -15,6 +15,9 @@ import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
+import {
+  EMPLOYMENT_INSURANCE_LABEL, WITHHOLDING_LABEL, percentDeduction, quickDeductionAmount,
+} from '@/lib/payroll-deductions'
 
 // 월별 정산(달력 기준) 또는 팝업별 정산(행사 기간 기준, 월 경계를 넘어가도 한 번에) 중 하나로 조회
 export type PayrollPeriod =
@@ -63,6 +66,8 @@ export default function PayrollDetailModal({
   const [savingAdj, setSavingAdj] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newAmount, setNewAmount] = useState('')
+  const [pctLabel, setPctLabel] = useState('')
+  const [pctValue, setPctValue] = useState('')
   const [copied, setCopied] = useState(false)
 
   // period.type이 바뀌어도 안전하게 재조회되도록 두 케이스에서 다른 primitive 키를 쓴다
@@ -91,6 +96,8 @@ export default function PayrollDetailModal({
 
   const adjustTotal = adjustments.reduce((s, a) => s + a.amount, 0)
   const finalPay = basePay != null ? basePay + adjustTotal : null
+  // 고용신고 보수총액은 세전 금액 — 원천징수·보험료 같은 공제(음수 조정)를 빼면 과소 신고가 된다
+  const grossPay = basePay != null ? basePay + adjustments.reduce((s, a) => s + Math.max(0, a.amount), 0) : null
 
   const formulaLines: string[] = []
   if (details && details.length > 0) {
@@ -108,17 +115,50 @@ export default function PayrollDetailModal({
   const formulaText = formulaLines.join('\n')
 
   // 조정 항목은 DB에 저장한다 — 모달을 닫으면 사라져 매달 다시 입력해야 했던 문제 해결
-  const addAdjustment = async (label: string, amount: number) => {
-    if (!label.trim() || !Number.isFinite(amount)) return
+  const addAdjustment = async (label: string, amount: number, savePreset = true) => {
+    if (!label.trim() || !Number.isFinite(amount)) return false
     setSavingAdj(true)
-    const res = await addPayrollAdjustment(periodKey, staffId, label, Math.round(amount))
+    const res = await addPayrollAdjustment(periodKey, staffId, label, Math.round(amount), savePreset)
     setSavingAdj(false)
-    if (!res.success || !res.data) { showMsg(`오류: ${res.error}`); return }
+    if (!res.success || !res.data) { showMsg(`오류: ${res.error}`); return false }
     setAdjustments(p => [...p, res.data!])
-    setNewLabel('')
-    setNewAmount('')
-    fetchAdjustmentPresets().then(r => { if (r.success && r.data) setPresets(r.data) })
+    if (savePreset) {
+      setNewLabel('')
+      setNewAmount('')
+      fetchAdjustmentPresets().then(r => { if (r.success && r.data) setPresets(r.data) })
+    }
     onAdjustmentsChanged()
+    return true
+  }
+
+  // ── 바로 공제: 기본급 × 비율 ─────────────────────────────────────────────
+  const addQuickDeduction = (label: string) => {
+    if (basePay == null) return
+    const amount = quickDeductionAmount(label, basePay)
+    if (amount == null || amount === 0) return
+    void addAdjustment(label, amount, false)
+  }
+
+  // 근무가 바뀌어 기본급이 달라지면 저장된 공제 금액이 어긋난다 — 지우고 현재 기본급으로 다시 넣는다
+  const recalcQuickDeduction = async (a: PayrollAdjustment) => {
+    if (basePay == null) return
+    const amount = quickDeductionAmount(a.label, basePay)
+    if (amount == null) return
+    const res = await removePayrollAdjustment(a.id)
+    if (!res.success) { showMsg(`오류: ${res.error}`); return }
+    setAdjustments(p => p.filter(x => x.id !== a.id))
+    void addAdjustment(a.label, amount, false)
+  }
+
+  const submitPercentDeduction = async () => {
+    const pct = Number(pctValue)
+    if (basePay == null || !pctLabel.trim() || !(pct > 0 && pct < 100)) return
+    const amount = percentDeduction(basePay, pct)
+    if (amount === 0) return
+    if (await addAdjustment(`${pctLabel.trim()} ${pct}%`, -amount, false)) {
+      setPctLabel('')
+      setPctValue('')
+    }
   }
 
   const submitNewAdjustment = () => {
@@ -305,9 +345,23 @@ export default function PayrollDetailModal({
               </div>
 
               {/* 조정 항목 목록 */}
-              {adjustments.map(a => (
+              {adjustments.map(a => {
+                const expected = basePay != null ? quickDeductionAmount(a.label, basePay) : null
+                return (
                 <div key={a.id} className="flex justify-between items-center px-3 py-2 border-b border-hairline group">
-                  <span className="text-[12px] text-ink">{a.label}</span>
+                  <span className="text-[12px] text-ink">
+                    {a.label}
+                    {expected != null && expected !== a.amount && (
+                      <button
+                        onClick={() => recalcQuickDeduction(a)}
+                        disabled={savingAdj}
+                        title="기본급이 바뀌어 공제 금액이 맞지 않습니다"
+                        className="ml-2 px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 text-[10px] font-semibold cursor-pointer disabled:opacity-50"
+                      >
+                        기본급 변경됨 · 다시 계산 ({expected.toLocaleString('ko-KR')}원)
+                      </button>
+                    )}
+                  </span>
                   <div className="flex items-center gap-2">
                     <span className={`text-[12px] font-semibold ${a.amount >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                       {a.amount >= 0 ? '+' : ''}{a.amount.toLocaleString('ko-KR')}원
@@ -318,7 +372,58 @@ export default function PayrollDetailModal({
                     >×</button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
+
+              {/* 바로 공제 — 기본급 기준 비율 계산. 고정 금액 프리셋으로는 저장하지 않는다 */}
+              {basePay != null && basePay > 0 && (
+                <div className="px-3 py-2 border-b border-hairline">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-semibold text-ink-muted mr-0.5">바로 공제</span>
+                    {[WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL].map(label => {
+                      const amount = quickDeductionAmount(label, basePay)!
+                      const added = adjustments.some(a => a.label === label)
+                      return (
+                        <button
+                          key={label}
+                          onClick={() => addQuickDeduction(label)}
+                          disabled={savingAdj || added}
+                          title={added ? '이미 추가됨' : `기본급 ${basePay.toLocaleString('ko-KR')}원 기준`}
+                          className="px-2 py-1 rounded-full border border-primary-700/30 bg-primary-50 text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-100 transition disabled:opacity-40 disabled:cursor-default"
+                        >
+                          {label} {amount.toLocaleString('ko-KR')}원
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="flex gap-1.5 mt-1.5">
+                    <input
+                      type="text" value={pctLabel} onChange={e => setPctLabel(e.target.value)}
+                      placeholder="공제 항목명 (예: 국민연금)"
+                      className="flex-1 px-2 py-1.5 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700 min-w-0"
+                      onKeyDown={e => e.key === 'Enter' && submitPercentDeduction()}
+                    />
+                    <div className="relative w-[88px]">
+                      <input
+                        type="number" inputMode="decimal" step="0.1" value={pctValue} onChange={e => setPctValue(e.target.value)}
+                        placeholder="비율"
+                        className="w-full pl-2 pr-6 py-1.5 border border-hairline rounded-lg text-[11px] bg-canvas focus:outline-none focus:border-primary-700"
+                        onKeyDown={e => e.key === 'Enter' && submitPercentDeduction()}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-faint">%</span>
+                    </div>
+                    <button
+                      onClick={submitPercentDeduction}
+                      disabled={savingAdj || !pctLabel.trim() || !(Number(pctValue) > 0 && Number(pctValue) < 100)}
+                      className="px-2.5 py-1.5 rounded-lg border border-primary-700 bg-canvas text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-50 transition whitespace-nowrap disabled:opacity-40"
+                    >
+                      − {pctValue && Number(pctValue) > 0 && Number(pctValue) < 100
+                        ? `${percentDeduction(basePay, Number(pctValue)).toLocaleString('ko-KR')}원`
+                        : '% 공제'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 조정 항목 추가 */}
               <div className="px-3 py-2 border-b border-hairline bg-canvas-soft">
@@ -423,7 +528,7 @@ export default function PayrollDetailModal({
             phone={phone}
             period={period}
             details={details}
-            finalPay={finalPay}
+            grossPay={grossPay}
           />
         </div>
       </div>

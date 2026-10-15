@@ -419,6 +419,8 @@ export async function setPayrollPaid(periodKey: PayrollPeriodKey, staffId: numbe
 
 export async function addPayrollAdjustment(
   periodKey: PayrollPeriodKey, staffId: number, label: string, amount: number,
+  // 비율 공제(원천징수 등)는 달마다 금액이 달라 고정 금액 프리셋으로 쌓으면 다음 달에 틀린 값을 넣게 된다
+  savePreset = true,
 ): Promise<ApiResponse<PayrollAdjustment>> {
   return wrap(async () => {
     await requireManagerOrAdmin()
@@ -435,9 +437,11 @@ export async function addPayrollAdjustment(
     if (error) throw new Error(error.message)
 
     // 같은 항목명·금액 조합을 프리셋으로 축적 — 다음 달엔 클릭 한 번으로 추가
-    await supabaseAdmin
-      .from('payroll_adjustment_presets')
-      .upsert({ label: trimmed, amount }, { onConflict: 'label,amount', ignoreDuplicates: true })
+    if (savePreset) {
+      await supabaseAdmin
+        .from('payroll_adjustment_presets')
+        .upsert({ label: trimmed, amount }, { onConflict: 'label,amount', ignoreDuplicates: true })
+    }
 
     return data as PayrollAdjustment
   })
