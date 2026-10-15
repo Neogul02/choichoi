@@ -14,7 +14,7 @@ interface Props {
   phone?: string | null
   period: PayrollPeriod
   details: StaffDayDetail[] | null
-  finalPay: number | null
+  grossPay: number | null
 }
 
 function formatResidentId(raw: string) {
@@ -29,7 +29,7 @@ function chunkDays() {
 }
 const DAY_ROWS = chunkDays()
 
-export default function WelfareReportPanel({ staffId, name, phone, period, details, finalPay }: Props) {
+export default function WelfareReportPanel({ staffId, name, phone, period, details, grossPay }: Props) {
   const [residentId, setResidentId] = useState<string | null>(null)
   const [residentLoading, setResidentLoading] = useState(true)
   const [residentManual, setResidentManual] = useState('')
@@ -67,8 +67,8 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
   useEffect(() => { setAvgDailyHours(totalRawHours > 0 ? String(totalRawHours) : '') }, [totalRawHours])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setPaymentBaseDays(workDaysCount > 0 ? String(workDaysCount) : '') }, [autoWorkedDays])
-  useEffect(() => { setTotalPayInput(finalPay != null ? String(finalPay) : '') }, [finalPay])
-  useEffect(() => { setWageTotalInput(finalPay != null ? String(finalPay) : '') }, [finalPay])
+  useEffect(() => { setTotalPayInput(grossPay != null ? String(grossPay) : '') }, [grossPay])
+  useEffect(() => { setWageTotalInput(grossPay != null ? String(grossPay) : '') }, [grossPay])
 
   useEffect(() => {
     setResidentLoading(true)
