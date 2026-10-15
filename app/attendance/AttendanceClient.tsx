@@ -7,14 +7,16 @@ import { showMsg } from '@/lib/toast'
 import { addDays, kstToday } from '@/lib/date'
 import { formatTimeRange } from '@/lib/workhours'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
-import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
+import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, formatWorkedDuration, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
 import { formatPhoneInput, isValidKoreanPhone } from '@/lib/phone'
 import {
   clockIn, clockOut, fetchAttendanceBoard, fetchAttendanceLog, voidAttendance,
-  type AttendanceBoard, type AttendanceBoardItem, type AttendanceLogEntry,
+  type AttendanceBoard, type AttendanceBoardItem, type AttendanceLogEntry, type ClockOutDone,
 } from '@/app/actions/attendance'
 
 const REFRESH_MS = 60 * 1000
+// 퇴근 결과 팝업은 다음 사람이 바로 쓸 수 있게 저절로 닫힌다
+const RESULT_AUTO_CLOSE_MS = 8 * 1000
 
 const breakLabel = (m: number) => (m === 0 ? '없음' : m === 60 ? '1시간' : `${m}분`)
 
@@ -32,6 +34,9 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
   const [board, setBoard] = useState(initialBoard)
   const [log, setLog] = useState(initialLog)
   const [selected, setSelected] = useState<AttendanceBoardItem | null>(null)
+  const [finished, setFinished] = useState<ClockOutDone | null>(null)
+  // 자동 닫힘 타이머가 1분마다 오는 reload 렌더에 리셋되지 않도록 고정
+  const closeResult = useCallback(() => setFinished(null), [])
 
   const reload = useCallback(async () => {
     const r = await fetchAttendanceBoard()
@@ -72,8 +77,13 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
         </div>
       </main>
       {selected && (
-        <PunchDialog item={selected} onClose={() => { setSelected(null); reload() }} onDone={() => { setSelected(null); reload() }} />
+        <PunchDialog
+          item={selected}
+          onClose={() => { setSelected(null); reload() }}
+          onDone={(out) => { setSelected(null); setFinished(out); reload() }}
+        />
       )}
+      {finished && <ClockOutResult result={finished} onClose={closeResult} />}
     </>
   )
 }
@@ -108,7 +118,7 @@ function StaffCard({ item, onPick }: { item: AttendanceBoardItem; onPick: (i: At
   const rec = item.record
   const tone =
     phase === 'working' ? 'border-emerald-400 bg-emerald-50 attendance-working'
-    : phase === 'done' ? 'border-hairline bg-canvas-soft opacity-70'
+    : phase === 'done' ? 'border-hairline bg-canvas-soft'
     : 'border-hairline bg-canvas'
   return (
     <button
@@ -129,11 +139,22 @@ function StaffCard({ item, onPick }: { item: AttendanceBoardItem; onPick: (i: At
           </span>
           <p className="m-0 mt-0.5 text-[13px] text-emerald-800 tabular-nums">{rec.clockIn} 출근</p>
         </div>
+      ) : phase === 'done' && rec ? (
+        <div className="mt-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[14px] font-semibold text-ink-muted">퇴근 완료</span>
+            {rec.paidMinutes != null && (
+              <span className="px-2.5 py-0.5 rounded-full bg-primary-700 text-white text-[14px] font-bold tabular-nums">
+                {formatWorkedDuration(rec.paidMinutes)} 근무
+              </span>
+            )}
+          </div>
+          <p className="m-0 mt-1 text-[12px] text-ink-faint tabular-nums">
+            {rec.clockIn.slice(0, 5)}~{rec.clockOut?.slice(0, 5)} · 휴게 {breakLabel(rec.breakMinutes ?? 0)}
+          </p>
+        </div>
       ) : (
-        <p className="m-0 mt-3 text-[14px] font-semibold text-ink-secondary tabular-nums">
-          {phase === 'before' && '출근 전'}
-          {phase === 'done' && rec && `퇴근 완료 · ${rec.clockIn}~${rec.clockOut} · 휴게 ${breakLabel(rec.breakMinutes ?? 0)}`}
-        </p>
+        <p className="m-0 mt-3 text-[14px] font-semibold text-ink-secondary">출근 전</p>
       )}
     </button>
   )
@@ -143,7 +164,12 @@ const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back
 
 // 배경을 눌러도 닫히지 않는다 — 공용 아이패드에서 번호를 누르다 바깥을 스쳐 입력이 날아가지 않게.
 // 닫기는 취소 버튼으로만.
-function PunchDialog({ item, onClose, onDone }: { item: AttendanceBoardItem; onClose: () => void; onDone: () => void }) {
+function PunchDialog({ item, onClose, onDone }: {
+  item: AttendanceBoardItem
+  onClose: () => void
+  /** 퇴근이면 결과(근무시간)를 넘긴다 — 출근은 토스트로 충분 */
+  onDone: (out: ClockOutDone | null) => void
+}) {
   useBodyScrollLock(true)
   const isOut = phaseOf(item) === 'working'
   const now = useNow()
@@ -161,21 +187,28 @@ function PunchDialog({ item, onClose, onDone }: { item: AttendanceBoardItem; onC
 
   const ready = isValidKoreanPhone(digits) && (!isOut || brk != null)
 
+  // 실패하면 창을 유지하고 번호만 지운다 — 번호를 잘못 눌렀으면 바로 다시 입력할 수 있게
+  const fail = (message: string | undefined) => {
+    setError(message ?? '기록하지 못했습니다.')
+    setDigits('')
+  }
+
   const submit = async () => {
     if (busy || !ready) return
     setBusy(true)
-    const r = isOut && item.record
-      ? await clockOut(item.record.id, brk!, digits)
-      : await clockIn(item.staffId, digits)
-    setBusy(false)
-    if (r.success && r.data) {
-      showMsg(`${r.data.name}님 ${r.data.time} ${isOut ? '퇴근' : '출근'} 완료`)
-      onDone()
+    if (isOut && item.record) {
+      const r = await clockOut(item.record.id, brk!, digits)
+      setBusy(false)
+      if (r.success && r.data) onDone(r.data)
+      else fail(r.error)
       return
     }
-    // 실패하면 창을 유지하고 번호만 지운다 — 번호를 잘못 눌렀으면 바로 다시 입력할 수 있게
-    setError(r.error ?? '기록하지 못했습니다.')
-    setDigits('')
+    const r = await clockIn(item.staffId, digits)
+    setBusy(false)
+    if (r.success && r.data) {
+      showMsg(`${r.data.name}님 ${r.data.time} 출근 완료`)
+      onDone(null)
+    } else fail(r.error)
   }
 
   return (
@@ -252,6 +285,53 @@ function PunchDialog({ item, onClose, onDone }: { item: AttendanceBoardItem; onC
             className="flex-1 py-3.5 rounded-xl border-none bg-primary-700 text-white text-[16px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy ? '기록 중…' : isOut ? '퇴근' : '출근'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 퇴근 직후 그날 근무시간을 크게 보여준다. 숫자는 급여에 들어가는 유급 분(lib/workhours.ts)과 같다
+function ClockOutResult({ result, onClose }: { result: ClockOutDone; onClose: () => void }) {
+  useBodyScrollLock(true)
+  useEffect(() => {
+    const id = window.setTimeout(onClose, RESULT_AUTO_CLOSE_MS)
+    return () => window.clearTimeout(id)
+  }, [onClose])
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+      role="dialog"
+      aria-modal="true"
+      // 입력이 없는 안내 창이라 아무 데나 눌러도 닫는다
+      onClick={onClose}
+    >
+      <div className="bg-canvas w-full max-w-[400px] rounded-2xl shadow-level-2 border border-hairline overflow-hidden text-center">
+        <div className="bg-primary-50 px-6 pt-7 pb-6">
+          <div className="w-14 h-14 rounded-full bg-primary-700 text-white flex items-center justify-center mx-auto">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12l5 5L20 7" />
+            </svg>
+          </div>
+          <p className="m-0 mt-3 text-[20px] font-bold text-ink">{result.name}님 퇴근 완료</p>
+          <p className="m-0 mt-0.5 text-[14px] text-ink-muted">오늘도 수고하셨어요</p>
+        </div>
+        <div className="px-6 py-6">
+          <p className="m-0 text-[14px] font-semibold text-ink-muted">오늘 근무</p>
+          <p className="m-0 mt-1 text-[52px] leading-none font-extrabold text-primary-700 tabular-nums">
+            {formatWorkedDuration(result.paidMinutes)}
+          </p>
+          <p className="m-0 mt-3 text-[14px] text-ink-secondary tabular-nums">
+            {result.startTime} ~ {result.endTime} · 휴게 {breakLabel(result.breakMinutes)}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-6 w-full py-3.5 rounded-xl border-none bg-primary-700 text-white text-[16px] font-bold cursor-pointer"
+          >
+            확인
           </button>
         </div>
       </div>
