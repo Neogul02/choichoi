@@ -60,7 +60,8 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
     <>
       <NavBar />
       <main className="min-h-screen p-4 pb-10">
-        <div className="max-w-[1100px] mx-auto space-y-5">
+        <div className="relative max-w-[1100px] mx-auto space-y-5">
+          <ReloadButton />
           <Clock />
           {!board ? (
             <p className="text-center text-ink-muted py-10">출근부를 불러오지 못했습니다. 새로고침 해주세요.</p>
@@ -85,6 +86,28 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
       )}
       {finished && <ClockOutResult result={finished} onClose={closeResult} />}
     </>
+  )
+}
+
+// 홈 화면 앱(standalone)으로 띄운 키오스크 아이패드엔 브라우저 새로고침이 없다.
+// 데이터만 다시 받는 reload()가 아니라 페이지 전체를 다시 불러온다 — 화면이 멈췄을 때와
+// 새 배포를 받아야 할 때 둘 다 이걸로 해결되어야 하기 때문이다.
+function ReloadButton() {
+  const [reloading, setReloading] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => { setReloading(true); window.location.reload() }}
+      disabled={reloading}
+      aria-label="새로고침"
+      className="absolute right-0 top-0 flex items-center gap-1.5 rounded-full border border-hairline bg-canvas px-4 py-2.5 text-[14px] font-semibold text-ink-muted cursor-pointer active:scale-[0.97] transition disabled:opacity-60"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={reloading ? 'animate-spin' : ''}>
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <path d="M21 3v6h-6" />
+      </svg>
+      새로고침
+    </button>
   )
 }
 
@@ -127,7 +150,14 @@ function StaffCard({ item, onPick }: { item: AttendanceBoardItem; onPick: (i: At
       onClick={() => onPick(item)}
       className={`text-left rounded-xl border-2 p-4 min-h-[120px] flex flex-col justify-between cursor-pointer transition-colors disabled:cursor-default ${tone}`}
     >
-      <p className="m-0 text-[22px] font-bold text-ink">{item.name}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="m-0 text-[22px] font-bold text-ink">{item.name}</p>
+        {item.scheduledStart && (
+          <span className="shrink-0 mt-1 px-2 py-0.5 rounded-full border border-hairline bg-canvas-soft text-[13px] font-bold text-ink-secondary tabular-nums">
+            {item.scheduledStart} 출근
+          </span>
+        )}
+      </div>
       {phase === 'working' && rec ? (
         <div className="mt-3">
           <span className="inline-flex items-center gap-1.5 text-[14px] font-bold text-emerald-700">

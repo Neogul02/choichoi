@@ -21,8 +21,10 @@ export type AttendanceStatus = 'open' | 'closed' | 'voided'
 export interface AttendanceBoardItem {
   staffId: number
   name: string
-  /** 오늘 주방 근무표에 있는지 — 계획 시간은 키오스크에 보여주지 않고 정렬에만 쓴다 */
+  /** 오늘 주방 근무표에 있는지 — 정렬(출근 전 중 근무표에 있는 사람이 앞)에 쓴다 */
   scheduledToday: boolean
+  /** 오늘 근무표상 출근 시각 'HH:MM' — 근무표에 없거나 시각을 알 수 없으면 null. 카드에 "몇 시 출근" 기준으로 띄운다 */
+  scheduledStart: string | null
   record: {
     id: number
     status: AttendanceStatus
@@ -127,7 +129,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
         .order('sort_order', { ascending: true }),
       supabaseAdmin
         .from('roster_assignments')
-        .select('staff_id, staff_profiles (name)')
+        .select('staff_id, start_time, staff_profiles (name), roster_shifts!roster_assignments_shift_id_fkey (start_time)')
         .eq('staff_role', 'kitchen')
         .eq('work_date', today),
       fetchLiveRecords(nowMs, today),
@@ -142,6 +144,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
       order.push(s.id)
     }
     const scheduled = new Set<number>()
+    const startOf = new Map<number, string>()
     for (const a of assignRes.data ?? []) {
       const prof = (Array.isArray(a.staff_profiles) ? a.staff_profiles[0] : a.staff_profiles) as { name: string } | null
       if (!names.has(a.staff_id)) {
@@ -150,6 +153,14 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
         order.push(a.staff_id)
       }
       scheduled.add(a.staff_id)
+      // 배정 행의 확정값이 기준, 구 데이터(NULL)만 파트 시각을 빌린다 — 둘 다 없으면 00:00으로 꾸며내지 않고 비운다.
+      // 하루에 배정이 둘이면 이른 쪽을 출근 기준으로 본다.
+      const shift = (Array.isArray(a.roster_shifts) ? a.roster_shifts[0] : a.roster_shifts) as { start_time: string } | null
+      const start = (a.start_time ?? shift?.start_time)?.slice(0, 5)
+      if (start) {
+        const prev = startOf.get(a.staff_id)
+        if (!prev || start < prev) startOf.set(a.staff_id, start)
+      }
     }
     const byStaff = new Map<number, LiveRecordRow[]>()
     for (const r of records) {
@@ -163,6 +174,7 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
         staffId,
         name: names.get(staffId) ?? '?',
         scheduledToday: scheduled.has(staffId),
+        scheduledStart: startOf.get(staffId) ?? null,
         record: rec && {
           id: rec.id,
           status: rec.status,
