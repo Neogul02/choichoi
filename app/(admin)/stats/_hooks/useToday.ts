@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { fetchTodaysSalesByPopup, fetchHourlySalesByPopup } from '@/app/actions/orders';
 import { fetchMenuSalesBreakdown } from '@/app/actions/stats';
 import { kstNow, kstToday } from '@/lib/date';
+import { kstDayBounds, mergeHourly, sumUpto } from '@/lib/salesCurve';
 import type { MenuSalesItem, TodayPopupSales } from '@/types/api';
 
 /** 'all'이면 오늘 매출이 난 팝업 전체 합산 */
@@ -29,27 +30,8 @@ export interface YesterdayCurve {
   hasData: boolean;
 }
 
-const addDays = (dateStr: string, delta: number) => {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + delta);
-  return d.toISOString().slice(0, 10);
-};
-
 /** kstNow()는 KST 벽시계를 UTC 필드에 담아 돌려주므로 getUTCHours()가 곧 KST 시각이다 */
 const currentKstHour = () => kstNow().getUTCHours();
-
-/** 팝업 행들을 지정 시각까지 합산 — 오늘(진행 중)과 과거를 같은 잣대로 맞출 때 쓴다 */
-const sumUpto = (rows: TodayPopupSales[], hourCap: number) =>
-  rows.reduce(
-    (sum, p) => sum + p.hourly.reduce((s, h) => (h.hour <= hourCap ? s + h.revenue : s), 0),
-    0,
-  );
-
-/** created_at은 naive UTC 컬럼이라 KST 경계를 UTC로 환산해 넘겨야 9시간이 어긋나지 않는다 */
-const kstBounds = (fromStr: string, toStr: string) => ({
-  startISO: new Date(`${fromStr}T00:00:00+09:00`).toISOString(),
-  endISO: new Date(`${toStr}T23:59:59.999+09:00`).toISOString(),
-});
 
 /**
  * 통계탭 "오늘" 섹션 데이터.
@@ -90,10 +72,7 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
   useEffect(() => {
     let alive = true;
     const today = kstToday();
-    const day = (delta: number) => {
-      const d = addDays(today, delta);
-      return kstBounds(d, d);
-    };
+    const day = (delta: number) => kstDayBounds(today, delta);
     Promise.all([
       fetchHourlySalesByPopup(day(-1).startISO, day(-1).endISO),
       fetchHourlySalesByPopup(day(-7).startISO, day(-7).endISO),
@@ -113,7 +92,7 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
       setIsLoading(true);
       const today = kstToday();
       const popupId = scope === 'all' ? null : String(scope);
-      const todayRange = kstBounds(today, today);
+      const todayRange = kstDayBounds(today, 0);
 
       const menuRes = await fetchMenuSalesBreakdown(todayRange.startISO, todayRange.endISO, popupId);
       if (!alive) return;
@@ -163,13 +142,7 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
     const rows = scopeRows(yesterdayRows);
     if (rows == null) return null;
     if (rows.length === 0) return { hourly: [], total: 0, uptoNow: 0, hasData: false };
-    const byHour = new Map<number, number>();
-    for (const r of rows) {
-      for (const h of r.hourly) byHour.set(h.hour, (byHour.get(h.hour) ?? 0) + h.revenue);
-    }
-    const hourly = [...byHour.entries()]
-      .map(([hour, revenue]) => ({ hour, revenue }))
-      .sort((a, b) => a.hour - b.hour);
+    const hourly = mergeHourly(rows);
     const cap = nowHour;
     return {
       hourly,

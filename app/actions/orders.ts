@@ -13,6 +13,7 @@ import type {
   SaveOrderResponse,
   FetchTodaysSalesResponse,
   FetchTodayPopupSalesResponse,
+  FetchMenuSalesResponse,
   FetchOrdersResponse,
   FetchOrdersWithItemsResponse,
   TodaysSales,
@@ -374,6 +375,17 @@ export async function fetchTodaysSalesByPopup(): Promise<FetchTodayPopupSalesRes
 /** 임의 구간(통계탭 '오늘 현황'의 어제 비교 곡선)의 팝업별 시간대 매출 — 오늘과 같은 게이트 */
 export async function fetchHourlySalesByPopup(startISO: string, endISO: string): Promise<FetchTodayPopupSalesResponse> {
   return wrap(async () => { await requireAuth(); return getHourlySalesByPopup(startISO, endISO); });
+}
+/**
+ * 오늘 품목별 판매 — POS '오늘 현황' 칸. 통계탭의 fetchMenuSalesBreakdown은 임의 구간을 받는
+ * admin 전용이라 캐셔가 못 쓴다. 여기선 구간을 서버가 오늘로 고정해 범위를 좁히고 로그인만 요구한다.
+ */
+export async function fetchTodaysMenuSales(popupId?: string | null): Promise<FetchMenuSalesResponse> {
+  return wrap(async () => {
+    await requireAuth();
+    const { start, end } = getKSTDateBounds();
+    return getMenuSalesByPeriod(start, end, popupId);
+  });
 }
 export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit, popupId)); }
 export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getPendingOrders(popupId)); }
