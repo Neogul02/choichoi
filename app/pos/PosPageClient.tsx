@@ -4,6 +4,7 @@ import NavBar from '@/components/NavBar'
 import { usePresence } from '@/hooks/usePresence'
 import SalesBanner from '@/components/SalesBanner'
 import SalesBattle from '@/components/SalesBattle'
+import PosTodaySummary from '@/components/PosTodaySummary'
 import { memo, useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -202,6 +203,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
           queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
           queryClient.invalidateQueries({ queryKey: ['today-sales'] })
           queryClient.invalidateQueries({ queryKey: ['today-sales-by-popup'] })
+          queryClient.invalidateQueries({ queryKey: ['today-menu-sales'] })
           queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
         },
       )
@@ -303,7 +305,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
     }
   }, [salesQuery.data])
 
-  // 오늘 매출이 난 팝업별 집계 — 2곳 이상일 때만 배틀 칸이 뜬다.
+  // 오늘 매출이 난 팝업별 집계 — 배틀 칸(2곳 이상일 때만)과 오늘 현황 칸(항상)이 같이 쓴다.
   // 실시간 구독은 자기 팝업(popup_id=eq.${popupId})만 받으므로 상대 팝업 매출은 주기 조회로 따라간다.
   const battleQuery = useQuery<TodayPopupSales[]>({
     queryKey: ['today-sales-by-popup'],
@@ -473,6 +475,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
         fireConfetti()
         queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
         queryClient.invalidateQueries({ queryKey: ['today-sales-by-popup'] })
+        queryClient.invalidateQueries({ queryKey: ['today-menu-sales'] })
       } else {
         if (context?.previousCounts) setCounts(context.previousCounts)
         toast.error(result.error || '결제 오류가 발생했습니다', {
@@ -819,6 +822,15 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
         <SalesBattle
           rows={battleQuery.data ?? []}
           currentPopupId={popupId && popupId !== '0' ? Number(popupId) : null}
+          hidden={salesHidden}
+          onToggle={() => setSalesHidden((v) => !v)}
+        />
+
+        <PosTodaySummary
+          rows={battleQuery.data ?? []}
+          currentPopupId={popupId && popupId !== '0' ? Number(popupId) : null}
+          totalRevenue={todaySales.totalRevenue}
+          totalOrders={todaySales.totalOrders}
           hidden={salesHidden}
           onToggle={() => setSalesHidden((v) => !v)}
         />

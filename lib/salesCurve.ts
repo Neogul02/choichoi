@@ -75,3 +75,38 @@ export function buildSalesCurve(
 
   return { data, from, to, leadIndexByKey };
 }
+
+/**
+ * 행들을 지정 시각까지 합산 — 오늘(진행 중)과 과거를 같은 잣대로 맞출 때 쓴다.
+ * 하루 전체 합과 맞대면 오전엔 늘 "폭망"으로 보이므로 비교는 항상 이 값끼리 한다.
+ */
+export const sumUpto = (rows: TodayPopupSales[], hourCap: number) =>
+  rows.reduce(
+    (sum, p) => sum + p.hourly.reduce((s, h) => (h.hour <= hourCap ? s + h.revenue : s), 0),
+    0,
+  );
+
+/** 여러 팝업의 시간대 매출을 한 줄로 합친다 — 기준 곡선(어제)을 범위 합계로 그릴 때 */
+export function mergeHourly(rows: TodayPopupSales[]): HourRevenue[] {
+  const byHour = new Map<number, number>();
+  for (const r of rows) {
+    for (const h of r.hourly) byHour.set(h.hour, (byHour.get(h.hour) ?? 0) + h.revenue);
+  }
+  return [...byHour.entries()]
+    .map(([hour, revenue]) => ({ hour, revenue }))
+    .sort((a, b) => a.hour - b.hour);
+}
+
+/**
+ * KST 기준 오늘에서 delta일 떨어진 하루의 경계(UTC ISO).
+ * created_at은 naive UTC 컬럼이라 KST 경계를 UTC로 환산해 넘겨야 9시간이 어긋나지 않는다.
+ */
+export function kstDayBounds(today: string, delta: number): { startISO: string; endISO: string } {
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  const day = d.toISOString().slice(0, 10);
+  return {
+    startISO: new Date(`${day}T00:00:00+09:00`).toISOString(),
+    endISO: new Date(`${day}T23:59:59.999+09:00`).toISOString(),
+  };
+}

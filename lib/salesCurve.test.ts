@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSalesCurve, curveKeyOf, REFERENCE_KEY, AXIS_FROM, AXIS_TO } from './salesCurve'
+import { buildSalesCurve, curveKeyOf, REFERENCE_KEY, AXIS_FROM, AXIS_TO, sumUpto, mergeHourly, kstDayBounds } from './salesCurve'
 import type { TodayPopupSales } from '@/types/api'
 
 const row = (popupId: number, hourly: Array<[number, number]>): TodayPopupSales => ({
@@ -102,5 +102,25 @@ describe('buildSalesCurve — 선두 글로우 지점', () => {
       expect(idx).toBeGreaterThanOrEqual(0)
       expect(idx).toBeLessThan(c.data.length)
     }
+  })
+})
+
+describe('비교 헬퍼', () => {
+  it('sumUpto는 지정 시각까지만 더한다 — 오전에 어제 하루 전체와 맞대지 않도록', () => {
+    const rows = [row(1, [[9, 100], [13, 200], [18, 400]]), row(2, [[13, 50]])]
+    expect(sumUpto(rows, 13)).toBe(350)
+    expect(sumUpto(rows, 8)).toBe(0)
+  })
+
+  it('mergeHourly는 팝업들을 시각별로 합치고 시간 순으로 정렬한다', () => {
+    const merged = mergeHourly([row(1, [[14, 100], [9, 10]]), row(2, [[9, 5]])])
+    expect(merged).toEqual([{ hour: 9, revenue: 15 }, { hour: 14, revenue: 100 }])
+  })
+
+  it('kstDayBounds는 KST 하루를 UTC로 환산한다 — 월 경계도 넘는다', () => {
+    expect(kstDayBounds('2026-10-01', -1)).toEqual({
+      startISO: '2026-09-29T15:00:00.000Z',
+      endISO: '2026-09-30T14:59:59.999Z',
+    })
   })
 })
