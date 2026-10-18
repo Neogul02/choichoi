@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { fetchTodaysSales, fetchTodaysOrdersWithItems, removeOrder as removeOrderAction } from '@/app/actions/orders';
+import { fetchTodaysOrdersWithItems, removeOrder as removeOrderAction } from '@/app/actions/orders';
+import { fetchTodaysSalesForStats } from '@/app/actions/stats';
 import type { TodaysSales, OrderRecordWithItems } from '@/types/api';
 
 const SUMMARY_KEY = ['today-stats-summary'];
@@ -17,7 +18,8 @@ export function useTodayStats(initial?: { summary: TodaysSales | null; orders: O
   const summaryQuery = useQuery<TodaysSales>({
     queryKey: SUMMARY_KEY,
     queryFn: async () => {
-      const res = await fetchTodaysSales();
+      // 수기 정정(popup_daily_sales·daily_sales)을 덮은 합계 — POS를 안 쓴 날에도 오늘 매출이 0원이 되지 않게
+      const res = await fetchTodaysSalesForStats();
       if (!res.success || !res.data) throw new Error(res.error || '매출 조회 실패');
       return res.data;
     },

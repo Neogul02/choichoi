@@ -3,12 +3,17 @@
 import { z } from 'zod';
 import { wrap, requireAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
-import { getKSTDateBounds } from '@/lib/date';
-import { getMenuSalesByPeriod } from './menu';
+import { getKSTDateBounds, kstToday } from '@/lib/date';
+import { getMenuSalesByPeriod } from '@/lib/menuSales';
+import { fetchTodaysSales, fetchTodaysSalesByPopup } from './orders';
 import type {
   ApiResponse,
   FetchCalendarResponse,
   FetchMenuSalesResponse,
+  FetchTodaysSalesResponse,
+  FetchTodayPopupSalesResponse,
+  TodaysSales,
+  TodayPopupSales,
   FetchDailySalesResponse,
   FetchManualSalesResponse,
   CalendarSalesData,
@@ -24,6 +29,10 @@ const ManualSalesSchema = z.object({
   totalRevenue: z.number().int().min(0, '매출은 0 이상이어야 합니다'),
   totalOrders: z.number().int().min(0, '주문 수는 0 이상이어야 합니다'),
   note: z.string().max(200).nullable(),
+});
+
+const PopupDailySalesSchema = ManualSalesSchema.omit({ note: true }).extend({
+  popupId: z.number().int().positive(),
 });
 
 const ManualMenuSalesSchema = z.object({
@@ -166,15 +175,54 @@ async function getDailySalesForMonth(year: number, month: number): Promise<impor
   return (data ?? []) as import('@/types/api').ManualSalesEntry[]
 }
 
-async function getDailySalesForRange(startDate: string, endDate: string): Promise<import('@/types/api').ManualSalesEntry[]> {
-  const { data, error } = await supabaseAdmin
-    .from('daily_sales')
-    .select('id, sale_date, total_revenue, total_orders, note')
-    .gte('sale_date', startDate)
-    .lte('sale_date', endDate)
-    .order('sale_date', { ascending: false })
+/**
+ * 기간 내 수동 매출. popupId를 주면 그 팝업의 정정(popup_daily_sales)이 날짜 전체 정정(daily_sales)보다
+ * 우선한다 — 두 팝업이 같은 날 영업하면 날짜 전체 값은 어느 한 팝업의 매출이 아니기 때문이다.
+ * 팝업 정정 행의 id는 popup_daily_sales의 id라 removeManualSales(daily_sales 삭제)에 넘기면 안 된다.
+ */
+async function getDailySalesForRange(startDate: string, endDate: string, popupId?: number): Promise<import('@/types/api').ManualSalesEntry[]> {
+  const columns = 'id, sale_date, total_revenue, total_orders, note'
+  const [dateRes, popupRes] = await Promise.all([
+    supabaseAdmin.from('daily_sales').select(columns).gte('sale_date', startDate).lte('sale_date', endDate),
+    popupId
+      ? supabaseAdmin.from('popup_daily_sales').select(columns).eq('popup_id', popupId).gte('sale_date', startDate).lte('sale_date', endDate)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+  if (dateRes.error) throw dateRes.error
+  if (popupRes.error) throw popupRes.error
+
+  // 팝업 쿼리가 실패하면 날짜 전체 정정만으로 돌려주지 않고 실패시킨다 — 팝업 정정이 빠진 숫자를
+  // 성공처럼 보여주면 화면이 조용히 틀린다. 호출부가 실패를 토스트로 알린다.
+  const byDate = new Map<string, import('@/types/api').ManualSalesEntry>()
+  for (const row of (dateRes.data ?? []) as import('@/types/api').ManualSalesEntry[]) byDate.set(row.sale_date, { ...row, source: 'date' })
+  for (const row of (popupRes.data ?? []) as import('@/types/api').ManualSalesEntry[]) byDate.set(row.sale_date, { ...row, source: 'popup' })
+  return [...byDate.values()]
+    .map(row => ({ ...row, total_revenue: Number(row.total_revenue), total_orders: Number(row.total_orders) }))
+    .sort((a, b) => b.sale_date.localeCompare(a.sale_date))
+}
+
+async function upsertPopupDailySales(
+  popupId: number,
+  saleDate: string,
+  totalRevenue: number,
+  totalOrders: number,
+): Promise<void> {
+  const { error } = await supabaseAdmin.from('popup_daily_sales').upsert(
+    {
+      popup_id: popupId,
+      sale_date: saleDate,
+      total_revenue: totalRevenue,
+      total_orders: totalOrders,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'popup_id,sale_date' },
+  )
   if (error) throw error
-  return (data ?? []) as import('@/types/api').ManualSalesEntry[]
+}
+
+async function deletePopupDailySales(popupId: number, saleDate: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('popup_daily_sales').delete().eq('popup_id', popupId).eq('sale_date', saleDate)
+  if (error) throw error
 }
 
 async function deleteDailySales(id: number): Promise<void> {
@@ -425,6 +473,116 @@ export async function fetchLifetimeSalesTotals(): Promise<ApiResponse<LifetimeSa
   })
 }
 
+// ── 통계탭 "오늘" 영역 — POS 집계에 수기 정정을 덮는다 ──────────────────────────────
+// POS를 쓰지 않고 백화점 전산 숫자만 수기로 넣은 날, 달력·누적은 정정을 반영하는데 "오늘" 영역만 POS를
+// 읽어 0원으로 보였다. 규칙은 달력 RPC(20261016080014)와 같다:
+//   팝업 하루 = popup_daily_sales > 그 팝업의 POS,  날짜 하루 = daily_sales > 팝업별 값의 합
+// POS 화면용 fetchTodaysSales는 그대로 둔다 — saveOrder가 그 건수를 "오늘 N번째 주문" 번호로 쓴다.
+
+function unwrap<T>(res: ApiResponse<T>): T {
+  if (!res.success || res.data === undefined) throw new Error(res.error || '오늘 매출 조회 실패')
+  return res.data
+}
+
+async function getDayOverrides(date: string) {
+  const [popupRes, dayRes] = await Promise.all([
+    supabaseAdmin.from('popup_daily_sales').select('popup_id, total_revenue, total_orders, popup_events(name)').eq('sale_date', date),
+    supabaseAdmin.from('daily_sales').select('total_revenue, total_orders').eq('sale_date', date).maybeSingle(),
+  ])
+  if (popupRes.error) throw popupRes.error
+  if (dayRes.error) throw dayRes.error
+  type Row = { popup_id: number; total_revenue: number | string; total_orders: number; popup_events: { name: string } | { name: string }[] | null }
+  const byPopup = new Map<number, { popupName: string; totalRevenue: number; totalOrders: number }>()
+  for (const r of (popupRes.data ?? []) as unknown as Row[]) {
+    const pe = Array.isArray(r.popup_events) ? r.popup_events[0] : r.popup_events
+    byPopup.set(r.popup_id, { popupName: pe?.name ?? '?', totalRevenue: Number(r.total_revenue), totalOrders: Number(r.total_orders) })
+  }
+  const day: TodaysSales | null = dayRes.data
+    ? { totalRevenue: Number(dayRes.data.total_revenue ?? 0), totalOrders: Number(dayRes.data.total_orders ?? 0) }
+    : null
+  return { byPopup, day }
+}
+
+// 정정한 팝업은 시각 정보가 없어 hourly를 비운다 — POS 곡선을 남기면 곡선과 합계가 서로 다른 숫자가 된다
+function applyPopupOverrides(raw: TodayPopupSales[], byPopup: Map<number, { popupName: string; totalRevenue: number; totalOrders: number }>): TodayPopupSales[] {
+  const merged = raw.filter(p => !byPopup.has(p.popupId))
+  for (const [popupId, v] of byPopup) merged.push({ popupId, ...v, hourly: [] })
+  return merged.sort((a, b) => b.totalRevenue - a.totalRevenue)
+}
+
+async function getTodaysSalesWithOverrides(): Promise<TodaysSales> {
+  const [summary, rawPopups, { byPopup, day }] = await Promise.all([
+    fetchTodaysSales().then(unwrap),
+    fetchTodaysSalesByPopup().then(unwrap),
+    getDayOverrides(kstToday()),
+  ])
+  if (day) return day
+  // 팝업 없는 주문(popup_id NULL)도 합계에 남도록 POS 합계에서 정정한 팝업의 POS분만 바꿔 끼운다
+  let { totalRevenue, totalOrders } = summary
+  for (const [popupId, v] of byPopup) {
+    const pos = rawPopups.find(p => p.popupId === popupId)
+    totalRevenue += v.totalRevenue - (pos?.totalRevenue ?? 0)
+    totalOrders += v.totalOrders - (pos?.totalOrders ?? 0)
+  }
+  return { totalRevenue, totalOrders }
+}
+
+async function getTodaysPopupSalesWithOverrides(): Promise<TodayPopupSales[]> {
+  const [rawPopups, { byPopup }] = await Promise.all([fetchTodaysSalesByPopup().then(unwrap), getDayOverrides(kstToday())])
+  return applyPopupOverrides(rawPopups, byPopup)
+}
+
+// 품목 단위 대체 — 수기로 넣은 품목만 그 팝업의 POS 수량을 갈아끼운다(팝업 통계의 applyMenuManualOverrides와 같은 규칙)
+async function getTodaysMenuSalesWithOverrides(popupId: number | null): Promise<MenuSalesItem[]> {
+  const date = kstToday()
+  const { start, end } = getKSTDateBounds(date)
+  let manualQuery = supabaseAdmin
+    .from('manual_daily_menu_sales')
+    .select('popup_id, quantity, menu_items(id, name, price, color)')
+    .eq('sale_date', date)
+  if (popupId != null) manualQuery = manualQuery.eq('popup_id', popupId)
+  const [pos, manualRes] = await Promise.all([getMenuSalesByPeriod(start, end, popupId), manualQuery])
+  if (manualRes.error) throw manualRes.error
+
+  type MenuItemRef = { id: number; name: string; price: number | string; color: string }
+  type Row = { popup_id: number; quantity: number; menu_items: MenuItemRef | MenuItemRef[] | null }
+  const manual = ((manualRes.data ?? []) as unknown as Row[])
+    .map(r => ({ popupId: r.popup_id, quantity: r.quantity, item: Array.isArray(r.menu_items) ? r.menu_items[0] : r.menu_items }))
+    .filter((r): r is { popupId: number; quantity: number; item: MenuItemRef } => Boolean(r.item))
+  if (manual.length === 0) return pos
+
+  // 전체 범위면 정정한 팝업별 POS 품목을 따로 받아 그 팝업 몫만 뺀다
+  const popupIds = [...new Set(manual.map(m => m.popupId))]
+  const posByPopup = new Map<number, MenuSalesItem[]>(
+    popupId != null
+      ? [[popupId, pos]]
+      : await Promise.all(popupIds.map(async id => [id, await getMenuSalesByPeriod(start, end, id)] as const)),
+  )
+
+  const byId = new Map(pos.map(m => [m.id, { ...m }]))
+  for (const m of manual) {
+    const price = Number(m.item.price)
+    const raw = posByPopup.get(m.popupId)?.find(p => p.id === m.item.id)
+    const cur = byId.get(m.item.id) ?? { id: m.item.id, name: m.item.name, price, color: m.item.color, totalQuantity: 0, totalRevenue: 0 }
+    cur.totalQuantity += m.quantity - (raw?.totalQuantity ?? 0)
+    cur.totalRevenue += m.quantity * price - (raw?.totalRevenue ?? 0)
+    byId.set(m.item.id, cur)
+  }
+  return [...byId.values()].filter(m => m.totalQuantity > 0)
+}
+
+export async function fetchTodaysSalesForStats(): Promise<FetchTodaysSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getTodaysSalesWithOverrides(); });
+}
+export async function fetchTodaysSalesByPopupForStats(): Promise<FetchTodayPopupSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getTodaysPopupSalesWithOverrides(); });
+}
+export async function fetchTodaysMenuSalesForStats(popupId: number | null): Promise<FetchMenuSalesResponse> {
+  const parsed = z.number().int().positive().nullable().safeParse(popupId);
+  if (!parsed.success) return { success: false, error: '팝업 ID가 올바르지 않습니다' };
+  return wrap(async () => { await requireAdmin(); return getTodaysMenuSalesWithOverrides(parsed.data); });
+}
+
 export async function fetchMenuSalesBreakdown(startISO: string, endISO: string, popupId?: string | null): Promise<FetchMenuSalesResponse> {
   return wrap(async () => { await requireAdmin(); return getMenuSalesByPeriod(startISO, endISO, popupId); });
 }
@@ -441,8 +599,21 @@ export async function saveManualSales(saleDate: string, totalRevenue: number, to
 export async function fetchManualSalesForMonth(year: number, month: number): Promise<FetchManualSalesResponse> {
   return wrap(async () => { await requireAdmin(); return getDailySalesForMonth(year, month); });
 }
-export async function fetchManualSalesForRange(startDate: string, endDate: string): Promise<FetchManualSalesResponse> {
-  return wrap(async () => { await requireAdmin(); return getDailySalesForRange(startDate, endDate); });
+export async function fetchManualSalesForRange(startDate: string, endDate: string, popupId?: number): Promise<FetchManualSalesResponse> {
+  return wrap(async () => { await requireAdmin(); return getDailySalesForRange(startDate, endDate, popupId); });
+}
+export async function savePopupDailySales(popupId: number, saleDate: string, totalRevenue: number, totalOrders: number): Promise<ApiResponse> {
+  const parsed = PopupDailySalesSchema.safeParse({ popupId, saleDate, totalRevenue, totalOrders });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  return wrap(async () => { await requireAdmin(); return upsertPopupDailySales(d.popupId, d.saleDate, d.totalRevenue, d.totalOrders); });
+}
+/** 팝업 하루 정정을 지워 그 팝업의 POS 숫자(또는 날짜 전체 정정)로 되돌린다 */
+export async function removePopupDailySales(popupId: number, saleDate: string): Promise<ApiResponse> {
+  const parsed = PopupDailySalesSchema.pick({ popupId: true, saleDate: true }).safeParse({ popupId, saleDate });
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  return wrap(async () => { await requireAdmin(); return deletePopupDailySales(d.popupId, d.saleDate); });
 }
 export async function removeManualSales(id: number): Promise<ApiResponse> {
   return wrap(async () => { await requireAdmin(); return deleteDailySales(id); });

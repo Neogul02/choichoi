@@ -52,8 +52,8 @@ export interface CalendarSalesData {
   totalOrders: number;
   manualByDate: Record<string, ManualSalesEntry>;
   /**
-   * 날짜별 팝업 내역 — 매출 내림차순. **POS 주문 기준**이라 수동 입력으로 정정한 날에는
-   * byDate(수동값)와 합이 다를 수 있다. 수동 입력은 날짜 단위라 팝업으로 나눌 수 없다.
+   * 날짜별 팝업 내역 — 매출 내림차순. POS 주문 기준에 팝업별 정정(popup_daily_sales)을 반영한다.
+   * 날짜 전체 정정(daily_sales)이 있는 날에는 byDate(그 값)와 합이 다를 수 있다 — 팝업으로 나눌 수 없는 값이다.
    */
   popupByDate: Record<string, DayPopupSales[]>;
 }
@@ -110,6 +110,11 @@ export interface ManualSalesEntry {
   total_revenue: number;
   total_orders: number;
   note: string | null;
+  /**
+   * 어느 정정인지 — 'popup' = popup_daily_sales(그 팝업 하루), 'date' = daily_sales(그날 전체).
+   * 둘의 id는 서로 다른 테이블 것이라 삭제 액션도 다르다. 팝업을 주지 않은 조회에선 생략된다(전부 date).
+   */
+  source?: 'date' | 'popup';
 }
 
 export type FetchManualSalesResponse = ApiResponse<ManualSalesEntry[]>;
