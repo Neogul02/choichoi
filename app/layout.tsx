@@ -4,7 +4,10 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import './globals.css';
 import Providers from './providers';
-import PasswordGate from './password-gate';
+import { cookies } from 'next/headers';
+import PasswordGate, { type GateInitial } from './password-gate';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { POPUP_ID_KEY } from '@/lib/storage-keys';
 
 export const metadata: Metadata = {
   title: 'ChoiChoi POS',
@@ -24,7 +27,18 @@ export const viewport: Viewport = {
   themeColor: '#084431',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// 로그인 게이트의 첫 렌더를 서버에서 정한다(password-gate.tsx GateInitial 참고).
+// getClaims()는 JWT를 로컬 검증해 네트워크 왕복이 없다. 판정은 화면 표시용일 뿐이고 권한은 proxy.ts가 건다.
+async function getGateInitial(): Promise<GateInitial> {
+  const [supabase, cookieStore] = await Promise.all([createSupabaseServerClient(), cookies()]);
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims?.sub) return { checked: true, authed: false };
+  if (!cookieStore.get(POPUP_ID_KEY)?.value) return { checked: false, authed: false };
+  return { checked: true, authed: true };
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const gateInitial = await getGateInitial();
   return (
     <html lang="ko">
       {/* suppressHydrationWarning — 브라우저 확장이 React 하이드레이션 전에 <body>에 제 표식을
@@ -35,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           앱 안의 실제 하이드레이션 버그를 덮지 않는다. */}
       <body suppressHydrationWarning>
         <Providers>
-          <PasswordGate>{children}</PasswordGate>
+          <PasswordGate initial={gateInitial}>{children}</PasswordGate>
         </Providers>
         <SpeedInsights />
       </body>
