@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { z } from 'zod';
 import { wrap, extractErrorMessage, requireAdmin, requireAuth, isNextInternalControlFlowError } from './_base';
 import { getKSTDateBounds } from '@/lib/date';
-import { getMenuSalesByPeriod } from './menu';
+import { getMenuSalesByPeriod } from '@/lib/menuSales';
 import type { OrderItemInput } from '@/lib/supabase';
 import type { Order } from '@/types/database';
 import type {
@@ -326,6 +326,13 @@ async function decrementMenuStock(items: { id: number; count: number }[]): Promi
 export async function saveOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string, popupId?: string | null): Promise<SaveOrderResponse> {
   const parsed = SaveOrderSchema.safeParse({ items, totalPrice });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
+  // 로그인 없이 부를 수 있으면 누구나 가짜 주문으로 매출·재고·Discord 알림을 오염시킬 수 있다
+  try {
+    await requireAuth();
+  } catch (err) {
+    if (isNextInternalControlFlowError(err)) throw err;
+    return { success: false, error: extractErrorMessage(err) };
+  }
 
   try {
     const order = await createOrder(items, totalPrice, cashierName, popupId);
@@ -366,8 +373,9 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
   }
 }
 
-export async function fetchTodaysSales(popupId?: string | null): Promise<FetchTodaysSalesResponse> { return wrap(() => getTodaysSales(popupId)); }
-export async function fetchTodaysOrders(popupId?: string | null): Promise<FetchOrdersResponse> { return wrap(() => getTodaysOrderList(popupId)); }
+// 매출·주문·캐셔 이름이 담긴 조회는 전부 로그인을 요구한다 — 'use server' export는 공개 엔드포인트다
+export async function fetchTodaysSales(popupId?: string | null): Promise<FetchTodaysSalesResponse> { return wrap(async () => { await requireAuth(); return getTodaysSales(popupId); }); }
+export async function fetchTodaysOrders(popupId?: string | null): Promise<FetchOrdersResponse> { return wrap(async () => { await requireAuth(); return getTodaysOrderList(popupId); }); }
 /** 오늘 매출이 난 팝업별 집계 — POS 매출 배틀. 자기 팝업 밖 숫자를 돌려주므로 로그인은 요구한다 */
 export async function fetchTodaysSalesByPopup(): Promise<FetchTodayPopupSalesResponse> {
   return wrap(async () => { await requireAuth(); return getTodaysSalesByPopup(); });
@@ -387,13 +395,13 @@ export async function fetchTodaysMenuSales(popupId?: string | null): Promise<Fet
     return getMenuSalesByPeriod(start, end, popupId);
   });
 }
-export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getTodaysOrderListWithItems(limit, popupId)); }
-export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(() => getPendingOrders(popupId)); }
+export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(async () => { await requireAuth(); return getTodaysOrderListWithItems(limit, popupId); }); }
+export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(async () => { await requireAuth(); return getPendingOrders(popupId); }); }
 // /stats(admin 전용) 시간대별 매출 화면에서만 쓰는 조회 — 다른 orders.ts 함수와 달리 여기만 admin 게이트가 필요
 export async function fetchOrdersByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> {
   return wrap(async () => { await requireAdmin(); return getOrdersByPeriod(startISO, endISO, popupId); });
 }
-export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(() => prepareOrder(id)); }
+export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(async () => { await requireAuth(); return prepareOrder(id); }); }
 export async function removeOrder(id: number): Promise<ApiResponse> {
   try {
     await requireAdmin()
