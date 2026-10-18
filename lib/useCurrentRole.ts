@@ -30,13 +30,13 @@ export function useCurrentRole(): { role: UserAppRole; canEdit: boolean } {
       try {
         const { data: { session } } = await withTimeout(supabase.auth.getSession(), 5000, '권한 확인');
         if (cancelled || !session) return;
-        setRole(toAppRole(session.user.user_metadata?.role));
+        setRole(toAppRole(session.user.app_metadata?.role));
       } catch { /* ignore, 캐시된 role 유지 */ }
     })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') { setRole('user'); return; }
-      if (session) setRole(toAppRole(session.user.user_metadata?.role));
+      if (session) setRole(toAppRole(session.user.app_metadata?.role));
     });
 
     return () => { cancelled = true; subscription.unsubscribe(); };

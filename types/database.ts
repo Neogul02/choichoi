@@ -52,7 +52,7 @@ export interface AvailabilityRange {
 export type StaffStatus = 'candidate' | 'confirmed' | 'inactive';
 export type StaffRole = 'kitchen' | 'cashier';
 
-// 앱 권한 역할 — user_profiles.worker_role / auth user_metadata.role에 저장됨
+// 앱 권한 역할 — user_profiles.worker_role / auth app_metadata.role에 저장됨 (권한 판단은 app_metadata만)
 // (근무 역할인 StaffRole과는 별개 개념)
 export type UserAppRole = 'admin' | 'manager' | 'user';
 

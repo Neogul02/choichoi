@@ -479,7 +479,9 @@ export async function createWorkerAccount(
       email: input.email.trim(),
       password,
       email_confirm: true,
-      user_metadata: { role: 'user', name: input.name.trim() },
+      user_metadata: { name: input.name.trim() },
+      // 역할은 본인이 바꿀 수 없는 app_metadata에만 — proxy.ts·_base.ts가 여기서 읽는다
+      app_metadata: { role: 'user' },
     })
 
     if (authError || !authData.user) {
@@ -555,9 +557,11 @@ export async function setUserRole(userId: string, role: AccountRole): Promise<Ap
       .eq('id', userId)
     if (error) throw new Error(error.message)
 
-    // user_metadata를 통째로 덮어쓰면 name 등 기존 값이 사라지므로 현재 값을 먼저 읽어 spread
-    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId)
-    await supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { ...authUser?.user?.user_metadata, role } })
+    // 권한 판단은 app_metadata.role만 본다(본인이 바꿀 수 없음). Auth는 app_metadata를 키 단위로 병합하므로
+    // provider 등 기존 값은 유지된다. 실패를 삼키면 화면의 역할과 실제 권한이 갈라지므로 오류로 올린다.
+    // 새 역할은 다음 토큰 갱신(최대 JWT 만료 시간) 또는 재로그인부터 적용된다.
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, { app_metadata: { role } })
+    if (authError) throw new Error(`권한 반영 실패: ${authError.message}`)
 
     const label = ACCOUNT_ROLE_LABEL[role]
     after(async () => {

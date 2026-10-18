@@ -133,8 +133,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
     'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas'
 
   // 로그인 성공(비밀번호 로그인 또는 회원가입 직후 자동 로그인) 후 공통 후처리.
-  // user_metadata.role 동기화(updateUser)는 화면 진입을 막지 않는다 — proxy.ts/서버 액션이 실제 권한 검사를
-  // 최종 담당하므로(CLAUDE.md 참고) 이 동기화가 한 박자 늦게 끝나도 안전하고, every-login 체감 지연만 늘어들 뿐이었다.
+  // 권한은 서버가 app_metadata.role에 기록한다(setUserRole·createWorkerAccount) — 여기서는 이름만 동기화한다.
   const finishAuth = async (user: { id: string; user_metadata?: { name?: string } }, email: string) => {
     const supabase = createSupabaseBrowserClient()
 
@@ -150,9 +149,9 @@ export default function PasswordGate({ children, initial }: { children: React.Re
       profile?.worker_role === 'admin' ? 'admin' :
       profile?.worker_role === 'manager' ? 'manager' :
       profile?.worker_role === 'kiosk' ? 'kiosk' : 'user'
-    // user_metadata.role 동기화는 백그라운드로 — 실패해도 로그인을 막지 않는다
+    // 이름 동기화는 백그라운드로 — 실패해도 로그인을 막지 않는다
     supabase.auth.updateUser({
-      data: { role: syncedRole, name: profile?.name ?? user.user_metadata?.name },
+      data: { name: profile?.name ?? user.user_metadata?.name },
     }).catch(() => { /* 다음 로그인 시 재동기화됨 */ })
 
     const name = profile?.name ?? user.user_metadata?.name ?? ''
