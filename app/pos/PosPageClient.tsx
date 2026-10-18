@@ -32,6 +32,7 @@ import {
 } from '@/lib/utils'
 import { getTier } from '@/lib/tiers'
 import { CASHIER_NAME_KEY, POPUP_ID_KEY } from '@/lib/storage-keys'
+import { queryKeys } from '@/lib/queryKeys'
 
 const POS_NOTE_VISIBLE_KEY = 'choichoi_pos_note_visible'
 
@@ -200,19 +201,19 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders', filter: `popup_id=eq.${popupId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
-          queryClient.invalidateQueries({ queryKey: ['today-sales'] })
-          queryClient.invalidateQueries({ queryKey: ['today-sales-by-popup'] })
-          queryClient.invalidateQueries({ queryKey: ['today-menu-sales'] })
-          queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
+          queryClient.invalidateQueries({ queryKey: queryKeys.todayOrdersRecentAll })
+          queryClient.invalidateQueries({ queryKey: queryKeys.todaySalesAll })
+          queryClient.invalidateQueries({ queryKey: queryKeys.todaySalesByPopup })
+          queryClient.invalidateQueries({ queryKey: queryKeys.todayMenuSalesAll })
+          queryClient.invalidateQueries({ queryKey: queryKeys.pendingOrdersAll })
         },
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `popup_id=eq.${popupId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['pending-orders'] })
-          queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
+          queryClient.invalidateQueries({ queryKey: queryKeys.pendingOrdersAll })
+          queryClient.invalidateQueries({ queryKey: queryKeys.todayOrdersRecentAll })
         },
       )
       .subscribe()
@@ -227,7 +228,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'menu_items' },
-        () => queryClient.invalidateQueries({ queryKey: ['menu-items'] }),
+        () => queryClient.invalidateQueries({ queryKey: queryKeys.menuItems }),
       )
       .subscribe()
     return () => {
@@ -284,7 +285,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   }, [popupId])
 
   const salesQuery = useQuery<TodaysSales>({
-    queryKey: ['today-sales', popupId],
+    queryKey: queryKeys.todaySales(popupId),
     queryFn: async () => {
       const result = await fetchTodaysSales(popupId)
       if (!result.success) throw new Error(result.error || '매출 로딩 실패')
@@ -308,7 +309,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   // 오늘 매출이 난 팝업별 집계 — 배틀 칸(2곳 이상일 때만)과 오늘 현황 칸(항상)이 같이 쓴다.
   // 실시간 구독은 자기 팝업(popup_id=eq.${popupId})만 받으므로 상대 팝업 매출은 주기 조회로 따라간다.
   const battleQuery = useQuery<TodayPopupSales[]>({
-    queryKey: ['today-sales-by-popup'],
+    queryKey: queryKeys.todaySalesByPopup,
     queryFn: async () => {
       const result = await fetchTodaysSalesByPopup()
       if (!result.success) throw new Error(result.error || '팝업별 매출 로딩 실패')
@@ -320,7 +321,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   })
 
   const menuQuery = useQuery<MenuItem[]>({
-    queryKey: ['menu-items'],
+    queryKey: queryKeys.menuItems,
     queryFn: async () => {
       const result = await fetchMenuItems()
       if (!result.success) throw new Error(result.error || '메뉴 로딩 실패')
@@ -341,7 +342,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   }, [menuItems])
 
   const recentOrdersQuery = useQuery<OrderRecordWithItems[]>({
-    queryKey: ['today-orders-recent', popupId],
+    queryKey: queryKeys.todayOrdersRecent(popupId),
     queryFn: async () => {
       const result = await fetchTodaysOrdersWithItems(10, popupId)
       if (!result.success)
@@ -450,7 +451,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
           ? `오늘 ${result.dailyOrderNumber}번째 주문`
           : `주문번호: ${result.orderId}`
         toast.success(`결제 완료! ${label}`, { id: 'checkout-success' })
-        queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+        queryClient.invalidateQueries({ queryKey: queryKeys.menuItems })
 
         if (result.sales) {
           const { tier: newTier } = getTier(result.sales.totalRevenue)
@@ -473,9 +474,9 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
         )
 
         fireConfetti()
-        queryClient.invalidateQueries({ queryKey: ['today-orders-recent'] })
-        queryClient.invalidateQueries({ queryKey: ['today-sales-by-popup'] })
-        queryClient.invalidateQueries({ queryKey: ['today-menu-sales'] })
+        queryClient.invalidateQueries({ queryKey: queryKeys.todayOrdersRecentAll })
+        queryClient.invalidateQueries({ queryKey: queryKeys.todaySalesByPopup })
+        queryClient.invalidateQueries({ queryKey: queryKeys.todayMenuSalesAll })
       } else {
         if (context?.previousCounts) setCounts(context.previousCounts)
         toast.error(result.error || '결제 오류가 발생했습니다', {
@@ -842,7 +843,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
         open={stockModalOpen}
         menuItems={menuItems}
         onClose={() => setStockModalOpen(false)}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['menu-items'] })}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: queryKeys.menuItems })}
       />
       <ConfirmDialog
         open={resetConfirmOpen}

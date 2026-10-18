@@ -1,12 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
-import { fetchHourlySalesByPopup, fetchTodaysMenuSales } from '@/app/actions/orders';
-import { kstNow, kstToday } from '@/lib/date';
-import { kstDayBounds, mergeHourly, sumUpto } from '@/lib/salesCurve';
+import { fetchTodaysMenuSales } from '@/app/actions/orders';
+import { useSalesCompareDays } from '@/hooks/useSalesCompareDays';
+import { kstToday } from '@/lib/date';
+import { useKstHour } from '@/hooks/useKstHour';
+import { mergeHourly, sumUpto } from '@/lib/salesCurve';
 import type { MenuSalesItem, TodayPopupSales } from '@/types/api';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface Props {
   /** 오늘 매출이 난 팝업별 집계 — 배틀 칸과 같은 쿼리 결과를 받는다 */
@@ -28,9 +31,6 @@ const SalesBattleChart = dynamic(() => import('./SalesBattleChart'), {
 });
 
 const MINE_COLOR = '#084431'; // primary-700 — 배틀 칸에서 내 팝업에 쓰는 색과 같다
-
-/** kstNow()는 KST 벽시계를 UTC 필드에 담아 돌려주므로 getUTCHours()가 곧 KST 시각이다 */
-const currentKstHour = () => kstNow().getUTCHours();
 
 function Delta({ label, now, before }: { label: string; now: number; before: number | null }) {
   if (before == null || before === 0) {
@@ -58,12 +58,7 @@ function Delta({ label, now, before }: { label: string; now: number; before: num
  * 비교(어제·지난주)는 통계탭과 같은 규칙 — 같은 시각까지의 누적끼리, orders 테이블만 본다.
  */
 export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, totalOrders, hidden, onToggle }: Props) {
-  // 화면을 열어둔 채 시간이 넘어가면 비교 구간도 따라가야 한다
-  const [nowHour, setNowHour] = useState(currentKstHour);
-  useEffect(() => {
-    const id = setInterval(() => setNowHour(currentKstHour()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  const nowHour = useKstHour();
 
   const popupKey = currentPopupId == null ? null : String(currentPopupId);
   const scope = useCallback(
@@ -74,7 +69,7 @@ export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, to
 
   // 가려져 있는 동안엔 조회하지 않는다 — 결제 화면 왕복을 늘리지 않으려는 것
   const menuQuery = useQuery<MenuSalesItem[]>({
-    queryKey: ['today-menu-sales', popupKey],
+    queryKey: queryKeys.todayMenuSales(popupKey),
     queryFn: async () => {
       const res = await fetchTodaysMenuSales(popupKey);
       if (!res.success) throw new Error(res.error || '오늘 품목 조회 실패');
@@ -85,27 +80,9 @@ export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, to
     refetchInterval: 90_000,
   });
 
-  // 기준일(어제·지난주 같은 요일)은 이미 끝난 날이라 하루에 한 번이면 충분하다.
-  // 날짜를 키에 넣어 자정을 넘기면 새로 받는다.
+  // 기준일(어제·지난주) 데이터는 통계탭과 같은 캐시를 쓴다 — 날짜가 키라 자정을 넘기면 새로 받는다
   const today = kstToday();
-  const compareQuery = useQuery<{ yesterday: TodayPopupSales[]; lastWeek: TodayPopupSales[] }>({
-    queryKey: ['sales-compare-days', today],
-    queryFn: async () => {
-      const y = kstDayBounds(today, -1);
-      const w = kstDayBounds(today, -7);
-      const [yRes, wRes] = await Promise.all([
-        fetchHourlySalesByPopup(y.startISO, y.endISO),
-        fetchHourlySalesByPopup(w.startISO, w.endISO),
-      ]);
-      // 비교는 보조 정보다 — 실패해도 화면을 막지 않고 비교만 생략한다
-      return {
-        yesterday: yRes.success && yRes.data ? yRes.data : [],
-        lastWeek: wRes.success && wRes.data ? wRes.data : [],
-      };
-    },
-    enabled: !hidden,
-    staleTime: 60 * 60_000,
-  });
+  const compareQuery = useSalesCompareDays(today, !hidden);
 
   const mine = useMemo(() => scope(rows), [rows, scope]);
   const todayUptoNow = sumUpto(mine, nowHour);
