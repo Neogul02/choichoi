@@ -1,0 +1,34 @@
+-- 04 되돌리기. org_id를 쓰는 코드가 배포되기 전에만 안전하다.
+
+drop index if exists public.orders_org_created_idx;
+drop index if exists public.roster_assignments_org_date_idx;
+alter table public.menu_sales_daily drop column if exists org_id;
+alter table public.sales_daily drop column if exists org_id;
+alter table public.storage_objects drop column if exists org_id;
+alter table public.storage_object_items drop column if exists org_id;
+alter table public.staff_profiles drop column if exists org_id;
+alter table public.staff_popup_assignments drop column if exists org_id;
+alter table public.roster_shifts drop column if exists org_id;
+alter table public.roster_shift_requirements drop column if exists org_id;
+alter table public.roster_assignments drop column if exists org_id;
+alter table public.restock_events drop column if exists org_id;
+alter table public.pos_note drop column if exists org_id;
+alter table public.popup_events drop column if exists org_id;
+alter table public.popup_daily_sales drop column if exists org_id;
+alter table public.popup_closed_days drop column if exists org_id;
+alter table public.payroll_payments drop column if exists org_id;
+alter table public.payroll_adjustments drop column if exists org_id;
+alter table public.payroll_adjustment_presets drop column if exists org_id;
+alter table public.orders drop column if exists org_id;
+alter table public.order_items drop column if exists org_id;
+alter table public.menu_items drop column if exists org_id;
+alter table public.memos drop column if exists org_id;
+alter table public.manual_menu_sales drop column if exists org_id;
+alter table public.manual_hourly_sales drop column if exists org_id;
+alter table public.manual_daily_menu_sales drop column if exists org_id;
+alter table public.ingredients drop column if exists org_id;
+alter table public.daily_sales drop column if exists org_id;
+alter table public.contracts drop column if exists org_id;
+alter table public.attendance_records drop column if exists org_id;
+drop table if exists public.org_members;
+drop table if exists public.organizations;

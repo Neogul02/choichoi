@@ -151,3 +151,31 @@ architect 서브에이전트(opus) 완료 알림 채널이 요약 문구("Idle."
 - 문제2: clockOut이 ClockOutDone(인정 시작·종료·휴게·유급분) 반환, 유급분은 workhours.paidMinutes 재사용.
   퇴근 결과 팝업(primary 초록, 큰 "6h 30m", 8초 자동 닫힘) + 퇴근 완료 카드에 "Nh Mm 근무" 배지(배정 행 기준).
   lib/attendance.ts formatWorkedDuration + 테스트 2건. 179 tests 통과.
+
+[Ralph 세션 b41eb95e] 아키텍처 리뷰 개선 — DB 변경 없는 코드 개선 + 20:30 이후 DB 마이그레이션 준비 (2026-10-17)
+
+## US-301: 인증 없던 서버 액션 닫기
+- saveOrder·updateMenuStock·markOrderPrepared·fetchTodaysSales/Orders/OrdersWithItems·fetchPendingOrders·fetchPosNote·fetchPopupEvents에 requireAuth.
+- getMenuSalesByPeriod를 app/actions/menu.ts('use server')에서 lib/menuSales.ts로 이동 — 'use server' export는 전부 공개 엔드포인트다.
+- lib/serverActionAuth.test.ts: 'use server' export를 정적 검사, 의도적 공개 6개(로그인·가입·에러 리포트·메뉴·활성 팝업) 외 무가드 export면 실패. 가드 제거 변이로 실패 확인.
+
+## US-302: popup_daily_sales 미커밋 작업 버그
+- ManualSalesEntry.source('popup'|'date')로 출처 표시, 모달은 popup 행으로만 미리 채우고 날짜 전체 값은 안내 문구로.
+- 0/0 저장 → removePopupDailySales(삭제). PopupDailySalesSchema(zod)로 popupId 검증.
+- 정정 조회 실패는 성공처럼 숨기지 않고 실패 + 호출부 토스트.
+- 원격 get_monthly_sales_by_date(_popup)·get_lifetime_sales_totals가 이미 popup_daily_sales를 합침을 확인 → ultrareview의 "달력 누락" 지적은 오탐.
+
+## US-303: 로그인 게이트가 SSR을 가리던 문제
+- app/layout.tsx가 getClaims + popup 쿠키로 GateInitial을 계산해 PasswordGate에 넘김. 미인증 SSR HTML에 로그인 폼(스피너 0) 확인.
+
+## US-304: 통계 누적 합계 스트리밍 — 프로미스를 넘기고 LifetimeTotalCard가 use()로, Suspense 스켈레톤.
+
+## US-305: lib/queryKeys.ts(매출·주문 키 일원화) + hooks/useSalesCompareDays.ts(통계·POS 비교 데이터 공용 캐시).
+
+## US-306: supabase/pending/ — 01 FK 인덱스, 02 일별 집계+트리거+백필, 03 누적 합계 v2→교체, 04 organizations/org_members + org_id expand, 롤백·급여 기준선·검증 SQL, RUNBOOK.md
+- PGlite(원격 스키마 스냅샷) 21/21 통과. 여기서 품목 트리거의 미할당 레코드 참조 버그(모든 품목 insert 실패)를 잡음.
+- 원격 실데이터 읽기 전용: v2 = v1(불일치 0), 급여 기준선 SQL = workhours.paidMinutes(571행, 231,819분, 차이 0).
+
+## 배운 점
+- PL/pgSQL은 AND를 단락 평가하지 않는다 — 분기마다 다른 레코드를 채우는 트리거는 스칼라 변수로.
+- Supabase execute_sql은 호출마다 세션이 달라 TEMP 테이블이 남지 않는다 → 기준선은 ops_backup 일반 테이블.
