@@ -1,21 +1,19 @@
 'use server'
 
-import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ApiResponse } from '@/types/api'
 import type { PopupClosedDay, StaffProfile } from '@/types/database'
 import { fetchRosterRangeForOverview } from './roster'
 import type { RosterMonthData, RosterUnit } from './roster'
 import { fetchStaffProfiles } from './staff'
 import { fetchPopupEvents, fetchPopupClosedDays } from './schedule'
-import { extractErrorMessage, isNextInternalControlFlowError } from './_base'
+import { extractErrorMessage, getAuthUser, isNextInternalControlFlowError } from './_base'
 
-// 일정표는 매니저도 접근하는 화면이라 레이아웃 게이트만 믿지 않고 액션에서도 역할을 검사한다
+// 일정표는 매니저도 접근하는 화면이라 레이아웃 게이트만 믿지 않고 액션에서도 역할을 검사한다.
+// 서버의 getSession()은 쿠키를 서명 검증 없이 읽으므로 검증된 클레임(getAuthUser)으로 판단한다.
 async function getManagerSession() {
-  const supabase = await createSupabaseServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const role = session?.user?.user_metadata?.role
-  if (!session || (role !== 'admin' && role !== 'manager')) return null
-  return session
+  const user = await getAuthUser()
+  if (!user || (user.role !== 'admin' && user.role !== 'manager')) return null
+  return user
 }
 
 export interface RosterUnitOverview {

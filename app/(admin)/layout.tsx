@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { getAuthUser } from '@/app/actions/_base';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  const role = session?.user?.user_metadata?.role
-  if (!session || role !== 'admin') redirect('/pos');
+  // getSession()은 서버에서 쿠키를 서명 검증 없이 읽는다 — 검증된 클레임의 app_metadata.role로 판단
+  const role = (await getAuthUser())?.role;
+  if (role !== 'admin') redirect('/pos');
   return <>{children}</>;
 }

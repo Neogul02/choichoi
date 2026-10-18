@@ -81,7 +81,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         ({ data: { session } } = await withTimeout(supabase.auth.getSession(), 5000, '권한 확인'));
       } catch { return; }
       if (!session) return;
-      applyRole(session.user.user_metadata?.role);
+      applyRole(session.user.app_metadata?.role);
 
       // 이름이 캐시돼 있고 이 세션에서 이미 동기화했다면 네트워크 조회 생략
       try {
@@ -115,7 +115,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
         setRole('user');
         setIsKiosk(false);
       } else if (session) {
-        applyRole(session.user.user_metadata?.role);
+        applyRole(session.user.app_metadata?.role);
       }
       // 그 외 세션 없는 이벤트에서는 캐시 역할 유지 (일시적 상태로 탭이 사라지지 않도록)
     });

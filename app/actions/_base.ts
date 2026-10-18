@@ -68,10 +68,13 @@ export async function getAuthUser(): Promise<{
   const claims = data?.claims;
   if (!claims?.sub) return null;
   const meta = (claims.user_metadata ?? {}) as Record<string, unknown>;
+  // 역할은 서버만 쓸 수 있는 app_metadata에서만 읽는다 — user_metadata는 본인이 브라우저에서 updateUser()로
+  // 바꿀 수 있어 거기서 읽으면 직원 누구나 admin이 된다. 역할이 없는 토큰은 null(일반 user)로 취급한다.
+  const appMeta = (claims.app_metadata ?? {}) as Record<string, unknown>;
   return {
     id: claims.sub,
     email: (claims.email as string | undefined) ?? null,
-    role: (meta.role as string | undefined) ?? null,
+    role: (appMeta.role as string | undefined) ?? null,
     name: (meta.name as string | undefined) ?? null,
     user_metadata: meta,
   };
@@ -99,7 +102,7 @@ export async function requireManagerOrAdmin() {
 }
 
 /**
- * 주방 출근부 키오스크 계정(user_metadata.role = 'kiosk') 또는 admin.
+ * 주방 출근부 키오스크 계정(app_metadata.role = 'kiosk') 또는 admin.
  * 키오스크는 주방 아이패드에 상시 로그인해 두는 계정이라 출근부 액션 외에는 열어주지 않는다 —
  * 다른 액션은 이 함수를 쓰지 말 것.
  */

@@ -37,7 +37,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  const role = (claims.user_metadata as { role?: string } | undefined)?.role
+  // 역할은 app_metadata에서만 — user_metadata는 본인이 updateUser()로 바꿀 수 있어 권한 판단에 쓰면 누구나 admin이 된다.
+  // 역할이 없는 토큰(백필 전에 발급된 것 등)은 일반 user로 취급한다.
+  const role = (claims.app_metadata as { role?: string } | undefined)?.role
 
   // 주방 아이패드에 상시 로그인해 두는 출근부 계정 — 출근부 밖의 화면은 열어주지 않는다
   if (role === 'kiosk') {

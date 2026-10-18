@@ -142,7 +142,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
         setOwnUserId(user.id)
         setViewingUserId(user.id)
         // 프리페치된 profile.worker_role이 우선 — 없을 때만 메타데이터로 판정
-        if (initial?.profile == null) setIsAdmin(user.user_metadata?.role === 'admin')
+        if (initial?.profile == null) setIsAdmin(user.app_metadata?.role === 'admin')
       }
       if (initial != null) return // 서버 프리페치 성공 시 마운트 조회 생략
       const [profileRes, statsRes, contractsRes, rosterRes, hoursRes] = await Promise.all([
