@@ -19,11 +19,25 @@ import {
 
 type View = 'login' | 'signup' | 'admin-code'
 
-export default function PasswordGate({ children }: { children: React.ReactNode }) {
+/**
+ * 서버(루트 레이아웃)가 세션 쿠키·근무지 쿠키로 미리 판정한 초기 상태.
+ * 예전엔 항상 checked=false로 시작해 서버 HTML이 늘 "로그인 확인 중..." 화면이었고, 서버가 데이터를 미리 받아
+ * 만든 페이지는 JS 로드·하이드레이션·세션 확인이 끝날 때까지 보이지 않았다.
+ * - checked=true, authed=true  → 첫 렌더부터 페이지를 그린다
+ * - checked=true, authed=false → 첫 렌더부터 로그인 폼
+ * - checked=false              → 서버가 판정할 수 없음(세션은 있는데 근무지 쿠키가 없는 구버전 로그인) — 예전 흐름
+ * 클라이언트 세션 확인은 그대로 돈다. 실제 권한은 proxy.ts와 서버 액션이 건다.
+ */
+export interface GateInitial {
+  checked: boolean
+  authed: boolean
+}
+
+export default function PasswordGate({ children, initial }: { children: React.ReactNode; initial?: GateInitial }) {
   const pathname = usePathname()
 
-  const [checked, setChecked] = useState(false)
-  const [isAuthed, setIsAuthed] = useState(false)
+  const [checked, setChecked] = useState(initial?.checked ?? false)
+  const [isAuthed, setIsAuthed] = useState(initial?.authed ?? false)
   const [view, setView] = useState<View>('login')
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([])
   const [selectedPopupId, setSelectedPopupId] = useState<number | 'kitchen' | ''>('')
