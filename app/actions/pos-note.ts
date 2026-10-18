@@ -86,7 +86,7 @@ async function mergePosNote(updateB64: string, updatedBy?: string): Promise<PosN
 }
 
 export async function fetchPosNote(): Promise<ApiResponse<PosNote>> {
-  return wrap(getPosNote);
+  return wrap(async () => { await requireAuth(); return getPosNote(); });
 }
 
 // 클라이언트의 문서 상태(Yjs update, base64)를 DB 상태와 합쳐 저장한다. 합치기는 순서·중복과 무관하므로

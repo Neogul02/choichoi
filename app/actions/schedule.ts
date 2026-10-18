@@ -68,7 +68,8 @@ async function setPopupEventActive(id: number, isActive: boolean): Promise<Popup
   return data as PopupEvent
 }
 
-export async function fetchPopupEvents(): Promise<FetchEventsResponse> { return wrap(getPopupEvents); }
+// 비활성 팝업까지 포함한 전체 목록 — 로그인 화면용 공개 목록은 fetchActivePopupEvents
+export async function fetchPopupEvents(): Promise<FetchEventsResponse> { return wrap(async () => { await requireAuth(); return getPopupEvents(); }); }
 
 /** 활성 팝업만 조회 — 로그인 게이트·디스플레이 등 "진행 중인 팝업" 선택 화면용 */
 export async function fetchActivePopupEvents(): Promise<FetchEventsResponse> { return wrap(() => getPopupEvents(true)); }

@@ -2,10 +2,10 @@
 
 import { after } from 'next/server';
 import { z } from 'zod';
-import { wrap, requireAdmin } from './_base';
+import { wrap, requireAdmin, requireAuth } from './_base';
 import { notifyDiscord } from '@/lib/discord';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
-import type { ApiResponse, FetchMenuItemsResponse, MenuSalesItem } from '@/types/api';
+import type { ApiResponse, FetchMenuItemsResponse } from '@/types/api';
 import type { MenuItem } from '@/types/database';
 
 const MenuItemSchema = z.object({
@@ -149,38 +149,6 @@ async function updateMenuOrder(orderedIds: number[]): Promise<void> {
   if (failed?.error) throw failed.error
 }
 
-/** 메뉴별 판매 집계 — orders.ts(주문 완료 알림)·stats.ts(메뉴별 매출 화면) 공용 */
-export async function getMenuSalesByPeriod(
-  startISO: string,
-  endISO: string,
-  popupId?: string | number | null,
-): Promise<MenuSalesItem[]> {
-  const { data, error } = await supabaseAdmin.rpc('get_menu_sales_by_period', {
-    p_start: startISO,
-    p_end: endISO,
-    p_popup_id: popupId && popupId !== '0' ? Number(popupId) : null,
-  })
-
-  if (error) throw error
-
-  return (data ?? []).map(
-    (row: {
-      menu_item_id: number
-      item_name: string
-      item_price: number
-      item_color: string
-      total_quantity: number
-      total_revenue: number
-    }) => ({
-      id: row.menu_item_id,
-      name: row.item_name,
-      price: row.item_price,
-      color: row.item_color,
-      totalQuantity: Number(row.total_quantity),
-      totalRevenue: Number(row.total_revenue),
-    }),
-  )
-}
 
 // fetchMenuItems·updateMenuStock은 /pos(오픈 페이지)와 공유돼 인증 게이트를 두지 않는다 — 나머지는 /settings(admin 전용) 전용
 export async function fetchMenuItems(): Promise<FetchMenuItemsResponse> { return wrap(getMenuItems); }
@@ -211,7 +179,7 @@ export async function updateMenuStock(id: number, stock: number | null): Promise
     stock: z.number().int().nullable(),
   }).safeParse({ id, stock });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(() => updateMenuItemStock(parsed.data.id, parsed.data.stock));
+  return wrap(async () => { await requireAuth(); return updateMenuItemStock(parsed.data.id, parsed.data.stock); });
 }
 
 export async function setMenuItemSoldOut(id: number, soldOut: boolean): Promise<ApiResponse<MenuItem>> {
