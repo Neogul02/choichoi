@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import type { OrderRecordWithItems } from '@/types/api';
 import { formatKSTTime, formatPrice } from '@/lib/utils';
 import { POPUP_ID_KEY } from '@/lib/storage-keys';
+import { queryKeys } from '@/lib/queryKeys';
 
 const pendingCardVariants: Variants = {
   hidden: { opacity: 0, scale: 0.96, y: 10 },
@@ -39,17 +40,17 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
     const channel = supabase
       .channel(`orders-realtime-orders-page-${popupId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', ...filter }, () => {
-        queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.pendingOrdersAll });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', ...filter }, () => {
-        queryClient.invalidateQueries({ queryKey: ['pending-orders'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.pendingOrdersAll });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [queryClient, popupId]);
 
   const pendingOrdersQuery = useQuery<OrderRecordWithItems[]>({
-    queryKey: ['pending-orders', popupId],
+    queryKey: queryKeys.pendingOrders(popupId),
     queryFn: async () => {
       const result = await fetchPendingOrders(popupId);
       if (!result.success) throw new Error(result.error || '미처리 주문 로딩 실패');
@@ -62,12 +63,12 @@ export default function OrdersPageClient({ initialPopupId, initialOrders }: Prop
   const markPreparedMutation = useMutation<{ success: boolean; error?: string }, Error, number>({
     mutationFn: (orderId) => markOrderPrepared(orderId),
     onMutate: (orderId) => {
-      queryClient.setQueryData<OrderRecordWithItems[]>(['pending-orders', popupId], (prev) =>
+      queryClient.setQueryData<OrderRecordWithItems[]>(queryKeys.pendingOrders(popupId), (prev) =>
         (prev ?? []).filter((o) => o.id !== orderId)
       );
     },
     onError: () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-orders', popupId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pendingOrders(popupId) });
       toast.error('처리 중 오류가 발생했습니다');
     },
   });
