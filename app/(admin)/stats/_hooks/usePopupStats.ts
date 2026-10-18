@@ -86,7 +86,7 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
         fetchMenuSalesBreakdown(startISO, endISO, String(selectedPopupId)),
         fetchDailySalesByPeriod(startISO, endISO, String(selectedPopupId)),
         fetchOrdersByPeriod(startISO, endISO, String(selectedPopupId)),
-        fetchManualSalesForRange(popup.start_date, popup.end_date),
+        fetchManualSalesForRange(popup.start_date, popup.end_date, popup.id),
         fetchManualMenuSales(selectedPopupId),
         fetchManualDailyMenuSalesForRange(selectedPopupId, popup.start_date, popup.end_date),
         fetchManualHourlySales(selectedPopupId),
@@ -101,6 +101,8 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
       } else { setPopupMenuBreakdown([]); if (!menuRes.success) toast.error(`팝업 메뉴 조회 실패: ${menuRes.error}`); }
       if (dailyRes.success && dailyRes.data) {
         const manualEntries = manualRes.success && manualRes.data ? manualRes.data : [];
+        // 정정 조회 실패를 "정정 없음"으로 삼키면 POS 숫자만으로 조용히 틀린 일별 매출이 나온다
+        if (!manualRes.success) toast.error(`수동 매출 조회 실패: ${manualRes.error}`);
         setPopupDailySales(applyManualOverrides(dailyRes.data, manualEntries));
       } else { setPopupDailySales([]); if (!dailyRes.success) toast.error(`팝업 일별 조회 실패: ${dailyRes.error}`); }
       setPopupRawOrders(rawRes.success && rawRes.data ? rawRes.data : []);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import NavBar from '@/components/NavBar';
 import { kstToday } from '@/lib/date';
@@ -30,7 +30,8 @@ interface Props {
   initialCalendar: CalendarSalesData | null;
   initialPopupEvents: PopupEvent[] | null;
   /** 첫 팝업부터 오늘까지의 누적 집계 — 통계탭에만 노출 */
-  lifetimeTotals: LifetimeSalesTotals | null;
+  /** 서버가 기다리지 않고 넘긴 누적 합계 — 카드 안에서 use()로 푼다 */
+  lifetimeTotals: Promise<LifetimeSalesTotals | null>;
   /** 오늘 매출이 난 팝업별 집계 — '오늘 현황' 섹션 프리페치 */
   todayPopups: TodayPopupSales[] | null;
 }
@@ -56,7 +57,9 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
           </div>
 
           <div className="lg:col-span-2">
-            <LifetimeTotalCard totals={lifetimeTotals} />
+            <Suspense fallback={<div className="h-[58px] rounded-xl border border-hairline bg-canvas-soft animate-pulse" />}>
+              <LifetimeTotalCard totals={lifetimeTotals} />
+            </Suspense>
           </div>
 
           <div className="lg:col-span-2">

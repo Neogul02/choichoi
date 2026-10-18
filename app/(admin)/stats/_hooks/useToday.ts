@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { fetchTodaysSalesByPopup, fetchHourlySalesByPopup } from '@/app/actions/orders';
-import { fetchMenuSalesBreakdown } from '@/app/actions/stats';
-import { kstNow, kstToday } from '@/lib/date';
-import { kstDayBounds, mergeHourly, sumUpto } from '@/lib/salesCurve';
+import { useSalesCompareDays } from '@/hooks/useSalesCompareDays';
+import { fetchTodaysSalesByPopupForStats, fetchTodaysMenuSalesForStats } from '@/app/actions/stats';
+import { kstToday } from '@/lib/date';
+import { useKstHour } from '@/hooks/useKstHour';
+import { mergeHourly, sumUpto } from '@/lib/salesCurve';
 import type { MenuSalesItem, TodayPopupSales } from '@/types/api';
 
 /** 'all'이면 오늘 매출이 난 팝업 전체 합산 */
@@ -30,33 +31,23 @@ export interface YesterdayCurve {
   hasData: boolean;
 }
 
-/** kstNow()는 KST 벽시계를 UTC 필드에 담아 돌려주므로 getUTCHours()가 곧 KST 시각이다 */
-const currentKstHour = () => kstNow().getUTCHours();
-
 /**
  * 통계탭 "오늘" 섹션 데이터.
  * 팝업을 골라 오늘 하루의 매출·주문·판매 품목·시간대 흐름을 한 번에 본다.
  *
- * 비교값(어제·지난주)은 orders 테이블만 본다 — 수동 입력 매출(daily_sales)은 날짜 단위라
- * 팝업별로 나눌 수 없어서, 팝업을 고른 상태와 전체 상태의 기준이 달라지면 더 헷갈린다.
+ * 오늘 합계·판매 품목은 팝업 수기 정정(popup_daily_sales·manual_daily_menu_sales)을 덮은 값이다.
+ * 비교값(어제·지난주)과 곡선은 orders 테이블만 본다 — 수기 입력엔 시각이 없어 시간대로 나눌 수 없다.
  */
 export function useToday(initialPopups?: TodayPopupSales[] | null) {
   const [popups, setPopups] = useState<TodayPopupSales[]>(initialPopups ?? []);
   const [scope, setScope] = useState<TodayScope>('all');
   const [breakdown, setBreakdown] = useState<MenuSalesItem[]>([]);
-  const [yesterdayRows, setYesterdayRows] = useState<TodayPopupSales[] | null>(null);
-  const [lastWeekRows, setLastWeekRows] = useState<TodayPopupSales[] | null>(null);
-  // 비교 기준이 되는 "지금 시각". 화면을 열어둔 채 시간이 넘어가면 비교 구간도 따라가야 한다 —
-  // 예전엔 memo 의존성에 popups를 끼워 넣어 재계산을 유도했는데, 갱신이 없으면 시각이 멈췄다.
-  const [nowHour, setNowHour] = useState(currentKstHour);
-  useEffect(() => {
-    const id = setInterval(() => setNowHour(currentKstHour()), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // 비교 기준이 되는 "지금 시각" — 1분마다 따라간다
+  const nowHour = useKstHour();
   const [isLoading, setIsLoading] = useState(true);
 
   const loadPopups = useCallback(async () => {
-    const res = await fetchTodaysSalesByPopup();
+    const res = await fetchTodaysSalesByPopupForStats();
     if (res.success && res.data) setPopups(res.data);
     else if (!res.success) toast.error(`오늘 팝업별 매출 조회 실패: ${res.error}`);
   }, []);
@@ -66,35 +57,18 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
     loadPopups();
   }, [initialPopups, loadPopups]);
 
-  // 비교 기준일(어제·지난주 같은 요일)의 팝업별 시간대 매출.
-  // 하루 전체를 한 번만 받아두고 범위별 곡선·시각별 누적은 아래 memo에서 뽑는다 —
-  // 칩을 바꿀 때마다 재조회하지 않는다(기준일 데이터는 scope와 무관하게 고정이다).
-  useEffect(() => {
-    let alive = true;
-    const today = kstToday();
-    const day = (delta: number) => kstDayBounds(today, delta);
-    Promise.all([
-      fetchHourlySalesByPopup(day(-1).startISO, day(-1).endISO),
-      fetchHourlySalesByPopup(day(-7).startISO, day(-7).endISO),
-    ]).then(([y, w]) => {
-      if (!alive) return;
-      // 비교는 보조 정보다 — 실패해도 토스트로 화면을 막지 않고 기준선만 생략한다
-      setYesterdayRows(y.success && y.data ? y.data : []);
-      setLastWeekRows(w.success && w.data ? w.data : []);
-    });
-    return () => { alive = false; };
-  }, []);
+  // 비교 기준일(어제·지난주 같은 요일)의 팝업별 시간대 매출 — POS '오늘 현황'과 같은 캐시.
+  // 하루 전체를 한 번만 받아두고 범위별 곡선·시각별 누적은 아래 memo에서 뽑는다(칩을 바꿔도 재조회 없음).
+  const compareQuery = useSalesCompareDays(kstToday());
+  const yesterdayRows = compareQuery.data?.yesterday ?? null;
+  const lastWeekRows = compareQuery.data?.lastWeek ?? null;
 
   // 선택한 범위의 판매 품목 + 비교값
   useEffect(() => {
     let alive = true;
     const run = async () => {
       setIsLoading(true);
-      const today = kstToday();
-      const popupId = scope === 'all' ? null : String(scope);
-      const todayRange = kstDayBounds(today, 0);
-
-      const menuRes = await fetchMenuSalesBreakdown(todayRange.startISO, todayRange.endISO, popupId);
+      const menuRes = await fetchTodaysMenuSalesForStats(scope === 'all' ? null : scope);
       if (!alive) return;
 
       if (menuRes.success && menuRes.data) setBreakdown(menuRes.data);

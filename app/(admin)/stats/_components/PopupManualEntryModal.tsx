@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { fetchMenuItems } from '@/app/actions/menu';
 import {
   fetchManualDailyMenuSales, saveManualDailyMenuSales,
-  fetchManualSalesForRange, saveManualSales,
+  fetchManualSalesForRange, savePopupDailySales, removePopupDailySales,
   fetchManualHourlySales, saveManualHourlySales,
   fetchManualMenuSales, saveManualMenuSales,
 } from '@/app/actions/stats';
@@ -42,6 +42,10 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [dayRevenue, setDayRevenue] = useState(0);
   const [dayOrders, setDayOrders] = useState(0);
+  // 이 팝업 정정이 없는 날, 대신 쓰이고 있는 날짜 전체 정정(daily_sales) — 입력칸에 채우지 않고 안내만 한다
+  const [dateWide, setDateWide] = useState<{ revenue: number; orders: number } | null>(null);
+  // 하루 매출을 못 불러왔으면 입력칸의 0/0은 "정정 없음"이 아니라 "모름"이다 — 저장 시 그 값으로 지우지 않는다
+  const [dayLoadFailed, setDayLoadFailed] = useState(false);
   const [hourlyByHour, setHourlyByHour] = useState<Record<number, { revenue: number; orders: number }>>({});
   const [extraHours, setExtraHours] = useState<number[]>([]);
   const [addHourValue, setAddHourValue] = useState('');
@@ -82,7 +86,7 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
     setLoadingDay(true);
     Promise.all([
       fetchManualDailyMenuSales(popupId, selectedDate),
-      fetchManualSalesForRange(selectedDate, selectedDate),
+      fetchManualSalesForRange(selectedDate, selectedDate, popupId),
     ]).then(([menuRes, dayRes]) => {
       if (!isCurrent) return;
       const qtyMap: Record<number, number> = {};
@@ -90,13 +94,17 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
         for (const row of menuRes.data) qtyMap[row.menuItemId] = row.quantity;
       }
       setQuantities(qtyMap);
-      if (dayRes.success && dayRes.data && dayRes.data.length > 0) {
-        setDayRevenue(dayRes.data[0].total_revenue);
-        setDayOrders(dayRes.data[0].total_orders);
-      } else {
-        setDayRevenue(0);
-        setDayOrders(0);
-      }
+      if (!menuRes.success) toast.error(`메뉴 수량 조회 실패: ${menuRes.error}`);
+      if (!dayRes.success) toast.error(`하루 매출 조회 실패: ${dayRes.error}`);
+      setDayLoadFailed(!dayRes.success);
+      // 입력칸은 이 팝업 자신의 정정(popup_daily_sales)으로만 채운다. 날짜 전체 정정은 그날 영업한 모든
+      // 팝업의 합일 수 있어서, 채운 채로 저장하면 그 값이 이 팝업의 매출로 굳는다.
+      const rows = dayRes.success ? dayRes.data ?? [] : [];
+      const own = rows.find(r => r.source === 'popup');
+      const wide = rows.find(r => r.source === 'date');
+      setDayRevenue(own?.total_revenue ?? 0);
+      setDayOrders(own?.total_orders ?? 0);
+      setDateWide(!own && wide ? { revenue: wide.total_revenue, orders: wide.total_orders } : null);
       setLoadingDay(false);
     });
     return () => { isCurrent = false; };
@@ -148,7 +156,13 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
 
     const results = await Promise.all([
       saveManualDailyMenuSales(popupId, selectedDate, menuEntries),
-      dayRevenue > 0 || dayOrders > 0 ? saveManualSales(selectedDate, dayRevenue, dayOrders, null) : Promise.resolve<ApiResponse>({ success: true }),
+      // 팝업 단위로 저장한다 — 날짜 전체(daily_sales)에 쓰면 같은 날 영업한 다른 팝업 매출까지 덮인다.
+      // 0/0은 "정정 없음"이라 지운다. 건너뛰면 잘못 넣은 정정을 되돌릴 방법이 없다.
+      dayLoadFailed && dayRevenue === 0 && dayOrders === 0
+        ? Promise.resolve<ApiResponse>({ success: true })
+        : dayRevenue > 0 || dayOrders > 0
+          ? savePopupDailySales(popupId, selectedDate, dayRevenue, dayOrders)
+          : removePopupDailySales(popupId, selectedDate),
       saveManualHourlySales(popupId, hourlyEntries),
       saveManualMenuSales(popupId, wholeMenuEntries),
     ]);
@@ -279,6 +293,11 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
                   </div>
                 </div>
               </div>
+              <p className="m-0 mt-1.5 text-[11px] text-ink-faint">
+                {dateWide
+                  ? `이 팝업 정정이 없어 날짜 전체 정정 ₩${dateWide.revenue.toLocaleString('ko-KR')} · ${dateWide.orders}건이 쓰이고 있습니다. 이 팝업 숫자만 고치려면 입력하세요.`
+                  : '비워 두거나 0으로 저장하면 이 팝업의 정정을 지우고 POS 숫자를 씁니다.'}
+              </p>
             </section>
 
             {/* 시간대별 매출 (팝업 전체 기간 공통) */}

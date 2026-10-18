@@ -1,10 +1,12 @@
 'use client';
 
+import { use } from 'react';
 import { formatPrice } from '@/lib/utils';
 import type { LifetimeSalesTotals } from '@/types/api';
 
 interface Props {
-  totals: LifetimeSalesTotals | null;
+  /** 통계 페이지가 기다리지 않고 넘긴 조회 — 이 카드만 Suspense로 뒤따라온다 */
+  totals: Promise<LifetimeSalesTotals | null>;
 }
 
 /** 2026-04-03 → 26.4.3 — 좁은 줄에 기간을 넣을 때 */
@@ -18,7 +20,8 @@ const shortDate = (d: string) => {
  * 집계 규칙은 달력(get_monthly_sales_by_date)과 같다: 날짜별로 수동 입력 매출이 POS를 대체한다.
  * 규칙이 갈리면 달력 월 합계를 모두 더한 값과 이 숫자가 달라진다.
  */
-export default function LifetimeTotalCard({ totals }: Props) {
+export default function LifetimeTotalCard({ totals: totalsPromise }: Props) {
+  const totals = use(totalsPromise);
   if (!totals || totals.dayCount === 0) return null;
 
   const period = totals.firstDate && totals.lastDate

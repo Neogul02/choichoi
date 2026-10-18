@@ -1,6 +1,6 @@
 import StatsPageClient from './_components/StatsPageClient';
-import { fetchTodaysSales, fetchTodaysOrdersWithItems, fetchTodaysSalesByPopup } from '@/app/actions/orders';
-import { fetchMenuSalesBreakdown, fetchMonthlySalesCalendar, fetchManualSalesForMonth, fetchLifetimeSalesTotals } from '@/app/actions/stats';
+import { fetchTodaysOrdersWithItems } from '@/app/actions/orders';
+import { fetchMenuSalesBreakdown, fetchMonthlySalesCalendar, fetchManualSalesForMonth, fetchLifetimeSalesTotals, fetchTodaysSalesForStats, fetchTodaysSalesByPopupForStats } from '@/app/actions/stats';
 import { fetchPopupEvents } from '@/app/actions/schedule';
 import { getPeriodBounds } from './_lib/period';
 import { kstNow } from '@/lib/date';
@@ -19,19 +19,24 @@ async function getStatsBootstrap() {
   const m = now.getUTCMonth() + 1;
 
   return Promise.all([
-    fetchTodaysSales(),
+    fetchTodaysSalesForStats(),
     fetchTodaysOrdersWithItems(),
     fetchMenuSalesBreakdown(startISO, endISO),
     fetchMonthlySalesCalendar(y, m),
     fetchManualSalesForMonth(y, m),
     fetchPopupEvents(),
-    fetchLifetimeSalesTotals(),
-    fetchTodaysSalesByPopup(),
+    fetchTodaysSalesByPopupForStats(),
   ]);
 }
 
 export default async function StatsPage() {
-  const [summaryRes, ordersRes, breakdownRes, calRes, manualRes, popupsRes, lifetimeRes, todayPopupsRes] = await getStatsBootstrap();
+  // 누적 합계는 전체 주문을 훑어 가장 느리다(실측 ~280ms, 데이터에 비례). 기다리지 않고 프로미스로 넘겨
+  // 그 카드만 Suspense로 뒤따라오게 한다 — 나머지 화면이 이 조회에 묶이지 않는다.
+  // reject되면 use()가 통계 화면 전체를 에러 경계로 바꾼다 — 이 카드는 보조 정보라 실패 시 그냥 생략한다
+  const lifetimeTotals = fetchLifetimeSalesTotals()
+    .then(res => (res.success ? res.data ?? null : null))
+    .catch(() => null);
+  const [summaryRes, ordersRes, breakdownRes, calRes, manualRes, popupsRes, todayPopupsRes] = await getStatsBootstrap();
 
   // 수동 입력 매출을 달력 데이터에 병합 — useCalendar.load()와 동일한 형태로 맞춘다
   const manualByDate: Record<string, ManualSalesEntry> = {};
@@ -49,7 +54,7 @@ export default async function StatsPage() {
       initialBreakdown={breakdownRes.success ? breakdownRes.data ?? null : null}
       initialCalendar={initialCalendar}
       initialPopupEvents={popupsRes.success ? popupsRes.data ?? null : null}
-      lifetimeTotals={lifetimeRes.success ? lifetimeRes.data ?? null : null}
+      lifetimeTotals={lifetimeTotals}
       todayPopups={todayPopupsRes.success ? todayPopupsRes.data ?? null : null}
     />
   );

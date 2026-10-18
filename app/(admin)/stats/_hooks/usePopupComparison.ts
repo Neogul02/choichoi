@@ -51,9 +51,11 @@ export function usePopupComparison(popups: PopupEvent[]) {
             new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString(),
             String(popup.id)
           ),
-          fetchManualSalesForRange(popup.start_date, popup.end_date),
+          fetchManualSalesForRange(popup.start_date, popup.end_date, popup.id),
         ]);
         if (!dailyRes.success) { toast.error(`${popup.name} 매출 조회 실패: ${dailyRes.error}`); return null; }
+        // 정정 조회 실패를 "정정 없음"으로 삼키면 POS 숫자만으로 조용히 틀린 비교가 나온다
+        if (!manualRes.success) toast.error(`${popup.name} 수동 매출 조회 실패: ${manualRes.error}`);
         const daily = applyManualOverrides(dailyRes.data ?? [], manualRes.success && manualRes.data ? manualRes.data : []);
         const totalRevenue = daily.reduce((s, d) => s + d.revenue, 0);
         const totalOrders = daily.reduce((s, d) => s + d.orderCount, 0);
