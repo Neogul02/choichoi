@@ -17,7 +17,7 @@
 | 3 | `03_lifetime_from_rollups.sql` → `03b_swap_lifetime.sql` | 누적 합계 RPC가 집계 테이블을 읽음(276ms → 수 ms 목표) | 없음 (함수 이름 동일) |
 | 4 | `04_organizations_expand.sql` | 사업장·구성원 테이블, 업무 테이블 28개에 `org_id DEFAULT 1` | 없음 (기본값) |
 
-4는 서비스화 준비(expand)다. 지금 매장 운영에 주는 이득은 없으므로 3까지만 하고 4는 미뤄도 된다.
+4는 서비스화 준비(expand)다. 그다음 단계(contract)는 `docs/SAAS_CONTRACT_PLAN.md`. 지금 매장 운영에 주는 이득은 없으므로 3까지만 하고 4는 미뤄도 된다.
 
 ## 사전 검증 (2026-10-17 오후, 원격에 쓰기 없이)
 
