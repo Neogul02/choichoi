@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePDF } from '@react-pdf/renderer'
-import { PopupReportDocument, REPORT_CHART_LABELS } from '@/components/PopupReportDocument'
-import type { PopupReportData, ReportChartType, ReportSection } from '@/components/PopupReportDocument'
+import {
+  PopupReportDocument, REPORT_CHART_LABELS, REPORT_CHART_GROUPS, REPORT_CHART_DEFAULT_WIDTH, REPORT_CHART_FULL_ONLY,
+  REPORT_LAYOUT_LABELS, isReportChartAvailable,
+} from '@/components/PopupReportDocument'
+import type { PopupReportData, ReportChartType, ReportLayout, ReportSection, SectionWidth } from '@/components/PopupReportDocument'
+import ConfirmDialog from '@/components/ConfirmDialog'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 
@@ -24,6 +28,17 @@ function moveItem<T>(arr: T[], index: number, direction: -1 | 1): T[] {
   return next
 }
 
+// react-pdf(pdfkit) 출력은 페이지 객체 사전이 압축되지 않아 그대로 셀 수 있다 — pdf.js를 띄우지 않고 페이지 수만 얻는다
+async function countPdfPages(blob: Blob): Promise<number> {
+  const text = await blob.text()
+  return (text.match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length
+}
+
+const segBtn = (active: boolean) =>
+  `flex-1 px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer border transition ${
+    active ? 'bg-primary-700 text-white border-primary-700' : 'bg-canvas text-ink-muted border-hairline hover:bg-canvas-soft'
+  }`
+
 // usePDF는 클라이언트 마운트 후에만 안전 — 데이터는 이미 상위(PopupStatsSection)에서 다 불러온 상태라
 // 별도 fetch 없이 곧바로 렌더한다. 제목·본문 구성(차트 섹션 추가/삭제/순서·텍스트 블록)은 여기서 편집해
 // 근로계약서 작성 모달과 동일하게 600ms 디바운스로 라이브 미리보기에 반영한다.
@@ -33,20 +48,14 @@ export default function PopupReportModal({ data, onClose }: Props) {
 
   const [title, setTitle] = useState(data.popupName)
   const [sections, setSections] = useState<ReportSection[]>(data.sections)
+  const [layout, setLayout] = useState<ReportLayout>(data.layout ?? 'compact')
+  const [showInsights, setShowInsights] = useState(data.showInsights ?? true)
 
-  // 실제 매출 데이터가 있는 차트 종류만 "추가" 목록에 노출 — 데이터 없는 차트는 애초에 렌더되지 않는다
-  const chartAvailability: Record<ReportChartType, boolean> = {
-    dailyBar: data.dailySales.length > 0,
-    cumulative: data.dailySales.length > 0,
-    dayOfWeek: data.dayOfWeek.length > 0,
-    hourly: data.hourly.some((h) => h.orderCount > 0 || h.revenue > 0),
-    menuDonut: data.menuBreakdown.some((m) => m.totalRevenue > 0),
-    dailyTable: true,
-    calendar: data.dailySales.length > 0,
-  }
+  // 실제 매출 데이터가 있는 차트 종류만 "추가" 목록에 노출 — PDF 렌더와 같은 기준(isReportChartAvailable)
   const usedChartTypes = new Set(sections.filter((s) => s.kind === 'chart').map((s) => s.chartType))
-  const addableChartTypes = (Object.keys(REPORT_CHART_LABELS) as ReportChartType[])
-    .filter((type) => chartAvailability[type] && !usedChartTypes.has(type))
+  const addableGroups = REPORT_CHART_GROUPS
+    .map((g) => ({ ...g, types: g.types.filter((type) => isReportChartAvailable(type, data) && !usedChartTypes.has(type)) }))
+    .filter((g) => g.types.length > 0)
 
   const addChart = (chartType: ReportChartType) => {
     setSections((prev) => [...prev, { id: crypto.randomUUID(), kind: 'chart', chartType }])
@@ -58,6 +67,14 @@ export default function PopupReportModal({ data, onClose }: Props) {
   const moveSection = (index: number, direction: -1 | 1) => setSections((prev) => moveItem(prev, index, direction))
   const updateTextContent = (id: string, content: string) =>
     setSections((prev) => prev.map((s) => (s.id === id && s.kind === 'text' ? { ...s, content } : s)))
+  const setSectionWidth = (id: string, width: SectionWidth) =>
+    setSections((prev) => prev.map((s) => (s.id === id && s.kind === 'chart' ? { ...s, width } : s)))
+  // 추천 구성은 작성한 텍스트 블록까지 덮어쓴다 — 쓴 내용이 있을 때만 확인을 거친다
+  const [confirmReset, setConfirmReset] = useState(false)
+  const resetToRecommended = () => {
+    if (sections.some((s) => s.kind === 'text' && s.content.trim())) setConfirmReset(true)
+    else setSections(data.sections)
+  }
 
   const [previewData, setPreviewData] = useState<PopupReportData>(data)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -65,11 +82,11 @@ export default function PopupReportModal({ data, onClose }: Props) {
   useEffect(() => {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      setPreviewData({ ...data, popupName: title.trim() || data.popupName, sections })
+      setPreviewData({ ...data, popupName: title.trim() || data.popupName, sections, layout, showInsights })
     }, 600)
     return () => clearTimeout(debounceRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, sections])
+  }, [title, sections, layout, showInsights])
 
   const [displayUrl, setDisplayUrl] = useState<string | null>(null)
   const [instance, updateInstance] = usePDF({ document: <PopupReportDocument {...previewData} /> })
@@ -79,11 +96,19 @@ export default function PopupReportModal({ data, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewData])
 
-  useModalKeyboard({ active: true, onClose, containerRef: panelRef })
+  useModalKeyboard({ active: !confirmReset, onClose, containerRef: panelRef })
 
   useEffect(() => {
     if (!instance.loading && instance.url) setDisplayUrl(instance.url)
   }, [instance.loading, instance.url])
+
+  const [pageCount, setPageCount] = useState<number | null>(null)
+  useEffect(() => {
+    if (instance.loading || !instance.blob) return undefined
+    let cancelled = false
+    countPdfPages(instance.blob).then((n) => { if (!cancelled) setPageCount(n) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [instance.loading, instance.blob])
 
   const fileName = `${previewData.popupName}_매출분석보고서_${data.startDate}_${data.endDate}.pdf`
 
@@ -116,11 +141,33 @@ export default function PopupReportModal({ data, onClose }: Props) {
             </div>
 
             <div>
+              <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">레이아웃</p>
+              <div className="flex gap-1">
+                {(Object.keys(REPORT_LAYOUT_LABELS) as ReportLayout[]).map((key) => (
+                  <button key={key} type="button" onClick={() => setLayout(key)} className={segBtn(layout === key)}>
+                    {REPORT_LAYOUT_LABELS[key]}
+                  </button>
+                ))}
+              </div>
+              <p className="m-0 mt-1 text-[10px] text-ink-faint leading-relaxed">
+                {layout === 'compact' && '반 폭(½) 블록 두 개를 한 줄에 놓고 페이지를 이어서 채웁니다.'}
+                {layout === 'standard' && '모든 블록을 전체 폭으로 이어서 배치합니다.'}
+                {layout === 'onePerPage' && '블록마다 한 페이지를 씁니다 — 발표 자료용.'}
+              </p>
+              <label className="mt-2 flex items-center gap-1.5 text-[11px] text-ink-secondary cursor-pointer">
+                <input type="checkbox" checked={showInsights} onChange={(e) => setShowInsights(e.target.checked)} className="accent-primary-700" />
+                표지에 핵심 인사이트 자동 요약 넣기
+              </label>
+            </div>
+
+            <div>
               <div className="flex items-center justify-between mb-1.5">
                 <p className="m-0 text-[11px] font-bold text-ink-muted uppercase tracking-wide">보고서 구성</p>
-                <span className="text-[10px] text-ink-faint">텍스트는 바로 위 차트 아래에 붙습니다</span>
+                <button type="button" onClick={resetToRecommended} className="bg-transparent border-none p-0 text-[10px] font-semibold text-primary-700 cursor-pointer hover:underline">
+                  추천 구성으로
+                </button>
               </div>
-
+              <p className="m-0 mb-1.5 text-[10px] text-ink-faint">텍스트는 바로 위 차트 카드 안에 이어 붙습니다</p>
               <div className="flex flex-col gap-1.5">
                 {sections.length === 0 && (
                   <p className="m-0 text-[11px] text-ink-faint py-3 text-center border border-dashed border-hairline rounded-lg">
@@ -133,6 +180,20 @@ export default function PopupReportModal({ data, onClose }: Props) {
                       <span className="flex-1 text-[11px] font-semibold text-ink-secondary truncate">
                         {section.kind === 'chart' ? REPORT_CHART_LABELS[section.chartType] : '텍스트 블록'}
                       </span>
+                      {section.kind === 'chart' && layout === 'compact' && !REPORT_CHART_FULL_ONLY.has(section.chartType) && (() => {
+                        const width = section.width ?? REPORT_CHART_DEFAULT_WIDTH[section.chartType]
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setSectionWidth(section.id, width === 'half' ? 'full' : 'half')}
+                            aria-label={width === 'half' ? '전체 폭으로' : '반 폭으로'}
+                            title={width === 'half' ? '반 폭 — 눌러서 전체 폭으로' : '전체 폭 — 눌러서 반 폭으로'}
+                            className="h-5 px-1.5 flex items-center justify-center rounded border border-hairline bg-canvas text-ink-muted text-[10px] font-semibold cursor-pointer hover:bg-canvas-soft"
+                          >
+                            {width === 'half' ? '½' : '전체'}
+                          </button>
+                        )
+                      })()}
                       <button
                         type="button"
                         onClick={() => moveSection(i, -1)}
@@ -182,30 +243,38 @@ export default function PopupReportModal({ data, onClose }: Props) {
                 + 텍스트 블록 추가
               </button>
 
-              {addableChartTypes.length > 0 && (
-                <div className="mt-2">
-                  <p className="m-0 mb-1.5 text-[10px] text-ink-faint">차트 추가</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {addableChartTypes.map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => addChart(type)}
-                        className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer transition"
-                      >
-                        + {REPORT_CHART_LABELS[type]}
-                      </button>
-                    ))}
-                  </div>
+              {addableGroups.length > 0 && (
+                <div className="mt-2 flex flex-col gap-2">
+                  <p className="m-0 text-[10px] text-ink-faint">차트·정보 추가</p>
+                  {addableGroups.map((group) => (
+                    <div key={group.label}>
+                      <p className="m-0 mb-1 text-[10px] font-semibold text-ink-muted">{group.label}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.types.map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => addChart(type)}
+                            className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer transition"
+                          >
+                            + {REPORT_CHART_LABELS[type]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
-            <p className="m-0 text-[10px] text-ink-faint leading-relaxed">수치·그래프는 실제 매출 데이터 기준으로 자동 생성되며 값 자체는 수정할 수 없습니다. 제목, 구성 순서, 텍스트 블록만 편집 가능합니다.</p>
+            <p className="m-0 text-[10px] text-ink-faint leading-relaxed">수치·그래프는 실제 매출 데이터 기준으로 자동 생성되며 값 자체는 수정할 수 없습니다. 제목, 레이아웃, 구성 순서·폭, 텍스트 블록만 편집 가능합니다.</p>
           </div>
 
           <div className="flex-1 min-w-0 min-h-[480px] md:min-h-0 bg-canvas-soft flex flex-col">
-            <div className="px-4 py-2 border-b border-hairline bg-canvas text-[11px] text-ink-muted font-semibold shrink-0">미리보기</div>
+            <div className="px-4 py-2 border-b border-hairline bg-canvas text-[11px] text-ink-muted font-semibold shrink-0 flex items-center justify-between">
+              <span>미리보기</span>
+              {pageCount !== null && <span className="text-ink-faint font-medium">표지 포함 총 {pageCount}페이지</span>}
+            </div>
             <div className="flex-1 min-h-0 relative">
               {instance.error ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 px-6">
@@ -246,6 +315,15 @@ export default function PopupReportModal({ data, onClose }: Props) {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmReset}
+        title="추천 구성으로 되돌릴까요?"
+        description="지금 구성과 작성한 텍스트 블록이 모두 사라지고 기본 추천 구성으로 바뀝니다."
+        confirmLabel="되돌리기"
+        danger
+        onConfirm={() => { setSections(data.sections); setConfirmReset(false) }}
+        onClose={() => setConfirmReset(false)}
+      />
     </div>,
     document.body,
   )

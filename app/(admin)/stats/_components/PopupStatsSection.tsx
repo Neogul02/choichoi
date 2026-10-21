@@ -16,7 +16,8 @@ import PopupPicker from './PopupPicker';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
 import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
-import type { PopupReportData, ReportChartType, ReportSection } from '@/components/PopupReportDocument';
+import { DEFAULT_REPORT_CHARTS, isReportChartAvailable } from '@/components/PopupReportDocument';
+import type { PopupReportData, ReportSection } from '@/components/PopupReportDocument';
 
 const PopupManualEntryModal = dynamic(() => import('./PopupManualEntryModal'), { ssr: false });
 const PopupReportModal = dynamic(() => import('./PopupReportModal'), { ssr: false });
@@ -204,7 +205,7 @@ export default function PopupStatsSection({
     if (!selectedPopup || !period) return null;
     const toRow = (d: DailySalesItem | null) =>
       d ? { date: d.date, dateLabel: formatDateLabel(d.date), day: getDayOfWeekLabel(d.date), revenue: d.revenue, orderCount: d.orderCount } : null;
-    return {
+    const base: PopupReportData = {
       popupName: selectedPopup.name,
       startDate: selectedPopup.start_date,
       endDate: selectedPopup.end_date,
@@ -224,23 +225,24 @@ export default function PopupStatsSection({
       dailySales: dailyChartData.map((d) => ({ date: d.date, dateLabel: d.dateLabel, day: d.day, revenue: d.revenue, orderCount: d.orderCount })),
       dayOfWeek: dayOfWeekData,
       hourly: hourlyData,
+      dayHour: WEEKDAY_ORDER.filter((day) => activeDays.includes(day)).map((day) => ({
+        day,
+        cells: HOURS.map((h) => ({ hour: h, revenue: matrix[day][h].revenue, orderCount: matrix[day][h].orderCount })),
+      })),
       menuBreakdown: [...popupMenuBreakdown].sort((a, b) => b.totalRevenue - a.totalRevenue),
       generatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'long', timeStyle: 'short' }),
-      sections: (
-        [
-          { type: 'dailyBar', include: dailyChartData.length > 0 },
-          { type: 'cumulative', include: dailyChartData.length > 0 },
-          { type: 'dayOfWeek', include: dayOfWeekData.length > 0 },
-          { type: 'hourly', include: hourlyData.some((h) => h.orderCount > 0 || h.revenue > 0) },
-          { type: 'menuDonut', include: popupMenuBreakdown.some((m) => m.totalRevenue > 0) },
-          { type: 'dailyTable', include: true },
-          { type: 'calendar', include: dailyChartData.length > 0 },
-        ] satisfies { type: ReportChartType; include: boolean }[]
-      )
-        .filter((o) => o.include)
-        .map((o) => ({ id: `chart-${o.type}`, kind: 'chart', chartType: o.type }) satisfies ReportSection),
+      layout: 'compact',
+      showInsights: true,
+      sections: [],
     };
-  }, [selectedPopup, period, popupTotalRevenue, popupTotalOrders, derived, dailyChartData, dayOfWeekData, hourlyData, popupMenuBreakdown]);
+    // 데이터가 있는 블록만 기본 구성에 넣는다 — 빈 차트가 편집 목록에 떠 있으면 헷갈린다
+    return {
+      ...base,
+      sections: DEFAULT_REPORT_CHARTS
+        .filter((type) => isReportChartAvailable(type, base))
+        .map((type) => ({ id: `chart-${type}`, kind: 'chart', chartType: type }) satisfies ReportSection),
+    };
+  }, [selectedPopup, period, popupTotalRevenue, popupTotalOrders, derived, dailyChartData, dayOfWeekData, hourlyData, popupMenuBreakdown, matrix, activeDays]);
 
   const dayHourRows = useMemo(
     () =>
