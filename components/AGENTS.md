@@ -24,7 +24,7 @@ props로 내린다. (`NavBar`만 예외적으로 이름 재조회 액션을 호�
 | 파일 | 역할 |
 |---|---|
 | `ContractDocument.tsx` | 표준근로계약서 PDF. **근무시간 계산은 `lib/workhours`를 그대로 쓴다** — 여기서 따로 계산하면 계약서와 급여 금액이 어긋난다 |
-| `PopupReportDocument.tsx` | 팝업 정산 리포트 PDF |
+| `popup-report/` | 팝업 매출 분석 보고서 PDF (`PopupReportDocument.tsx`는 경로 호환용 re-export). 표지 + 흐름(2단) 본문, 차트 18종. **집계는 `lib/reportMetrics.ts`, 행 배치는 `lib/reportLayout.ts`** — 컴포넌트 안에서 숫자를 다시 계산하지 않는다. 블록 추가 시 `types.ts`의 라벨·기본 폭·그룹·`isReportChartAvailable`과 `sections.tsx`의 `renderSection`을 함께 고친다 |
 | `PDFPreviewPanel.tsx` | PDF 미리보기. 브라우저 내장 뷰어(iframe)는 데스크탑에서만 신뢰할 수 있어 화면 폭·포인터 정밀도로 분기한다 |
 | `SignaturePad.tsx` · `WorkerSignModal.tsx` | 근무자 전자서명 |
 
