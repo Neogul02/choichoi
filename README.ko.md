@@ -94,7 +94,7 @@ app/actions/
 
 ### 임시 비밀번호·토큰 인증 → Supabase Auth 단일 시스템 전환
 **결정:** 직원용 env 비밀번호 + localStorage 토큰 방식을 폐기하고, 전 직원·관리자를 Supabase Auth(이메일+비밀번호) 계정으로 통일, `admin > manager > user` 3단계 역할 도입
-**이유:** 기존 방식은 인원이 늘어날수록 비밀번호 공유 운영이 번거롭고, 누가 로그인했는지 서버에서 식별할 수 없었음. Supabase Auth로 전환하면서 역할 원본은 `user_profiles.worker_role`에 두고 로그인 시 `user_metadata.role`로 동기화. 회원가입은 초대 코드로만 제한. 초기 비밀번호를 전화번호로 설정해 별도 안내 비용 없이 온보딩하고, 비밀번호를 잊으면 관리자가 설정 탭에서 초기값으로 즉시 리셋 가능.
+**이유:** 기존 방식은 인원이 늘어날수록 비밀번호 공유 운영이 번거롭고, 누가 로그인했는지 서버에서 식별할 수 없었음. Supabase Auth로 전환하면서 역할 원본은 `user_profiles.worker_role`에 두고 DB 트리거가 같은 트랜잭션에서 Auth `app_metadata.role`에 반영(`user_metadata`와 달리 본인이 바꿀 수 없음). 회원가입은 초대 코드로만 제한. 초기 비밀번호를 전화번호로 설정해 별도 안내 비용 없이 온보딩하고, 비밀번호를 잊으면 관리자가 설정 탭에서 초기값으로 즉시 리셋 가능.
 
 ### Broadcast vs DB Polling
 **결정:** 카트 상태 동기화에 Supabase Realtime Broadcast 사용
@@ -153,8 +153,9 @@ proxy.ts (Next.js 16, middleware.ts 대체 — 동시 생성 시 충돌하므로
 
 app/password-gate.tsx (클라이언트, 전체 페이지 wrap)
   공개 경로 (바이패스): /, /display
-  로그인: supabase.auth.signInWithPassword() → user_profiles.worker_role 조회
-          → user_metadata.role 동기화(admin/manager/user)
+  로그인: supabase.auth.signInWithPassword() → 근무지 접근 확인
+          → admin은 ADMIN_LOGIN_CODE 입력(서버 검증, 세션별 httpOnly 증명 쿠키 —
+            없으면 proxy·서버 액션이 일반 user로 판정)
   회원가입: createWorkerAccount() 서버 액션 — 초대 코드 검증 후
             Auth 계정 생성 + user_profiles INSERT, 초기 비밀번호 = 전화번호
 
@@ -192,7 +193,7 @@ lib/supabase.ts          ← ANON_KEY, 클라이언트 실시간 채널 전용 �
 | **매니저** (manager) | 현장 관리자 | 위 전체 + `/inventory`(편집), `/roster` |
 | **관리자** (admin) | 운영 총괄 | 전체 라우트 + `/stats`, `/hr`, `/settings` |
 
-전 역할이 같은 Supabase Auth 계정 체계를 쓰고, `user_metadata.role`로만 권한이 구분됩니다. 클라이언트에서 읽는 role은 UI 노출 여부 판단에만 쓰이고, 실제 접근 통제는 전적으로 `proxy.ts`와 Server Action 내부 가드가 담당합니다.
+전 역할이 같은 Supabase Auth 계정 체계를 쓰고, JWT의 `app_metadata.role`로만 권한이 구분되며, 판정은 `proxy.ts`와 Server Action이 함께 쓰는 `lib/auth-role.ts` 한 곳에서 합니다. 역할을 `user_metadata`에서 읽으면 안 됩니다 — 로그인한 누구나 브라우저에서 바꿀 수 있습니다. 클라이언트에서 읽는 role은 UI 노출 여부 판단에만 쓰이고, 실제 접근 통제는 전적으로 `proxy.ts`와 Server Action 내부 가드가 담당합니다.
 
 ---
 
@@ -308,10 +309,11 @@ cp .env.example .env
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon 키 | 브라우저 공개 |
 | `SUPABASE_SERVICE_ROLE_KEY` | RLS 우회 admin 키 | **서버 전용** |
 | `SIGNUP_CODE` | 회원가입 시 요구되는 초대 코드 | 서버 전용 |
+| `ADMIN_LOGIN_CODE` | 관리자가 비밀번호 다음에 입력하는 2차 코드. 그 세션에서 입력하기 전까지 proxy·서버 액션은 일반 user로 판정한다. 바꾸면 모든 관리자가 다시 입력해야 한다. 비우면 게이트 끔 | **서버 전용** |
 | `PII_ENCRYPTION_KEY` | 주민등록번호 등 고민감 정보 암호화 키(32바이트, base64) | **서버 전용** |
 | `DISCORD_WEBHOOK_URL` | 로그인/가입/주문 완료/메뉴 순서 변경/권한 변경/직원 탈퇴/비밀번호 초기화/오류 알림 (선택) | 서버 전용 |
 
-관리자 계정은 Supabase 대시보드 → Authentication → Users에서 직접 등록 후 `user_profiles.worker_role`을 `admin`으로 설정합니다.
+관리자 지정은 설정 → 사용자 관리에서 합니다(`app_metadata.role`과 `user_profiles.worker_role`을 함께 씀). 대시보드·SQL로 `user_profiles.worker_role`을 직접 고쳐도 `user_profiles_sync_role` 트리거가 `app_metadata.role`에 반영합니다. 어느 쪽이든 그 사람의 다음 토큰 갱신(최대 1시간) 또는 재로그인부터 적용됩니다. Authentication → Users에서 만든 계정은 `user_profiles` 행이 있어야 역할이 생깁니다.
 
 ---
 

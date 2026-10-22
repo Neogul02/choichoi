@@ -20,8 +20,12 @@ Next.js 16 App Router. 모든 데이터 접근은 **Server Actions**(`app/action
 | `/settings` | `(admin)/settings/` | `(admin)/layout.tsx` — admin |
 | `/attendance` | `attendance/` | `proxy.ts` — admin \| kiosk. **kiosk 계정은 이 경로 밖으로 나가면 proxy가 돌려보낸다** |
 
-인증은 **Supabase Auth**다. 역할은 `session.user.user_metadata.role`에 `admin` / `manager` /
-`user`로 들어 있다. 세션 쿠키 갱신은 `proxy.ts`(미들웨어)가 담당한다.
+인증은 **Supabase Auth**다. 역할은 JWT의 `app_metadata.role`(`admin` / `manager` / `kiosk` / `user`)이고,
+판정은 **`lib/auth-role.ts` 한 곳**에서 한다 — `proxy.ts`와 서버 액션(`getAuthUser`)이 같은 함수를 쓴다.
+`user_metadata`는 본인이 브라우저에서 바꿀 수 있으므로 **역할을 절대 거기서 읽지 않는다**(RLS의
+`auth.jwt()->'user_metadata'`도 마찬가지, `lib/roleSource.test.ts`가 막는다). admin은 이 세션에서 관리자 코드를
+통과해야 admin으로 판정된다. `app_metadata.role`은 DB 트리거가 `user_profiles.worker_role`과 맞춘다.
+세션 쿠키 갱신은 `proxy.ts`(미들웨어)가 담당한다.
 `PasswordGate`는 이름이 옛날 그대로지만 실제로는 Supabase 로그인·회원가입 화면이다
 (SHA256 비밀번호 토큰 방식은 폐기됐다). 레이아웃에 상주해 **라우트 전환 시 리마운트되지 않으므로**
 `pathname`을 effect 의존성에 넣어야 한다 — 빠뜨리면 경로가 바뀌어도 게이트 상태가 갱신되지 않는다.

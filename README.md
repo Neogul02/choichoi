@@ -94,7 +94,7 @@ app/actions/
 
 ### Migrating from a temporary password/token scheme to a unified Supabase Auth system
 **Decision:** Retire the env-based staff password + localStorage token scheme in favor of unifying all staff and admins under Supabase Auth (email + password) accounts, introducing a 3-tier role system (`admin > manager > user`).
-**Why:** The old scheme became more cumbersome to operate as headcount grew (shared passwords), and the server had no way to identify who was actually logged in. After the switch to Supabase Auth, the source of truth for roles lives in `user_profiles.worker_role` and is synced to `user_metadata.role` on login. Signup is gated by invite code only. Initial passwords are set to the worker's phone number so onboarding requires no separate instructions, and if forgotten, an admin can instantly reset it to that default from the Settings tab.
+**Why:** The old scheme became more cumbersome to operate as headcount grew (shared passwords), and the server had no way to identify who was actually logged in. After the switch to Supabase Auth, the source of truth for roles lives in `user_profiles.worker_role` and a database trigger mirrors it into the Auth `app_metadata.role` claim in the same transaction (users cannot edit `app_metadata`, unlike `user_metadata`). Signup is gated by invite code only. Initial passwords are set to the worker's phone number so onboarding requires no separate instructions, and if forgotten, an admin can instantly reset it to that default from the Settings tab.
 
 ### Broadcast vs DB polling
 **Decision:** Use Supabase Realtime Broadcast for cart state synchronization.
@@ -155,8 +155,9 @@ proxy.ts (Next.js 16, replaces middleware.ts — creating both causes a conflict
 
 app/password-gate.tsx (client, wraps the whole app)
   Public paths (bypassed): /, /display
-  Login: supabase.auth.signInWithPassword() → looks up user_profiles.worker_role
-         → syncs to user_metadata.role (admin/manager/user)
+  Login: supabase.auth.signInWithPassword() → popup-access check
+         → admins must enter ADMIN_LOGIN_CODE (verified server-side, stored as an
+           httpOnly per-session proof cookie; without it proxy/actions treat them as user)
   Signup: createWorkerAccount() Server Action — after invite-code verification,
           creates the Auth account + inserts into user_profiles; initial
           password = phone number
@@ -197,7 +198,7 @@ lib/supabase.ts          ← ANON_KEY, dedicated singleton for client realtime c
 | **Manager** | On-site manager | All of the above + `/inventory` (edit), `/roster` |
 | **Admin** | Overall operations lead | All routes + `/stats`, `/hr`, `/settings` |
 
-All roles share the same Supabase Auth account system; permissions are distinguished solely by `user_metadata.role`. The role read on the client is only used to decide what to show in the UI — actual access control is entirely enforced by `proxy.ts` and the in-action guards in Server Actions.
+All roles share the same Supabase Auth account system; permissions are distinguished solely by the `app_metadata.role` JWT claim, evaluated in one place (`lib/auth-role.ts`) by both `proxy.ts` and Server Actions. Never read the role from `user_metadata` — any logged-in user can rewrite it from the browser. The role read on the client is only used to decide what to show in the UI — actual access control is entirely enforced by `proxy.ts` and the in-action guards in Server Actions.
 
 ---
 
@@ -313,10 +314,11 @@ cp .env.example .env
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key | Public (browser) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin key that bypasses RLS | **Server only** |
 | `SIGNUP_CODE` | Invite code required for signup | Server only |
+| `ADMIN_LOGIN_CODE` | Second code admins must enter after their password; proxy and Server Actions treat an admin as a regular user until it is entered in that session. Changing it signs every admin out of admin rights. Empty = gate off | **Server only** |
 | `PII_ENCRYPTION_KEY` | Encryption key for highly sensitive data such as national ID numbers (32 bytes, base64) | **Server only** |
 | `DISCORD_WEBHOOK_URL` | Notifications for login / signup / order completion / menu reorder / role change / staff removal / password reset / action-failure alerts (optional) | Server only |
 
-Register admin accounts directly in the Supabase dashboard under Authentication → Users, then set `user_profiles.worker_role` to `admin`.
+To make someone an admin, use Settings → user management (it writes both `app_metadata.role` and `user_profiles.worker_role`). If you edit `user_profiles.worker_role` directly in the dashboard/SQL instead, the `user_profiles_sync_role` trigger copies it into `app_metadata.role`; either way the change takes effect on the user's next token refresh (≤ 1 hour) or re-login. Accounts created in Authentication → Users need a `user_profiles` row before they get any role.
 
 ---
 

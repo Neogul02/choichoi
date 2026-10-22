@@ -31,14 +31,20 @@ type View = 'login' | 'signup' | 'admin-code'
 export interface GateInitial {
   checked: boolean
   authed: boolean
+  /** 로그인된 admin 세션이 관리자 코드를 아직 통과하지 않았다(코드 도입 전 세션, 쿠키 삭제 등) */
+  adminCodePending?: boolean
 }
+
+type AuthUser = { id: string; user_metadata?: { name?: string }; app_metadata?: Record<string, unknown> }
 
 export default function PasswordGate({ children, initial }: { children: React.ReactNode; initial?: GateInitial }) {
   const pathname = usePathname()
 
   const [checked, setChecked] = useState(initial?.checked ?? false)
   const [isAuthed, setIsAuthed] = useState(initial?.authed ?? false)
-  const [view, setView] = useState<View>('login')
+  const [view, setView] = useState<View>(initial?.adminCodePending ? 'admin-code' : 'login')
+  // 이미 로그인된 세션의 관리자 코드 재확인 — 통과하면 로그인 후처리 없이 화면만 다시 연다
+  const resumingAdminCode = useRef(!!initial?.adminCodePending)
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>([])
   const [selectedPopupId, setSelectedPopupId] = useState<number | 'kitchen' | ''>('')
 
@@ -64,7 +70,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
   const [isSubmitting, setIsSubmitting] = useState(false)
   // 관리자 2차 코드 단계 — 로그인은 통과했지만 아직 화면을 열어주지 않은 상태의 보류 정보
   const [adminCode, setAdminCode] = useState('')
-  const [pendingAuth, setPendingAuth] = useState<{ user: { id: string; user_metadata?: { name?: string } }; email: string } | null>(null)
+  const [pendingAuth, setPendingAuth] = useState<{ user: AuthUser; email: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const loginPasswordRef = useRef<HTMLInputElement>(null)
   const signupEmailRef = useRef<HTMLInputElement>(null)
@@ -106,10 +112,11 @@ export default function PasswordGate({ children, initial }: { children: React.Re
     // 낙관적 렌더: 이전 로그인 흔적(근무지 선택 기록)이 있으면 화면을 먼저 보여주고 세션은 뒤에서 검증
     // — 검증 실패 시 아래 checkAuth가 로그인 화면으로 되돌린다
     try {
-      if (localStorage.getItem(POPUP_ID_KEY)) { setIsAuthed(true); setChecked(true) }
+      if (localStorage.getItem(POPUP_ID_KEY) && !resumingAdminCode.current) { setIsAuthed(true); setChecked(true) }
     } catch { /* ignore */ }
 
     const checkAuth = async () => {
+      if (resumingAdminCode.current) return
       // getSession()은 저장된 세션을 로컬에서 읽어 네트워크 왕복 없이 판정한다 (만료 시에만 갱신 요청)
       // 실제 권한 검증은 proxy.ts와 서버 액션이 담당하므로 이 게이트는 UX용 판정으로 충분
       const { data: { session } } = await supabase.auth.getSession()
@@ -134,21 +141,23 @@ export default function PasswordGate({ children, initial }: { children: React.Re
 
   // 로그인 성공(비밀번호 로그인 또는 회원가입 직후 자동 로그인) 후 공통 후처리.
   // 권한은 서버가 app_metadata.role에 기록한다(setUserRole·createWorkerAccount) — 여기서는 이름만 동기화한다.
-  const finishAuth = async (user: { id: string; user_metadata?: { name?: string } }, email: string) => {
+  const finishAuth = async (user: AuthUser, email: string) => {
     const supabase = createSupabaseBrowserClient()
 
-    // user_profiles에서 이름 + role 조회 — localStorage 기록(캐셔 이름 등)에 필요하므로 이것만 기다린다
+    // user_profiles에서 이름 조회 — localStorage 기록(캐셔 이름 등)에 필요하므로 이것만 기다린다
     const { data: profile } = await withTimeout(
-      Promise.resolve(supabase.from('user_profiles').select('name, worker_role').eq('id', user.id).maybeSingle()),
+      Promise.resolve(supabase.from('user_profiles').select('name').eq('id', user.id).maybeSingle()),
       8000,
       '프로필 조회',
     )
 
-    // kiosk는 주방 출근부 전용 계정(UserAppRole에 넣지 않은 별도 역할) — 'user'로 뭉개면 proxy가 출근부를 막는다
+    // 역할은 서버 권한 판단과 같은 출처(app_metadata.role, 로그인 응답의 user에 실려 온다)에서 읽는다 — 화면 캐시용.
+    // kiosk는 주방 출근부 전용 계정(UserAppRole에 넣지 않은 별도 역할) — 'user'로 뭉개면 출근부로 보내지 못한다
+    const appRole = user.app_metadata?.role
     const syncedRole =
-      profile?.worker_role === 'admin' ? 'admin' :
-      profile?.worker_role === 'manager' ? 'manager' :
-      profile?.worker_role === 'kiosk' ? 'kiosk' : 'user'
+      appRole === 'admin' ? 'admin' :
+      appRole === 'manager' ? 'manager' :
+      appRole === 'kiosk' ? 'kiosk' : 'user'
     // 이름 동기화는 백그라운드로 — 실패해도 로그인을 막지 않는다
     supabase.auth.updateUser({
       data: { name: profile?.name ?? user.user_metadata?.name },
@@ -241,7 +250,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
         setError(gate.error ?? '관리자 확인에 실패했습니다. 다시 시도해주세요.')
         return
       }
-      if (gate.data.required) {
+      if (gate.data.required && !gate.data.verified) {
         setPendingAuth({ user: data.user, email: resolved.data.email })
         setAdminCode('')
         setError('')
@@ -259,7 +268,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
 
   const onAdminCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!pendingAuth) { setView('login'); return }
+    if (!pendingAuth && !resumingAdminCode.current) { setView('login'); return }
     if (!adminCode.trim()) { setError('관리자 코드를 입력해주세요.'); return }
     setError('')
     setIsSubmitting(true)
@@ -267,6 +276,11 @@ export default function PasswordGate({ children, initial }: { children: React.Re
       const r = await withTimeout(checkAdminLoginCode(adminCode), 8000, '관리자 코드 확인')
       if (!r.success || !r.data?.verified) {
         setError(r.error ?? '관리자 코드가 올바르지 않습니다.')
+        return
+      }
+      if (!pendingAuth) {
+        // 기존 세션 재확인 — 서버가 그린 화면(관리자 메뉴 등)을 코드 쿠키 기준으로 다시 받는다
+        window.location.reload()
         return
       }
       await finishAuth(pendingAuth.user, pendingAuth.email)
@@ -282,6 +296,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
   // 코드를 포기하면 세션을 남겨두지 않는다 — 남겨두면 다음 방문 때 코드 없이 들어올 여지가 생긴다
   const onAdminCodeCancel = async () => {
     setPendingAuth(null)
+    resumingAdminCode.current = false
     setAdminCode('')
     setError('')
     setView('login')
