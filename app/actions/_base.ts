@@ -1,4 +1,6 @@
 import { after } from 'next/server';
+import { cookies } from 'next/headers';
+import { ADMIN_CODE_COOKIE, claimedRole, isAdminCodePending } from '@/lib/auth-role';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { reportError } from '@/lib/error-report';
 import type { ApiResponse } from '@/types/api';
@@ -56,10 +58,17 @@ export async function wrap<T>(fn: () => Promise<T>): Promise<ApiResponse<T>> {
 
 // getClaims()는 비대칭 키(ES256) 프로젝트에서 JWT를 로컬 검증한다
 // — getUser()의 매 호출 Auth 서버 왕복을 제거. 세션이 없거나 서명이 유효하지 않으면 null.
+// 역할 판정 규칙(app_metadata만, admin은 2차 코드 통과 필요)은 lib/auth-role.ts — proxy.ts와 공유한다.
 export async function getAuthUser(): Promise<{
   id: string;
   email: string | null;
+  /** 권한 판단용 역할. 2차 코드를 통과하지 않은 admin은 null(일반 user) */
   role: string | null;
+  /** 계정에 부여된 역할(2차 코드 반영 전) — 권한 판단에 쓰지 말 것. 로그인 단계의 근무지 판정 등에만 */
+  accountRole: string | null;
+  /** 이 세션이 admin 계정인데 2차 코드를 아직 통과하지 않았다 — 로그인 화면이 코드를 다시 묻는 데 쓴다 */
+  adminCodePending: boolean;
+  sessionId: string | null;
   name: string | null;
   user_metadata: Record<string, unknown>;
 } | null> {
@@ -68,13 +77,14 @@ export async function getAuthUser(): Promise<{
   const claims = data?.claims;
   if (!claims?.sub) return null;
   const meta = (claims.user_metadata ?? {}) as Record<string, unknown>;
-  // 역할은 서버만 쓸 수 있는 app_metadata에서만 읽는다 — user_metadata는 본인이 브라우저에서 updateUser()로
-  // 바꿀 수 있어 거기서 읽으면 직원 누구나 admin이 된다. 역할이 없는 토큰은 null(일반 user)로 취급한다.
-  const appMeta = (claims.app_metadata ?? {}) as Record<string, unknown>;
+  const adminCodePending = await isAdminCodePending(claims, (await cookies()).get(ADMIN_CODE_COOKIE)?.value);
   return {
     id: claims.sub,
     email: (claims.email as string | undefined) ?? null,
-    role: (appMeta.role as string | undefined) ?? null,
+    role: adminCodePending ? null : claimedRole(claims),
+    accountRole: claimedRole(claims),
+    adminCodePending,
+    sessionId: (claims.session_id as string | undefined) ?? null,
     name: (meta.name as string | undefined) ?? null,
     user_metadata: meta,
   };

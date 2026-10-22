@@ -6,7 +6,7 @@ Server Actions(`app/actions/`)로 한다.
 과거에 있었던 것들과 없어진 이유:
 
 - `POST /api/auth/*` — 캐셔·관리자 비밀번호를 SHA256으로 토큰화하던 방식. **Supabase Auth로
-  교체**되면서 삭제됐다. 역할은 `session.user.user_metadata.role`에 있고 세션 쿠키 갱신은
+  교체**되면서 삭제됐다. 역할은 JWT `app_metadata.role`(판정은 `lib/auth-role.ts`)에 있고 세션 쿠키 갱신은
   `proxy.ts`(미들웨어)가 처리한다.
 - `GET /api/cron/daily-schedule` — 익일 근무 배정을 디스코드로 보내던 Vercel Cron.
   알림을 핵심만 남기는 정리 과정에서 삭제됐고, `vercel.json`의 `crons` 설정도 함께 비웠다.

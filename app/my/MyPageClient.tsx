@@ -76,7 +76,8 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
   const [profile, setProfile] = useState<UserProfile | null>(initial?.profile ?? null)
   const [authName, setAuthName] = useState<string | null>(null)
   const [authEmail, setAuthEmail] = useState<string | null>(null)
-  const [isAdmin, setIsAdmin] = useState(initial?.profile?.worker_role === 'admin')
+  // 사용자 선택기 노출 여부 — 서버 권한 판단과 같은 출처(app_metadata.role). 실제 조회 권한은 서버 액션이 건다
+  const [isAdmin, setIsAdmin] = useState(false)
   const [stats, setStats] = useState<MyOrderStats | null>(initial?.stats ?? null)
   // 0번 탭은 팝업이 2개 이상일 때 자동으로 붙는 "전체" 합산 탭 — 기본 선택
   const [activePopupIdx, setActivePopupIdx] = useState(0)
@@ -141,8 +142,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
         setAuthEmail(user.email ?? null)
         setOwnUserId(user.id)
         setViewingUserId(user.id)
-        // 프리페치된 profile.worker_role이 우선 — 없을 때만 메타데이터로 판정
-        if (initial?.profile == null) setIsAdmin(user.app_metadata?.role === 'admin')
+        setIsAdmin(user.app_metadata?.role === 'admin')
       }
       if (initial != null) return // 서버 프리페치 성공 시 마운트 조회 생략
       const [profileRes, statsRes, contractsRes, rosterRes, hoursRes] = await Promise.all([
@@ -154,7 +154,6 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
       ])
       if (profileRes.success && profileRes.data) {
         setProfile(profileRes.data)
-        setIsAdmin(profileRes.data.worker_role === 'admin')
       }
       if (statsRes.success && statsRes.data) {
         setStats(statsRes.data)

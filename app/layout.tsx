@@ -6,7 +6,7 @@ import './globals.css';
 import Providers from './providers';
 import { cookies } from 'next/headers';
 import PasswordGate, { type GateInitial } from './password-gate';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { getAuthUser } from '@/app/actions/_base';
 import { POPUP_ID_KEY } from '@/lib/storage-keys';
 
 export const metadata: Metadata = {
@@ -30,9 +30,10 @@ export const viewport: Viewport = {
 // 로그인 게이트의 첫 렌더를 서버에서 정한다(password-gate.tsx GateInitial 참고).
 // getClaims()는 JWT를 로컬 검증해 네트워크 왕복이 없다. 판정은 화면 표시용일 뿐이고 권한은 proxy.ts가 건다.
 async function getGateInitial(): Promise<GateInitial> {
-  const [supabase, cookieStore] = await Promise.all([createSupabaseServerClient(), cookies()]);
-  const { data } = await supabase.auth.getClaims();
-  if (!data?.claims?.sub) return { checked: true, authed: false };
+  const [user, cookieStore] = await Promise.all([getAuthUser(), cookies()]);
+  if (!user) return { checked: true, authed: false };
+  // 세션은 있지만 이 세션에서 관리자 코드를 통과하지 않았다 — 서버는 일반 user로 보므로 코드부터 다시 묻는다
+  if (user.adminCodePending) return { checked: true, authed: false, adminCodePending: true };
   if (!cookieStore.get(POPUP_ID_KEY)?.value) return { checked: false, authed: false };
   return { checked: true, authed: true };
 }
