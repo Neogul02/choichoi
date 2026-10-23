@@ -5,7 +5,7 @@ import { formatBankAccountInput, isValidBankAccount, normalizeBankAccount, BANK_
 import { usePathname } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { fetchActivePopupEvents } from '@/app/actions/schedule'
-import { createWorkerAccount, resolveLoginEmail, checkAdminLoginCode, checkPopupAccess } from '@/app/actions/workers'
+import { createWorkerAccount, resolveLoginEmail, checkAdminLoginCode, checkPopupAccess, updateMyProfile } from '@/app/actions/workers'
 import { isValidResidentRegistrationNumber } from '@/lib/resident-id'
 import { formatPhoneInput, isValidKoreanPhone, normalizePhone } from '@/lib/phone'
 import { notifyLoginEvent } from '@/app/actions/discord'
@@ -333,22 +333,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
       return
     }
 
-    // 보건증 업로드 (선택, 클라이언트 스토리지)
     const supabase = createSupabaseBrowserClient()
-    if (signupHealthCert && result.data?.userId) {
-      const ext = signupHealthCert.name.split('.').pop()
-      const path = `${result.data.userId}/health_cert.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('health-certs')
-        .upload(path, signupHealthCert, { upsert: true })
-      if (uploadError) {
-        console.error('[signup] 보건증 업로드 실패:', uploadError.message)
-      } else {
-        const { data: urlData } = supabase.storage.from('health-certs').getPublicUrl(path)
-        await supabase.from('user_profiles').update({ health_cert_url: urlData.publicUrl }).eq('id', result.data.userId)
-      }
-    }
-
     // 가입 직후 자동 로그인 (방금 만든 계정 이메일 + 초기 비밀번호로 즉시 세션 발급)
     const { data, error: authError } = await withTimeout(
       supabase.auth.signInWithPassword({ email, password }),
@@ -360,12 +345,26 @@ export default function PasswordGate({ children, initial }: { children: React.Re
 
     if (authError || !data.user) {
       // 자동 로그인만 실패한 경우 — 계정은 이미 생성됐으므로 로그인 화면으로 안내
-      setInfo(`가입 완료! 초기 비밀번호는 전화번호(${password})입니다. 로그인해주세요.`)
+      setInfo(`가입 완료! 초기 비밀번호는 전화번호(${password})입니다. 로그인해주세요.${signupHealthCert ? ' 보건증은 로그인 후 마이페이지에서 올려주세요.' : ''}`)
       setView('login')
       setSignupName(''); setSignupEmail(''); setSignupPhone('')
       setSignupBankName(''); setSignupBankAccount(''); setSignupResidentFront(''); setSignupResidentBack('')
       setSignupHealthCert(null); setSignupInviteCode(''); setSignupConsent(false)
       return
+    }
+
+    // 보건증은 로그인 세션이 생긴 뒤에 올린다 — 버킷 정책이 본인(auth.uid()) 폴더 업로드만 허용하고, 프로필 기록도
+    // 본인 수정 서버 액션으로만 된다. 가입 직후(비로그인)에 올리던 때는 업로드·URL 기록이 둘 다 조용히 실패했다.
+    if (signupHealthCert) {
+      const ext = signupHealthCert.name.split('.').pop()
+      const path = `${data.user.id}/health_cert.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('health-certs')
+        .upload(path, signupHealthCert, { upsert: true })
+      const saved = uploadError
+        ? { success: false, error: uploadError.message }
+        : await updateMyProfile({ healthCertUrl: supabase.storage.from('health-certs').getPublicUrl(path).data.publicUrl })
+      if (!saved.success) console.error('[signup] 보건증 저장 실패:', saved.error)
     }
 
     await finishAuth(data.user, email)
