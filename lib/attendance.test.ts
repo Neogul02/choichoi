@@ -24,36 +24,24 @@ describe('KST 변환', () => {
 })
 
 describe('resolveClockOutTimes', () => {
-  const base = { workDate: '2026-10-14', plannedStart: '10:00' }
-
-  it('계획보다 일찍 출근하면 계획 시작부터 인정한다', () => {
-    expect(resolveClockOutTimes({ ...base, clockInMs: at('2026-10-14', '09:48:12'), clockOutMs: at('2026-10-14', '20:37:40') }))
-      .toEqual({ ok: true, startTime: '10:00', endTime: '20:37' })
+  it('계획보다 일찍 출근해도 실제 출근 시각부터 기록한다 — 06:56 출근이 10:00으로 덮이던 문제', () => {
+    expect(resolveClockOutTimes({ clockInMs: at('2026-10-23', '06:56:06'), clockOutMs: at('2026-10-23', '18:21:40') }))
+      .toEqual({ ok: true, startTime: '06:56', endTime: '18:21' })
   })
 
   it('늦게 출근하면 실제 출근 시각부터', () => {
-    expect(resolveClockOutTimes({ ...base, clockInMs: at('2026-10-14', '10:12:40'), clockOutMs: at('2026-10-14', '18:00:00') }))
+    expect(resolveClockOutTimes({ clockInMs: at('2026-10-14', '10:12:40'), clockOutMs: at('2026-10-14', '18:00:00') }))
       .toEqual({ ok: true, startTime: '10:12', endTime: '18:00' })
   })
 
   it('자정을 넘긴 퇴근은 익일 시각으로 기록된다', () => {
-    expect(resolveClockOutTimes({ workDate: '2026-10-14', plannedStart: '15:00', clockInMs: at('2026-10-14', '14:55:00'), clockOutMs: at('2026-10-15', '00:30:00') }))
-      .toEqual({ ok: true, startTime: '15:00', endTime: '00:30' })
-  })
-
-  it('계획 시작 전에 퇴근하면 거부한다 — 그대로 쓰면 24시간 근무로 계산된다', () => {
-    expect(resolveClockOutTimes({ ...base, clockInMs: at('2026-10-14', '09:48:00'), clockOutMs: at('2026-10-14', '09:55:00') }))
-      .toEqual({ ok: false, reason: 'before_start', payStartTime: '10:00' })
+    expect(resolveClockOutTimes({ clockInMs: at('2026-10-14', '14:55:00'), clockOutMs: at('2026-10-15', '00:30:00') }))
+      .toEqual({ ok: true, startTime: '14:55', endTime: '00:30' })
   })
 
   it('같은 분 안에 퇴근하면 거부한다 — 10:12~10:12는 24시간으로 읽힌다', () => {
-    const r = resolveClockOutTimes({ ...base, clockInMs: at('2026-10-14', '10:12:05'), clockOutMs: at('2026-10-14', '10:12:50') })
-    expect(r.ok).toBe(false)
-  })
-
-  it('계획이 없으면 실제 출근 시각부터', () => {
-    expect(resolveClockOutTimes({ workDate: '2026-10-14', plannedStart: null, clockInMs: at('2026-10-14', '09:48:00'), clockOutMs: at('2026-10-14', '17:00:00') }))
-      .toEqual({ ok: true, startTime: '09:48', endTime: '17:00' })
+    expect(resolveClockOutTimes({ clockInMs: at('2026-10-14', '10:12:05'), clockOutMs: at('2026-10-14', '10:12:50') }))
+      .toEqual({ ok: false, reason: 'too_short', startTime: '10:12' })
   })
 })
 
