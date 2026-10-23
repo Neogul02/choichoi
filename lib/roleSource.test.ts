@@ -8,7 +8,7 @@ import path from 'node:path'
 // 이 테스트는 user_metadata에서 role을 읽거나 쓰는 코드가 다시 들어오면 실패한다.
 
 const ROOT = path.resolve(__dirname, '..')
-const SCAN_DIRS = ['app', 'components', 'lib', 'hooks', 'types']
+const SCAN_DIRS = ['app', 'components', 'lib', 'hooks', 'types', 'supabase/migrations', 'supabase/pending', 'scripts']
 const ROOT_FILES = ['proxy.ts', 'middleware.ts']
 
 function sourceFiles(dir: string): string[] {
@@ -17,7 +17,7 @@ function sourceFiles(dir: string): string[] {
   return entries.flatMap(name => {
     const full = path.join(dir, name)
     if (statSync(full).isDirectory()) return sourceFiles(full)
-    return /\.(ts|tsx)$/.test(name) && !name.endsWith('.test.ts') ? [full] : []
+    return /\.(ts|tsx|mjs|js|sql)$/.test(name) && !name.endsWith('.test.ts') ? [full] : []
   })
 }
 
@@ -27,9 +27,12 @@ const FORBIDDEN = [
   /user_metadata\s*\??\.\s*role\b/,
   /user_metadata\s*\??\.?\s*\[\s*['"]role['"]\s*\]/,
   /user_metadata\s+as\s+[^)]*\)\s*\??\.\s*role\b/,
-  /user_metadata\s*:\s*\{[^}]*\brole\s*:/,
-  /\bdata\s*:\s*\{[^}]*\brole\s*:/, // auth.updateUser({ data: { role } }) — 본인 쓰기
+  /user_metadata\s*:\s*\{[^}]*\brole\b/, // { ...meta, role } 같은 축약·spread 쓰기 포함
+  /\bdata\s*:\s*\{[^}]*\brole\b/, // auth.updateUser({ data: { role } }) — 본인 쓰기
+  /user_metadata'?\s*->>?\s*'role'/, // SQL·RLS: auth.jwt()->'user_metadata'->>'role'
 ]
+// 변수를 거친 읽기(const meta = claims.user_metadata; meta.role)는 정규식으로 못 잡는다 —
+// 그 경로는 lib/auth-role.test.ts가 getAuthUser에 위조 클레임을 넣어 동작으로 검사한다.
 
 describe('권한 역할 출처', () => {
   const files = [
@@ -50,8 +53,9 @@ describe('권한 역할 출처', () => {
     expect(hits).toEqual([])
   })
 
-  it('proxy.ts와 getAuthUser는 app_metadata에서 역할을 읽는다', () => {
-    expect(readFileSync(path.join(ROOT, 'proxy.ts'), 'utf8')).toMatch(/app_metadata[^\n]*\)\s*\??\.\s*role/)
-    expect(readFileSync(path.join(ROOT, 'app/actions/_base.ts'), 'utf8')).toMatch(/appMeta\.role/)
+  it('proxy.ts와 getAuthUser는 lib/auth-role.ts로 역할을 판정한다', () => {
+    // 판정 규칙은 lib/auth-role.ts 한 곳 — 화면(proxy)과 액션(getAuthUser)이 각자 판정하면 서로 어긋난다
+    expect(readFileSync(path.join(ROOT, 'proxy.ts'), 'utf8')).toMatch(/effectiveRole\(/)
+    expect(readFileSync(path.join(ROOT, 'app/actions/_base.ts'), 'utf8')).toMatch(/isAdminCodePending\(/)
   })
 })

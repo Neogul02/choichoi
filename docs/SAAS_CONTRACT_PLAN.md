@@ -27,7 +27,9 @@ expand는 contract를 시작하는 날 같이 적용한다. 혼자 먼저 적용
 
 다른 사업장이 들어오기 전에 고쳐야 한다. 사실 사업장이 하나인 지금도 고쳐야 한다.
 
-- [x] (2026-10-18 수정 — `app_metadata.role`로 이전, 백필 불일치 0) **권한을 `user_metadata.role`로 판단한다.** `proxy.ts`, `_base.ts`의 `getAuthUser`·`requireAdmin`,
+- [x] (2026-10-18 수정 — 백필은 22:55 KST, 7ea8ccb 배포 직전 적용. 역할별 전/후 admin 2·kiosk 1·user 44 동일,
+  불일치 0. 10-21 재백필도 같은 결과. 재발 방지로 `worker_role` → `app_metadata.role`
+  동기화 트리거(`supabase/pending/05_role_sync_trigger.sql`)와 판정 일원화(`lib/auth-role.ts`)) **권한을 `user_metadata.role`로 판단한다.** `proxy.ts`, `_base.ts`의 `getAuthUser`·`requireAdmin`,
   `roster-view.ts`가 JWT의 `user_metadata.role`을 믿는다. `user_metadata`는 **로그인한 사용자가 브라우저에서
   `supabase.auth.updateUser({ data: { role: 'admin' } })`로 직접 바꿀 수 있는 값**이다(Supabase 문서가
   권한 판단에 쓰지 말라고 명시). 직원 계정 하나로 관리자 화면·급여·인사 데이터에 접근할 수 있다.
@@ -37,6 +39,10 @@ expand는 contract를 시작하는 날 같이 적용한다. 혼자 먼저 적용
 - [x] (2026-10-18 수정 — `users_update_own`·`users_insert_own` 삭제, `20261018135538`) **`user_profiles`의 `users_update_own` 정책에 컬럼 제한이 없다.** 본인 행이면 `worker_role`까지 REST로
   고칠 수 있다(`workers.ts`가 일부 판단에 `worker_role`을 쓴다). 본인 수정은 서버 액션으로만 하게 하고
   정책을 지우거나, 수정 가능한 컬럼을 트리거로 제한한다.
+- [x] (관리자 2차 코드를 서버에서 강제 — `lib/auth-role.ts`) **관리자 코드(`ADMIN_LOGIN_CODE`)를 로그인 화면만 확인했다.**
+  `signInWithPassword`가 이미 admin 세션을 발급한 뒤 코드를 물어서, 비밀번호만 알면 그 쿠키로 `/hr`·서버 액션
+  (주민번호 복호화 포함)에 바로 들어갈 수 있었다. 이제 코드 통과 증명(사용자·세션에 묶인 HMAC, httpOnly 쿠키)이
+  없으면 proxy와 `getAuthUser`가 일반 user로 본다. 코드 시도 횟수 제한은 아직 없다.
 - [ ] **anon(비로그인) 읽기 정책 `using (true)`**: `orders`, `menu_items`, `memos`. anon 키는 브라우저에 공개돼
   있어 **누구나 REST로 전체 주문(매출)을 읽을 수 있다.** 실시간 구독 때문에 열어 둔 것으로 보인다.
   → 구독을 로그인 세션(authenticated)으로 하게 하고 정책을 `authenticated` + 사업장 조건으로 좁힌다(4단계).

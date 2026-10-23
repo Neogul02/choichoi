@@ -1,11 +1,13 @@
 'use server'
 
 import { after } from 'next/server'
+import { cookies } from 'next/headers'
 
 // 파일명은 레거시 workers 테이블(2026-07-20 삭제, 코드 참조 0건 확인 후 제거)에서 유래.
 // 실제로는 user_profiles 기반 계정 관리 액션 — staff_profiles(근무자 프로필)와는 별개.
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, wrap } from './_base'
+import { ADMIN_CODE_COOKIE, adminCodeProof } from '@/lib/auth-role'
 import { utcToKstDateStr } from '@/lib/date'
 import { encryptResidentId, decryptResidentId } from '@/lib/pii-crypto'
 import { isValidResidentRegistrationNumber, maskResidentId } from '@/lib/resident-id'
@@ -363,12 +365,8 @@ export async function checkPopupAccess(
     // 출근부 키오스크 계정은 주방 아이패드 전용 — 팝업 POS로 들어가 결제를 칠 이유가 없다
     if (user.role === 'kiosk') return { success: false, error: '출근부 계정은 근무지를 "주방"으로 선택해 로그인하세요.' }
 
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('worker_role')
-      .eq('id', user.id)
-      .maybeSingle()
-    if (profile?.worker_role === 'admin' || profile?.worker_role === 'manager') {
+    // 2차 코드는 이 판정 다음 단계라 아직 통과 전일 수 있다 — 근무지 판정은 계정 역할로 한다(권한 부여가 아님)
+    if (user.accountRole === 'admin' || user.accountRole === 'manager') {
       return { success: true, data: { allowed: true } }
     }
 
@@ -422,18 +420,24 @@ export async function checkAdminLoginCode(
     const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('worker_role')
-      .eq('id', user.id)
-      .maybeSingle()
-
+    // 역할은 권한 판단과 같은 출처(app_metadata.role)로 — user_profiles.worker_role을 보면 둘이 어긋났을 때
+    // 실제 admin은 코드 없이 들어오고 admin이 아닌 사람에게 코드를 묻는다
     const expected = process.env.ADMIN_LOGIN_CODE?.trim()
-    const isAdmin = profile?.worker_role === 'admin'
-    if (!isAdmin || !expected) return { success: true, data: { required: false, verified: true } }
+    if (user.accountRole !== 'admin' || !expected) return { success: true, data: { required: false, verified: true } }
 
-    if (code == null) return { success: true, data: { required: true, verified: false } }
+    if (code == null) return { success: true, data: { required: true, verified: !user.adminCodePending } }
     if (code.trim() !== expected) return { success: false, error: '관리자 코드가 올바르지 않습니다.' }
+
+    // 통과 증명을 httpOnly 쿠키로 — proxy.ts와 getAuthUser가 이 쿠키가 있어야 admin으로 본다(lib/auth-role.ts)
+    const proof = user.sessionId ? await adminCodeProof(user.id, user.sessionId) : null
+    if (!proof) return { success: false, error: '세션 정보를 확인할 수 없습니다. 다시 로그인해주세요.' }
+    ;(await cookies()).set(ADMIN_CODE_COOKIE, proof, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
 
     return { success: true, data: { required: true, verified: true } }
   } catch (err) {
@@ -549,19 +553,28 @@ export async function setUserRole(userId: string, role: AccountRole): Promise<Ap
     // 직접 호출로 임의 문자열이 역할로 저장되지 않게 — 역할 값은 proxy·게이트가 그대로 신뢰한다
     if (!(role in ACCOUNT_ROLE_LABEL)) throw new Error('알 수 없는 권한입니다.')
 
-    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
+    const { data: profile } = await supabaseAdmin.from('user_profiles').select('name, worker_role').eq('id', userId).maybeSingle()
+    if (!profile) throw new Error('계정 프로필을 찾을 수 없습니다.')
+
+    // 권한의 기준은 app_metadata.role이므로 먼저 쓴다. 다음 worker_role 저장이 실패하면 되돌려 둘이 갈라지지 않게 한다
+    // — 갈라지면 설정 화면은 새 역할을 보여주는데 실제 권한은 옛 역할로 남는다(2026-10 장애와 같은 상태).
+    // DB 트리거(sync_worker_role_to_app_metadata)도 worker_role 변경을 app_metadata에 반영하지만,
+    // 트리거 적용 전 배포에서도 맞게 동작하도록 여기서 직접 쓴다(같은 값이라 트리거는 아무것도 바꾸지 않는다).
+    // Auth는 app_metadata를 키 단위로 병합하므로 provider 등 기존 값은 유지된다.
+    // 새 역할은 다음 토큰 갱신(최대 JWT 만료 시간) 또는 재로그인부터 적용된다.
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, { app_metadata: { role } })
+    if (authError) throw new Error(`권한 반영 실패: ${authError.message}`)
 
     const { error } = await supabaseAdmin
       .from('user_profiles')
       .update({ worker_role: role })
       .eq('id', userId)
-    if (error) throw new Error(error.message)
-
-    // 권한 판단은 app_metadata.role만 본다(본인이 바꿀 수 없음). Auth는 app_metadata를 키 단위로 병합하므로
-    // provider 등 기존 값은 유지된다. 실패를 삼키면 화면의 역할과 실제 권한이 갈라지므로 오류로 올린다.
-    // 새 역할은 다음 토큰 갱신(최대 JWT 만료 시간) 또는 재로그인부터 적용된다.
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, { app_metadata: { role } })
-    if (authError) throw new Error(`권한 반영 실패: ${authError.message}`)
+    if (error) {
+      const { error: revertError } = await supabaseAdmin.auth.admin.updateUserById(userId, { app_metadata: { role: profile.worker_role } })
+      throw new Error(revertError
+        ? `권한 저장 실패(${error.message}) — 되돌리기도 실패했습니다: ${revertError.message}. 다시 시도해주세요.`
+        : error.message)
+    }
 
     const label = ACCOUNT_ROLE_LABEL[role]
     after(async () => {
@@ -576,7 +589,8 @@ async function deleteUserAccountById(userId: string, fallbackName: string): Prom
   const { data: profile } = await supabaseAdmin.from('user_profiles').select('name').eq('id', userId).maybeSingle()
   const name = profile?.name ?? fallbackName
 
-  await supabaseAdmin.from('user_profiles').delete().eq('id', userId)
+  // Auth 계정을 먼저 지운다 — user_profiles는 ON DELETE CASCADE로 함께 지워진다. 프로필을 먼저 지우고
+  // deleteUser가 실패하면 목록에서는 사라졌는데 app_metadata.role로 로그인·관리자 권한은 남는 계정이 생긴다.
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
   if (error) return { error: error.message }
   return { name }
