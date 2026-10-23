@@ -40,10 +40,14 @@ create table public.org_members (
 alter table public.org_members enable row level security;
 create index org_members_user_idx on public.org_members (user_id);
 
--- 지금 계정을 사업장 1의 구성원으로. 역할은 proxy.ts가 쓰는 user_metadata.role과 같은 출처(user_profiles.worker_role).
+-- 지금 계정을 사업장 1의 구성원으로. 역할은 지금 권한 판단에 쓰는 값(auth.users.raw_app_meta_data.role,
+-- lib/auth-role.ts)에서 가져온다. worker_role은 트리거로 같은 값이 유지되지만, 실제 권한과 다른 값을 복사하면
+-- 전환 순간 권한이 아무도 모르게 바뀐다. 적용 전에 둘이 어긋난 계정이 0인지 먼저 확인한다:
+--   select count(*) from public.user_profiles p join auth.users u on u.id = p.id
+--   where p.worker_role is distinct from u.raw_app_meta_data->>'role';
 insert into public.org_members (org_id, user_id, role)
 select 1, p.id,
-       case p.worker_role when 'admin' then 'admin' when 'manager' then 'manager' when 'kiosk' then 'kiosk' else 'staff' end
+       case u.raw_app_meta_data->>'role' when 'admin' then 'admin' when 'manager' then 'manager' when 'kiosk' then 'kiosk' else 'staff' end
 from public.user_profiles p
 join auth.users u on u.id = p.id;
 
