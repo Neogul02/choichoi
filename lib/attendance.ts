@@ -58,29 +58,22 @@ export function isWithinOpenWindow(clockInMs: number, nowMs: number): boolean {
 
 export type ClockOutResult =
   | { ok: true; startTime: string; endTime: string }
-  | { ok: false; reason: 'before_start'; payStartTime: string }
+  | { ok: false; reason: 'too_short'; startTime: string }
 
 /**
- * 퇴근 시 배정 행에 쓸 시작·종료 시각.
+ * 퇴근 시 배정 행에 쓸 시작·종료 시각 — 계획(인사탭 파트 시각)과 무관하게 **실제 출근·퇴근** 그대로다.
  *
- * - 시작 = max(실제 출근, 계획 시작). 계획보다 일찍 와도 계획 시각부터 인정한다(운영 방침).
- *   늦게 오면 실제 출근 시각부터.
- * - 종료 = 실제 퇴근.
- * - 둘 다 분 단위로 내림한다. 초 단위 차이로 시작·종료가 같은 'HH:MM'이 되면
- *   shiftRawMinutes가 이를 24시간 근무로 읽으므로(09:00~09:00 = 24h), 1분 미만 근무는 거부한다.
- *   같은 이유로 계획 시작 전에 퇴근하는 경우(09:48 출근 → 09:55 퇴근, 계획 10:00)도 거부한다.
+ * 예전엔 시작 = max(실제 출근, 계획 시작)이라 06:56에 출근해도 10:00부터 기록됐다. 일찍 나와 일한 시간이
+ * 근무표·급여에서 빠져 운영 방침을 바꿨다(2026-10-23). 계획값은 퇴근 시 attendance_records.planned_*에 남는다.
+ *
+ * 둘 다 분 단위로 내림한다. 초 단위 차이로 시작·종료가 같은 'HH:MM'이 되면 shiftRawMinutes가 이를
+ * 24시간 근무로 읽으므로(09:00~09:00 = 24h), 1분 미만 근무는 거부한다.
  */
-export function resolveClockOutTimes(input: {
-  workDate: string
-  clockInMs: number
-  clockOutMs: number
-  plannedStart: string | null
-}): ClockOutResult {
-  const plannedMs = input.plannedStart ? kstInstant(input.workDate, input.plannedStart) : -Infinity
-  const payStartMs = Math.floor(Math.max(input.clockInMs, plannedMs) / MINUTE_MS) * MINUTE_MS
+export function resolveClockOutTimes(input: { clockInMs: number; clockOutMs: number }): ClockOutResult {
+  const startMs = Math.floor(input.clockInMs / MINUTE_MS) * MINUTE_MS
   const endMs = Math.floor(input.clockOutMs / MINUTE_MS) * MINUTE_MS
-  if (endMs <= payStartMs) return { ok: false, reason: 'before_start', payStartTime: kstHHMMOf(payStartMs) }
-  return { ok: true, startTime: kstHHMMOf(payStartMs), endTime: kstHHMMOf(endMs) }
+  if (endMs <= startMs) return { ok: false, reason: 'too_short', startTime: kstHHMMOf(startMs) }
+  return { ok: true, startTime: kstHHMMOf(startMs), endTime: kstHHMMOf(endMs) }
 }
 
 /**

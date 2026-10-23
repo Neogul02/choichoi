@@ -42,7 +42,7 @@ export interface AttendanceBoardItem {
 export interface ClockOutDone {
   name: string
   time: string
-  /** 급여에 들어가는 인정 시작·종료(계획보다 일찍 오면 계획 시각부터) */
+  /** 급여에 들어가는 시작·종료 — 실제 출근·퇴근 시각(분 단위 내림) */
   startTime: string
   endTime: string
   breakMinutes: number
@@ -336,15 +336,14 @@ export async function clockOut(
 
     const { data: assignment, error: assignError } = await supabaseAdmin
       .from('roster_assignments')
-      .select('start_time, roster_shifts!roster_assignments_shift_id_fkey (start_time, break_minutes)')
+      .select('roster_shifts!roster_assignments_shift_id_fkey (break_minutes)')
       .eq('id', rec.assignment_id)
       .single()
     if (assignError) throw new Error(assignError.message)
-    const shift = assignment.roster_shifts as unknown as { start_time: string; break_minutes: number | null } | null
-    const plannedStart = assignment.start_time ?? shift?.start_time ?? null
+    const shift = assignment.roster_shifts as unknown as { break_minutes: number | null } | null
 
-    const times = resolveClockOutTimes({ workDate: rec.work_date, clockInMs, clockOutMs: nowMs, plannedStart })
-    if ('reason' in times) throw new Error(`근무 시작(${times.payStartTime}) 이후에 퇴근할 수 있습니다.`)
+    const times = resolveClockOutTimes({ clockInMs, clockOutMs: nowMs })
+    if ('reason' in times) throw new Error(`출근(${times.startTime}) 후 1분이 지나야 퇴근할 수 있습니다.`)
 
     const { error: rpcError } = await supabaseAdmin.rpc('attendance_clock_out', {
       p_record_id: rec.id,
