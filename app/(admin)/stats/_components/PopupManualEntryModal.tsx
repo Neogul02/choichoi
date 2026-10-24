@@ -9,7 +9,9 @@ import {
   fetchManualSalesForRange, savePopupDailySales, removePopupDailySales,
   fetchManualHourlySales, saveManualHourlySales,
   fetchManualMenuSales, saveManualMenuSales,
+  fetchDailySalesByPeriod, fetchMenuSalesBreakdown,
 } from '@/app/actions/stats';
+import { getKSTDateBounds } from '@/lib/date';
 import { formatPrice } from '@/lib/utils';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useModalKeyboard } from '@/lib/useModalKeyboard';
@@ -48,6 +50,10 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
   const [dateWide, setDateWide] = useState<{ revenue: number; orders: number } | null>(null);
   // 하루 매출을 못 불러왔으면 입력칸의 0/0은 "정정 없음"이 아니라 "모름"이다 — 저장 시 그 값으로 지우지 않는다
   const [dayLoadFailed, setDayLoadFailed] = useState(false);
+  // 그날 이 팝업의 POS 집계 — 비워 둔 칸의 기준값(placeholder)이자 저장 시 채울 값. 매출만 입력하고 주문 수를 비우면
+  // 예전엔 0건으로 저장돼 POS 주문 수를 덮었다(2026-10-24 분당 AK 185건 → 0건).
+  const [posDay, setPosDay] = useState<{ revenue: number; orders: number } | null>(null);
+  const [posQty, setPosQty] = useState<Record<number, number>>({});
   const [hourlyByHour, setHourlyByHour] = useState<Record<number, { revenue: number; orders: number }>>({});
   const [extraHours, setExtraHours] = useState<number[]>([]);
   const [addHourValue, setAddHourValue] = useState('');
@@ -86,11 +92,17 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
   useEffect(() => {
     let isCurrent = true;
     setLoadingDay(true);
+    const { start, end } = getKSTDateBounds(selectedDate);
     Promise.all([
       fetchManualDailyMenuSales(popupId, selectedDate),
       fetchManualSalesForRange(selectedDate, selectedDate, popupId),
-    ]).then(([menuRes, dayRes]) => {
+      fetchDailySalesByPeriod(start, end, String(popupId)),
+      fetchMenuSalesBreakdown(start, end, String(popupId)),
+    ]).then(([menuRes, dayRes, posDayRes, posMenuRes]) => {
       if (!isCurrent) return;
+      const pos = posDayRes.success ? posDayRes.data?.[0] : undefined;
+      setPosDay(posDayRes.success ? { revenue: pos?.revenue ?? 0, orders: pos?.orderCount ?? 0 } : null);
+      setPosQty(Object.fromEntries((posMenuRes.success ? posMenuRes.data ?? [] : []).map((m) => [m.id, m.totalQuantity])));
       const qtyMap: Record<number, number> = {};
       if (menuRes.success && menuRes.data) {
         for (const row of menuRes.data) qtyMap[row.menuItemId] = row.quantity;
@@ -147,6 +159,14 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
   };
 
   const handleSave = async () => {
+    // 매출·주문 수 중 한 칸만 입력했으면 빈 칸은 POS 값을 유지한다 — 0으로 저장하면 POS 숫자를 0으로 덮는다
+    let saveRevenue = dayRevenue;
+    let saveOrders = dayOrders;
+    if ((saveRevenue > 0) !== (saveOrders > 0)) {
+      if (!posDay) { toast.error('POS 집계를 불러오지 못했습니다. 매출과 주문 수를 모두 입력해 주세요.'); return; }
+      if (saveRevenue === 0) saveRevenue = posDay.revenue;
+      if (saveOrders === 0) saveOrders = posDay.orders;
+    }
     setSaving(true);
     const menuEntries = menuItems.map((item) => ({ menuItemId: item.id, quantity: quantities[item.id] ?? 0 }));
     const wholeMenuEntries = menuItems.map((item) => ({ menuItemId: item.id, quantity: wholeQuantities[item.id] ?? 0 }));
@@ -162,8 +182,8 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
       // 0/0은 "정정 없음"이라 지운다. 건너뛰면 잘못 넣은 정정을 되돌릴 방법이 없다.
       dayLoadFailed && dayRevenue === 0 && dayOrders === 0
         ? Promise.resolve<ApiResponse>({ success: true })
-        : dayRevenue > 0 || dayOrders > 0
-          ? savePopupDailySales(popupId, selectedDate, dayRevenue, dayOrders)
+        : saveRevenue > 0 || saveOrders > 0
+          ? savePopupDailySales(popupId, selectedDate, saveRevenue, saveOrders)
           : removePopupDailySales(popupId, selectedDate),
       saveManualHourlySales(popupId, hourlyEntries),
       saveManualMenuSales(popupId, wholeMenuEntries),
@@ -245,8 +265,8 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
                           value={quantities[item.id] ? String(quantities[item.id]) : ''}
                           onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                           onFocus={(e) => e.target.select()}
-                          placeholder="0"
-                          className="w-16 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink"
+                          placeholder={String(posQty[item.id] ?? 0)}
+                          className="w-16 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink placeholder:text-ink-faint"
                         />
                         <span className="text-[12px] text-ink-faint">개</span>
                       </div>
@@ -274,8 +294,8 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
                       value={dayRevenue === 0 ? '' : dayRevenue.toLocaleString('ko-KR')}
                       onChange={(e) => setDayRevenue(parseNum(e.target.value))}
                       onFocus={(e) => e.target.select()}
-                      placeholder="0"
-                      className="w-28 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink"
+                      placeholder={posDay ? posDay.revenue.toLocaleString('ko-KR') : '0'}
+                      className="w-28 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink placeholder:text-ink-faint"
                     />
                   </div>
                 </div>
@@ -288,8 +308,8 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
                       value={dayOrders === 0 ? '' : String(dayOrders)}
                       onChange={(e) => setDayOrders(parseNum(e.target.value))}
                       onFocus={(e) => e.target.select()}
-                      placeholder="0"
-                      className="w-16 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink"
+                      placeholder={posDay ? String(posDay.orders) : '0'}
+                      className="w-16 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink placeholder:text-ink-faint"
                     />
                     <span className="text-[12px] text-ink-faint">건</span>
                   </div>
@@ -298,7 +318,7 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
               <p className="m-0 mt-1.5 text-[11px] text-ink-faint">
                 {dateWide
                   ? `이 팝업 정정이 없어 날짜 전체 정정 ₩${dateWide.revenue.toLocaleString('ko-KR')} · ${dateWide.orders}건이 쓰이고 있습니다. 이 팝업 숫자만 고치려면 입력하세요.`
-                  : '비워 두거나 0으로 저장하면 이 팝업의 정정을 지우고 POS 숫자를 씁니다.'}
+                  : '흐린 숫자는 POS 집계입니다. 한 칸만 입력하면 빈 칸은 POS 값을 유지하고, 둘 다 비우면 이 팝업의 정정을 지웁니다. 메뉴도 빈 칸은 POS 수량 그대로입니다.'}
               </p>
             </section>
 
