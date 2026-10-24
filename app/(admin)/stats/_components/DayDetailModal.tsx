@@ -6,7 +6,8 @@ import { fetchOrdersByDate } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useModalKeyboard } from '@/lib/useModalKeyboard';
-import type { ManualSalesEntry, OrderRecordWithItems } from '@/types/api';
+import type { DayPopupSales, ManualSalesEntry, OrderRecordWithItems } from '@/types/api';
+import type { PopupEvent } from '@/types/database';
 import { DAY_NAMES } from '@/lib/staffing';
 
 interface Props {
@@ -16,6 +17,11 @@ interface Props {
   onClose: () => void;
   saveDay: (date: string, revenue: number, orders: number, note: string | null) => Promise<boolean>;
   removeDay: (id: number) => Promise<void>;
+  /** 그날 기간에 걸친 팝업 — 팝업별 정정(매출·주문·메뉴)은 팝업 입력창에서 한다 */
+  popups: PopupEvent[];
+  /** 그날 팝업별 매출(팝업 정정 반영) — 달력 popupByDate */
+  popupSales: DayPopupSales[];
+  onEditPopup: (popup: PopupEvent) => void;
 }
 
 function formatDateLabel(dateStr: string) {
@@ -24,7 +30,7 @@ function formatDateLabel(dateStr: string) {
   return `${m}월 ${d}일 (${DAY_NAMES[day]})`;
 }
 
-export default function DayDetailModal({ date, manualEntry, onSaved, onClose, saveDay, removeDay }: Props) {
+export default function DayDetailModal({ date, manualEntry, onSaved, onClose, saveDay, removeDay, popups, popupSales, onEditPopup }: Props) {
   useBodyScrollLock();
   const [orders, setOrders] = useState<OrderRecordWithItems[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -113,6 +119,35 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
 
           <form onSubmit={e => { e.preventDefault(); handleSave(); }} className="contents">
           <div className="overflow-y-auto flex-1 px-4 py-4 flex flex-col gap-4">
+            {/* 팝업별 — 같은 날 팝업이 둘 이상이면 아래 날짜 전체 입력으로는 한 팝업만 고칠 수 없다 */}
+            {popups.length > 0 && (
+              <section>
+                <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide mb-2">팝업별 매출</p>
+                <div className="bg-canvas-soft rounded-lg border border-hairline overflow-hidden">
+                  {popups.map((p) => {
+                    const sale = popupSales.find((s) => s.popupId === p.id);
+                    return (
+                      <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-hairline last:border-0">
+                        <div className="min-w-0">
+                          <p className="m-0 text-[13px] font-semibold text-ink truncate">{p.name}</p>
+                          <p className="m-0 text-[11px] text-ink-faint">
+                            {sale ? `₩${formatPrice(sale.revenue)} · ${sale.orders.toLocaleString('ko-KR')}건` : '매출 없음'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onEditPopup(p)}
+                          className="shrink-0 px-2.5 py-1.5 rounded-lg border border-hairline bg-canvas text-[12px] font-semibold text-primary-700 hover:bg-canvas-soft transition-colors cursor-pointer"
+                        >
+                          매출·메뉴 수정
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* POS 실매출 */}
             <section>
               <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide mb-2">POS 실매출</p>
@@ -142,9 +177,14 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
             {/* 커스텀 입력 */}
             <section>
               <div className="flex items-center gap-2 mb-2">
-                <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide">커스텀 매출 입력</p>
+                <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide">{popups.length > 1 ? '날짜 전체 매출 입력' : '커스텀 매출 입력'}</p>
                 {manualEntry && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">저장됨</span>}
               </div>
+              {popups.length > 1 && (
+                <p className="m-0 mb-2 text-[11px] text-ink-faint leading-snug">
+                  이 값은 그날 모든 팝업을 합친 하루 매출로 달력·누적 합계를 덮어씁니다. 한 팝업만 고치려면 위 팝업별 「매출·메뉴 수정」을 쓰세요.
+                </p>
+              )}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-3 bg-canvas-soft rounded-lg border border-hairline px-3 py-2.5">
                   <span className="text-[13px] text-ink-secondary shrink-0">총 매출</span>

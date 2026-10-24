@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { formatPrice } from '@/lib/utils';
 import { getDayTierSwatch } from '../_lib/tierSwatch';
 import { makePopupColorOf, UNASSIGNED_POPUP_COLOR } from '../_lib/popupColor';
@@ -9,6 +10,8 @@ import type { PopupEvent } from '@/types/database';
 import DayDetailModal from './DayDetailModal';
 import SectionHeader from './SectionHeader';
 import { DAY_NAMES } from '@/lib/staffing';
+
+const PopupManualEntryModal = dynamic(() => import('./PopupManualEntryModal'), { ssr: false });
 
 const MATERIAL_COST_KEY = 'choichoi_material_cost';
 const OTHER_COST_KEY = 'choichoi_other_cost';
@@ -38,10 +41,14 @@ interface Props {
   onMonthChange: (offset: number) => void;
   saveDay: (date: string, revenue: number, orders: number, note: string | null) => Promise<boolean>;
   removeDay: (id: number) => Promise<void>;
+  /** 팝업별 정정을 저장한 뒤 달력·팝업 통계를 다시 읽는다 */
+  onPopupSaved: () => void;
 }
 
-export default function CalendarSection({ calendarSales, popupEvents, calendarMonth, isLoading, todayStr, onMonthChange, saveDay, removeDay }: Props) {
+export default function CalendarSection({ calendarSales, popupEvents, calendarMonth, isLoading, todayStr, onMonthChange, saveDay, removeDay, onPopupSaved }: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  // 날짜 창에서 고른 팝업 — 그 팝업·그 날짜로 팝업 입력창(매출·주문·메뉴)을 연다
+  const [editing, setEditing] = useState<{ popup: PopupEvent; date: string } | null>(null);
   // ?? {}가 매 렌더 새 객체를 만들어 아래 useMemo 의존성이 매번 바뀌는 것을 막는다
   const manualByDate: Record<string, ManualSalesEntry> = useMemo(
     () => calendarSales.manualByDate ?? {},
@@ -329,6 +336,20 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
           onSaved={() => setSelectedDate(null)}
           saveDay={saveDay}
           removeDay={removeDay}
+          popups={popupEvents.filter((p) => p.start_date <= selectedDate && selectedDate <= p.end_date)}
+          popupSales={calendarSales.popupByDate?.[selectedDate] ?? []}
+          onEditPopup={(popup) => { setEditing({ popup, date: selectedDate }); setSelectedDate(null); }}
+        />
+      )}
+      {editing && (
+        <PopupManualEntryModal
+          popupId={editing.popup.id}
+          popupName={editing.popup.name}
+          startDate={editing.popup.start_date}
+          endDate={editing.popup.end_date}
+          initialDate={editing.date}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); onPopupSaved(); }}
         />
       )}
     </>
