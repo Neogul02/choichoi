@@ -41,7 +41,7 @@ interface Props {
 export default function StatsPageClient({ initialSummary, initialOrders, initialBreakdown, initialCalendar, initialPopupEvents, lifetimeTotals, todayPopups }: Props) {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats({ summary: initialSummary, orders: initialOrders });
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown(initialBreakdown);
-  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, saveDay, removeDay } = useCalendar(initialCalendar);
+  const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, refresh: refreshCalendar, saveDay, removeDay } = useCalendar(initialCalendar);
   const { popupEvents, selectedPopupId, setSelectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, manualHourlyEntries, isLoading: isPopupStatsLoading, refreshPopupStats } = usePopupStats(initialPopupEvents);
 
   const todayStr = kstToday();
@@ -114,6 +114,7 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
             onMonthChange={changeMonth}
             saveDay={saveDay}
             removeDay={removeDay}
+            onPopupSaved={() => { refreshCalendar(); refreshPopupStats(); }}
           />
         </div>
       </main>

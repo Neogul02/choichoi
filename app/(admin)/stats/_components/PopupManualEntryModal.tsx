@@ -21,6 +21,8 @@ interface Props {
   popupName: string;
   startDate: string;
   endDate: string;
+  /** 처음 열 날짜 — 달력에서 특정 날짜를 눌러 들어온 경우. 없으면 팝업 시작일 */
+  initialDate?: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -32,13 +34,13 @@ function parseNum(raw: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-export default function PopupManualEntryModal({ popupId, popupName, startDate, endDate, onClose, onSaved }: Props) {
+export default function PopupManualEntryModal({ popupId, popupName, startDate, endDate, initialDate, onClose, onSaved }: Props) {
   useBodyScrollLock();
   const panelRef = useRef<HTMLDivElement>(null);
   useModalKeyboard({ active: true, onClose, containerRef: panelRef });
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [selectedDate, setSelectedDate] = useState(startDate);
+  const [selectedDate, setSelectedDate] = useState(initialDate ?? startDate);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [dayRevenue, setDayRevenue] = useState(0);
   const [dayOrders, setDayOrders] = useState(0);
