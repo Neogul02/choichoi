@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { fetchDailySalesByPeriod, fetchManualSalesForRange } from '@/app/actions/stats';
+import { fetchPopupDailySales } from '@/app/actions/stats';
 import { getPopupPeriod } from '@/lib/popupPeriod';
-import type { DailySalesItem, ManualSalesEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
 export interface PopupComparisonRow {
@@ -18,22 +17,6 @@ export interface PopupComparisonRow {
   status: '예정' | '진행중' | '종료';
 }
 
-function applyManualOverrides(daily: DailySalesItem[], manualEntries: ManualSalesEntry[]): DailySalesItem[] {
-  if (manualEntries.length === 0) return daily;
-  const manualByDate: Record<string, ManualSalesEntry> = {};
-  for (const entry of manualEntries) manualByDate[entry.sale_date] = entry;
-  const merged = daily.map((d) =>
-    manualByDate[d.date]
-      ? { date: d.date, revenue: manualByDate[d.date].total_revenue, orderCount: manualByDate[d.date].total_orders }
-      : d
-  );
-  const existingDates = new Set(daily.map((d) => d.date));
-  for (const entry of manualEntries) {
-    if (!existingDates.has(entry.sale_date)) merged.push({ date: entry.sale_date, revenue: entry.total_revenue, orderCount: entry.total_orders });
-  }
-  return merged;
-}
-
 // 선택된 팝업들의 일별 매출을 각각 조회해 요약 지표로 집계 — PopupStatsSection의 단일 팝업 조회 파이프라인과
 // 동일한 수기 입력 병합 로직을 재사용해 상세 화면과 숫자가 어긋나지 않게 한다.
 export function usePopupComparison(popups: PopupEvent[]) {
@@ -45,18 +28,10 @@ export function usePopupComparison(popups: PopupEvent[]) {
     setIsLoading(true);
     const results = await Promise.all(
       popups.map(async (popup) => {
-        const [dailyRes, manualRes] = await Promise.all([
-          fetchDailySalesByPeriod(
-            new Date(`${popup.start_date}T00:00:00+09:00`).toISOString(),
-            new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString(),
-            String(popup.id)
-          ),
-          fetchManualSalesForRange(popup.start_date, popup.end_date, popup.id),
-        ]);
+        // 정정까지 반영된 하루 매출 — 팝업 통계와 같은 서버 함수(getPopupDailySales)를 쓴다
+        const dailyRes = await fetchPopupDailySales(popup.id);
         if (!dailyRes.success) { toast.error(`${popup.name} 매출 조회 실패: ${dailyRes.error}`); return null; }
-        // 정정 조회 실패를 "정정 없음"으로 삼키면 POS 숫자만으로 조용히 틀린 비교가 나온다
-        if (!manualRes.success) toast.error(`${popup.name} 수동 매출 조회 실패: ${manualRes.error}`);
-        const daily = applyManualOverrides(dailyRes.data ?? [], manualRes.success && manualRes.data ? manualRes.data : []);
+        const daily = dailyRes.data ?? [];
         const totalRevenue = daily.reduce((s, d) => s + d.revenue, 0);
         const totalOrders = daily.reduce((s, d) => s + d.orderCount, 0);
         const period = getPopupPeriod(popup);

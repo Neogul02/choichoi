@@ -4,33 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { fetchPopupEvents } from '@/app/actions/schedule';
 import {
-  fetchMenuSalesBreakdown, fetchDailySalesByPeriod, fetchManualSalesForRange, fetchManualMenuSales,
+  fetchMenuSalesBreakdown, fetchPopupDailySales, fetchManualMenuSales,
   fetchManualDailyMenuSalesForRange, fetchManualHourlySales,
 } from '@/app/actions/stats';
 import { fetchOrdersByPeriod } from '@/app/actions/orders';
 import { pickOngoingPopup } from '@/lib/staffing';
 import { kstToday } from '@/lib/date';
-import type { MenuSalesItem, DailySalesItem, ManualSalesEntry, ManualHourlyEntry } from '@/types/api';
+import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
-
-function applyManualOverrides(daily: DailySalesItem[], manualEntries: ManualSalesEntry[]): DailySalesItem[] {
-  if (manualEntries.length === 0) return daily;
-  const manualByDate: Record<string, ManualSalesEntry> = {};
-  for (const entry of manualEntries) manualByDate[entry.sale_date] = entry;
-
-  const merged = daily.map((d) =>
-    manualByDate[d.date]
-      ? { date: d.date, revenue: manualByDate[d.date].total_revenue, orderCount: manualByDate[d.date].total_orders }
-      : d
-  );
-  const existingDates = new Set(daily.map((d) => d.date));
-  for (const entry of manualEntries) {
-    if (!existingDates.has(entry.sale_date)) {
-      merged.push({ date: entry.sale_date, revenue: entry.total_revenue, orderCount: entry.total_orders });
-    }
-  }
-  return merged.sort((a, b) => a.date.localeCompare(b.date));
-}
 
 function applyMenuManualOverrides(computed: MenuSalesItem[], manualEntries: MenuSalesItem[]): MenuSalesItem[] {
   if (manualEntries.length === 0) return computed;
@@ -82,11 +63,10 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
       // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
       const startISO = new Date(`${popup.start_date}T00:00:00+09:00`).toISOString();
       const endISO = new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString();
-      const [menuRes, dailyRes, rawRes, manualRes, manualMenuRes, manualDailyMenuRes, manualHourlyRes] = await Promise.all([
+      const [menuRes, dailyRes, rawRes, manualMenuRes, manualDailyMenuRes, manualHourlyRes] = await Promise.all([
         fetchMenuSalesBreakdown(startISO, endISO, String(selectedPopupId)),
-        fetchDailySalesByPeriod(startISO, endISO, String(selectedPopupId)),
+        fetchPopupDailySales(popup.id),
         fetchOrdersByPeriod(startISO, endISO, String(selectedPopupId)),
-        fetchManualSalesForRange(popup.start_date, popup.end_date, popup.id),
         fetchManualMenuSales(selectedPopupId),
         fetchManualDailyMenuSalesForRange(selectedPopupId, popup.start_date, popup.end_date),
         fetchManualHourlySales(selectedPopupId),
@@ -100,10 +80,7 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
         setPopupMenuBreakdown(applyMenuManualOverrides(withWholePeriod, dailyMenuAggregate));
       } else { setPopupMenuBreakdown([]); if (!menuRes.success) toast.error(`팝업 메뉴 조회 실패: ${menuRes.error}`); }
       if (dailyRes.success && dailyRes.data) {
-        const manualEntries = manualRes.success && manualRes.data ? manualRes.data : [];
-        // 정정 조회 실패를 "정정 없음"으로 삼키면 POS 숫자만으로 조용히 틀린 일별 매출이 나온다
-        if (!manualRes.success) toast.error(`수동 매출 조회 실패: ${manualRes.error}`);
-        setPopupDailySales(applyManualOverrides(dailyRes.data, manualEntries));
+        setPopupDailySales(dailyRes.data);
       } else { setPopupDailySales([]); if (!dailyRes.success) toast.error(`팝업 일별 조회 실패: ${dailyRes.error}`); }
       setPopupRawOrders(rawRes.success && rawRes.data ? rawRes.data : []);
       setManualHourlyEntries(manualHourlyRes.success && manualHourlyRes.data ? manualHourlyRes.data : []);
