@@ -110,29 +110,6 @@ async function updateMenuItemSoldOut(id: number, soldOut: boolean): Promise<Menu
   return data as MenuItem
 }
 
-// menu-images는 공개 버킷 — 고객용 메뉴판(/display)이 로그인 없이 직접 이미지를 불러온다
-async function uploadMenuItemPhoto(id: number, file: File): Promise<MenuItem> {
-  const ext = file.name.split('.').pop() ?? 'jpg'
-  const path = `menu-items/${id}.${ext}`
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from('menu-images')
-    .upload(path, file, { upsert: true, contentType: file.type })
-  if (uploadError) throw uploadError
-
-  const { data: publicUrlData } = supabaseAdmin.storage.from('menu-images').getPublicUrl(path)
-  // 캐시 무효화 — 같은 파일명으로 재업로드해도 CDN/브라우저 캐시가 이전 사진을 계속 보여주는 것 방지
-  const url = `${publicUrlData.publicUrl}?v=${Date.now()}`
-
-  const { data, error } = await supabaseAdmin
-    .from('menu_items')
-    .update({ image_url: url, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as MenuItem
-}
-
 async function updateMenuOrder(orderedIds: number[]): Promise<void> {
   const updates = orderedIds.map((id, index) =>
     supabaseAdmin
@@ -186,16 +163,6 @@ export async function setMenuItemSoldOut(id: number, soldOut: boolean): Promise<
   const parsed = z.object({ id: z.number().int().positive(), soldOut: z.boolean() }).safeParse({ id, soldOut });
   if (!parsed.success) return { success: false, error: '올바르지 않은 요청입니다' };
   return wrap(async () => { await requireAdmin(); return updateMenuItemSoldOut(parsed.data.id, parsed.data.soldOut); });
-}
-
-export async function uploadMenuItemImage(id: number, formData: FormData): Promise<ApiResponse<MenuItem>> {
-  const parsedId = z.number().int().positive().safeParse(id);
-  if (!parsedId.success) return { success: false, error: '올바르지 않은 메뉴입니다' };
-  const file = formData.get('file');
-  if (!(file instanceof File) || file.size === 0) return { success: false, error: '파일이 없습니다' };
-  if (!file.type.startsWith('image/')) return { success: false, error: '이미지 파일만 업로드할 수 있습니다' };
-  if (file.size > 5 * 1024 * 1024) return { success: false, error: '이미지는 5MB 이하여야 합니다' };
-  return wrap(async () => { await requireAdmin(); return uploadMenuItemPhoto(parsedId.data, file); });
 }
 
 export async function reorderMenuItems(orderedIds: number[]): Promise<ApiResponse> {

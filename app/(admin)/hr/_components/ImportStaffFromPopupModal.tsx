@@ -7,7 +7,7 @@ import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { fetchImportCandidates, bulkAssignStaffToPopup } from '@/app/actions/staffPopups'
 import type { StaffProfile, PopupEvent } from '@/types/database'
-import { ROLE_LABELS } from './constants'
+import { ROLE_LABELS, normalizeStatus } from './constants'
 
 interface Props {
   popupId: number
@@ -24,6 +24,7 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
   const [candidates, setCandidates] = useState<StaffProfile[] | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [search, setSearch] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -41,12 +42,15 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
 
   const popupNameById = useMemo(() => new Map(popups.map(p => [p.id, p.name])), [popups])
 
+  // 퇴사자까지 늘어놓으면 목록이 길어져 찾기 어렵다 — 기본은 재직자만, 다시 부를 때만 토글로 연다
+  const inactiveCount = useMemo(() => (candidates ?? []).filter(s => normalizeStatus(s.status) === 'inactive').length, [candidates])
+
   const filtered = useMemo(() => {
-    const list = candidates ?? []
+    const list = (candidates ?? []).filter(s => showInactive || normalizeStatus(s.status) !== 'inactive')
     const q = search.trim()
     if (!q) return list
     return list.filter(s => s.name.includes(q) || phoneMatches(s.phone, q))
-  }, [candidates, search])
+  }, [candidates, search, showInactive])
 
   const toggle = (staffId: number) => {
     setSelected(prev => {
@@ -96,6 +100,17 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
             placeholder="이름/전화 검색"
             className="w-full px-3 py-2 border border-hairline rounded-lg text-[13px] bg-canvas focus:outline-none focus:border-primary-700"
           />
+          {inactiveCount > 0 && (
+            <label className="mt-2 flex items-center gap-1.5 text-[11px] text-ink-muted cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={e => setShowInactive(e.target.checked)}
+                className="w-3.5 h-3.5 accent-primary-700 cursor-pointer"
+              />
+              퇴사자 {inactiveCount}명도 보기
+            </label>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-3">
@@ -103,7 +118,7 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
             <p className="text-[12px] text-ink-faint text-center py-6 m-0">불러오는 중...</p>
           ) : filtered.length === 0 ? (
             <p className="text-[12px] text-ink-faint text-center py-6 m-0">
-              {candidates.length === 0 ? '추가할 수 있는 근무자가 없습니다.' : '검색 결과가 없습니다.'}
+              {search.trim() ? '검색 결과가 없습니다.' : '추가할 수 있는 근무자가 없습니다.'}
             </p>
           ) : (
             <div className="flex flex-col gap-1.5">
@@ -125,6 +140,7 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
                     <div className="min-w-0 flex-1">
                       <p className="m-0 text-[13px] font-semibold text-ink truncate">{staff.name}</p>
                       <p className="m-0 text-[11px] text-ink-faint truncate">
+                        {normalizeStatus(staff.status) === 'inactive' && '퇴사 · '}
                         {ROLE_LABELS[staff.staff_role]}
                         {otherPopupNames.length > 0 && ` · 이전 근무: ${otherPopupNames.join(', ')}`}
                       </p>

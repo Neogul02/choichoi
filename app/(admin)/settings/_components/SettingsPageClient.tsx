@@ -4,7 +4,7 @@ import NavBar from '@/components/NavBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems, uploadMenuItemImage, setMenuItemSoldOut } from '@/app/actions/menu';
+import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems, setMenuItemSoldOut } from '@/app/actions/menu';
 import type { MenuItem } from '@/types/database';
 import DevToolsSection from './DevToolsSection';
 import UserManagementSection from './UserManagementSection';
@@ -55,8 +55,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
   // 삭제 확인
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
-  // 메뉴판 사진 업로드 / 품절 토글
-  const [uploadingId, setUploadingId] = useState<number | null>(null);
+  // 품절 토글
   const [togglingSoldOutId, setTogglingSoldOutId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -137,22 +136,6 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
       setMenuItems(p => p.filter(m => m.id !== id));
       cancelEdit(id);
       toast.success('삭제됐습니다');
-    } else {
-      toast.error(`오류: ${res.error}`);
-    }
-  };
-
-  // ── 메뉴판 사진 업로드 ──────────────────────────────────
-  const handlePhotoSelect = async (id: number, file: File | undefined) => {
-    if (!file) return;
-    setUploadingId(id);
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await uploadMenuItemImage(id, formData);
-    setUploadingId(null);
-    if (res.success && res.data) {
-      setMenuItems(p => p.map(m => m.id === id ? res.data! : m));
-      toast.success('메뉴판 사진이 업데이트됐습니다');
     } else {
       toast.error(`오류: ${res.error}`);
     }
@@ -374,26 +357,6 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                               onTouchEnd={handleTouchDragEnd}
                               onTouchCancel={handleTouchDragEnd}
                             >⠿</div>
-
-                            {/* 메뉴판 사진 — 클릭해서 업로드/교체 */}
-                            <label
-                              title="메뉴판 사진 업로드"
-                              className="relative w-9 h-9 rounded-lg overflow-hidden shrink-0 cursor-pointer bg-canvas-soft border border-hairline flex items-center justify-center"
-                            >
-                              {item.image_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={item.image_url} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="text-ink-faint text-[10px]">사진</span>
-                              )}
-                              {uploadingId === item.id && (
-                                <span className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[9px] font-bold">...</span>
-                              )}
-                              <input
-                                type="file" accept="image/*" className="hidden"
-                                onChange={e => { handlePhotoSelect(item.id, e.target.files?.[0]); e.target.value = ''; }}
-                              />
-                            </label>
 
                             <div className="w-4 h-4 rounded-full shrink-0 border-2 border-black/10" style={{ backgroundColor: item.color }} />
                             {item.emoji && <span className="text-base shrink-0">{item.emoji}</span>}
