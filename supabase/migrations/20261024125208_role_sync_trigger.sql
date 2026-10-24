@@ -43,7 +43,6 @@ $$;
 -- 트리거 함수는 RPC로 부를 수 없지만, public 스키마의 security definer라 실행 권한을 명시적으로 닫아 둔다
 revoke all on function public.sync_worker_role_to_app_metadata() from public, anon, authenticated;
 
-drop trigger if exists user_profiles_sync_role on public.user_profiles;
 create trigger user_profiles_sync_role
 after insert or update of worker_role or delete on public.user_profiles
 for each row execute function public.sync_worker_role_to_app_metadata();

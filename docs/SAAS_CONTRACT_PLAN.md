@@ -29,7 +29,7 @@ expand는 contract를 시작하는 날 같이 적용한다. 혼자 먼저 적용
 
 - [x] (2026-10-18 수정 — 백필은 22:55 KST, 7ea8ccb 배포 직전 적용. 역할별 전/후 admin 2·kiosk 1·user 44 동일,
   불일치 0. 10-21 재백필도 같은 결과. 재발 방지로 `worker_role` → `app_metadata.role`
-  동기화 트리거(`supabase/pending/05_role_sync_trigger.sql`)와 판정 일원화(`lib/auth-role.ts`)) **권한을 `user_metadata.role`로 판단한다.** `proxy.ts`, `_base.ts`의 `getAuthUser`·`requireAdmin`,
+  동기화 트리거(`supabase/migrations/20261024125208_role_sync_trigger.sql`)와 판정 일원화(`lib/auth-role.ts`)) **권한을 `user_metadata.role`로 판단한다.** `proxy.ts`, `_base.ts`의 `getAuthUser`·`requireAdmin`,
   `roster-view.ts`가 JWT의 `user_metadata.role`을 믿는다. `user_metadata`는 **로그인한 사용자가 브라우저에서
   `supabase.auth.updateUser({ data: { role: 'admin' } })`로 직접 바꿀 수 있는 값**이다(Supabase 문서가
   권한 판단에 쓰지 말라고 명시). 직원 계정 하나로 관리자 화면·급여·인사 데이터에 접근할 수 있다.
