@@ -19,6 +19,8 @@ export interface TodayPopupSales {
   totalOrders: number;
   /** KST 시각(0-23)별 그 시간대 매출 — 시간 순. 누적 곡선은 화면에서 더해 그린다 */
   hourly: { hour: number; revenue: number }[];
+  /** 수기 정정값으로 대체됨 — 시각 정보가 없어 hourly가 비고, 합계는 totalRevenue가 하루 전체다 */
+  corrected?: true;
 }
 
 export interface SaveOrderResponse {

@@ -506,7 +506,7 @@ async function getDayOverrides(date: string) {
 // 정정한 팝업은 시각 정보가 없어 hourly를 비운다 — POS 곡선을 남기면 곡선과 합계가 서로 다른 숫자가 된다
 function applyPopupOverrides(raw: TodayPopupSales[], byPopup: Map<number, { popupName: string; totalRevenue: number; totalOrders: number }>): TodayPopupSales[] {
   const merged = raw.filter(p => !byPopup.has(p.popupId))
-  for (const [popupId, v] of byPopup) merged.push({ popupId, ...v, hourly: [] })
+  for (const [popupId, v] of byPopup) merged.push({ popupId, ...v, hourly: [], corrected: true })
   return merged.sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
 
