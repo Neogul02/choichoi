@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as Y from 'yjs';
-import { diffText, transformIndex, authorColor, assignAuthorColors, bytesToBase64, base64ToBytes, overlayRuns, deltaToRuns, loadNoteDoc, POS_NOTE_TEXT_KEY } from './posNoteSync';
+import { diffText, transformIndex, authorColor, assignAuthorColors, bytesToBase64, base64ToBytes, overlayRuns, deltaToRuns, loadNoteDoc, compactNoteDoc, rebaseOntoServer, POS_NOTE_TEXT_KEY } from './posNoteSync';
 
 function apply(prev: string, next: string): string {
   const d = diffText(prev, next);
@@ -161,5 +161,51 @@ describe('loadNoteDoc', () => {
     expect(text(doc)).toBe('예약 4시');
     Y.applyUpdate(doc, Y.encodeStateAsUpdate(client));
     expect(text(doc)).toBe('예약 4시 확정');
+  });
+});
+
+describe('compactNoteDoc', () => {
+  it('보이는 글자·작성자는 그대로, 지운 이력은 버린다', () => {
+    // 실제 부풀기는 기기(Yjs client)마다 쌓인다 — 기기 100대가 각자 쓰고 지운 상황
+    const doc = new Y.Doc();
+    const t = doc.getText(POS_NOTE_TEXT_KEY);
+    for (let i = 0; i < 100; i++) {
+      const device = new Y.Doc();
+      Y.applyUpdate(device, Y.encodeStateAsUpdate(doc));
+      const dt = device.getText(POS_NOTE_TEXT_KEY);
+      for (let j = 0; j < 5; j++) { dt.insert(dt.length, `기기${i} 메모 ${j} `, { author: `직원${i % 7}` }); dt.delete(0, 3); }
+      Y.applyUpdate(doc, Y.encodeStateAsUpdate(device));
+    }
+    t.delete(0, t.length);
+    t.insert(0, '남는 글', { author: '가' });
+    t.insert(3, ' 추가', { author: '나' });
+    const fresh = compactNoteDoc(doc);
+    expect(fresh.getText(POS_NOTE_TEXT_KEY).toDelta()).toEqual(t.toDelta());
+    expect(Y.encodeStateAsUpdate(fresh).length).toBeLessThan(Y.encodeStateAsUpdate(doc).length / 10);
+  });
+
+  it('빈 문서는 빈 문서로', () => {
+    const doc = new Y.Doc();
+    doc.getText(POS_NOTE_TEXT_KEY).insert(0, 'x');
+    doc.getText(POS_NOTE_TEXT_KEY).delete(0, 1);
+    expect(compactNoteDoc(doc).getText(POS_NOTE_TEXT_KEY).toString()).toBe('');
+  });
+});
+
+describe('rebaseOntoServer', () => {
+  it('서버 문서 위에 저장 안 된 내 수정만 내 이름으로 얹는다', () => {
+    const server = new Y.Doc();
+    server.getText(POS_NOTE_TEXT_KEY).insert(0, '공지: 10시 오픈', { author: '가' });
+    expect(rebaseOntoServer(server, '공지: 10시 오픈 (재고 확인)', '나')).toBe(true);
+    expect(server.getText(POS_NOTE_TEXT_KEY).toDelta()).toEqual([
+      { insert: '공지: 10시 오픈', attributes: { author: '가' } },
+      { insert: ' (재고 확인)', attributes: { author: '나' } },
+    ]);
+  });
+
+  it('차이가 없으면 아무것도 하지 않는다', () => {
+    const server = new Y.Doc();
+    server.getText(POS_NOTE_TEXT_KEY).insert(0, 'abc', { author: '가' });
+    expect(rebaseOntoServer(server, 'abc', '나')).toBe(false);
   });
 });

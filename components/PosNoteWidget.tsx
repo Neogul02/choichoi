@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { fetchPosNote, updatePosNote } from '@/app/actions/pos-note';
 import {
   POS_NOTE_TEXT_KEY, diffText, transformIndex, authorColor, assignAuthorColors, deltaToRuns, overlayRuns,
-  bytesToBase64, base64ToBytes, type AuthorRun, type TextDelta,
+  bytesToBase64, base64ToBytes, rebaseOntoServer, type AuthorRun, type TextDelta,
 } from '@/lib/posNoteSync';
 
 const POS_NOTE_POS_KEY = 'choichoi_pos_note_pos';
@@ -72,7 +72,8 @@ interface NoteMeta { updated_by: string | null; updated_at: string }
 // 화면은 실시간으로 맞춰진다. pos_note는 RLS 정책이 없어 anon 클라이언트에 postgres_changes가 오지 않으므로
 // DB 변경 구독에 기대지 않는다.
 function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLTextAreaElement | null>) {
-  const [doc] = useState(() => new Y.Doc());
+  // 서버가 문서를 압축하면(세대 epoch가 바뀌면) 옛 문서와 이어지지 않으므로 문서 자체를 갈아끼운다
+  const [doc, setDoc] = useState(() => new Y.Doc());
   const ytext = doc.getText(POS_NOTE_TEXT_KEY);
   const [clientId] = useState(() => Math.random().toString(36).slice(2, 10));
   const [value, setValue] = useState('');
@@ -99,13 +100,19 @@ function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLT
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRef = useRef<() => void>(() => {});
   const failToastShownRef = useRef(false);
+  // 내 문서의 세대. null = 아직 서버에서 받지 않음 — 그 전에 오는 방송은 어느 세대인지 몰라 받지 않는다
+  const epochRef = useRef<number | null>(null);
+  const dirtyRef = useRef(false);
+  // 세대가 바뀌며 저장 안 된 내 수정을 새 문서에 다시 얹었으면, 새 문서의 리스너가 붙은 뒤 저장한다
+  const saveAfterSwapRef = useRef(false);
 
   useEffect(() => { authorRef.current = author; }, [author]);
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
   const broadcast = useCallback((event: string, payload: Record<string, unknown>) => {
     const channel = channelRef.current;
     if (!channel || !subscribedRef.current) return; // 끊긴 동안의 변경은 재접속 시 sync로 맞춘다
-    channel.send({ type: 'broadcast', event, payload });
+    channel.send({ type: 'broadcast', event, payload: { ...payload, e: epochRef.current } });
   }, []);
 
   const syncDisplay = useCallback((text: string) => {
@@ -114,14 +121,38 @@ function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLT
     setRuns(deltaToRuns(ytext.toDelta()));
   }, [ytext]);
 
+  // 서버 문서를 받는다. 같은 세대면 합치고(멱등), 세대가 바뀌었으면 서버 문서로 갈아타며 저장 안 된 내 수정만 다시 얹는다.
+  const adopt = useCallback((note: { ydoc: string; epoch: number }) => {
+    if (epochRef.current === null || epochRef.current === note.epoch) {
+      epochRef.current = note.epoch;
+      Y.applyUpdate(doc, base64ToBytes(note.ydoc), REMOTE);
+      return;
+    }
+    const next = new Y.Doc();
+    Y.applyUpdate(next, base64ToBytes(note.ydoc));
+    saveAfterSwapRef.current = dirtyRef.current && rebaseOntoServer(next, shownRef.current, authorRef.current || null);
+    epochRef.current = note.epoch;
+    deferredRef.current = [];
+    const text = next.getText(POS_NOTE_TEXT_KEY);
+    shownRef.current = text.toString();
+    setValue(text.toString());
+    setRuns(deltaToRuns(text.toDelta()));
+    setDoc(next);
+  }, [doc]);
+  const adoptRef = useRef(adopt);
+  useEffect(() => { adoptRef.current = adopt; }, [adopt]);
+
   const save = useCallback(async () => {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     setSaving(true);
-    const res = await updatePosNote(bytesToBase64(Y.encodeStateAsUpdate(doc)), authorRef.current ?? undefined);
+    const res = await updatePosNote(bytesToBase64(Y.encodeStateAsUpdate(doc)), authorRef.current ?? undefined, epochRef.current ?? undefined);
     setSaving(false);
     if (res.success && res.data) {
-      // 서버가 합친 결과에는 놓친 방송이나 구버전 화면의 수정이 들어 있을 수 있다 — 합치기는 멱등이라 그냥 적용
-      Y.applyUpdate(doc, base64ToBytes(res.data.ydoc), REMOTE);
+      // 서버가 합친 결과에는 놓친 방송이나 구버전 화면의 수정이 들어 있을 수 있다 — 합치기는 멱등이라 그냥 적용.
+      // 세대가 바뀌었으면(내 저장이 합쳐지지 않았거나 서버가 방금 압축했으면) 갈아타고, 다시 얹은 수정은 이어서 저장된다.
+      const stale = res.data.stale === true;
+      adoptRef.current(res.data);
+      if (stale) { setDirty(saveAfterSwapRef.current); return; }
       const m = { updated_by: res.data.updated_by, updated_at: res.data.updated_at };
       setMeta(m);
       setDirty(false);
@@ -156,6 +187,11 @@ function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLT
     };
     doc.on('update', onDocUpdate);
     ytext.observe(onTextChange);
+    if (saveAfterSwapRef.current) {
+      saveAfterSwapRef.current = false;
+      setDirty(true);
+      saveTimerRef.current = setTimeout(() => saveRef.current(), AUTOSAVE_DELAY_MS);
+    }
     return () => { doc.off('update', onDocUpdate); ytext.unobserve(onTextChange); };
   }, [doc, ytext, broadcast, syncDisplay, textareaRef]);
 
@@ -164,7 +200,7 @@ function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLT
     const loadFromDb = () => fetchPosNote().then((res) => {
       if (cancelled) return;
       if (res.success && res.data) {
-        Y.applyUpdate(doc, base64ToBytes(res.data.ydoc), REMOTE);
+        adoptRef.current(res.data);
         setMeta({ updated_by: res.data.updated_by, updated_at: res.data.updated_at });
       }
       setLoading(false); // 조회 실패해도 입력은 계속 쓸 수 있어야 하므로 로딩 상태만 푼다
@@ -174,12 +210,22 @@ function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLT
     // 처음 접속·재접속 때 서로 모르는 변경을 교환한다: 내가 state vector를 보내면 상대는
     // 내게 없는 부분과 자기 state vector를 답하고, 나는 상대에게 없는 부분을 다시 보낸다.
     const requestSync = () => broadcast('sync-req', { from: clientId, sv: bytesToBase64(Y.encodeStateVector(doc)) });
+    // 다른 세대 문서의 변경은 합치지 않는다(압축 전 이력이 되살아난다). 상대가 더 새 세대면 서버 문서를 받아 따라간다.
+    // e가 없는 방송은 세대 도입 전 화면(새로고침 안 한 탭)이 보낸 것이다.
+    const sameEpoch = (payload: { e?: unknown }) => {
+      const mine = epochRef.current;
+      if (mine === null || payload.e === mine) return mine !== null;
+      if (typeof payload.e === 'number' && payload.e > mine) loadFromDb();
+      return false;
+    };
     const channel = supabase.channel('pos-note-collab', { config: { broadcast: { self: false } } });
     channel
       .on('broadcast', { event: 'update' }, ({ payload }) => {
+        if (!sameEpoch(payload)) return;
         Y.applyUpdate(doc, base64ToBytes(payload.u), REMOTE);
       })
       .on('broadcast', { event: 'sync-req' }, ({ payload }) => {
+        if (!sameEpoch(payload)) return;
         broadcast('sync-res', {
           to: payload.from,
           u: bytesToBase64(Y.encodeStateAsUpdate(doc, base64ToBytes(payload.sv))),
@@ -187,6 +233,7 @@ function useCollabNote(author: string | null, textareaRef: React.RefObject<HTMLT
         });
       })
       .on('broadcast', { event: 'sync-res' }, ({ payload }) => {
+        if (!sameEpoch(payload)) return;
         Y.applyUpdate(doc, base64ToBytes(payload.u), REMOTE);
         if (payload.to !== clientId) return;
         const missing = Y.encodeStateAsUpdate(doc, base64ToBytes(payload.sv));
