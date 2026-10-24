@@ -187,3 +187,35 @@ export function loadNoteDoc(row: { content: string; ydoc: string | null; updated
   });
   return { doc, changed: true };
 }
+
+// 문서 압축: 지금 보이는 글자와 작성자만 담은 새 문서. Yjs는 지운 글자도 구조(tombstone)로 남기고 접속했던
+// 기기마다 상태를 쌓아서, 글이 비어 있어도 ydoc이 112KB까지 커졌다(2026-10-24, 기기 128대분). 열 때마다
+// 이 전체를 주고받는다. 새 문서는 옛 문서와 이어지지 않으므로 반드시 epoch를 올려 함께 쓴다 — 옛 문서를
+// 가진 기기가 그 상태를 그대로 합쳐 넣으면 지운 이력이 되살아나고, 안 보이던 글이 다시 들어갈 수도 있다.
+export const NOTE_COMPACT_THRESHOLD_B64 = 32 * 1024;
+
+export function compactNoteDoc(doc: Y.Doc): Y.Doc {
+  const fresh = new Y.Doc();
+  const out = fresh.getText(POS_NOTE_TEXT_KEY);
+  let pos = 0;
+  for (const op of doc.getText(POS_NOTE_TEXT_KEY).toDelta() as Array<{ insert?: unknown; attributes?: Record<string, unknown> }>) {
+    if (typeof op.insert !== 'string' || op.insert.length === 0) continue;
+    out.insert(pos, op.insert, op.attributes ?? {});
+    pos += op.insert.length;
+  }
+  return fresh;
+}
+
+// 압축(epoch 변경)으로 기기의 문서가 서버와 이어지지 않게 됐을 때, 서버 문서를 받고 아직 저장 안 된 내 수정만
+// 그 위에 다시 얹는다. 서버 글과 내 화면 글의 차이 한 구간을 내 글로 넣는다 — 저장 지연(1초 안팎) 사이 남이 같은
+// 자리를 고쳤다면 그 수정은 내 쪽으로 덮일 수 있다. 압축은 문서가 커졌을 때만 드물게 일어나므로 감수한다.
+export function rebaseOntoServer(serverDoc: Y.Doc, localText: string, author: string | null): boolean {
+  const ytext = serverDoc.getText(POS_NOTE_TEXT_KEY);
+  const d = diffText(ytext.toString(), localText);
+  if (d.remove === 0 && !d.insert) return false;
+  serverDoc.transact(() => {
+    if (d.remove > 0) ytext.delete(d.index, d.remove);
+    if (d.insert) ytext.insert(d.index, d.insert, { author });
+  });
+  return true;
+}

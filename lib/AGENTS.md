@@ -121,3 +121,6 @@
 - 글자마다 `{ author }` 속성. 삽입 시 author를 **반드시 명시**한다(생략하면 앞 글자의 작성자를 이어받는다).
 - ydoc 시드·구버전 화면의 content 덮어쓰기 편입은 서버(`loadNoteDoc`, CAS 아래)에서만 한다.
   클라이언트가 content로 문서를 만들면 기기마다 다른 삽입이 돼 합칠 때 글이 중복된다.
+- **세대(`pos_note.epoch`)**: ydoc이 32KB(base64)를 넘으면 서버가 보이는 글만 담은 새 문서로 압축하고 epoch를 올린다
+  (`compactNoteDoc`). 다른 세대 문서는 절대 합치지 않는다 — 저장은 `stale`로 돌려보내고 방송은 무시하며, 기기는 서버
+  문서로 갈아타 저장 안 된 자기 수정만 다시 얹는다(`rebaseOntoServer`). 방송 payload의 `e`가 세대다.
