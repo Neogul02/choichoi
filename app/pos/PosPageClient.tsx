@@ -780,8 +780,10 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
           {/* 모바일 전용 sticky 결제 바 */}
           {/* iOS Safari에서 position:sticky 요소는 내부 텍스트만 바뀌면 스크롤 전까지 리페인트가
-              지연되는 버그가 있어(스크롤하면 정상 표시됨), translateZ(0)로 별도 컴포지팅 레이어를
-              강제 생성해 값이 바뀔 때마다 즉시 리페인트되게 한다. */}
+              지연되는 버그가 있다(스크롤하면 정상 표시됨). translateZ(0)로 레이어를 분리해도 간헐적으로
+              남아서(2026-10 재발), 바뀌는 숫자는 key로 요소 자체를 새로 만든다 — 위쪽 결제 대기 금액이
+              key={totalPrice}로 매번 새 요소라 항상 즉시 보이는 것과 같은 방식이다. 텍스트 노드만 바꾸면
+              WebKit이 그 레이어를 다시 그리지 않을 수 있지만, 요소 삽입은 레이아웃·페인트를 반드시 일으킨다. */}
           <div
             className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3"
             style={{ transform: 'translateZ(0)', willChange: 'transform' }}
@@ -796,14 +798,14 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                 className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-ink-faint disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-2.5">
-                  <span className="min-w-7 h-7 px-2 rounded-full bg-canvas/20 text-xs font-black flex items-center justify-center tabular-nums">
+                  <span key={totalCount} className="min-w-7 h-7 px-2 rounded-full bg-canvas/20 text-xs font-black flex items-center justify-center tabular-nums">
                     {totalCount}개
                   </span>
                   <span className="text-base">
                     {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
                   </span>
                 </span>
-                <span className="text-lg font-black tabular-nums">
+                <span key={totalPrice} className="text-lg font-black tabular-nums">
                   {formatPrice(totalPrice)}원
                 </span>
               </button>
