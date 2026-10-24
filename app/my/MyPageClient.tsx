@@ -17,6 +17,7 @@ import { formatPhoneInput, normalizePhone } from '@/lib/phone'
 import { getMyContracts, getContractsAsAdmin } from '@/app/actions/contracts'
 import { getMyRoster, getMyCumulativeWorkedHours, getRosterAsAdmin, getCumulativeWorkedHoursAsAdmin, getWorkerTierRanking, type MyShift, type WorkerTierRankingByRole } from '@/app/actions/roster'
 import { formatPrice } from '@/lib/utils'
+import { USER_SORT_OPTIONS, isUserSortKey, sortUsers, type UserSortKey } from '@/lib/userSort'
 import type { UserProfile, MyOrderStats, PopupOrderStat } from '@/app/actions/workers'
 import type { ContractRecord } from '@/app/actions/contracts'
 import dynamic from 'next/dynamic'
@@ -958,6 +959,9 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 // ── 직원 선택기 (관리자 전용) — /my/schedule의 StaffPicker와 동일한 패턴 ──────────
 
+// 정렬은 관리자 개인 취향이라 이 브라우저에 기억해 둔다 (설정 › 유저관리와 키를 나눠 서로 덮어쓰지 않게)
+const USER_PICKER_SORT_STORAGE = 'my_user_picker_sort'
+
 function UserPicker({ users, ownUserId, viewingUserId, disabled, onPick }: {
   users: UserProfile[]
   ownUserId: string | null
@@ -965,13 +969,42 @@ function UserPicker({ users, ownUserId, viewingUserId, disabled, onPick }: {
   disabled: boolean
   onPick: (id: string, name: string) => void
 }) {
+  const [sortKey, setSortKey] = useState<UserSortKey>('name')
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(USER_PICKER_SORT_STORAGE)
+      if (isUserSortKey(saved)) setSortKey(saved)
+    } catch { /* ignore */ }
+  }, [])
+  const changeSort = (key: UserSortKey) => {
+    setSortKey(key)
+    try { localStorage.setItem(USER_PICKER_SORT_STORAGE, key) } catch { /* ignore */ }
+  }
+
   const ownName = ownUserId != null ? users.find(u => u.id === ownUserId)?.name ?? null : null
-  const others = users.filter(u => u.id !== ownUserId)
+  const others = useMemo(() => sortUsers(users.filter(u => u.id !== ownUserId), sortKey), [users, ownUserId, sortKey])
 
   return (
     <section className='bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4'>
-      <label className='block mb-2 text-[13px] font-bold text-ink-muted'>직원 선택 (관리자 전용)</label>
+      <div className='flex items-center justify-between gap-2 mb-2'>
+        <label htmlFor='my-user-picker' className='text-[13px] font-bold text-ink-muted'>직원 선택 (관리자 전용)</label>
+        <div className='flex rounded-lg overflow-hidden border border-hairline bg-canvas shrink-0'>
+          {USER_SORT_OPTIONS.map(o => (
+            <button
+              key={o.value}
+              type='button'
+              onClick={() => changeSort(o.value)}
+              className={`px-2.5 py-1 text-[11px] font-semibold border-none cursor-pointer transition-colors whitespace-nowrap ${
+                sortKey === o.value ? 'bg-ink text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <select
+        id='my-user-picker'
         value={viewingUserId ?? ''}
         disabled={disabled}
         onChange={e => {

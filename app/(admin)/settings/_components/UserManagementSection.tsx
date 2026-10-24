@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { fetchAllUserProfiles, setUserRole, adminDeleteUserAccount, getResidentIdForInsurance, resetWorkerPassword } from '@/app/actions/workers'
 import type { UserProfile } from '@/app/actions/workers'
 import { ACCOUNT_ROLE_LABEL, type AccountRole } from '@/types/database'
+import { USER_SORT_OPTIONS, isUserSortKey, sortUsers, type UserSortKey } from '@/lib/userSort'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { formatPhoneNumber } from '@/lib/utils'
 import { utcToKstDateStr } from '@/lib/date'
@@ -23,17 +24,10 @@ function toAccountRole(value: string): AccountRole {
 }
 
 type RoleFilter = AccountRole | 'all'
-type SortKey = 'name' | 'newest' | 'oldest'
 
 const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
   { value: 'all', label: '전체' },
   ...ROLE_OPTIONS,
-]
-
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'name', label: '이름순' },
-  { value: 'newest', label: '최근 가입' },
-  { value: 'oldest', label: '오래된 가입' },
 ]
 
 // 정렬은 아무것도 감추지 않는 개인 취향이라 유지한다.
@@ -51,7 +45,7 @@ export default function UserManagementSection() {
   const [isLoading, setIsLoading] = useState(true)
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
-  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortKey, setSortKey] = useState<UserSortKey>('name')
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
@@ -70,10 +64,10 @@ export default function UserManagementSection() {
       setMyUserId(data.user?.id ?? null)
     })
     const saved = localStorage.getItem(SORT_KEY_STORAGE)
-    if (saved === 'name' || saved === 'newest' || saved === 'oldest') setSortKey(saved)
+    if (isUserSortKey(saved)) setSortKey(saved)
   }, [])
 
-  const changeSort = (key: SortKey) => {
+  const changeSort = (key: UserSortKey) => {
     setSortKey(key)
     try { localStorage.setItem(SORT_KEY_STORAGE, key) } catch { /* ignore */ }
   }
@@ -97,16 +91,7 @@ export default function UserManagementSection() {
         || (u.bank_name ?? '').toLowerCase().includes(q)
     })
 
-    // 이름순은 ko 로케일 비교라 ㄱㄴㄷ 순으로 정렬된다.
-    // 가입 시각이 없는 옛 계정은 뒤로 보내고, 같은 시각이면 이름으로 안정 정렬한다.
-    const byName = (a: UserProfile, b: UserProfile) => a.name.localeCompare(b.name, 'ko')
-    return [...matched].sort((a, b) => {
-      if (sortKey === 'name') return byName(a, b)
-      if (!a.created_at || !b.created_at) return a.created_at ? -1 : b.created_at ? 1 : byName(a, b)
-      const cmp = a.created_at.localeCompare(b.created_at)
-      if (cmp === 0) return byName(a, b)
-      return sortKey === 'newest' ? -cmp : cmp
-    })
+    return sortUsers(matched, sortKey)
   }, [users, query, roleFilter, sortKey])
 
   async function handleRoleChange(userId: string, role: AccountRole) {
@@ -201,7 +186,7 @@ export default function UserManagementSection() {
           ))}
         </div>
         <div className="flex rounded-lg overflow-hidden border border-hairline bg-canvas ml-auto">
-          {SORT_OPTIONS.map(o => (
+          {USER_SORT_OPTIONS.map(o => (
             <button
               key={o.value}
               onClick={() => changeSort(o.value)}
