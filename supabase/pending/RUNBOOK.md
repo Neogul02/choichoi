@@ -115,3 +115,19 @@ select * from get_lifetime_sales_totals();   -- 결과를 적어 둔다(3단계 
   JWT `org_id` 클레임, 직무 CHECK(`kitchen`/`cashier`) → 사업장별 직무 테이블. org_id를 쓰는 코드가 먼저 배포돼야 한다.
 - `orders.created_at`을 `timestamptz`로 바꾸기 — 모든 매출 RPC가 `+ 9 hours`에 기대고 있어 함께 바꿔야 한다.
 - `roster_assignments.shift_id` FK의 `on delete cascade` → `set null`(CLAUDE.md '아직 하면 안 되는 것').
+
+## 2026-10-24 마감 후 작업
+
+- 적용: `20261024125208_role_sync_trigger`(worker_role → app_metadata.role 동기화, 백필 바뀐 계정 0, user_metadata의 옛 role 47건 제거,
+  PGlite에서 계정 삭제 cascade 포함 8개 검사 통과), `20261024125248_authenticated_read_ingredients`(재고 실시간),
+  `20261024125439_menu_sales_by_period_stable`.
+- **미적용 — DROP이 MCP 확인 단계에서 자동 거절된다.** 대시보드 SQL Editor에서 직접 실행할 것(마이그레이션 이력이 남지 않아
+  파일도 필요 없다):
+  ```sql
+  drop policy if exists anon_read_orders on public.orders;          -- anon 키만으로 전체 주문 조회 가능(10-24 curl 확인)
+  drop policy if exists anon_read_menu_items on public.menu_items;
+  drop policy if exists anon_read_memos on public.memos;
+  drop table if exists ops_backup.bank_account_20260909, ops_backup.phone_pw_20260909, ops_backup.staff_phone_20260909;
+  drop function if exists public.get_menu_sales_by_period(timestamptz, timestamptz);
+  ```
+  확인: `curl "$URL/rest/v1/orders?select=id&limit=1" -H "apikey: $ANON"` 이 `[]`여야 한다.
