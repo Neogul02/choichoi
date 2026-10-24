@@ -32,12 +32,18 @@ export type ContractRecord = {
   pdf_url: string | null        // storage 경로 (예: "42/uuid.pdf")
   pdf_signed_url?: string       // 조회 시 생성되는 1시간 유효 URL
   pdf_hash: string | null
-  contract_data: import('@/components/ContractDocument').ContractData | null
+  /** 서명 화면이 PDF를 다시 그리는 원본. 관리자 목록 조회에는 담지 않는다(LIST_COLUMNS) */
+  contract_data?: import('@/components/ContractDocument').ContractData | null
   worker_address: string | null
   worker_signed_at: string | null
   issued_at: string
   created_at: string
 }
+
+// 관리자 목록(HR 탭·직원별 계약서)용 열 — contract_data를 뺀다. contract_data에 사업주 서명 이미지(base64)가
+// 계약서마다 통째로 들어 있어 건당 약 15KB라, select('*')면 목록을 열 때마다 전체(55건 ≈ 1MB)를 받았다.
+// 목록 화면은 contract_data를 쓰지 않는다 — 쓰는 곳은 근무자 서명(WorkerSignModal·signContract)뿐이다.
+const LIST_COLUMNS = 'id, worker_id, popup_id, start_date, end_date, hourly_rate, work_schedule, workplace, pdf_url, pdf_hash, worker_address, worker_signed_at, issued_at, created_at'
 
 function getAdminClient() {
   return supabaseAdmin
@@ -229,7 +235,7 @@ export async function fetchAllContracts(): Promise<ApiResponse<ContractRecord[]>
     const admin = getAdminClient()
     const { data, error } = await admin
       .from('contracts')
-      .select('*')
+      .select(LIST_COLUMNS)
       .order('issued_at', { ascending: false })
     if (error) throw error
     // 계약서당 signed URL 1회 발급 — 수십 건 규모 전제. 수백 건 이상이면 on-demand 발급으로 전환할 것
@@ -245,7 +251,7 @@ export async function getWorkerContracts(
     const admin = getAdminClient()
     const { data, error } = await admin
       .from('contracts')
-      .select('*')
+      .select(LIST_COLUMNS)
       .eq('worker_id', workerId)
       .order('issued_at', { ascending: false })
     if (error) throw error
