@@ -583,6 +583,28 @@ export async function fetchTodaysMenuSalesForStats(popupId: number | null): Prom
   return wrap(async () => { await requireAdmin(); return getTodaysMenuSalesWithOverrides(parsed.data); });
 }
 
+// 팝업의 하루 매출 목록 — 정정(팝업 정정 > 날짜 전체 정정, getDailySalesForRange) > POS. 달력 RPC(20261016080014)와
+// 같은 규칙이다. 팝업 통계(usePopupStats)와 팝업 비교(usePopupComparison)가 같이 쓴다 — 예전엔 두 훅이 같은 합치기
+// 함수를 각자 복사해 들고 있어서, 한쪽만 고치면 같은 팝업의 매출이 화면마다 달라질 수 있었다.
+// 정정 조회가 실패하면 POS 숫자만으로 돌려주지 않고 실패시킨다(조용히 틀린 숫자보다 오류가 낫다).
+async function getPopupDailySales(popupId: number): Promise<DailySalesItem[]> {
+  const { data: popup, error } = await supabaseAdmin.from('popup_events').select('start_date, end_date').eq('id', popupId).maybeSingle();
+  if (error) throw error;
+  if (!popup) throw new Error('팝업을 찾을 수 없습니다.');
+  const [pos, manual] = await Promise.all([
+    getDailySalesByPeriod(getKSTDateBounds(popup.start_date).start, getKSTDateBounds(popup.end_date).end, popupId),
+    getDailySalesForRange(popup.start_date, popup.end_date, popupId),
+  ]);
+  const byDate = new Map(pos.map(d => [d.date, d]));
+  for (const m of manual) byDate.set(m.sale_date, { date: m.sale_date, revenue: m.total_revenue, orderCount: m.total_orders });
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function fetchPopupDailySales(popupId: number): Promise<FetchDailySalesResponse> {
+  if (!Number.isInteger(popupId) || popupId <= 0) return { success: false, error: '팝업 ID가 올바르지 않습니다' };
+  return wrap(async () => { await requireAdmin(); return getPopupDailySales(popupId); });
+}
+
 export async function fetchMenuSalesBreakdown(startISO: string, endISO: string, popupId?: string | null): Promise<FetchMenuSalesResponse> {
   return wrap(async () => { await requireAdmin(); return getMenuSalesByPeriod(startISO, endISO, popupId); });
 }
