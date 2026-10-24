@@ -68,8 +68,16 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
   }, {});
 
   const handleSave = async () => {
+    // 한 칸만 입력했으면 빈 칸은 그날 POS 값을 쓴다 — 0으로 저장하면 POS 숫자를 0으로 덮는다(10/19 주문 수 0건이 이렇게 생겼다)
+    let saveRevenue = revenue;
+    let saveOrders = orderCount;
+    if ((saveRevenue > 0) !== (saveOrders > 0)) {
+      if (loadingOrders) return;
+      if (saveRevenue === 0) saveRevenue = posRevenue;
+      if (saveOrders === 0) saveOrders = orders.length;
+    }
     setSaving(true);
-    const ok = await saveDay(date, revenue, orderCount, note.trim() || null);
+    const ok = await saveDay(date, saveRevenue, saveOrders, note.trim() || null);
     setSaving(false);
     if (ok) onSaved();
   };
@@ -197,8 +205,8 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
                       value={formatCostInput(revenue)}
                       onChange={(e) => setRevenue(parseCostInput(e.target.value))}
                       onFocus={(e) => e.target.select()}
-                      placeholder="0"
-                      className="w-28 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink"
+                      placeholder={loadingOrders ? '0' : posRevenue.toLocaleString('ko-KR')}
+                      className="w-28 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink placeholder:text-ink-faint"
                       style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                     />
                   </div>
@@ -212,8 +220,8 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
                       value={orderCount === 0 ? '' : String(orderCount)}
                       onChange={(e) => { const n = parseInt(e.target.value.replace(/[^0-9]/g, ''), 10); setOrderCount(isNaN(n) ? 0 : n); }}
                       onFocus={(e) => e.target.select()}
-                      placeholder="0"
-                      className="w-16 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink"
+                      placeholder={loadingOrders ? '0' : String(orders.length)}
+                      className="w-16 text-right text-[13px] font-semibold bg-transparent outline-none border-none text-ink placeholder:text-ink-faint"
                       style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
                     />
                     <span className="text-[12px] text-ink-faint">건</span>
@@ -255,7 +263,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || loadingOrders}
               className="flex-1 py-2.5 rounded-lg bg-primary-700 text-white text-[13px] font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 cursor-pointer"
             >
               {saving ? '저장 중...' : '저장'}
