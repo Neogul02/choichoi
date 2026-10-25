@@ -351,6 +351,19 @@ async function upsertManualDailyMenuSales(
   }
 }
 
+// 기간 내 하루 단위 시간대 수기 입력 — 팝업 통계 시간대 그래프가 그날 POS 대신 쓴다(lib: buildHourlyDataWithDaily)
+async function getManualDailyHourlySales(popupId: number, startDate: string, endDate: string): Promise<import('@/types/api').ManualDailyHourlyEntry[]> {
+  const { data, error } = await supabaseAdmin
+    .from('manual_daily_hourly_sales')
+    .select('sale_date, hour, total_revenue, total_orders')
+    .eq('popup_id', popupId)
+    .gte('sale_date', startDate)
+    .lte('sale_date', endDate)
+  if (error) throw error
+  return ((data ?? []) as Array<{ sale_date: string; hour: number; total_revenue: number | string; total_orders: number | null }>)
+    .map((r) => ({ date: r.sale_date, hour: r.hour, totalRevenue: Number(r.total_revenue), totalOrders: r.total_orders }))
+}
+
 async function getManualHourlySales(popupId: number): Promise<import('@/types/api').ManualHourlyEntry[]> {
   const { data, error } = await supabaseAdmin
     .from('manual_hourly_sales')
@@ -503,11 +516,32 @@ async function getDayOverrides(date: string) {
   return { byPopup, day }
 }
 
-// 정정한 팝업은 시각 정보가 없어 hourly를 비운다 — POS 곡선을 남기면 곡선과 합계가 서로 다른 숫자가 된다
-function applyPopupOverrides(raw: TodayPopupSales[], byPopup: Map<number, { popupName: string; totalRevenue: number; totalOrders: number }>): TodayPopupSales[] {
+// 정정한 팝업의 곡선은 하루 시간대 수기 입력(manual_daily_hourly_sales)이 있으면 그걸로, 없으면 비운다 —
+// POS 곡선을 남기면 곡선과 합계가 서로 다른 숫자가 된다
+function applyPopupOverrides(
+  raw: TodayPopupSales[],
+  byPopup: Map<number, { popupName: string; totalRevenue: number; totalOrders: number }>,
+  hourlyByPopup: Map<number, { hour: number; revenue: number }[]>,
+): TodayPopupSales[] {
   const merged = raw.filter(p => !byPopup.has(p.popupId))
-  for (const [popupId, v] of byPopup) merged.push({ popupId, ...v, hourly: [], corrected: true })
+  for (const [popupId, v] of byPopup) merged.push({ popupId, ...v, hourly: hourlyByPopup.get(popupId) ?? [], corrected: true })
   return merged.sort((a, b) => b.totalRevenue - a.totalRevenue)
+}
+
+async function getDailyHourlyByPopup(date: string): Promise<Map<number, { hour: number; revenue: number }[]>> {
+  const { data, error } = await supabaseAdmin
+    .from('manual_daily_hourly_sales')
+    .select('popup_id, hour, total_revenue')
+    .eq('sale_date', date)
+    .order('hour', { ascending: true })
+  if (error) throw error
+  const out = new Map<number, { hour: number; revenue: number }[]>()
+  for (const r of (data ?? []) as Array<{ popup_id: number; hour: number; total_revenue: number | string }>) {
+    const list = out.get(r.popup_id) ?? []
+    list.push({ hour: r.hour, revenue: Number(r.total_revenue) })
+    out.set(r.popup_id, list)
+  }
+  return out
 }
 
 async function getTodaysSalesWithOverrides(): Promise<TodaysSales> {
@@ -528,8 +562,13 @@ async function getTodaysSalesWithOverrides(): Promise<TodaysSales> {
 }
 
 async function getTodaysPopupSalesWithOverrides(): Promise<TodayPopupSales[]> {
-  const [rawPopups, { byPopup }] = await Promise.all([fetchTodaysSalesByPopup().then(unwrap), getDayOverrides(kstToday())])
-  return applyPopupOverrides(rawPopups, byPopup)
+  const today = kstToday()
+  const [rawPopups, { byPopup }, hourly] = await Promise.all([
+    fetchTodaysSalesByPopup().then(unwrap),
+    getDayOverrides(today),
+    getDailyHourlyByPopup(today),
+  ])
+  return applyPopupOverrides(rawPopups, byPopup, hourly)
 }
 
 // 품목 단위 대체 — 수기로 넣은 품목만 그 팝업의 POS 수량을 갈아끼운다(팝업 통계의 applyMenuManualOverrides와 같은 규칙)
@@ -670,6 +709,9 @@ export async function saveManualDailyMenuSales(
   return wrap(async () => { await requireAdmin(); return upsertManualDailyMenuSales(parsed.data.popupId, parsed.data.saleDate, parsed.data.entries); });
 }
 
+export async function fetchManualDailyHourlySales(popupId: number, startDate: string, endDate: string): Promise<ApiResponse<import('@/types/api').ManualDailyHourlyEntry[]>> {
+  return wrap(async () => { await requireAdmin(); return getManualDailyHourlySales(popupId, startDate, endDate); });
+}
 export async function fetchManualHourlySales(popupId: number): Promise<import('@/types/api').FetchManualHourlySalesResponse> {
   return wrap(async () => { await requireAdmin(); return getManualHourlySales(popupId); });
 }

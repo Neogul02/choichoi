@@ -127,9 +127,10 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
   }, [yesterdayRows, scopeRows, nowHour]);
 
   /** 오늘 지금 시각까지의 누적 — 비교값과 같은 잣대 */
-  // 정정한 팝업은 시각별 값이 없다 — hourly로 더하면 0원이 돼 "어제 대비 -100%"로 보였다. 정정값(하루 전체)을 그대로 쓴다.
+  // 정정한 팝업은 하루 시간대 입력이 없으면 시각별 값이 없다 — hourly로 더하면 0원이 돼 "어제 대비 -100%"로 보였다.
+  // 그럴 땐 정정값(하루 전체)을 그대로 쓴다.
   const todayUptoNow = useMemo(
-    () => selected.reduce((s, p) => s + (p.corrected ? p.totalRevenue : sumUpto([p], nowHour)), 0),
+    () => selected.reduce((s, p) => s + (p.corrected && p.hourly.length === 0 ? p.totalRevenue : sumUpto([p], nowHour)), 0),
     [selected, nowHour],
   );
 

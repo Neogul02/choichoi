@@ -8,13 +8,13 @@ import {
 } from 'recharts';
 import { formatRevenueTick, formatDateLabel, formatPrice } from '@/lib/utils';
 import { buildDayHourMatrix, DAY_COLORS, DAYS, WEEKDAY_ORDER, weekendAccentColor, getDayOfWeekLabel } from '@/app/(admin)/stats/_lib/dayofweek';
-import { HOURS, buildHourlyData, mergeManualHourlyData } from '@/app/(admin)/stats/_lib/hourly';
+import { HOURS, buildHourlyDataWithDaily, mergeManualHourlyData } from '@/app/(admin)/stats/_lib/hourly';
 import { CHART_GRID_STROKE, CHART_TICK_STYLE, CHART_VALUE_LABEL_STYLE, CHART_ACCENT_PRIMARY, CHART_ACCENT_PRIMARY_SOFT, CHART_ACCENT_GOLD } from '@/app/(admin)/stats/_lib/chartTheme';
 import { getPopupPeriod } from '@/lib/popupPeriod';
 import ChartTooltipCard from './ChartTooltipCard';
 import PopupPicker from './PopupPicker';
 import type { DayLabel } from '@/app/(admin)/stats/_lib/dayofweek';
-import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry } from '@/types/api';
+import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry, ManualDailyHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 import { DEFAULT_REPORT_CHARTS, isReportChartAvailable } from '@/components/PopupReportDocument';
 import type { PopupReportData, ReportSection } from '@/components/PopupReportDocument';
@@ -88,13 +88,15 @@ interface Props {
   popupDailySales: DailySalesItem[];
   popupRawOrders: Array<{ created_at: string; total_price: number }>;
   manualHourlyEntries: ManualHourlyEntry[];
+  /** 하루 단위 시간대 수기 입력 — 있는 날은 그날 POS 시간대 대신 쓴다 */
+  manualDailyHourly: ManualDailyHourlyEntry[];
   isLoading: boolean;
   onSelectPopup: (id: number | null) => void;
   onRefresh: () => void;
 }
 
 export default function PopupStatsSection({
-  popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, manualHourlyEntries, isLoading, onSelectPopup, onRefresh,
+  popupEvents, selectedPopupId, popupMenuBreakdown, popupDailySales, popupRawOrders, manualHourlyEntries, manualDailyHourly, isLoading, onSelectPopup, onRefresh,
 }: Props) {
   const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
   const [metric, setMetric] = useState<Metric>('revenue');
@@ -170,8 +172,8 @@ export default function PopupStatsSection({
   }, [popupDailySales]);
 
   const hourlyData = useMemo(
-    () => mergeManualHourlyData(buildHourlyData(popupRawOrders), manualHourlyEntries.map((e) => ({ hour: e.hour, totalRevenue: e.totalRevenue, totalOrders: e.totalOrders }))),
-    [popupRawOrders, manualHourlyEntries]
+    () => mergeManualHourlyData(buildHourlyDataWithDaily(popupRawOrders, manualDailyHourly), manualHourlyEntries.map((e) => ({ hour: e.hour, totalRevenue: e.totalRevenue, totalOrders: e.totalOrders }))),
+    [popupRawOrders, manualDailyHourly, manualHourlyEntries]
   );
   const hasHourlyData = useMemo(() => hourlyData.some((h) => h.orderCount > 0 || h.revenue > 0), [hourlyData]);
 
