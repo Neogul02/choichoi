@@ -141,6 +141,14 @@ export interface ManualHourlyEntry {
 
 export type FetchManualHourlySalesResponse = ApiResponse<ManualHourlyEntry[]>;
 
+/** 하루 단위 시간대 수기 매출(manual_daily_hourly_sales) — 시간대 주문 수는 모를 수 있다 */
+export interface ManualDailyHourlyEntry {
+  date: string;
+  hour: number;
+  totalRevenue: number;
+  totalOrders: number | null;
+}
+
 export type FetchMenuItemsResponse = ApiResponse<MenuItem[]>;
 export type FetchDailySalesResponse = ApiResponse<DailySalesItem[]>;
 export type FetchTodaysSalesResponse = ApiResponse<TodaysSales>;

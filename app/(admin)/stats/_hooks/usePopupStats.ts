@@ -5,12 +5,12 @@ import { toast } from 'sonner';
 import { fetchPopupEvents } from '@/app/actions/schedule';
 import {
   fetchMenuSalesBreakdown, fetchPopupDailySales, fetchManualMenuSales,
-  fetchManualDailyMenuSalesForRange, fetchManualHourlySales,
+  fetchManualDailyMenuSalesForRange, fetchManualHourlySales, fetchManualDailyHourlySales,
 } from '@/app/actions/stats';
 import { fetchOrdersByPeriod } from '@/app/actions/orders';
 import { pickOngoingPopup } from '@/lib/staffing';
 import { kstToday } from '@/lib/date';
-import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry } from '@/types/api';
+import type { MenuSalesItem, DailySalesItem, ManualHourlyEntry, ManualDailyHourlyEntry } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
 function applyMenuManualOverrides(computed: MenuSalesItem[], manualEntries: MenuSalesItem[]): MenuSalesItem[] {
@@ -32,6 +32,7 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
   const [popupDailySales, setPopupDailySales] = useState<DailySalesItem[]>([]);
   const [popupRawOrders, setPopupRawOrders] = useState<Array<{ created_at: string; total_price: number }>>([]);
   const [manualHourlyEntries, setManualHourlyEntries] = useState<ManualHourlyEntry[]>([]);
+  const [manualDailyHourly, setManualDailyHourly] = useState<ManualDailyHourlyEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -63,13 +64,14 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
       // PostgREST가 오프셋을 버리고 캐스팅해 9시간이 어긋난다. UTC로 직접 환산해 보낸다.
       const startISO = new Date(`${popup.start_date}T00:00:00+09:00`).toISOString();
       const endISO = new Date(`${popup.end_date}T23:59:59.999+09:00`).toISOString();
-      const [menuRes, dailyRes, rawRes, manualMenuRes, manualDailyMenuRes, manualHourlyRes] = await Promise.all([
+      const [menuRes, dailyRes, rawRes, manualMenuRes, manualDailyMenuRes, manualHourlyRes, dailyHourlyRes] = await Promise.all([
         fetchMenuSalesBreakdown(startISO, endISO, String(selectedPopupId)),
         fetchPopupDailySales(popup.id),
         fetchOrdersByPeriod(startISO, endISO, String(selectedPopupId)),
         fetchManualMenuSales(selectedPopupId),
         fetchManualDailyMenuSalesForRange(selectedPopupId, popup.start_date, popup.end_date),
         fetchManualHourlySales(selectedPopupId),
+        fetchManualDailyHourlySales(selectedPopupId, popup.start_date, popup.end_date),
       ]);
       if (!isCurrent) return;
       if (menuRes.success && menuRes.data) {
@@ -84,6 +86,8 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
       } else { setPopupDailySales([]); if (!dailyRes.success) toast.error(`팝업 일별 조회 실패: ${dailyRes.error}`); }
       setPopupRawOrders(rawRes.success && rawRes.data ? rawRes.data : []);
       setManualHourlyEntries(manualHourlyRes.success && manualHourlyRes.data ? manualHourlyRes.data : []);
+      if (!dailyHourlyRes.success) toast.error(`시간대 수기 매출 조회 실패: ${dailyHourlyRes.error}`);
+      setManualDailyHourly(dailyHourlyRes.success && dailyHourlyRes.data ? dailyHourlyRes.data : []);
       setIsLoading(false);
     };
 
@@ -101,6 +105,7 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
     popupDailySales,
     popupRawOrders,
     manualHourlyEntries,
+    manualDailyHourly,
     isLoading,
     refreshPopupStats,
   };

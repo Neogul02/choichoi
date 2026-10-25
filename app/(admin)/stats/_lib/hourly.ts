@@ -1,4 +1,4 @@
-import { utcToKst } from '@/lib/date';
+import { utcToKst, utcToKstDateStr } from '@/lib/date';
 
 export const HOURS = Array.from({ length: 13 }, (_, i) => i + 9);
 
@@ -29,6 +29,28 @@ export function buildHourlyData(
     revenue: map[h].revenue,
     orderCount: map[h].orderCount,
   }));
+}
+
+/**
+ * 하루 단위 시간대 수기 입력(manual_daily_hourly_sales)이 있는 날은 그날 POS 주문 대신 수기 값을 쓴다.
+ * POS를 쓰지 않은 날의 시간대 흐름이 빠지거나, 같은 날이 POS와 수기로 두 번 더해지지 않게 날짜 단위로 갈아끼운다.
+ * 시간대 주문 수를 모르는 입력(null)은 주문 수 0으로 더한다.
+ */
+export function buildHourlyDataWithDaily(
+  orders: Array<{ created_at: string; total_price: number }>,
+  daily: Array<{ date: string; hour: number; totalRevenue: number; totalOrders: number | null }>,
+): HourlyData[] {
+  if (daily.length === 0) return buildHourlyData(orders);
+  const manualDates = new Set(daily.map((d) => d.date));
+  const base = buildHourlyData(orders.filter((o) => !manualDates.has(utcToKstDateStr(o.created_at))));
+  const byHour = new Map(base.map((d) => [d.hour, { ...d }]));
+  for (const d of daily) {
+    const row = byHour.get(d.hour) ?? { hour: d.hour, label: `${String(d.hour).padStart(2, '0')}시`, revenue: 0, orderCount: 0 };
+    row.revenue += d.totalRevenue;
+    row.orderCount += d.totalOrders ?? 0;
+    byHour.set(d.hour, row);
+  }
+  return [...byHour.values()].sort((a, b) => a.hour - b.hour);
 }
 
 /**
