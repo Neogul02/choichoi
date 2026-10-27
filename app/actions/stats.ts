@@ -5,7 +5,7 @@ import { wrap, requireAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import { getKSTDateBounds, kstToday } from '@/lib/date';
 import { getMenuSalesByPeriod } from '@/lib/menuSales';
-import { fetchTodaysSales, fetchTodaysSalesByPopup } from './orders';
+import { fetchTodaysSalesByPopup } from './orders';
 import type {
   ApiResponse,
   FetchCalendarResponse,
@@ -487,9 +487,8 @@ export async function fetchLifetimeSalesTotals(): Promise<ApiResponse<LifetimeSa
 }
 
 // ── 통계탭 "오늘" 영역 — POS 집계에 수기 정정을 덮는다 ──────────────────────────────
-// POS를 쓰지 않고 백화점 전산 숫자만 수기로 넣은 날, 달력·누적은 정정을 반영하는데 "오늘" 영역만 POS를
-// 읽어 0원으로 보였다. 규칙은 달력 RPC(20261016080014)와 같다:
-//   팝업 하루 = popup_daily_sales > 그 팝업의 POS,  날짜 하루 = daily_sales > 팝업별 값의 합
+// 정정 우선순위는 DB 함수 get_day_sales / get_popup_day_sales 한 곳에 있다(달력·누적 합계와 같은 함수). 여기서는
+// 그 결과에 POS 시간대 곡선(또는 하루 시간대 수기 입력)만 붙인다. 예전엔 같은 규칙을 이 파일에서 다시 구현했다.
 // POS 화면용 fetchTodaysSales는 그대로 둔다 — saveOrder가 그 건수를 "오늘 N번째 주문" 번호로 쓴다.
 
 function unwrap<T>(res: ApiResponse<T>): T {
@@ -497,35 +496,14 @@ function unwrap<T>(res: ApiResponse<T>): T {
   return res.data
 }
 
-async function getDayOverrides(date: string) {
-  const [popupRes, dayRes] = await Promise.all([
-    supabaseAdmin.from('popup_daily_sales').select('popup_id, total_revenue, total_orders, popup_events(name)').eq('sale_date', date),
-    supabaseAdmin.from('daily_sales').select('total_revenue, total_orders').eq('sale_date', date).maybeSingle(),
-  ])
-  if (popupRes.error) throw popupRes.error
-  if (dayRes.error) throw dayRes.error
-  type Row = { popup_id: number; total_revenue: number | string; total_orders: number; popup_events: { name: string } | { name: string }[] | null }
-  const byPopup = new Map<number, { popupName: string; totalRevenue: number; totalOrders: number }>()
-  for (const r of (popupRes.data ?? []) as unknown as Row[]) {
-    const pe = Array.isArray(r.popup_events) ? r.popup_events[0] : r.popup_events
-    byPopup.set(r.popup_id, { popupName: pe?.name ?? '?', totalRevenue: Number(r.total_revenue), totalOrders: Number(r.total_orders) })
-  }
-  const day: TodaysSales | null = dayRes.data
-    ? { totalRevenue: Number(dayRes.data.total_revenue ?? 0), totalOrders: Number(dayRes.data.total_orders ?? 0) }
-    : null
-  return { byPopup, day }
-}
+type PopupDayRow = { sale_date: string; popup_key: number; revenue: number | string; orders: number | string; corrected: boolean }
 
-// 정정한 팝업의 곡선은 하루 시간대 수기 입력(manual_daily_hourly_sales)이 있으면 그걸로, 없으면 비운다 —
-// POS 곡선을 남기면 곡선과 합계가 서로 다른 숫자가 된다
-function applyPopupOverrides(
-  raw: TodayPopupSales[],
-  byPopup: Map<number, { popupName: string; totalRevenue: number; totalOrders: number }>,
-  hourlyByPopup: Map<number, { hour: number; revenue: number }[]>,
-): TodayPopupSales[] {
-  const merged = raw.filter(p => !byPopup.has(p.popupId))
-  for (const [popupId, v] of byPopup) merged.push({ popupId, ...v, hourly: hourlyByPopup.get(popupId) ?? [], corrected: true })
-  return merged.sort((a, b) => b.totalRevenue - a.totalRevenue)
+async function getPopupDaySales(startDate: string, endDate: string, popupId?: number): Promise<PopupDayRow[]> {
+  let query = supabaseAdmin.rpc('get_popup_day_sales', { p_start: startDate, p_end: endDate })
+  if (popupId != null) query = query.eq('popup_key', popupId)
+  const { data, error } = await query
+  if (error) throw error
+  return (data ?? []) as PopupDayRow[]
 }
 
 async function getDailyHourlyByPopup(date: string): Promise<Map<number, { hour: number; revenue: number }[]>> {
@@ -545,30 +523,36 @@ async function getDailyHourlyByPopup(date: string): Promise<Map<number, { hour: 
 }
 
 async function getTodaysSalesWithOverrides(): Promise<TodaysSales> {
-  const [summary, rawPopups, { byPopup, day }] = await Promise.all([
-    fetchTodaysSales().then(unwrap),
-    fetchTodaysSalesByPopup().then(unwrap),
-    getDayOverrides(kstToday()),
-  ])
-  if (day) return day
-  // 팝업 없는 주문(popup_id NULL)도 합계에 남도록 POS 합계에서 정정한 팝업의 POS분만 바꿔 끼운다
-  let { totalRevenue, totalOrders } = summary
-  for (const [popupId, v] of byPopup) {
-    const pos = rawPopups.find(p => p.popupId === popupId)
-    totalRevenue += v.totalRevenue - (pos?.totalRevenue ?? 0)
-    totalOrders += v.totalOrders - (pos?.totalOrders ?? 0)
-  }
-  return { totalRevenue, totalOrders }
+  const today = kstToday()
+  const { data, error } = await supabaseAdmin.rpc('get_day_sales', { p_start: today, p_end: today })
+  if (error) throw error
+  const row = (data ?? [])[0] as { revenue: number | string; orders: number | string } | undefined
+  return { totalRevenue: Number(row?.revenue ?? 0), totalOrders: Number(row?.orders ?? 0) }
 }
 
+// 정정한 팝업의 곡선은 하루 시간대 수기 입력(manual_daily_hourly_sales)이 있으면 그걸로, 없으면 비운다 —
+// POS 곡선을 남기면 곡선과 합계가 서로 다른 숫자가 된다
 async function getTodaysPopupSalesWithOverrides(): Promise<TodayPopupSales[]> {
   const today = kstToday()
-  const [rawPopups, { byPopup }, hourly] = await Promise.all([
+  const [rawPopups, dayRows, hourly, popupsRes] = await Promise.all([
     fetchTodaysSalesByPopup().then(unwrap),
-    getDayOverrides(today),
+    getPopupDaySales(today, today),
     getDailyHourlyByPopup(today),
+    supabaseAdmin.from('popup_events').select('id, name'),
   ])
-  return applyPopupOverrides(rawPopups, byPopup, hourly)
+  if (popupsRes.error) throw popupsRes.error
+  const nameOf = new Map((popupsRes.data ?? []).map(p => [p.id as number, p.name as string]))
+  // 팝업 없는 주문(popup_key -1)은 팝업 칩이 없다 — POS 오늘 현황과 같다
+  return dayRows
+    .filter(r => r.popup_key !== -1)
+    .map((r): TodayPopupSales => {
+      const pos = rawPopups.find(p => p.popupId === r.popup_key)
+      const base = { popupId: r.popup_key, popupName: nameOf.get(r.popup_key) ?? pos?.popupName ?? '?', totalRevenue: Number(r.revenue), totalOrders: Number(r.orders) }
+      return r.corrected
+        ? { ...base, hourly: hourly.get(r.popup_key) ?? [], corrected: true }
+        : { ...base, hourly: pos?.hourly ?? [] }
+    })
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
 
 // 품목 단위 대체 — 수기로 넣은 품목만 그 팝업의 POS 수량을 갈아끼운다(팝업 통계의 applyMenuManualOverrides와 같은 규칙)
@@ -622,21 +606,16 @@ export async function fetchTodaysMenuSalesForStats(popupId: number | null): Prom
   return wrap(async () => { await requireAdmin(); return getTodaysMenuSalesWithOverrides(parsed.data); });
 }
 
-// 팝업의 하루 매출 목록 — 정정(팝업 정정 > 날짜 전체 정정, getDailySalesForRange) > POS. 달력 RPC(20261016080014)와
-// 같은 규칙이다. 팝업 통계(usePopupStats)와 팝업 비교(usePopupComparison)가 같이 쓴다 — 예전엔 두 훅이 같은 합치기
-// 함수를 각자 복사해 들고 있어서, 한쪽만 고치면 같은 팝업의 매출이 화면마다 달라질 수 있었다.
-// 정정 조회가 실패하면 POS 숫자만으로 돌려주지 않고 실패시킨다(조용히 틀린 숫자보다 오류가 낫다).
+// 팝업의 하루 매출 목록 — 팝업 통계(usePopupStats)와 팝업 비교(usePopupComparison)가 같이 쓴다. 우선순위
+// (팝업 정정 > 그날 팝업이 하나면 날짜 전체 정정 > POS)는 DB 함수 get_popup_day_sales에 있다 — 달력 팝업 줄과 같은 함수.
 async function getPopupDailySales(popupId: number): Promise<DailySalesItem[]> {
   const { data: popup, error } = await supabaseAdmin.from('popup_events').select('start_date, end_date').eq('id', popupId).maybeSingle();
   if (error) throw error;
   if (!popup) throw new Error('팝업을 찾을 수 없습니다.');
-  const [pos, manual] = await Promise.all([
-    getDailySalesByPeriod(getKSTDateBounds(popup.start_date).start, getKSTDateBounds(popup.end_date).end, popupId),
-    getDailySalesForRange(popup.start_date, popup.end_date, popupId),
-  ]);
-  const byDate = new Map(pos.map(d => [d.date, d]));
-  for (const m of manual) byDate.set(m.sale_date, { date: m.sale_date, revenue: m.total_revenue, orderCount: m.total_orders });
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const rows = await getPopupDaySales(popup.start_date, popup.end_date, popupId);
+  return rows
+    .map(r => ({ date: r.sale_date, revenue: Number(r.revenue), orderCount: Number(r.orders) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function fetchPopupDailySales(popupId: number): Promise<FetchDailySalesResponse> {
