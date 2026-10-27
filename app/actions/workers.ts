@@ -8,6 +8,7 @@ import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, wrap } from './_base'
 import { ADMIN_CODE_COOKIE, adminCodeProof } from '@/lib/auth-role'
+import { afterFailure, codeMatches, lockedMinutesLeft } from '@/lib/adminCodeLock'
 import { bucketOrderStats, type MyOrderStats } from '@/lib/orderStats'
 import { encryptResidentId, decryptResidentId } from '@/lib/pii-crypto'
 import { isValidResidentRegistrationNumber, maskResidentId } from '@/lib/resident-id'
@@ -318,7 +319,29 @@ export async function checkAdminLoginCode(
     if (user.accountRole !== 'admin' || !expected) return { success: true, data: { required: false, verified: true } }
 
     if (code == null) return { success: true, data: { required: true, verified: !user.adminCodePending } }
-    if (code.trim() !== expected) return { success: false, error: '관리자 코드가 올바르지 않습니다.' }
+
+    // 계정별 연속 실패 5회면 15분 잠금 — 횟수 제한이 없으면 비밀번호를 아는 사람이 코드를 무제한 대입할 수 있다
+    const { data: attemptRow, error: attemptError } = await supabaseAdmin
+      .from('admin_code_attempts').select('failed_count, locked_until').eq('user_id', user.id).maybeSingle()
+    if (attemptError) throw attemptError
+    const nowMs = Date.now()
+    const attempt = attemptRow
+      ? { failedCount: attemptRow.failed_count, lockedUntilMs: attemptRow.locked_until ? Date.parse(attemptRow.locked_until) : null }
+      : null
+    const lockedFor = lockedMinutesLeft(attempt, nowMs)
+    if (lockedFor != null) return { success: false, error: `관리자 코드를 여러 번 틀려 잠겼습니다. ${lockedFor}분 뒤 다시 시도하세요.` }
+    if (!codeMatches(code.trim(), expected)) {
+      const next = afterFailure(attempt, nowMs)
+      const { error: saveError } = await supabaseAdmin.from('admin_code_attempts').upsert({
+        user_id: user.id,
+        failed_count: next.failedCount,
+        locked_until: next.lockedUntilMs ? new Date(next.lockedUntilMs).toISOString() : null,
+        updated_at: new Date(nowMs).toISOString(),
+      })
+      if (saveError) throw saveError
+      return { success: false, error: next.lockedUntilMs ? '관리자 코드를 5회 틀려 15분 동안 잠겼습니다.' : '관리자 코드가 올바르지 않습니다.' }
+    }
+    if (attemptRow) await supabaseAdmin.from('admin_code_attempts').delete().eq('user_id', user.id)
 
     // 통과 증명을 httpOnly 쿠키로 — proxy.ts와 getAuthUser가 이 쿠키가 있어야 admin으로 본다(lib/auth-role.ts)
     const proof = user.sessionId ? await adminCodeProof(user.id, user.sessionId) : null
