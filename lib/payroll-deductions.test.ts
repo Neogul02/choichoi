@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { withholding33, percentDeduction, quickDeductionAmount, WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL } from './payroll-deductions'
+import {
+  withholding33, percentDeduction, quickDeductionAmount, WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL,
+  DEFAULT_DEDUCTIONS, isDefaultDeduction,
+} from './payroll-deductions'
 
 describe('withholding33', () => {
   it('소득세 3%·지방세 10%를 각각 10원 미만 절사', () => {
@@ -30,5 +33,18 @@ describe('quickDeductionAmount', () => {
     expect(quickDeductionAmount(WITHHOLDING_LABEL, 343_750)).toBe(-11_340)
     expect(quickDeductionAmount(EMPLOYMENT_INSURANCE_LABEL, 343_750)).toBe(-3_093)
     expect(quickDeductionAmount('식대', 343_750)).toBeNull()
+  })
+})
+
+describe('기본 공제(staff_profiles.default_deduction)', () => {
+  it('DB 값을 바로 공제 라벨로 바꾸고, 그 라벨로 금액을 계산할 수 있다', () => {
+    expect(quickDeductionAmount(DEFAULT_DEDUCTIONS.withholding33, 1_000_000)).toBe(-33_000)
+    expect(quickDeductionAmount(DEFAULT_DEDUCTIONS.employment_insurance, 1_000_000)).toBe(-9_000)
+  })
+  it('알 수 없는 값은 기본 공제로 보지 않는다', () => {
+    expect(isDefaultDeduction('withholding33')).toBe(true)
+    expect(isDefaultDeduction('toString')).toBe(false)
+    expect(isDefaultDeduction('')).toBe(false)
+    expect(isDefaultDeduction(null)).toBe(false)
   })
 })

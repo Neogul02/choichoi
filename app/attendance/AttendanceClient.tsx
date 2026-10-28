@@ -4,18 +4,21 @@ import { useCallback, useEffect, useState } from 'react'
 import NavBar from '@/components/NavBar'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { showMsg } from '@/lib/toast'
-import { fireConfetti } from '@/lib/confetti'
 import { addDays, kstToday } from '@/lib/date'
 import { formatTimeRange } from '@/lib/workhours'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
-import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, formatWorkedDuration, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
+import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, formatWorkedDuration, kstHHMMOf, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
 import { formatPhoneInput, isValidKoreanPhone } from '@/lib/phone'
 import {
-  clockIn, clockOut, fetchAttendanceBoard, fetchAttendanceLog, fetchMissingClockIns, voidAttendance,
+  clockIn, clockOut, fetchAttendanceBoard, fetchAttendanceLog, fetchMissingClockIns, recordMissedAttendance, voidAttendance,
   type AttendanceBoard, type AttendanceBoardItem, type AttendanceLogEntry, type ClockOutDone, type MissingClockIn,
 } from '@/app/actions/attendance'
+import { removeRosterAssignment } from '@/app/actions/roster'
 
 const REFRESH_MS = 60 * 1000
+// 관리자 기록(출퇴근·미출근)은 출근 버튼처럼 분 단위로 바뀌지 않는다 — 주기 갱신은 10분에 한 번만, 대신
+// 출근·퇴근·취소 직후와 화면이 다시 보일 때는 바로 새로 받는다
+const LOG_REFRESH_EVERY = 10
 // 퇴근 결과 팝업은 다음 사람이 바로 쓸 수 있게 저절로 닫힌다
 const RESULT_AUTO_CLOSE_MS = 8 * 1000
 
@@ -40,11 +43,12 @@ export default function AttendanceClient({ initialBoard, initialLog, initialMiss
   const [finished, setFinished] = useState<ClockOutDone | null>(null)
   // 자동 닫힘 타이머가 1분마다 오는 reload 렌더에 리셋되지 않도록 고정
   const closeResult = useCallback(() => setFinished(null), [])
+  const nowHHMM = useNowHHMM()
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (withLog = true) => {
     const r = await fetchAttendanceBoard()
     if (r.success && r.data) setBoard(r.data)
-    if (isAdmin) {
+    if (isAdmin && withLog) {
       const today = kstToday()
       const from = addDays(today, -(LOG_DAYS - 1))
       const [l, m] = await Promise.all([fetchAttendanceLog(from, today), fetchMissingClockIns(from, today)])
@@ -55,7 +59,13 @@ export default function AttendanceClient({ initialBoard, initialLog, initialMiss
 
   // 아이패드를 켜 둔 채로 하루를 넘기므로 주기적으로, 그리고 화면이 다시 보일 때 새로 고친다
   useEffect(() => {
-    const id = window.setInterval(reload, REFRESH_MS)
+    let tick = 0
+    const id = window.setInterval(() => {
+      // 화면이 꺼져 있는 동안은 받지 않는다 — 다시 보일 때 visibilitychange가 한 번에 맞춘다
+      if (document.visibilityState !== 'visible') return
+      tick += 1
+      reload(tick % LOG_REFRESH_EVERY === 0)
+    }, REFRESH_MS)
     const onVisible = () => { if (document.visibilityState === 'visible') reload() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
@@ -75,11 +85,17 @@ export default function AttendanceClient({ initialBoard, initialLog, initialMiss
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {board.items.map(item => (
-                <StaffCard key={item.staffId} item={item} onPick={setSelected} />
+                <StaffCard
+                  key={item.staffId}
+                  item={item}
+                  onPick={setSelected}
+                  late={phaseOf(item) === 'before' && !!item.scheduledStart && nowHHMM != null
+                    && board.today === kstToday() && nowHHMM > item.scheduledStart}
+                />
               ))}
             </div>
           )}
-          {isAdmin && missing.length > 0 && <MissingClockInList items={missing} />}
+          {isAdmin && missing.length > 0 && <MissingClockInList items={missing} onChanged={reload} />}
           {isAdmin && log && <AdminLog entries={log} onChanged={reload} />}
         </div>
       </main>
@@ -142,12 +158,29 @@ function useNow(): number | null {
   return now
 }
 
-function StaffCard({ item, onPick }: { item: AttendanceBoardItem; onPick: (i: AttendanceBoardItem) => void }) {
+// 지금 KST 'HH:MM' — 서버 렌더와 어긋나지 않게 마운트 후에만 값을 갖고, 지각 표시용이라 분 단위면 충분하다
+function useNowHHMM(): string | null {
+  const [now, setNow] = useState<string | null>(null)
+  useEffect(() => {
+    setNow(kstHHMMOf(Date.now()))
+    const id = window.setInterval(() => setNow(kstHHMMOf(Date.now())), 30 * 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  return now
+}
+
+function StaffCard({ item, onPick, late }: {
+  item: AttendanceBoardItem
+  onPick: (i: AttendanceBoardItem) => void
+  /** 근무표 출근 시각이 지났는데 아직 출근 전 */
+  late: boolean
+}) {
   const phase = phaseOf(item)
   const rec = item.record
   const tone =
     phase === 'working' ? 'border-emerald-400 bg-emerald-50 attendance-working'
     : phase === 'done' ? 'border-hairline bg-canvas-soft'
+    : late ? 'border-rose-300 bg-rose-50'
     : 'border-hairline bg-canvas'
   return (
     <button
@@ -190,7 +223,9 @@ function StaffCard({ item, onPick }: { item: AttendanceBoardItem; onPick: (i: At
           </p>
         </div>
       ) : (
-        <p className="m-0 mt-3 text-[14px] font-semibold text-ink-secondary">출근 전</p>
+        <p className={`m-0 mt-3 text-[14px] font-semibold ${late ? 'text-rose-600' : 'text-ink-secondary'}`}>
+          {late ? '출근 시각 지남' : '출근 전'}
+        </p>
       )}
     </button>
   )
@@ -331,8 +366,9 @@ function PunchDialog({ item, onClose, onDone }: {
 // 퇴근 직후 그날 근무시간을 크게 보여준다. 숫자는 급여에 들어가는 유급 분(lib/workhours.ts)과 같다
 function ClockOutResult({ result, onClose }: { result: ClockOutDone; onClose: () => void }) {
   useBodyScrollLock(true)
-  // 하루 마무리 축하 — 결과 팝업이 뜰 때 한 번만 터뜨린다 (canvas-confetti 기본 z-index 100이라 팝업 위로 보인다)
-  useEffect(() => { fireConfetti() }, [])
+  // 하루 마무리 축하 — 결과 팝업이 뜰 때 한 번만 터뜨린다 (canvas-confetti 기본 z-index 100이라 팝업 위로 보인다).
+  // 퇴근할 때만 쓰므로 출근부 첫 화면 번들에 넣지 않고 그때 불러온다
+  useEffect(() => { import('@/lib/confetti').then(m => m.fireConfetti()) }, [])
   useEffect(() => {
     const id = window.setTimeout(onClose, RESULT_AUTO_CLOSE_MS)
     return () => window.clearTimeout(id)
@@ -364,6 +400,11 @@ function ClockOutResult({ result, onClose }: { result: ClockOutDone; onClose: ()
           <p className="m-0 mt-3 text-[14px] text-ink-secondary tabular-nums">
             {result.startTime} ~ {result.endTime} · 휴게 {breakLabel(result.breakMinutes)}
           </p>
+          {result.monthPaidMinutes != null && (
+            <p className="m-0 mt-2 text-[14px] font-semibold text-ink tabular-nums">
+              이번 달 누적 {formatWorkedDuration(result.monthPaidMinutes)}
+            </p>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -451,28 +492,103 @@ function AdminLog({ entries, onChanged }: { entries: AttendanceLogEntry[]; onCha
   )
 }
 
-// 근무표엔 있는데 출근을 안 찍은 날 — 급여가 계획값으로 잡히므로 결근이면 근무표에서 지워야 한다
-function MissingClockInList({ items }: { items: MissingClockIn[] }) {
+// 근무표엔 있는데 출근을 안 찍은 날 — 급여가 계획값으로 잡히므로 결근이면 지우고, 일했으면 실측으로 고친다
+function MissingClockInList({ items, onChanged }: { items: MissingClockIn[]; onChanged: () => void }) {
+  const [absent, setAbsent] = useState<MissingClockIn | null>(null)
+  const [editing, setEditing] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const runAbsent = async () => {
+    if (!absent) return
+    setBusy(true)
+    const r = await removeRosterAssignment(absent.assignmentId)
+    setBusy(false)
+    setAbsent(null)
+    showMsg(r.success ? `${absent.name}님 ${absent.workDate} 근무를 결근으로 지웠습니다` : `오류: ${r.error}`)
+    onChanged()
+  }
+
   return (
     <section className="rounded-xl border border-rose-200 bg-rose-50/40 p-4">
       <h2 className="m-0 mb-1 text-[16px] font-bold text-ink">출근 기록 없음 {items.length}건</h2>
       <p className="m-0 mb-3 text-[12px] text-ink-faint">
         근무표엔 있는데 출근을 찍지 않은 날입니다. 그대로 두면 급여는 계획 시간으로 계산됩니다.
-        결근이면 인사 → 근무표에서 배정을 지우고, 실제로 일했다면 시간을 실측으로 고치세요.
+        결근이면 &lsquo;결근 처리&rsquo;로 지우고, 실제로 일했다면 &lsquo;시간 정정&rsquo;으로 실측 시간을 넣으세요. 확인을 마치면 목록에서 빠집니다.
       </p>
       <ul className="m-0 p-0 list-none divide-y divide-rose-100">
         {items.map(m => (
-          <li key={m.assignmentId} className="py-2 flex items-center gap-3">
-            <p className="m-0 flex-1 min-w-0 text-[14px] font-semibold text-ink">
-              {m.workDate.slice(5)} · {m.name}
-            </p>
-            <span className="shrink-0 text-[12px] text-ink-muted tabular-nums">
-              {m.plannedStart && m.plannedEnd ? `계획 ${formatTimeRange(m.plannedStart, m.plannedEnd)}` : '시간 미정'}
-            </span>
+          <li key={m.assignmentId} className="py-2">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="m-0 text-[14px] font-semibold text-ink">{m.workDate.slice(5)} · {m.name}</p>
+                <p className="m-0 text-[12px] text-ink-muted tabular-nums">
+                  {m.plannedStart && m.plannedEnd ? `계획 ${formatTimeRange(m.plannedStart, m.plannedEnd)}` : '시간 미정'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditing(editing === m.assignmentId ? null : m.assignmentId)}
+                className="shrink-0 px-3 py-1.5 rounded-lg border border-hairline bg-canvas text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft"
+              >
+                시간 정정
+              </button>
+              <button
+                type="button"
+                onClick={() => setAbsent(m)}
+                className="shrink-0 px-3 py-1.5 rounded-lg border border-rose-200 bg-canvas text-[12px] font-semibold text-rose-600 cursor-pointer hover:bg-rose-50"
+              >
+                결근 처리
+              </button>
+            </div>
+            {editing === m.assignmentId && (
+              <TimeFixForm item={m} onDone={() => { setEditing(null); onChanged() }} />
+            )}
           </li>
         ))}
       </ul>
+      <ConfirmDialog
+        open={!!absent}
+        title="결근으로 처리할까요?"
+        description={absent ? `${absent.name}님 ${absent.workDate} 근무를 근무표에서 지웁니다. 이 날은 급여에서 빠집니다.` : undefined}
+        confirmLabel="결근 처리"
+        danger
+        busy={busy}
+        dismissOnBackdrop={false}
+        onConfirm={runAbsent}
+        onClose={() => setAbsent(null)}
+      />
     </section>
+  )
+}
+
+// 출근을 못 찍었지만 일한 날 — 실제 시작·종료로 출퇴근 기록을 만든다(키오스크 퇴근과 같은 경로, 기록 취소로 되돌림)
+function TimeFixForm({ item, onDone }: { item: MissingClockIn; onDone: () => void }) {
+  const [start, setStart] = useState(item.plannedStart?.slice(0, 5) ?? '')
+  const [end, setEnd] = useState(item.plannedEnd?.slice(0, 5) ?? '')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (!start || !end) { showMsg('시작·종료 시각을 모두 입력하세요'); return }
+    setSaving(true)
+    const r = await recordMissedAttendance(item.assignmentId, start, end)
+    setSaving(false)
+    if (!r.success) { showMsg(`오류: ${r.error}`); return }
+    showMsg(`${item.name}님 ${item.workDate} 근무를 ${formatTimeRange(start, end)}로 고쳤습니다`)
+    onDone()
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px]">
+      <input type="time" value={start} onChange={e => setStart(e.target.value)}
+        className="px-2 py-1.5 border border-hairline rounded-lg bg-canvas tabular-nums" aria-label="시작" />
+      <span className="text-ink-muted">~</span>
+      <input type="time" value={end} onChange={e => setEnd(e.target.value)}
+        className="px-2 py-1.5 border border-hairline rounded-lg bg-canvas tabular-nums" aria-label="종료" />
+      <button type="button" onClick={save} disabled={saving}
+        className="px-3 py-1.5 rounded-lg border-none bg-primary-700 text-white text-[12px] font-bold cursor-pointer disabled:opacity-50">
+        {saving ? '저장 중…' : '저장'}
+      </button>
+    </div>
   )
 }
 

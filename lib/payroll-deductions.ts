@@ -21,6 +21,16 @@ export const WITHHOLDING_LABEL = '원천징수 3.3%'
 export const EMPLOYMENT_INSURANCE_LABEL = '고용보험 0.9%'
 export const EMPLOYMENT_INSURANCE_PERCENT = 0.9
 
+/** 직원별 기본 공제(staff_profiles.default_deduction) → 바로 공제 라벨 */
+export const DEFAULT_DEDUCTIONS = {
+  withholding33: WITHHOLDING_LABEL,
+  employment_insurance: EMPLOYMENT_INSURANCE_LABEL,
+} as const
+export type DefaultDeduction = keyof typeof DEFAULT_DEDUCTIONS
+
+export const isDefaultDeduction = (v: unknown): v is DefaultDeduction =>
+  typeof v === 'string' && Object.prototype.hasOwnProperty.call(DEFAULT_DEDUCTIONS, v)
+
 /** 빠른 공제 항목의 조정 금액(음수) — 라벨로 기존 항목과 맞춰 재계산 여부를 판단한다 */
 export function quickDeductionAmount(label: string, base: number): number | null {
   if (label === WITHHOLDING_LABEL) return -withholding33(base).total

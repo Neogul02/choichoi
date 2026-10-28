@@ -8,15 +8,17 @@ import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
 import { addDays, kstToday } from '@/lib/date'
 import {
-  OPEN_WINDOW_HOURS, isAttendanceBreak, isWithinOpenWindow, kstDateOf, kstHHMMOf, kstHHMMSSOf,
+  ATTENDANCE_LAUNCH_DATE, OPEN_WINDOW_HOURS, isAttendanceBreak, isWithinOpenWindow, kstDateOf, kstHHMMOf, kstHHMMSSOf, kstInstant,
   resolveClockOutTimes, isBreakShort, payrollMonthKey,
 } from '@/lib/attendance'
-import { paidMinutes } from '@/lib/workhours'
+import { crossesMidnight, paidMinutes } from '@/lib/workhours'
 import { normalizePhone } from '@/lib/phone'
 import { materializeFromShift, shiftStartPriority } from '@/lib/roster/query-helpers'
-import { wrap, requireAdmin, requireKioskOrAdmin } from './_base'
+import { queryMissingClockIns, type MissingClockIn } from '@/lib/attendance-queries'
+import { wrap, requireAdmin, requireKioskOrAdmin, requireManagerOrAdmin } from './_base'
 
 export type AttendanceStatus = 'open' | 'closed' | 'voided'
+export type { MissingClockIn }
 
 export interface AttendanceBoardItem {
   staffId: number
@@ -47,6 +49,8 @@ export interface ClockOutDone {
   endTime: string
   breakMinutes: number
   paidMinutes: number
+  /** 이번 달 1일~오늘 유급 분 합계(오늘 포함) — 급여정산과 같은 계산. 조회 실패 시 null */
+  monthPaidMinutes: number | null
 }
 
 export interface AttendanceBoard {
@@ -194,6 +198,26 @@ export async function fetchAttendanceBoard(): Promise<ApiResponse<AttendanceBoar
       || Number(!a.scheduledToday) - Number(!b.scheduledToday))
     return { today, items }
   })
+}
+
+/** 근무일이 속한 달 1일~근무일까지 이 직원의 유급 분 — 퇴근 팝업의 '이번 달 누적'. 부가 정보라 실패해도 퇴근은 성공으로 둔다 */
+async function monthPaidMinutesUntil(staffId: number, workDate: string): Promise<number | null> {
+  const { data, error } = await supabaseAdmin
+    .from('roster_assignments')
+    .select('start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time, break_minutes)')
+    .eq('staff_id', staffId)
+    .gte('work_date', `${workDate.slice(0, 7)}-01`)
+    .lte('work_date', workDate)
+  if (error) return null
+  let total = 0
+  for (const a of data ?? []) {
+    const shift = (Array.isArray(a.roster_shifts) ? a.roster_shifts[0] : a.roster_shifts) as
+      { start_time: string; end_time: string; break_minutes: number | null } | null
+    const start = a.start_time ?? shift?.start_time
+    const end = a.end_time ?? shift?.end_time
+    if (start && end) total += paidMinutes(start, end, a.break_minutes, shift?.break_minutes)
+  }
+  return total
 }
 
 async function assertMonthNotSettled(staffId: number, workDate: string) {
@@ -359,6 +383,7 @@ export async function clockOut(
     return {
       name,
       time: kstHHMMSSOf(nowMs),
+      monthPaidMinutes: await monthPaidMinutesUntil(rec.staff_id, rec.work_date),
       startTime: times.startTime,
       endTime: times.endTime,
       breakMinutes,
@@ -435,67 +460,75 @@ export async function fetchAttendanceLog(fromDate: string, toDate: string): Prom
   })
 }
 
-export interface MissingClockIn {
-  assignmentId: number
-  staffId: number
-  name: string
-  workDate: string
-  /** 근무표 계획 — 출근 기록이 없으면 급여는 이 시각 그대로 계산된다 */
-  plannedStart: string | null
-  plannedEnd: string | null
-}
-
 /**
  * 근무표엔 주방 근무가 있는데 출근을 한 번도 찍지 않은 지난 날 — 급여는 계획값(예: 10:00~18:00) 그대로 잡힌다.
  * 결근인지 버튼만 잊은 건지 기계가 알 수 없어 급여는 건드리지 않고, 관리자가 근무표에서 정정·삭제하도록 띄우기만 한다.
- * 오늘은 아직 출근 전일 수 있으므로 어제까지만 본다.
+ * 오늘은 아직 출근 전일 수 있으므로 어제까지만, 출근부 도입 전 날짜는 빼고 본다.
+ * 급여정산 화면(매니저 열람 가능)에서도 같은 판정을 쓰므로 매니저도 조회할 수 있다.
  */
 export async function fetchMissingClockIns(fromDate: string, toDate: string): Promise<ApiResponse<MissingClockIn[]>> {
   return wrap(async () => {
-    await requireAdmin()
+    await requireManagerOrAdmin()
     const yesterday = addDays(kstToday(), -1)
     const until = toDate < yesterday ? toDate : yesterday
-    if (until < fromDate) return []
+    const since = fromDate > ATTENDANCE_LAUNCH_DATE ? fromDate : ATTENDANCE_LAUNCH_DATE
+    if (until < since) return []
 
-    const [assignRes, recordRes] = await Promise.all([
-      supabaseAdmin
-        .from('roster_assignments')
-        .select('id, staff_id, work_date, start_time, end_time, staff_profiles (name), roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time)')
-        .eq('staff_role', 'kitchen')
-        .gte('work_date', fromDate)
-        .lte('work_date', until)
-        .order('work_date', { ascending: false })
-        .order('start_time', { ascending: true }),
-      supabaseAdmin
-        .from('attendance_records')
-        .select('staff_id, work_date')
-        .gte('work_date', fromDate)
-        .lte('work_date', until)
-        .neq('status', 'voided'),
-    ])
-    if (assignRes.error) throw new Error(assignRes.error.message)
-    if (recordRes.error) throw new Error(recordRes.error.message)
+    return queryMissingClockIns(since, until)
+  })
+}
 
-    // 출근은 하루 한 번이라 (직원, 날짜)로 맞춘다 — 하루 배정이 둘이어도 한 번 찍었으면 근무한 날이다
-    const punched = new Set((recordRes.data ?? []).map(r => `${r.staff_id}|${r.work_date}`))
-    const seen = new Set<string>()
-    const missing: MissingClockIn[] = []
-    for (const a of assignRes.data ?? []) {
-      const key = `${a.staff_id}|${a.work_date}`
-      if (punched.has(key) || seen.has(key)) continue
-      seen.add(key)
-      const prof = (Array.isArray(a.staff_profiles) ? a.staff_profiles[0] : a.staff_profiles) as { name: string } | null
-      const shift = (Array.isArray(a.roster_shifts) ? a.roster_shifts[0] : a.roster_shifts) as { start_time: string; end_time: string } | null
-      missing.push({
-        assignmentId: a.id,
-        staffId: a.staff_id,
-        name: prof?.name ?? '?',
-        workDate: a.work_date,
-        plannedStart: a.start_time ?? shift?.start_time ?? null,
-        plannedEnd: a.end_time ?? shift?.end_time ?? null,
+/**
+ * 출근을 못 찍었지만 일한 날 — 관리자가 실제 시작·종료를 넣으면 키오스크 퇴근과 똑같이 기록한다.
+ * 배정 행만 고치면 출근 기록이 없어 계속 미출근으로 남으므로, 출퇴근 기록을 만들고 같은 RPC로 마감한다.
+ * 계획값은 planned_*에 남아 '기록 취소'로 되돌릴 수 있다.
+ */
+export async function recordMissedAttendance(assignmentId: number, startTime: string, endTime: string): Promise<ApiResponse> {
+  return wrap(async () => {
+    await requireAdmin()
+    const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/
+    if (!hhmm.test(startTime) || !hhmm.test(endTime)) throw new Error('시각은 HH:MM 형식이어야 합니다.')
+    if (startTime === endTime) throw new Error('시작과 종료가 같습니다.')
+
+    const { data: a, error } = await supabaseAdmin
+      .from('roster_assignments')
+      .select('id, staff_id, work_date, break_minutes')
+      .eq('id', assignmentId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!a) throw new Error('근무를 찾을 수 없습니다.')
+    if (a.work_date >= kstToday()) throw new Error('오늘 근무는 출근부에서 직접 찍어주세요.')
+    await assertMonthNotSettled(a.staff_id, a.work_date)
+
+    const clockInMs = kstInstant(a.work_date, startTime)
+    const clockOutMs = kstInstant(a.work_date, endTime) + (crossesMidnight(startTime, endTime) ? 24 * 3600 * 1000 : 0)
+
+    const { data: rec, error: insertError } = await supabaseAdmin
+      .from('attendance_records')
+      .insert({
+        staff_id: a.staff_id, work_date: a.work_date, assignment_id: a.id,
+        clock_in_at: new Date(clockInMs).toISOString(), unscheduled: false,
       })
+      .select('id')
+      .single()
+    if (insertError) {
+      if (insertError.code === '23505') throw new Error('이 날은 이미 출퇴근 기록이 있습니다.')
+      throw new Error(insertError.message)
     }
-    return missing
+
+    // 휴게는 배정에 정해둔 값을 그대로 둔다(NULL이면 파트 기본 휴게) — 시간만 실측으로 바꾼다
+    const { error: rpcError } = await supabaseAdmin.rpc('attendance_clock_out', {
+      p_record_id: rec.id,
+      p_clock_out_at: new Date(clockOutMs).toISOString(),
+      p_start_time: startTime,
+      p_end_time: endTime,
+      p_break_minutes: a.break_minutes,
+    })
+    if (rpcError) {
+      // 열린 기록만 남으면 키오스크에 '근무 중'으로 뜨므로 지운다
+      await supabaseAdmin.from('attendance_records').delete().eq('id', rec.id)
+      throw new Error(rpcError.message)
+    }
   })
 }
 
