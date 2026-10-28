@@ -1,4 +1,4 @@
-import { fetchAttendanceBoard, fetchAttendanceLog } from '@/app/actions/attendance'
+import { fetchAttendanceBoard, fetchAttendanceLog, fetchMissingClockIns } from '@/app/actions/attendance'
 import { getAuthUser } from '@/app/actions/_base'
 import { addDays, kstToday } from '@/lib/date'
 import { ATTENDANCE_LOG_DAYS } from '@/lib/attendance'
@@ -12,14 +12,17 @@ export default async function AttendancePage() {
   const user = await getAuthUser()
   const isAdmin = user?.role === 'admin'
   const today = kstToday()
-  const [boardRes, logRes] = await Promise.all([
+  const from = addDays(today, -(ATTENDANCE_LOG_DAYS - 1))
+  const [boardRes, logRes, missingRes] = await Promise.all([
     fetchAttendanceBoard(),
-    isAdmin ? fetchAttendanceLog(addDays(today, -(ATTENDANCE_LOG_DAYS - 1)), today) : null,
+    isAdmin ? fetchAttendanceLog(from, today) : null,
+    isAdmin ? fetchMissingClockIns(from, today) : null,
   ])
   return (
     <AttendanceClient
       initialBoard={boardRes.success && boardRes.data ? boardRes.data : null}
       initialLog={logRes?.success && logRes.data ? logRes.data : null}
+      initialMissing={missingRes?.success && missingRes.data ? missingRes.data : []}
       isAdmin={isAdmin}
     />
   )

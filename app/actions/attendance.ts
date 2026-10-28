@@ -6,7 +6,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import type { ApiResponse } from '@/types/api'
-import { kstToday } from '@/lib/date'
+import { addDays, kstToday } from '@/lib/date'
 import {
   OPEN_WINDOW_HOURS, isAttendanceBreak, isWithinOpenWindow, kstDateOf, kstHHMMOf, kstHHMMSSOf,
   resolveClockOutTimes, isBreakShort, payrollMonthKey,
@@ -432,6 +432,70 @@ export async function fetchAttendanceLog(fromDate: string, toDate: string): Prom
           && isBreakShort(paidStart, paidEnd, r.break_minutes),
       }
     })
+  })
+}
+
+export interface MissingClockIn {
+  assignmentId: number
+  staffId: number
+  name: string
+  workDate: string
+  /** 근무표 계획 — 출근 기록이 없으면 급여는 이 시각 그대로 계산된다 */
+  plannedStart: string | null
+  plannedEnd: string | null
+}
+
+/**
+ * 근무표엔 주방 근무가 있는데 출근을 한 번도 찍지 않은 지난 날 — 급여는 계획값(예: 10:00~18:00) 그대로 잡힌다.
+ * 결근인지 버튼만 잊은 건지 기계가 알 수 없어 급여는 건드리지 않고, 관리자가 근무표에서 정정·삭제하도록 띄우기만 한다.
+ * 오늘은 아직 출근 전일 수 있으므로 어제까지만 본다.
+ */
+export async function fetchMissingClockIns(fromDate: string, toDate: string): Promise<ApiResponse<MissingClockIn[]>> {
+  return wrap(async () => {
+    await requireAdmin()
+    const yesterday = addDays(kstToday(), -1)
+    const until = toDate < yesterday ? toDate : yesterday
+    if (until < fromDate) return []
+
+    const [assignRes, recordRes] = await Promise.all([
+      supabaseAdmin
+        .from('roster_assignments')
+        .select('id, staff_id, work_date, start_time, end_time, staff_profiles (name), roster_shifts!roster_assignments_shift_id_fkey (start_time, end_time)')
+        .eq('staff_role', 'kitchen')
+        .gte('work_date', fromDate)
+        .lte('work_date', until)
+        .order('work_date', { ascending: false })
+        .order('start_time', { ascending: true }),
+      supabaseAdmin
+        .from('attendance_records')
+        .select('staff_id, work_date')
+        .gte('work_date', fromDate)
+        .lte('work_date', until)
+        .neq('status', 'voided'),
+    ])
+    if (assignRes.error) throw new Error(assignRes.error.message)
+    if (recordRes.error) throw new Error(recordRes.error.message)
+
+    // 출근은 하루 한 번이라 (직원, 날짜)로 맞춘다 — 하루 배정이 둘이어도 한 번 찍었으면 근무한 날이다
+    const punched = new Set((recordRes.data ?? []).map(r => `${r.staff_id}|${r.work_date}`))
+    const seen = new Set<string>()
+    const missing: MissingClockIn[] = []
+    for (const a of assignRes.data ?? []) {
+      const key = `${a.staff_id}|${a.work_date}`
+      if (punched.has(key) || seen.has(key)) continue
+      seen.add(key)
+      const prof = (Array.isArray(a.staff_profiles) ? a.staff_profiles[0] : a.staff_profiles) as { name: string } | null
+      const shift = (Array.isArray(a.roster_shifts) ? a.roster_shifts[0] : a.roster_shifts) as { start_time: string; end_time: string } | null
+      missing.push({
+        assignmentId: a.id,
+        staffId: a.staff_id,
+        name: prof?.name ?? '?',
+        workDate: a.work_date,
+        plannedStart: a.start_time ?? shift?.start_time ?? null,
+        plannedEnd: a.end_time ?? shift?.end_time ?? null,
+      })
+    }
+    return missing
   })
 }
 
