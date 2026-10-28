@@ -3,6 +3,12 @@
 
 import { hhmmToMinutes, shiftRawMinutes } from '@/lib/workhours'
 
+/**
+ * 주방 출근부 도입일 — 이보다 앞선 날은 출근 기록이 원래 없으므로 '출근 기록 없음' 판정에서 뺀다.
+ * (attendance_records 테이블 생성 마이그레이션 20261014092902 기준)
+ */
+export const ATTENDANCE_LAUNCH_DATE = '2026-10-14'
+
 /** 관리자 출근부 화면의 최근 기록 범위(일) */
 export const ATTENDANCE_LOG_DAYS = 7
 

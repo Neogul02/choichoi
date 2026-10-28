@@ -1,4 +1,7 @@
 {
   "framework": "nextjs",
-  "regions": ["icn1"]
+  "regions": ["icn1"],
+  "crons": [
+    { "path": "/api/cron/attendance-alerts", "schedule": "0 0 * * *" }
+  ]
 }

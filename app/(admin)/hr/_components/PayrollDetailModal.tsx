@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   fetchStaffMonthlyDetail, fetchStaffPopupDetail, addPayrollAdjustment, removePayrollAdjustment,
-  fetchAdjustmentPresets, removeAdjustmentPreset,
+  fetchAdjustmentPresets, removeAdjustmentPreset, setStaffDefaultDeduction,
   type StaffDayDetail, type PayrollAdjustment,
 } from '@/app/actions/payroll'
 import WelfareReportPanel from './WelfareReportPanel'
@@ -16,7 +16,8 @@ import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import {
-  EMPLOYMENT_INSURANCE_LABEL, WITHHOLDING_LABEL, percentDeduction, quickDeductionAmount,
+  DEFAULT_DEDUCTIONS, EMPLOYMENT_INSURANCE_LABEL, WITHHOLDING_LABEL, isDefaultDeduction, percentDeduction, quickDeductionAmount,
+  type DefaultDeduction,
 } from '@/lib/payroll-deductions'
 
 // 월별 정산(달력 기준) 또는 팝업별 정산(행사 기간 기준, 월 경계를 넘어가도 한 번에) 중 하나로 조회
@@ -38,6 +39,9 @@ interface Props {
   bankAccount?: string | null
   hourlyRate: number | null
   period: PayrollPeriod
+  /** 직원별 기본 공제 — 급여정산의 '기본 공제 일괄 적용'이 이 값을 쓴다 */
+  defaultDeduction: DefaultDeduction | null
+  onDefaultDeductionChanged: () => void
   onClose: () => void
 }
 
@@ -48,7 +52,7 @@ function formatDate(dateStr: string) {
 
 export default function PayrollDetailModal({
   staffId, periodKey, initialAdjustments, onAdjustmentsChanged,
-  name, phone, bankName, bankAccount, hourlyRate, period, onClose,
+  name, phone, bankName, bankAccount, hourlyRate, period, defaultDeduction, onDefaultDeductionChanged, onClose,
 }: Props) {
   useBodyScrollLock()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -69,6 +73,16 @@ export default function PayrollDetailModal({
   const [pctLabel, setPctLabel] = useState('')
   const [pctValue, setPctValue] = useState('')
   const [copied, setCopied] = useState(false)
+  const [defaultDed, setDefaultDed] = useState<DefaultDeduction | null>(defaultDeduction)
+
+  const changeDefaultDeduction = async (value: DefaultDeduction | null) => {
+    const prev = defaultDed
+    setDefaultDed(value)
+    const res = await setStaffDefaultDeduction(staffId, value)
+    if (!res.success) { setDefaultDed(prev); showMsg(`오류: ${res.error}`); return }
+    showMsg(value ? `${name}님 기본 공제: ${DEFAULT_DEDUCTIONS[value]}` : `${name}님 기본 공제를 해제했습니다`)
+    onDefaultDeductionChanged()
+  }
 
   // period.type이 바뀌어도 안전하게 재조회되도록 두 케이스에서 다른 primitive 키를 쓴다
   const detailFetchKey = period.type === 'month' ? `month:${period.year}-${period.month}` : `popup:${period.popupId}`
@@ -395,6 +409,19 @@ export default function PayrollDetailModal({
                         </button>
                       )
                     })}
+                    <label className="ml-auto flex items-center gap-1 text-[11px] text-ink-muted" title="급여정산 목록의 '기본 공제 일괄 적용'이 매달 이 공제를 넣는다">
+                      기본 공제
+                      <select
+                        value={defaultDed ?? ''}
+                        onChange={e => changeDefaultDeduction(isDefaultDeduction(e.target.value) ? e.target.value : null)}
+                        className="px-1.5 py-1 border border-hairline rounded-lg text-[11px] bg-canvas cursor-pointer focus:outline-none focus:border-primary-700"
+                      >
+                        <option value="">없음</option>
+                        {(Object.keys(DEFAULT_DEDUCTIONS) as DefaultDeduction[]).map(k => (
+                          <option key={k} value={k}>{DEFAULT_DEDUCTIONS[k]}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                   <div className="flex gap-1.5 mt-1.5">
                     <input
