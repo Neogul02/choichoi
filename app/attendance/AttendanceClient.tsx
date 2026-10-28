@@ -4,14 +4,15 @@ import { useCallback, useEffect, useState } from 'react'
 import NavBar from '@/components/NavBar'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { showMsg } from '@/lib/toast'
+import { fireConfetti } from '@/lib/confetti'
 import { addDays, kstToday } from '@/lib/date'
 import { formatTimeRange } from '@/lib/workhours'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, formatWorkedDuration, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
 import { formatPhoneInput, isValidKoreanPhone } from '@/lib/phone'
 import {
-  clockIn, clockOut, fetchAttendanceBoard, fetchAttendanceLog, voidAttendance,
-  type AttendanceBoard, type AttendanceBoardItem, type AttendanceLogEntry, type ClockOutDone,
+  clockIn, clockOut, fetchAttendanceBoard, fetchAttendanceLog, fetchMissingClockIns, voidAttendance,
+  type AttendanceBoard, type AttendanceBoardItem, type AttendanceLogEntry, type ClockOutDone, type MissingClockIn,
 } from '@/app/actions/attendance'
 
 const REFRESH_MS = 60 * 1000
@@ -27,12 +28,14 @@ const phaseOf = (item: AttendanceBoardItem): Phase =>
 interface Props {
   initialBoard: AttendanceBoard | null
   initialLog: AttendanceLogEntry[] | null
+  initialMissing: MissingClockIn[]
   isAdmin: boolean
 }
 
-export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: Props) {
+export default function AttendanceClient({ initialBoard, initialLog, initialMissing, isAdmin }: Props) {
   const [board, setBoard] = useState(initialBoard)
   const [log, setLog] = useState(initialLog)
+  const [missing, setMissing] = useState(initialMissing)
   const [selected, setSelected] = useState<AttendanceBoardItem | null>(null)
   const [finished, setFinished] = useState<ClockOutDone | null>(null)
   // 자동 닫힘 타이머가 1분마다 오는 reload 렌더에 리셋되지 않도록 고정
@@ -43,8 +46,10 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
     if (r.success && r.data) setBoard(r.data)
     if (isAdmin) {
       const today = kstToday()
-      const l = await fetchAttendanceLog(addDays(today, -(LOG_DAYS - 1)), today)
+      const from = addDays(today, -(LOG_DAYS - 1))
+      const [l, m] = await Promise.all([fetchAttendanceLog(from, today), fetchMissingClockIns(from, today)])
       if (l.success && l.data) setLog(l.data)
+      if (m.success && m.data) setMissing(m.data)
     }
   }, [isAdmin])
 
@@ -74,6 +79,7 @@ export default function AttendanceClient({ initialBoard, initialLog, isAdmin }: 
               ))}
             </div>
           )}
+          {isAdmin && missing.length > 0 && <MissingClockInList items={missing} />}
           {isAdmin && log && <AdminLog entries={log} onChanged={reload} />}
         </div>
       </main>
@@ -325,6 +331,8 @@ function PunchDialog({ item, onClose, onDone }: {
 // 퇴근 직후 그날 근무시간을 크게 보여준다. 숫자는 급여에 들어가는 유급 분(lib/workhours.ts)과 같다
 function ClockOutResult({ result, onClose }: { result: ClockOutDone; onClose: () => void }) {
   useBodyScrollLock(true)
+  // 하루 마무리 축하 — 결과 팝업이 뜰 때 한 번만 터뜨린다 (canvas-confetti 기본 z-index 100이라 팝업 위로 보인다)
+  useEffect(() => { fireConfetti() }, [])
   useEffect(() => {
     const id = window.setTimeout(onClose, RESULT_AUTO_CLOSE_MS)
     return () => window.clearTimeout(id)
@@ -439,6 +447,31 @@ function AdminLog({ entries, onChanged }: { entries: AttendanceLogEntry[]; onCha
         onConfirm={runVoid}
         onClose={() => setTarget(null)}
       />
+    </section>
+  )
+}
+
+// 근무표엔 있는데 출근을 안 찍은 날 — 급여가 계획값으로 잡히므로 결근이면 근무표에서 지워야 한다
+function MissingClockInList({ items }: { items: MissingClockIn[] }) {
+  return (
+    <section className="rounded-xl border border-rose-200 bg-rose-50/40 p-4">
+      <h2 className="m-0 mb-1 text-[16px] font-bold text-ink">출근 기록 없음 {items.length}건</h2>
+      <p className="m-0 mb-3 text-[12px] text-ink-faint">
+        근무표엔 있는데 출근을 찍지 않은 날입니다. 그대로 두면 급여는 계획 시간으로 계산됩니다.
+        결근이면 인사 → 근무표에서 배정을 지우고, 실제로 일했다면 시간을 실측으로 고치세요.
+      </p>
+      <ul className="m-0 p-0 list-none divide-y divide-rose-100">
+        {items.map(m => (
+          <li key={m.assignmentId} className="py-2 flex items-center gap-3">
+            <p className="m-0 flex-1 min-w-0 text-[14px] font-semibold text-ink">
+              {m.workDate.slice(5)} · {m.name}
+            </p>
+            <span className="shrink-0 text-[12px] text-ink-muted tabular-nums">
+              {m.plannedStart && m.plannedEnd ? `계획 ${formatTimeRange(m.plannedStart, m.plannedEnd)}` : '시간 미정'}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
