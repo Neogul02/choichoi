@@ -5,6 +5,7 @@
 <title>월별 매출 목표</title>
 <!--
   월별 매출 목표 달력 양식 — 날짜별 예상 매출(만원)을 지점 색으로 나눠 보여주고, B2B 납품 상세를 아래 카드로 붙인다.
+  B2B는 매출에 넣지 않는다 — 달력·카드 모두 '어떤 산도 몇 개, 몇 시 픽업'만 보여준다.
   다음 달에 쓸 때는 아래 PLAN 객체만 바꾼다(달·지점 기간·평일/주말 목표·B2B 건). 나머지는 PLAN으로 그려진다.
   그림(PNG)으로 뽑기: node docs/templates/render-sales-plan.cjs  → docs/templates/sales-plan.png
   B2B 카드에는 요청자(발주 담당 마케팅팀 등)를 넣지 않는다 — 점포 담당자만.
@@ -40,6 +41,8 @@
   .tot { margin-top: 8px; text-align: right; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
   .tot span, .wk-num span { font-size: 13px; font-weight: 600; color: var(--muted); margin-left: 2px; }
   .hot { box-shadow: inset 0 0 0 3px var(--b2b); }
+  .b2bchip { margin-top: 8px; padding: 6px 8px; border-radius: 7px; background: var(--b2b-bg); color: var(--b2b); font-size: 12.5px; font-weight: 700; line-height: 1.45; }
+  .b2bchip b { font-size: 13.5px; }
   .wk-label { font-size: 13px; color: var(--muted); font-weight: 600; }
   .wk-num { font-size: 24px; font-weight: 800; margin-top: 2px; white-space: nowrap; letter-spacing: -0.5px; }
 
@@ -99,15 +102,15 @@ const PLAN = {
   ],
   // 지점별 날짜 예외(휴무일 0 등) — { '2026-11-17': { '청량리': 0 } }
   overrides: {},
-  // B2B 납품 — 매출은 qty × unitPrice(원). 계약 단가가 없으면 POS 정가로 넣고 priceNote에 적는다
+  // B2B 납품 — 매출 합계에 넣지 않는다. 품목·수량·픽업 시각만 표시한다
   b2b: [
     {
-      date: '2026-11-05', client: 'LG전자', product: '샤인머스켓산도', unitPrice: 8000, priceNote: '정가 기준 추정',
+      date: '2026-11-05', client: 'LG전자', product: '샤인머스켓산도',
       pickup: '오전 7:00', arrive: '오전 9:00', prepDate: '11/4(수)',
       stores: [{ name: 'LG전자가산<br>R&D캠퍼스점', addr: '서울시 금천구<br>가산디지털1로 51', qty: 250, contact: '송승원 · 010-5672-6687' }],
     },
     {
-      date: '2026-11-25', client: '아워홈', product: '후르츠산도', unitPrice: 9000, priceNote: '정가 기준 추정',
+      date: '2026-11-25', client: '아워홈', product: '후르츠산도',
       pickup: '오전 7:30', arrive: '오전 9:00', prepDate: '11/24(화)', supplies: '각대봉투(중) 스티커 포함 240세트 (여분 포함)',
       stores: [
         { name: '엔씨R&D센터판교점', addr: '경기도 성남시 분당구 대왕판교로 644번길 12,<br>엔씨R&D센터 지하1층', qty: 208, bags: '각대봉투(중) 208', contact: '장혜령 (총괄) · 010-4104-8002' },
@@ -124,7 +127,6 @@ const fmt = n => (Math.round(n * 10) / 10).toLocaleString('ko-KR', { maximumFrac
 const pad = n => String(n).padStart(2, '0');
 const iso = d => `${PLAN.year}-${pad(PLAN.month)}-${pad(d)}`;
 const DOW = '일월화수목금토';
-const b2bManwon = b => b.stores.reduce((s, x) => s + x.qty, 0) * b.unitPrice / 10000;
 const b2bQty = b => b.stores.reduce((s, x) => s + x.qty, 0);
 const md = s => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
 
@@ -146,7 +148,6 @@ for (let d = 1; d <= days; d++) {
     items.push({ label: s.short, v, color: s.color, bg: s.bg });
     storeTotals[s.name] = (storeTotals[s.name] ?? 0) + v;
   }
-  for (const b of PLAN.b2b) if (b.date === date) items.push({ label: `🚚 ${b.client}`, v: b2bManwon(b), b2b: true });
   byDay[d] = items;
 }
 
@@ -161,12 +162,13 @@ for (let w = 0; w < cells.length / 7; w++) {
     const cls = [i === 0 ? 'sun' : '', i === 6 ? 'sat' : ''];
     if (d == null) { row += `<td class="${cls.join(' ')} empty"></td>`; continue; }
     const items = byDay[d]; const total = items.reduce((s, x) => s + x.v, 0); wk += total;
-    if (items.some(x => x.b2b)) cls.push('hot');
+    const deliveries = PLAN.b2b.filter(b => b.date === iso(d));
+    if (deliveries.length) cls.push('hot');
     row += `<td class="${cls.join(' ')}"><div class="day">${d}</div>` +
-      items.map(x => x.b2b
-        ? `<div class="chip" style="background:var(--b2b-bg);color:var(--b2b)"><span>${x.label}</span><b>${fmt(x.v)}</b></div>`
-        : `<div class="chip" style="background:${x.bg};color:${x.color}"><span>${x.label}</span><b>${fmt(x.v)}</b></div>`).join('') +
-      (total ? `<div class="tot">${fmt(total)}<span>${PLAN.unit}</span></div>` : '') + '</td>';
+      items.map(x => `<div class="chip" style="background:${x.bg};color:${x.color}"><span>${x.label}</span><b>${fmt(x.v)}</b></div>`).join('') +
+      (total ? `<div class="tot">${fmt(total)}<span>${PLAN.unit}</span></div>` : '') +
+      deliveries.map(b => `<div class="b2bchip">🚚 ${b.client}<br><b>${b.product} ${b2bQty(b).toLocaleString('ko-KR')}개</b><br>${b.pickup} 픽업</div>`).join('') +
+      '</td>';
   }
   html += `<tr>${row}<td class="wk"><div class="wk-label">${w + 1}주</div><div class="wk-num">${fmt(wk)}<span>${PLAN.unit}</span></div></td></tr>`;
 }
@@ -183,7 +185,6 @@ b2bEl.innerHTML = PLAN.b2b.map(b => {
       <div>픽업 <b>${b.pickup}</b></div><div>점포 도착 <b>${b.arrive}</b></div>
       ${b.supplies ? `<div>부자재 <b>${b.supplies}</b></div>` : ''}
       <div>생산 <b>${b.prepDate}</b></div>
-      <div>예상 매출 <b>${fmt(b2bManwon(b))}${PLAN.unit}</b> (${b.priceNote ?? `개당 ${b.unitPrice.toLocaleString('ko-KR')}원`})</div>
     </div>
     <table class="store"><thead><tr><th>점포</th><th>위치</th><th>수량</th>${hasBags ? '<th>부자재</th>' : ''}<th>담당자</th></tr></thead><tbody>
       ${b.stores.map(s => `<tr><td class="nm"><b>${s.name}</b></td><td>${s.addr}</td><td class="q">${s.qty.toLocaleString('ko-KR')}개</td>${hasBags ? `<td>${s.bags ?? ''}</td>` : ''}<td class="ct">${s.contact.replace(' · ', '<br>')}</td></tr>`).join('')}
@@ -192,8 +193,7 @@ b2bEl.innerHTML = PLAN.b2b.map(b => {
   </div>`;
 }).join('');
 
-const b2bTotal = PLAN.b2b.reduce((s, b) => s + b2bManwon(b), 0);
-const grand = Object.values(storeTotals).reduce((s, v) => s + v, 0) + b2bTotal;
+const grand = Object.values(storeTotals).reduce((s, v) => s + v, 0);
 const sumEl = document.getElementById('summary');
 sumEl.style.gridTemplateColumns = `repeat(${PLAN.stores.length + (PLAN.b2b.length ? 2 : 1)}, 1fr)`;
 sumEl.innerHTML =
@@ -209,8 +209,8 @@ sumEl.innerHTML =
     const partial = s.to > iso(days) || s.from < iso(1) ? ` (${PLAN.month}월분)` : '';
     return `<div class="sbox" style="background:${s.bg};color:${s.color}"><div class="k">${s.name}${partial}</div><div class="v">${fmt(inMonth)}<span>${PLAN.unit}</span></div><div class="d">${detail}</div></div>`;
   }).join('') +
-  (PLAN.b2b.length ? `<div class="sbox" style="background:var(--b2b-bg);color:var(--b2b)"><div class="k">B2B ${PLAN.b2b.length}건</div><div class="v">${fmt(b2bTotal)}<span>${PLAN.unit}</span></div><div class="d">${PLAN.b2b.map(b => `${b.client} ${fmt(b2bManwon(b))}`).join(' + ')}</div></div>` : '') +
-  `<div class="sbox total"><div class="k">${PLAN.month}월 합계</div><div class="v">${fmt(grand)}<span>${PLAN.unit}</span></div><div class="d">B2B는 ${PLAN.b2b.some(b => b.priceNote) ? '정가 기준 추정' : '계약 단가'}</div></div>`;
+  (PLAN.b2b.length ? `<div class="sbox" style="background:var(--b2b-bg);color:var(--b2b)"><div class="k">B2B 납품 ${PLAN.b2b.length}건</div><div class="d" style="font-size:13px;font-weight:700;line-height:1.6;margin-top:6px">${PLAN.b2b.map(b => `<div style="white-space:nowrap;margin-bottom:4px">${md(b.date)} ${b.product} ${b2bQty(b).toLocaleString('ko-KR')}개<br><span style="font-weight:500">${b.pickup} 픽업</span></div>`).join('')}</div></div>` : '') +
+  `<div class="sbox total"><div class="k">${PLAN.month}월 매출 합계</div><div class="v">${fmt(grand)}<span>${PLAN.unit}</span></div><div class="d">매장 판매 기준 (B2B 제외)</div></div>`;
 document.getElementById('foot').innerHTML = `<span>${PLAN.footLeft ?? ''}</span><span>${PLAN.footRight ?? ''}</span>`;
 </script>
 </body>
