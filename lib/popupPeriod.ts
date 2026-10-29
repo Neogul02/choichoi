@@ -1,5 +1,5 @@
 import { kstToday } from '@/lib/date';
-import type { PopupEvent } from '@/types/database';
+import type { PopupEvent, RosterShift } from '@/types/database';
 
 export type PopupStatus = '예정' | '진행중' | '종료';
 
@@ -20,6 +20,18 @@ export function getPopupPeriod(popup: Pick<PopupEvent, 'start_date' | 'end_date'
   const elapsedDays =
     status === '예정' ? 0 : Math.min(totalDays, Math.round((new Date(todayStr + 'T00:00:00').getTime() - start.getTime()) / dayMs) + 1);
   return { status, totalDays, elapsedDays, remainingDays: totalDays - elapsedDays };
+}
+
+/**
+ * 팝업 기간을 따라가는 파트인가 — 활성 기간이 팝업의 (수정 전) 운영 기간과 정확히 같으면 그렇다.
+ * 팝업 생성 시 만드는 기본 파트(createDefaultCashierShifts)가 이 모양이라, 팝업 기간을 수정하면
+ * 이 파트들만 새 기간으로 옮긴다. 관리자가 따로 정한 기간이나 기간 없음(NULL)은 의도된 값이라 건드리지 않는다.
+ */
+export function shiftFollowsPopupPeriod(
+  shift: Pick<RosterShift, 'popup_id' | 'active_from' | 'active_to'>,
+  popup: Pick<PopupEvent, 'id' | 'start_date' | 'end_date'>,
+): boolean {
+  return shift.popup_id === popup.id && shift.active_from === popup.start_date && shift.active_to === popup.end_date;
 }
 
 export const POPUP_STATUS_BADGE_CLASS: Record<PopupStatus, string> = {
