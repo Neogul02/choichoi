@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { popupsOnDate, popupTintGradient, type CalendarPopup } from './popupPeriod'
+import { popupsOnDate, popupTintGradient, shiftFollowsPopupPeriod, type CalendarPopup } from './popupPeriod'
 
 const popup = (over: Partial<CalendarPopup> = {}): CalendarPopup => ({
   id: 1,
@@ -42,5 +42,32 @@ describe('popupTintGradient', () => {
 
   it('겹치는 팝업은 칸을 균등한 가로 띠로 나눈다', () => {
     expect(popupTintGradient(['#a', '#b'])).toBe('linear-gradient(to bottom, #a 0.00% 50.00%, #b 50.00% 100.00%)')
+  })
+})
+
+describe('shiftFollowsPopupPeriod', () => {
+  // 한화 청량리 #2 — 11/27~12/17에서 11/13~12/3으로 옮긴 사례
+  const old = { id: 30, start_date: '2026-11-27', end_date: '2026-12-17' }
+  const shift = (over: Partial<{ popup_id: number | null; active_from: string | null; active_to: string | null }> = {}) => ({
+    popup_id: 30, active_from: '2026-11-27', active_to: '2026-12-17', ...over,
+  })
+
+  it('활성 기간이 팝업 기간과 같은 파트(기본 파트)는 따라간다', () => {
+    expect(shiftFollowsPopupPeriod(shift(), old)).toBe(true)
+  })
+
+  it('따로 정한 기간이면 따라가지 않는다', () => {
+    expect(shiftFollowsPopupPeriod(shift({ active_from: '2026-12-01' }), old)).toBe(false)
+    expect(shiftFollowsPopupPeriod(shift({ active_to: '2026-12-10' }), old)).toBe(false)
+  })
+
+  it('기간 없음(NULL)이면 따라가지 않는다', () => {
+    expect(shiftFollowsPopupPeriod(shift({ active_from: null, active_to: null }), old)).toBe(false)
+    expect(shiftFollowsPopupPeriod(shift({ active_to: null }), old)).toBe(false)
+  })
+
+  it('다른 팝업의 파트는 기간이 같아도 따라가지 않는다', () => {
+    expect(shiftFollowsPopupPeriod(shift({ popup_id: 31 }), old)).toBe(false)
+    expect(shiftFollowsPopupPeriod(shift({ popup_id: null }), old)).toBe(false)
   })
 })
