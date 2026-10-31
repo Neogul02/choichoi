@@ -448,6 +448,58 @@ export async function addPayrollAdjustment(
   })
 }
 
+export interface StaffPayEstimateInfo {
+  hourlyRate: number | null
+  /** 이 달(month 정산 구간)에 저장된 조정 항목 — 캐셔의 팝업 구간 조정은 달에 묶이지 않아 포함하지 않는다 */
+  adjustments: PayrollAdjustment[]
+  defaultDeduction: DefaultDeduction | null
+}
+
+/**
+ * 스케줄 화면의 이달 예상 급여용 — 시급·이 달 조정 항목·기본 공제. 본인 또는 admin|manager만.
+ * 기본급은 화면이 이미 받은 일별 상세(fetchStaffMonthlyDetail)로 계산한다 — 급여정산 상세와 같은 방식.
+ */
+export async function fetchStaffPayEstimateInfo(
+  staffId: number,
+  year: number,
+  month: number, // 0-indexed
+): Promise<ApiResponse<StaffPayEstimateInfo>> {
+  return wrap(async () => {
+    const user = await getAuthUser()
+    if (!user) throw new Error('로그인이 필요합니다.')
+    const periodKey = `month:${year}-${month}`
+    assertPeriodKey(periodKey)
+
+    let staffQuery = supabaseAdmin.from('staff_profiles').select('hourly_rate, default_deduction').eq('id', staffId)
+    if (user.role !== 'admin' && user.role !== 'manager') staffQuery = staffQuery.eq('user_profile_id', user.id)
+    let { data: staff, error: staffError } = await staffQuery.maybeSingle()
+    // 마이그레이션(20261028090000) 적용 전이면 default_deduction 컬럼이 없다 — 기본 공제 없이 동작
+    if (staffError && isMissingColumnError(staffError.code)) {
+      let fallback = supabaseAdmin.from('staff_profiles').select('hourly_rate').eq('id', staffId)
+      if (user.role !== 'admin' && user.role !== 'manager') fallback = fallback.eq('user_profile_id', user.id)
+      const res = await fallback.maybeSingle()
+      staff = res.data ? { ...res.data, default_deduction: null } : null
+      staffError = res.error
+    }
+    if (staffError) throw new Error(staffError.message)
+    if (!staff) throw new Error('권한이 없습니다.')
+
+    const { data: adj, error: adjError } = await supabaseAdmin
+      .from('payroll_adjustments')
+      .select('id, label, amount')
+      .eq('period_key', periodKey)
+      .eq('staff_id', staffId)
+      .order('id')
+    if (adjError) throw new Error(adjError.message)
+
+    return {
+      hourlyRate: staff.hourly_rate,
+      adjustments: (adj ?? []) as PayrollAdjustment[],
+      defaultDeduction: isDefaultDeduction(staff.default_deduction) ? staff.default_deduction : null,
+    }
+  })
+}
+
 // 컬럼이 없을 때 PostgREST가 돌려주는 코드 — select는 Postgres 42703, insert/update는 스키마 캐시 PGRST204
 const isMissingColumnError = (code: string | undefined) => code === '42703' || code === 'PGRST204'
 
