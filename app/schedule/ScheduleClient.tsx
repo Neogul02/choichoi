@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatTimeRange } from '@/lib/workhours';
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
-import { fetchStaffMonthlyDetail, type StaffDayDetail } from '@/app/actions/payroll'
-import { getMyRoster, getStaffRosterAsManager, type MyShift } from '@/app/actions/roster'
+import { fetchStaffMonthlyDetail, fetchStaffPayEstimateInfo, type StaffDayDetail, type StaffPayEstimateInfo } from '@/app/actions/payroll'
 import { minutesToHours } from '@/lib/workhours'
+import { estimatePay } from '@/lib/payroll-deductions'
 import { formatBreakMinutes } from '@/lib/utils'
 import { DAY_NAMES } from '@/lib/staffing'
 import { showMsg } from '@/lib/toast'
@@ -20,24 +20,20 @@ function hhmm(t: string) { return t.slice(0, 5) }
 function dayColor(day: number, fallback = 'text-ink-muted') {
   return day === 0 ? 'text-red-500' : day === 6 ? 'text-blue-500' : fallback
 }
-function dDayLabel(dateStr: string, today: string): string {
-  const diff = Math.round((new Date(dateStr + 'T00:00:00').getTime() - new Date(today + 'T00:00:00').getTime()) / 86400000)
-  if (diff <= 0) return '오늘'
-  if (diff === 1) return '내일'
-  return `${diff}일 후`
-}
+function won(n: number) { return `${n.toLocaleString('ko-KR')}원` }
 
 // 서버 컴포넌트(app/schedule/page.tsx)가 프리페치한 초기 데이터 — null이면 기존 클라이언트 조회로 폴백
 export interface InitialSchedule {
   staffId: number | null
   staffName: string
-  shifts: MyShift[]
   details: StaffDayDetail[]
+  payInfo: StaffPayEstimateInfo | null
   cursor: { y: number; m: number }
 }
 
 // 근무자가 자기 근무 일정을 보는 화면 — nav의 "스케줄" 탭.
 // MY 페이지 안 탭으로 있었지만(2026-08-24) 가장 자주 보는 화면이라 다시 nav로 끌어올렸다.
+// 2026-10-31 출퇴근을 출근부로 찍게 되면서 "다음 근무·예정 근무"를 빼고 이달 예상 급여를 보여준다.
 export default function ScheduleClient({ initial, staffPicker }: { initial: InitialSchedule | null; staffPicker: StaffPickerItem[] | null }) {
   // 관리자/매니저는 본인 근무 기록이 없어도 다른 직원의 스케줄을 조회할 수 있어야 하므로
   // "내 staffId"(ownStaffId, 고정)와 "현재 화면에 보이는 staffId"(viewingId)를 분리한다
@@ -48,43 +44,39 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
   const [cursor, setCursor] = useState<{ y: number; m: number } | null>(initial?.cursor ?? null)
   const [details, setDetails] = useState<StaffDayDetail[]>(initial?.details ?? [])
   const [isLoading, setIsLoading] = useState(false)
-  const [allShifts, setAllShifts] = useState<MyShift[]>(initial?.shifts ?? [])
+  const [payInfo, setPayInfo] = useState<StaffPayEstimateInfo | null>(initial?.payInfo ?? null)
   // 프리페치된 첫 달은 상세 재조회를 건너뛴다
   const skipFirstDetailRef = useRef(initial != null && initial.staffId != null)
-  const [showAll, setShowAll] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const canPickStaff = (staffPicker?.length ?? 0) > 0
-  const isOwnView = viewingId != null && viewingId === ownStaffId
 
   const today = todayStr()
-  const upcomingShifts = useMemo(() => allShifts.filter(s => s.work_date >= today), [allShifts, today])
-  const nextShift = upcomingShifts[0] ?? null
 
-  const loadRoster = useCallback(async (targetId: number, own: boolean) => {
-    const res = own ? await getMyRoster() : await getStaffRosterAsManager(targetId)
-    if (res.success && res.data) setAllShifts(res.data.shifts)
+  // 일별 상세(달력·기본급)와 급여 정보(시급·조정 항목·기본 공제)를 함께 불러온다
+  const loadMonth = useCallback(async (targetId: number, y: number, m: number) => {
+    const [detailRes, payRes] = await Promise.all([
+      fetchStaffMonthlyDetail(targetId, y, m),
+      fetchStaffPayEstimateInfo(targetId, y, m),
+    ])
     // 조회 실패를 조용히 넘기면 "근무 정보 없음" 화면과 구분되지 않는다 —
     // 실제로 서버 오류를 배정이 없는 것으로 오해해 문의가 들어온 적이 있다
-    else if (!res.success) showMsg(`근무 일정을 불러오지 못했습니다: ${res.error}`)
+    if (!detailRes.success) showMsg(`근무 일정을 불러오지 못했습니다: ${detailRes.error}`)
+    setDetails(detailRes.success && detailRes.data ? detailRes.data : [])
+    setPayInfo(payRes.success && payRes.data ? payRes.data : null)
   }, [])
 
   useEffect(() => {
     if (initial != null) return // 서버 프리페치 성공 시 마운트 조회 생략
     const now = new Date()
     setCursor({ y: now.getFullYear(), m: now.getMonth() })
-    Promise.all([getMyStaffProfile(), getMyRoster()]).then(([profileRes, rosterRes]) => {
+    getMyStaffProfile().then(profileRes => {
       if (profileRes.success && profileRes.data) {
         setOwnStaffId(profileRes.data.id)
         setViewingId(profileRes.data.id)
         setStaffName(profileRes.data.name)
       }
-      if (rosterRes.success && rosterRes.data) {
-        setAllShifts(rosterRes.data.shifts)
-      }
-      if (!profileRes.success || !rosterRes.success) {
-        showMsg(`근무 일정을 불러오지 못했습니다: ${profileRes.error ?? rosterRes.error}`)
-      }
+      if (!profileRes.success) showMsg(`근무 일정을 불러오지 못했습니다: ${profileRes.error}`)
       setLoaded(true)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,15 +87,11 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
     if (skipFirstDetailRef.current) { skipFirstDetailRef.current = false; return }
     setIsLoading(true)
     setSelectedDate(null)
-    fetchStaffMonthlyDetail(viewingId, cursor.y, cursor.m).then(res => {
-      if (res.success && res.data) setDetails(res.data)
-      else setDetails([])
-      setIsLoading(false)
-    })
-  }, [cursor, viewingId])
+    loadMonth(viewingId, cursor.y, cursor.m).then(() => setIsLoading(false))
+  }, [cursor, viewingId, loadMonth])
 
-  // 앱 복귀/탭 전환 시 최신 스케줄로 갱신 — 관리자가 배정을 바꿔도 새로고침 없이 반영.
-  // 30초 이내 재포커스는 건너뛴다(문자 확인하러 잠깐 탭 전환했다 돌아오는 등 빈번한 재조회 방지) — 두 조회는 서로 무관하므로 Promise.all로 병렬 실행.
+  // 앱 복귀/탭 전환 시 최신 스케줄로 갱신 — 관리자가 배정을 바꾸거나 퇴근을 찍어도 새로고침 없이 반영.
+  // 30초 이내 재포커스는 건너뛴다(문자 확인하러 잠깐 탭 전환했다 돌아오는 등 빈번한 재조회 방지).
   const lastFocusRefetchAtRef = useRef(0)
   const FOCUS_REFETCH_MIN_INTERVAL_MS = 30_000
   useEffect(() => {
@@ -112,16 +100,11 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
       const now = Date.now()
       if (now - lastFocusRefetchAtRef.current < FOCUS_REFETCH_MIN_INTERVAL_MS) return
       lastFocusRefetchAtRef.current = now
-      Promise.all([
-        loadRoster(viewingId, isOwnView),
-        cursor ? fetchStaffMonthlyDetail(viewingId, cursor.y, cursor.m) : null,
-      ]).then(([, detailRes]) => {
-        if (detailRes && detailRes.success && detailRes.data) setDetails(detailRes.data)
-      })
+      if (cursor) loadMonth(viewingId, cursor.y, cursor.m)
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [viewingId, cursor, isOwnView, loadRoster])
+  }, [viewingId, cursor, loadMonth])
 
   const handlePickStaff = useCallback((id: number, name: string) => {
     if (id === viewingId) return
@@ -130,23 +113,16 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
     setViewingId(id)
     setStaffName(name)
     setSelectedDate(null)
-    setShowAll(false)
+    if (!cursor) return
     setIsLoading(true)
-    const own = id === ownStaffId
-    const detailPromise = cursor ? fetchStaffMonthlyDetail(id, cursor.y, cursor.m) : Promise.resolve({ success: true as const, data: [] as StaffDayDetail[] })
-    Promise.all([own ? getMyRoster() : getStaffRosterAsManager(id), detailPromise]).then(([rosterRes, detailRes]) => {
-      setAllShifts(rosterRes.success && rosterRes.data ? rosterRes.data.shifts : [])
-      setDetails(detailRes.success && detailRes.data ? detailRes.data : [])
-      setIsLoading(false)
-    })
-  }, [viewingId, cursor, ownStaffId])
+    loadMonth(id, cursor.y, cursor.m).then(() => setIsLoading(false))
+  }, [viewingId, cursor, loadMonth])
 
   const prevMonth = () => setCursor(c => c ? (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }) : c)
   const nextMonth = () => setCursor(c => c ? (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }) : c)
   const goToday = () => { const now = new Date(); setCursor({ y: now.getFullYear(), m: now.getMonth() }) }
 
   const totalDays = new Set(details.map(d => d.date)).size
-  const visibleShifts = showAll ? upcomingShifts : upcomingShifts.slice(0, 5)
 
   // 총 시간은 유급 "분"을 전부 합산한 뒤 마지막에 한 번만 반올림 — 급여정산(fetchMonthlyPayroll)과 동일 기준
   const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
@@ -187,51 +163,10 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
         <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
       )}
 
-      {/* 데스크톱에서는 다음 근무+예정 근무를 좌측 컬럼, 월 달력을 우측 컬럼에 나란히 배치 */}
-      <div className="space-y-4 lg:space-y-5 lg:grid lg:grid-cols-[380px_1fr] lg:gap-5 lg:items-start">
-      <div className="space-y-4 lg:space-y-5">
+      {/* 데스크톱에서는 예상 급여를 좌측 컬럼, 월 달력을 우측 컬럼에 나란히 배치 */}
+      <div className="space-y-4 lg:space-y-5 lg:grid lg:grid-cols-[340px_1fr] lg:gap-5 lg:items-start">
 
-      {/* 다음 근무 히어로 카드 */}
-      {nextShift ? (
-        <NextShiftCard shift={nextShift} today={today} />
-      ) : (
-        <div className="rounded-2xl bg-primary-700 text-white p-5">
-          <p className="m-0 text-caption font-bold opacity-70">다음 근무</p>
-          <p className="m-0 mt-1.5 text-title">예정된 근무가 없습니다</p>
-          <p className="m-0 mt-1 text-caption opacity-70">새 스케줄이 배정되면 여기에 표시됩니다.</p>
-        </div>
-      )}
-
-      {/* 예정 근무 리스트 */}
-      <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
-        <h2 className="m-0 mb-3 text-title text-ink">
-          예정 근무
-          {upcomingShifts.length > 0 && (
-            <span className="ml-1.5 text-caption font-semibold text-ink-faint">{upcomingShifts.length}건</span>
-          )}
-        </h2>
-        {upcomingShifts.length === 0 ? (
-          <p className="m-0 text-body-sm text-ink-muted">예정된 근무가 없습니다.</p>
-        ) : (
-          <>
-            <div className="flex flex-col">
-              {visibleShifts.map((s, i) => (
-                <ShiftRow key={`${s.work_date}-${s.shift_name}-${s.start_time}`} shift={s} today={today} isFirst={i === 0} />
-              ))}
-            </div>
-            {upcomingShifts.length > 5 && (
-              <button
-                onClick={() => setShowAll(v => !v)}
-                className="w-full mt-3 py-2.5 rounded-xl border border-hairline bg-transparent text-caption text-ink-muted font-semibold cursor-pointer hover:bg-canvas-soft transition-colors"
-              >
-                {showAll ? '접기' : `${upcomingShifts.length - 5}개 더 보기`}
-              </button>
-            )}
-          </>
-        )}
-      </section>
-
-      </div>
+      <PayEstimateCard month={cursor.m} details={details} payInfo={payInfo} isLoading={isLoading} />
 
       {/* 월 달력 */}
       <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4 lg:p-5">
@@ -263,7 +198,6 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
               <DayDetail
                 dateStr={selectedDate}
                 entries={details.filter(d => d.date === selectedDate)}
-                allShifts={allShifts}
               />
             )}
           </>
@@ -338,69 +272,61 @@ function StaffPicker({ staffPicker, ownStaffId, viewingId, onPick }: {
   )
 }
 
-// ── 다음 근무 히어로 카드 ─────────────────────────────────────────────────────
+// ── 이달 예상 급여 ─────────────────────────────────────────────────────────────
+// 급여정산 상세(PayrollDetailModal)와 같은 식: 유급 시간 × 시급 = 기본급, 여기에 그 달 조정 항목을 더한다.
+// 출근부로 퇴근을 찍으면 그날 배정이 실측 시간으로 바뀌므로, 이 금액은 찍힌 근무를 따라간다.
 
-function NextShiftCard({ shift, today }: { shift: MyShift; today: string }) {
-  const d = new Date(shift.work_date + 'T00:00:00')
-  const day = d.getDay()
+function PayEstimateCard({ month, details, payInfo, isLoading }: {
+  month: number
+  details: StaffDayDetail[]
+  payInfo: StaffPayEstimateInfo | null
+  isLoading: boolean
+}) {
+  const rawSum = details.reduce((s, d) => s + d.rawMinutes, 0)
+  const breakSum = details.reduce((s, d) => s + d.breakMinutes, 0)
+  const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
+  const hourlyRate = payInfo?.hourlyRate ?? null
+  const basePay = hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
+  const estimate = basePay != null ? estimatePay(basePay, payInfo?.adjustments ?? [], payInfo?.defaultDeduction ?? null) : null
+
   return (
-    <div className="rounded-2xl bg-primary-700 text-white p-5 shadow-level-1">
-      <div className="flex items-center justify-between">
-        <p className="m-0 text-[12px] font-bold opacity-70">다음 근무</p>
-        <span className="text-[12px] font-extrabold px-2.5 py-1 rounded-full bg-white/15">
-          {dDayLabel(shift.work_date, today)}
-        </span>
-      </div>
-      <p className="m-0 mt-2 text-[16px] font-bold">
-        {d.getMonth() + 1}월 {d.getDate()}일 <span className="opacity-80">{DAY_NAMES[day]}요일</span>
-      </p>
-      <p className="m-0 mt-1 text-[32px] font-extrabold leading-tight tracking-tight">
-        {hhmm(shift.start_time)} <span className="opacity-50 font-bold">~</span> {hhmm(shift.end_time)}
-      </p>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5 text-[13px]">
-        <span className="font-bold px-2 py-0.5 rounded-full bg-white/15">{shift.shift_name}</span>
-        {shift.breakMinutes > 0 ? (
-          <span className="opacity-80">휴게 {formatBreakMinutes(shift.breakMinutes)} · 실 근무 {shift.netHours}시간</span>
-        ) : (
-          <span className="opacity-80">{shift.hours}시간 근무</span>
-        )}
-      </div>
-    </div>
+    <section className="rounded-2xl bg-primary-700 text-white p-5 shadow-level-1">
+      <p className="m-0 text-[12px] font-bold opacity-70">{month + 1}월 예상 급여</p>
+      {isLoading ? (
+        <p className="m-0 mt-2 text-[15px] opacity-70">불러오는 중...</p>
+      ) : estimate == null ? (
+        <>
+          <p className="m-0 mt-2 text-title">시급이 등록되지 않았어요</p>
+          <p className="m-0 mt-1 text-caption opacity-70">관리자에게 문의해 주세요.</p>
+        </>
+      ) : (
+        <>
+          <p className="m-0 mt-1.5 text-[32px] font-extrabold leading-tight tracking-tight">{won(estimate.finalPay)}</p>
+          <div className="mt-4 pt-3 border-t border-white/15 space-y-1.5 text-[13px]">
+            <Line label="실근무 − 휴게" value={`${minutesToHours(rawSum)}h − ${minutesToHours(breakSum)}h = ${totalHours}h`} />
+            <Line label={`기본급 (${totalHours}h × ${won(hourlyRate!)})`} value={won(basePay!)} />
+            {estimate.lines.map((l, i) => (
+              <Line
+                key={i}
+                label={l.estimated ? `${l.label} (예상)` : l.label}
+                value={`${l.amount >= 0 ? '+' : '−'}${won(Math.abs(l.amount))}`}
+              />
+            ))}
+          </div>
+          <p className="m-0 mt-3 text-[11px] leading-snug opacity-60">
+            출퇴근 기록 기준 예상 금액이에요. 확정 금액은 관리자 정산 후 정해져요.
+          </p>
+        </>
+      )}
+    </section>
   )
 }
 
-// ── 예정 근무 행 ─────────────────────────────────────────────────────────────
-
-function ShiftRow({ shift, today, isFirst }: { shift: MyShift; today: string; isFirst: boolean }) {
-  const d = new Date(shift.work_date + 'T00:00:00')
-  const day = d.getDay()
-  const isToday = shift.work_date === today
+function Line({ label, value }: { label: string; value: string }) {
   return (
-    <div className={`flex items-center gap-3 py-3 ${!isFirst ? 'border-t border-hairline' : ''} ${isToday ? '-mx-2 px-2 rounded-xl bg-primary-50' : ''}`}>
-      {/* 날짜 블록 */}
-      <div className="w-11 shrink-0 text-center">
-        <p className="m-0 text-[19px] font-extrabold text-ink leading-none">{d.getDate()}</p>
-        <p className={`m-0 mt-1 text-[12px] font-bold ${dayColor(day)}`}>
-          {d.getMonth() + 1}월 ({DAY_NAMES[day]})
-        </p>
-      </div>
-      {/* 파트 + 시간 */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-100">{shift.shift_name}</span>
-          {isToday && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary-700 text-white">오늘</span>}
-        </div>
-        <p className="m-0 mt-1 text-[15px] font-bold text-ink">
-          {hhmm(shift.start_time)} ~ {hhmm(shift.end_time)}
-        </p>
-      </div>
-      {/* 시간 요약 */}
-      <div className="text-right shrink-0">
-        <p className="m-0 text-[14px] font-bold text-ink">{shift.hours}시간</p>
-        {shift.breakMinutes > 0 && (
-          <p className="m-0 mt-0.5 text-[11px] text-ink-faint">휴게 {formatBreakMinutes(shift.breakMinutes)} · 실 {shift.netHours}h</p>
-        )}
-      </div>
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="opacity-75 min-w-0">{label}</span>
+      <span className="font-bold shrink-0 tabular-nums">{value}</span>
     </div>
   )
 }
@@ -485,10 +411,9 @@ function WorkerCalendar({ year, month, details, today, selectedDate, onSelectDat
 
 // ── 선택한 날짜 상세 ──────────────────────────────────────────────────────────
 
-function DayDetail({ dateStr, entries, allShifts }: {
+function DayDetail({ dateStr, entries }: {
   dateStr: string
   entries: StaffDayDetail[]
-  allShifts: MyShift[]
 }) {
   const d = new Date(dateStr + 'T00:00:00')
   const day = d.getDay()
@@ -501,21 +426,15 @@ function DayDetail({ dateStr, entries, allShifts }: {
         <p className="m-0 text-[13px] text-ink-muted">근무 정보가 없습니다.</p>
       ) : (
         <div className="space-y-2">
-          {entries.map((e, i) => {
-            // 휴게시간 정보는 getMyRoster 데이터에만 있어 시간대가 일치하는 항목에서 보충
-            const match = allShifts.find(s => s.work_date === dateStr && hhmm(s.start_time) === hhmm(e.startTime))
-            return (
-              <div key={i} className="flex items-center justify-between gap-2">
-                <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 shrink-0">{e.shiftName}</span>
-                <span className="text-[15px] font-bold text-ink flex-1">{formatTimeRange(e.startTime, e.endTime)}</span>
-                <span className="text-[13px] text-ink-muted text-right shrink-0">
-                  {match && match.breakMinutes > 0
-                    ? `휴게 ${formatBreakMinutes(match.breakMinutes)} · 실 ${match.netHours}h`
-                    : `${e.hours}시간`}
-                </span>
-              </div>
-            )
-          })}
+          {entries.map((e, i) => (
+            <div key={i} className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 shrink-0">{e.shiftName}</span>
+              <span className="text-[15px] font-bold text-ink flex-1">{formatTimeRange(e.startTime, e.endTime)}</span>
+              <span className="text-[13px] text-ink-muted text-right shrink-0">
+                {e.breakMinutes > 0 ? `휴게 ${formatBreakMinutes(e.breakMinutes)} · 실 ${e.hours}h` : `${e.hours}시간`}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
