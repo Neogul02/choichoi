@@ -51,29 +51,35 @@ describe('기본 공제(staff_profiles.default_deduction)', () => {
 
 describe('estimatePay', () => {
   it('조정 항목이 없으면 기본급 그대로', () => {
-    expect(estimatePay(343_750, [], null)).toEqual({ lines: [], finalPay: 343_750 })
+    expect(estimatePay(343_750, [], [])).toEqual({ lines: [], finalPay: 343_750 })
   })
 
   it('저장된 조정 항목을 기본급에 더한다', () => {
-    const r = estimatePay(500_000, [{ label: '교통비', amount: 20_000 }, { label: '지각', amount: -5_000 }], null)
+    const r = estimatePay(500_000, [{ label: '교통비', amount: 20_000 }, { label: '지각', amount: -5_000 }], [])
     expect(r.finalPay).toBe(515_000)
     expect(r.lines.every(l => !l.estimated)).toBe(true)
   })
 
   it('기본 공제가 아직 없으면 미리 계산해 예상으로 표시', () => {
-    const r = estimatePay(343_750, [], 'withholding33')
+    const r = estimatePay(343_750, [], ['withholding33'])
     expect(r.lines).toEqual([{ label: WITHHOLDING_LABEL, amount: -11_340, estimated: true }])
     expect(r.finalPay).toBe(332_410)
   })
 
   it('같은 공제가 이미 저장돼 있으면 두 번 빼지 않는다', () => {
-    const r = estimatePay(343_750, [{ label: WITHHOLDING_LABEL, amount: -11_340 }], 'withholding33')
+    const r = estimatePay(343_750, [{ label: WITHHOLDING_LABEL, amount: -11_340 }], ['withholding33'])
     expect(r.lines).toHaveLength(1)
     expect(r.lines[0].estimated).toBe(false)
     expect(r.finalPay).toBe(332_410)
   })
 
   it('기본급 0이면 공제 줄을 만들지 않는다', () => {
-    expect(estimatePay(0, [], 'employment_insurance')).toEqual({ lines: [], finalPay: 0 })
+    expect(estimatePay(0, [], ['employment_insurance'])).toEqual({ lines: [], finalPay: 0 })
+  })
+
+  it('공제 여러 개를 함께 미리 계산하고, 같은 공제가 중복으로 와도 한 번만 뺀다', () => {
+    const r = estimatePay(343_750, [], ['employment_insurance', 'withholding33', 'withholding33'])
+    expect(r.lines.map(l => l.label)).toEqual([EMPLOYMENT_INSURANCE_LABEL, WITHHOLDING_LABEL])
+    expect(r.finalPay).toBe(343_750 - 3_093 - 11_340)
   })
 })
