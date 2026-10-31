@@ -453,6 +453,8 @@ export interface StaffPayEstimateInfo {
   /** 이 달(month 정산 구간)에 저장된 조정 항목 — 캐셔의 팝업 구간 조정은 달에 묶이지 않아 포함하지 않는다 */
   adjustments: PayrollAdjustment[]
   defaultDeduction: DefaultDeduction | null
+  /** 관리자가 급여정산에서 이 달 지급 완료로 체크했는지 */
+  paid: boolean
 }
 
 /**
@@ -484,18 +486,27 @@ export async function fetchStaffPayEstimateInfo(
     if (staffError) throw new Error(staffError.message)
     if (!staff) throw new Error('권한이 없습니다.')
 
-    const { data: adj, error: adjError } = await supabaseAdmin
-      .from('payroll_adjustments')
-      .select('id, label, amount')
-      .eq('period_key', periodKey)
-      .eq('staff_id', staffId)
-      .order('id')
+    const [{ data: adj, error: adjError }, { count: paidCount, error: paidError }] = await Promise.all([
+      supabaseAdmin
+        .from('payroll_adjustments')
+        .select('id, label, amount')
+        .eq('period_key', periodKey)
+        .eq('staff_id', staffId)
+        .order('id'),
+      supabaseAdmin
+        .from('payroll_payments')
+        .select('staff_id', { count: 'exact', head: true })
+        .eq('period_key', periodKey)
+        .eq('staff_id', staffId),
+    ])
     if (adjError) throw new Error(adjError.message)
+    if (paidError) throw new Error(paidError.message)
 
     return {
       hourlyRate: staff.hourly_rate,
       adjustments: (adj ?? []) as PayrollAdjustment[],
       defaultDeduction: isDefaultDeduction(staff.default_deduction) ? staff.default_deduction : null,
+      paid: (paidCount ?? 0) > 0,
     }
   })
 }

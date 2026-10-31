@@ -5,7 +5,7 @@ import { formatTimeRange } from '@/lib/workhours';
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, fetchStaffPayEstimateInfo, type StaffDayDetail, type StaffPayEstimateInfo } from '@/app/actions/payroll'
 import { minutesToHours } from '@/lib/workhours'
-import { estimatePay } from '@/lib/payroll-deductions'
+import { estimatePay, WITHHOLDING_LABEL, type DefaultDeduction } from '@/lib/payroll-deductions'
 import { formatBreakMinutes } from '@/lib/utils'
 import { DAY_NAMES } from '@/lib/staffing'
 import { showMsg } from '@/lib/toast'
@@ -163,10 +163,14 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
         <StaffPicker staffPicker={staffPicker!} ownStaffId={ownStaffId} viewingId={viewingId} onPick={handlePickStaff} />
       )}
 
-      {/* 데스크톱에서는 예상 급여를 좌측 컬럼, 월 달력을 우측 컬럼에 나란히 배치 */}
-      <div className="space-y-4 lg:space-y-5 lg:grid lg:grid-cols-[340px_1fr] lg:gap-5 lg:items-start">
+      {/* 데스크톱에서는 예상 급여·근무 상세를 좌측 컬럼, 월 달력을 우측 컬럼에 나란히 배치 */}
+      <div className="space-y-4 lg:space-y-5 lg:grid lg:grid-cols-[360px_1fr] lg:gap-5 lg:items-start">
 
-      <PayEstimateCard month={cursor.m} details={details} payInfo={payInfo} isLoading={isLoading} />
+      <div className="space-y-4 lg:space-y-5">
+        {/* key — 직원·달을 바꾸면 3.3% 체크를 그 사람의 기본 공제로 다시 맞춘다 */}
+        <PayEstimateCard key={`${viewingId}-${cursor.y}-${cursor.m}`} month={cursor.m} details={details} payInfo={payInfo} isLoading={isLoading} />
+        {!isLoading && details.length > 0 && <WorkDetailTable details={details} />}
+      </div>
 
       {/* 월 달력 */}
       <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4 lg:p-5">
@@ -275,6 +279,7 @@ function StaffPicker({ staffPicker, ownStaffId, viewingId, onPick }: {
 // ── 이달 예상 급여 ─────────────────────────────────────────────────────────────
 // 급여정산 상세(PayrollDetailModal)와 같은 식: 유급 시간 × 시급 = 기본급, 여기에 그 달 조정 항목을 더한다.
 // 출근부로 퇴근을 찍으면 그날 배정이 실측 시간으로 바뀌므로, 이 금액은 찍힌 근무를 따라간다.
+// 근무자도 정산 내역을 그대로 볼 수 있게 공개한다(2026-10-31) — 3.3% 공제 체크로 공제 후 금액을 직접 확인한다.
 
 function PayEstimateCard({ month, details, payInfo, isLoading }: {
   month: number
@@ -282,16 +287,31 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
   payInfo: StaffPayEstimateInfo | null
   isLoading: boolean
 }) {
+  const adjustments = payInfo?.adjustments ?? []
+  // 관리자가 이미 3.3%를 넣었으면 확정값이라 끌 수 없다. 아니면 직원 기본 공제가 3.3%일 때 켜진 채로 시작한다
+  const withholdingSaved = adjustments.some(a => a.label === WITHHOLDING_LABEL)
+  const [withholdingOn, setWithholdingOn] = useState(payInfo?.defaultDeduction === 'withholding33')
+  // payInfo가 늦게 도착해도(포커스 재조회 등) 기본값을 따라가도록, 사용자가 건드리기 전까지는 기본 공제를 쓴다
+  const [touched, setTouched] = useState(false)
+  const checked = withholdingSaved || (touched ? withholdingOn : payInfo?.defaultDeduction === 'withholding33')
+
   const rawSum = details.reduce((s, d) => s + d.rawMinutes, 0)
   const breakSum = details.reduce((s, d) => s + d.breakMinutes, 0)
   const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
   const hourlyRate = payInfo?.hourlyRate ?? null
   const basePay = hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
-  const estimate = basePay != null ? estimatePay(basePay, payInfo?.adjustments ?? [], payInfo?.defaultDeduction ?? null) : null
+  const deductions: DefaultDeduction[] = []
+  if (payInfo?.defaultDeduction && payInfo.defaultDeduction !== 'withholding33') deductions.push(payInfo.defaultDeduction)
+  if (checked) deductions.push('withholding33')
+  const estimate = basePay != null ? estimatePay(basePay, adjustments, deductions) : null
+  const paid = payInfo?.paid ?? false
 
   return (
     <section className="rounded-2xl bg-primary-700 text-white p-5 shadow-level-1">
-      <p className="m-0 text-[12px] font-bold opacity-70">{month + 1}월 예상 급여</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="m-0 text-[12px] font-bold opacity-70">{month + 1}월 {paid ? '급여' : '예상 급여'}</p>
+        {paid && <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white/15">지급 완료</span>}
+      </div>
       {isLoading ? (
         <p className="m-0 mt-2 text-[15px] opacity-70">불러오는 중...</p>
       ) : estimate == null ? (
@@ -312,9 +332,27 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
                 value={`${l.amount >= 0 ? '+' : '−'}${won(Math.abs(l.amount))}`}
               />
             ))}
+            {estimate.lines.length > 0 && (
+              <div className="pt-1.5 border-t border-white/15">
+                <Line label={paid ? '지급액' : '예상 지급액'} value={won(estimate.finalPay)} />
+              </div>
+            )}
           </div>
-          <p className="m-0 mt-3 text-[11px] leading-snug opacity-60">
-            출퇴근 기록 기준 예상 금액이에요. 확정 금액은 관리자 정산 후 정해져요.
+          <label className={`mt-3 flex items-center gap-2 text-[13px] font-semibold ${withholdingSaved ? 'opacity-70' : 'cursor-pointer'}`}>
+            <input
+              type="checkbox"
+              checked={checked}
+              disabled={withholdingSaved}
+              onChange={e => { setTouched(true); setWithholdingOn(e.target.checked) }}
+              className="w-4 h-4 accent-white cursor-pointer disabled:cursor-default"
+            />
+            3.3% 공제 적용
+            {withholdingSaved && <span className="text-[11px] font-normal opacity-80">· 정산에 반영됨</span>}
+          </label>
+          <p className="m-0 mt-2 text-[11px] leading-snug opacity-60">
+            {paid
+              ? '관리자가 정산을 마친 금액이에요.'
+              : '출퇴근 기록 기준 예상 금액이에요. 확정 금액은 관리자 정산 후 정해져요.'}
           </p>
         </>
       )}
@@ -328,6 +366,80 @@ function Line({ label, value }: { label: string; value: string }) {
       <span className="opacity-75 min-w-0">{label}</span>
       <span className="font-bold shrink-0 tabular-nums">{value}</span>
     </div>
+  )
+}
+
+// ── 근무 상세 (급여정산 상세와 같은 표) ───────────────────────────────────────────
+
+function WorkDetailTable({ details }: { details: StaffDayDetail[] }) {
+  const [open, setOpen] = useState(false)
+  const rawSum = details.reduce((s, d) => s + d.rawMinutes, 0)
+  const breakSum = details.reduce((s, d) => s + d.breakMinutes, 0)
+  const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
+  const hasCustom = details.some(d => d.isCustomTime || d.isCustomBreak)
+
+  return (
+    <section className="bg-canvas rounded-2xl border border-hairline shadow-level-1 p-4">
+      <button
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between bg-transparent border-none p-0 cursor-pointer text-left"
+      >
+        <h2 className="m-0 text-title text-ink">
+          근무 상세
+          <span className="ml-1.5 text-caption font-semibold text-ink-faint">{details.length}건 · 유급 {totalHours}h</span>
+        </h2>
+        <span className="text-caption font-semibold text-ink-muted">{open ? '접기' : '펼치기'}</span>
+      </button>
+      {open && (
+        <>
+          <div className="mt-3 rounded-lg border border-hairline overflow-hidden">
+            <table className="w-full border-collapse text-[12px]">
+              <thead>
+                <tr className="bg-canvas-soft border-b border-hairline">
+                  <th className="text-left px-2.5 py-2 font-semibold text-ink-muted">날짜</th>
+                  <th className="text-center px-1.5 py-2 font-semibold text-ink-muted">시간</th>
+                  <th className="text-center px-1.5 py-2 font-semibold text-ink-muted">휴게</th>
+                  <th className="text-right px-2.5 py-2 font-semibold text-ink-muted">유급</th>
+                </tr>
+              </thead>
+              <tbody>
+                {details.map((d, i) => {
+                  const day = new Date(d.date + 'T00:00:00').getDay()
+                  return (
+                    <tr key={i} className="border-b border-hairline">
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <span className="font-semibold text-ink">{Number(d.date.slice(8))}일</span>
+                        <span className={`ml-1 ${dayColor(day)}`}>({DAY_NAMES[day]})</span>
+                        <p className="m-0 text-[11px] text-ink-faint truncate max-w-[90px]">{d.shiftName}</p>
+                      </td>
+                      <td className={`px-1.5 py-2 text-center whitespace-nowrap ${d.isCustomTime ? 'text-primary-700 font-semibold' : 'text-ink-muted'}`}>
+                        {formatTimeRange(d.startTime, d.endTime)}{d.isCustomTime && <span className="ml-0.5 align-super text-[9px]">*</span>}
+                      </td>
+                      <td className={`px-1.5 py-2 text-center whitespace-nowrap ${d.isCustomBreak ? 'text-primary-700 font-semibold' : 'text-ink-faint'}`}>
+                        {d.breakMinutes > 0 ? `−${minutesToHours(d.breakMinutes)}h` : '없음'}{d.isCustomBreak && <span className="ml-0.5 align-super text-[9px]">*</span>}
+                      </td>
+                      <td className="px-2.5 py-2 text-right font-semibold text-ink">{d.hours}h</td>
+                    </tr>
+                  )
+                })}
+                <tr className="bg-canvas-soft">
+                  <td className="px-2.5 py-2 text-[11px] font-semibold text-ink-muted">합계</td>
+                  <td className="px-1.5 py-2 text-center text-[11px] text-ink-muted">실근무 {minutesToHours(rawSum)}h</td>
+                  <td className="px-1.5 py-2 text-center text-[11px] text-ink-muted">−{minutesToHours(breakSum)}h</td>
+                  <td className="px-2.5 py-2 text-right font-bold text-ink">{totalHours}h</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {hasCustom && (
+            <p className="m-0 mt-1.5 text-[11px] text-ink-faint">
+              <span className="text-primary-700 font-semibold">*</span> 파트 기본값과 다른 시간·휴게(출퇴근 기록 또는 관리자 조정)
+            </p>
+          )}
+        </>
+      )}
+    </section>
   )
 }
 

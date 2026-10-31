@@ -47,17 +47,17 @@ export interface PayEstimateLine {
 
 /**
  * 근무자 화면의 예상 급여 — 급여정산 상세(PayrollDetailModal)와 같은 식이다: 기본급 + 저장된 조정 항목.
- * 직원에게 기본 공제가 정해져 있는데 이 구간에 아직 그 공제 항목이 없으면(관리자가 정산 전) 공제를 미리 계산해 넣는다.
- * 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
+ * deductions에 든 공제(직원 기본 공제, 화면에서 켠 3.3%)가 이 구간에 아직 저장돼 있지 않으면(관리자 정산 전)
+ * 미리 계산해 넣는다. 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
  */
 export function estimatePay(
   basePay: number,
   adjustments: { label: string; amount: number }[],
-  defaultDeduction: DefaultDeduction | null,
+  deductions: DefaultDeduction[],
 ): { lines: PayEstimateLine[]; finalPay: number } {
   const lines: PayEstimateLine[] = adjustments.map(a => ({ label: a.label, amount: a.amount, estimated: false }))
-  if (defaultDeduction) {
-    const label = DEFAULT_DEDUCTIONS[defaultDeduction]
+  for (const d of new Set(deductions)) {
+    const label = DEFAULT_DEDUCTIONS[d]
     const amount = quickDeductionAmount(label, basePay)
     if (amount != null && amount !== 0 && !adjustments.some(a => a.label === label)) {
       lines.push({ label, amount, estimated: true })
