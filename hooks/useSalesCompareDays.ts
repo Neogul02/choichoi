@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchHourlySalesByPopup } from '@/app/actions/orders'
-import { kstDayBounds } from '@/lib/salesCurve'
+import { kstDayBounds, kstPartialHourBounds } from '@/lib/salesCurve'
 import { queryKeys } from '@/lib/queryKeys'
 import type { TodayPopupSales } from '@/types/api'
 
@@ -34,5 +34,33 @@ export function useSalesCompareDays(today: string, enabled = true) {
     },
     enabled,
     staleTime: 60 * 60_000,
+  })
+}
+
+/**
+ * 비교 기준일의 "지금 시 정각 ~ 지금 분" 구간 매출 — 끝난 시는 위 하루치 캐시에서 더하고, 진행 중인 시만 이걸로
+ * 분 단위까지 맞춘다(lib/salesCurve sumUptoMinute). 구간이 최대 1시간이라 분마다 받아도 가볍다.
+ * 직전 값은 같은 시 안에서만 이어 쓴다 — 시가 바뀐 뒤에도 쓰면 끝난 시가 하루치와 이중으로 더해진다.
+ */
+export function useSalesCompareCurrentHour(today: string, hour: number, minute: number, enabled = true) {
+  return useQuery<SalesCompareDays>({
+    queryKey: queryKeys.salesCompareCurrentHour(today, hour, minute),
+    queryFn: async () => {
+      const y = kstPartialHourBounds(today, -1, hour, minute)
+      const w = kstPartialHourBounds(today, -7, hour, minute)
+      if (!y || !w) return { yesterday: [], lastWeek: [] }
+      const [yRes, wRes] = await Promise.all([
+        fetchHourlySalesByPopup(y.startISO, y.endISO),
+        fetchHourlySalesByPopup(w.startISO, w.endISO),
+      ])
+      return {
+        yesterday: yRes.success && yRes.data ? yRes.data : [],
+        lastWeek: wRes.success && wRes.data ? wRes.data : [],
+      }
+    },
+    enabled,
+    staleTime: Infinity,
+    gcTime: 2 * 60_000,
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2] === hour ? prev : undefined),
   })
 }

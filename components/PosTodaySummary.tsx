@@ -4,10 +4,10 @@ import { useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTodaysMenuSales } from '@/app/actions/orders';
-import { useSalesCompareDays } from '@/hooks/useSalesCompareDays';
+import { useSalesCompareDays, useSalesCompareCurrentHour } from '@/hooks/useSalesCompareDays';
 import { kstToday } from '@/lib/date';
-import { useKstHour } from '@/hooks/useKstHour';
-import { mergeHourly, sumUpto } from '@/lib/salesCurve';
+import { useKstTime } from '@/hooks/useKstTime';
+import { mergeHourly, sumUpto, sumUptoMinute } from '@/lib/salesCurve';
 import type { MenuSalesItem, TodayPopupSales } from '@/types/api';
 import { queryKeys } from '@/lib/queryKeys';
 
@@ -58,7 +58,7 @@ function Delta({ label, now, before }: { label: string; now: number; before: num
  * 비교(어제·지난주)는 통계탭과 같은 규칙 — 같은 시각까지의 누적끼리, orders 테이블만 본다.
  */
 export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, totalOrders, hidden, onToggle }: Props) {
-  const nowHour = useKstHour();
+  const { hour: nowHour, minute: nowMinute } = useKstTime();
 
   const popupKey = currentPopupId == null ? null : String(currentPopupId);
   const scope = useCallback(
@@ -83,6 +83,8 @@ export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, to
   // 기준일(어제·지난주) 데이터는 통계탭과 같은 캐시를 쓴다 — 날짜가 키라 자정을 넘기면 새로 받는다
   const today = kstToday();
   const compareQuery = useSalesCompareDays(today, !hidden);
+  // 진행 중인 시는 기준일도 "정각 ~ 지금 분"까지만 — 통계탭과 같은 규칙(lib/salesCurve sumUptoMinute)
+  const partialQuery = useSalesCompareCurrentHour(today, nowHour, nowMinute, !hidden);
 
   const mine = useMemo(() => scope(rows), [rows, scope]);
   const todayUptoNow = sumUpto(mine, nowHour);
@@ -91,12 +93,14 @@ export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, to
     if (!compareQuery.data) return null;
     const y = scope(compareQuery.data.yesterday);
     const w = scope(compareQuery.data.lastWeek);
+    const yp = scope(partialQuery.data?.yesterday ?? []);
+    const wp = scope(partialQuery.data?.lastWeek ?? []);
     return {
-      yesterday: y.length > 0 ? sumUpto(y, nowHour) : null,
-      lastWeek: w.length > 0 ? sumUpto(w, nowHour) : null,
+      yesterday: y.length > 0 ? sumUptoMinute(y, yp, nowHour) : null,
+      lastWeek: w.length > 0 ? sumUptoMinute(w, wp, nowHour) : null,
       yesterdayHourly: y.length > 0 ? mergeHourly(y) : null,
     };
-  }, [compareQuery.data, scope, nowHour]);
+  }, [compareQuery.data, partialQuery.data, scope, nowHour]);
 
   const breakdown = useMemo(
     () => [...(menuQuery.data ?? [])].sort((a, b) => b.totalQuantity - a.totalQuantity),
