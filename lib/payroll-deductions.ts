@@ -21,9 +21,47 @@ export const WITHHOLDING_LABEL = '원천징수 3.3%'
 export const EMPLOYMENT_INSURANCE_LABEL = '고용보험 0.9%'
 export const EMPLOYMENT_INSURANCE_PERCENT = 0.9
 
+/** 직원별 기본 공제(staff_profiles.default_deduction) → 바로 공제 라벨 */
+export const DEFAULT_DEDUCTIONS = {
+  withholding33: WITHHOLDING_LABEL,
+  employment_insurance: EMPLOYMENT_INSURANCE_LABEL,
+} as const
+export type DefaultDeduction = keyof typeof DEFAULT_DEDUCTIONS
+
+export const isDefaultDeduction = (v: unknown): v is DefaultDeduction =>
+  typeof v === 'string' && Object.prototype.hasOwnProperty.call(DEFAULT_DEDUCTIONS, v)
+
 /** 빠른 공제 항목의 조정 금액(음수) — 라벨로 기존 항목과 맞춰 재계산 여부를 판단한다 */
 export function quickDeductionAmount(label: string, base: number): number | null {
   if (label === WITHHOLDING_LABEL) return -withholding33(base).total
   if (label === EMPLOYMENT_INSURANCE_LABEL) return -percentDeduction(base, EMPLOYMENT_INSURANCE_PERCENT)
   return null
+}
+
+export interface PayEstimateLine {
+  label: string
+  amount: number
+  /** 관리자가 아직 넣지 않은 기본 공제를 미리 계산해 보여주는 줄 — 확정 전이라는 표시용 */
+  estimated: boolean
+}
+
+/**
+ * 근무자 화면의 예상 급여 — 급여정산 상세(PayrollDetailModal)와 같은 식이다: 기본급 + 저장된 조정 항목.
+ * deductions에 든 공제(직원 기본 공제, 화면에서 켠 3.3%)가 이 구간에 아직 저장돼 있지 않으면(관리자 정산 전)
+ * 미리 계산해 넣는다. 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
+ */
+export function estimatePay(
+  basePay: number,
+  adjustments: { label: string; amount: number }[],
+  deductions: DefaultDeduction[],
+): { lines: PayEstimateLine[]; finalPay: number } {
+  const lines: PayEstimateLine[] = adjustments.map(a => ({ label: a.label, amount: a.amount, estimated: false }))
+  for (const d of new Set(deductions)) {
+    const label = DEFAULT_DEDUCTIONS[d]
+    const amount = quickDeductionAmount(label, basePay)
+    if (amount != null && amount !== 0 && !adjustments.some(a => a.label === label)) {
+      lines.push({ label, amount, estimated: true })
+    }
+  }
+  return { lines, finalPay: basePay + lines.reduce((s, l) => s + l.amount, 0) }
 }
