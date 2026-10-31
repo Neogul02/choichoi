@@ -17,4 +17,7 @@ export const queryKeys = {
   pendingOrders: (popupId: string | null) => ['pending-orders', popupId] as const,
   /** 어제·지난주 같은 요일의 팝업별 시간대 매출 — 날짜가 바뀌면 키도 바뀐다 */
   salesCompareDays: (today: string) => ['sales-compare-days', today] as const,
+  /** 어제·지난주의 "지금 시 정각 ~ 지금 분" 구간 매출 — 분이 바뀌면 키도 바뀐다 */
+  salesCompareCurrentHour: (today: string, hour: number, minute: number) =>
+    ['sales-compare-current-hour', today, hour, minute] as const,
 }

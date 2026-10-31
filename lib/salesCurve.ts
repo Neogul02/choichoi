@@ -110,3 +110,26 @@ export function kstDayBounds(today: string, delta: number): { startISO: string; 
     endISO: new Date(`${day}T23:59:59.999+09:00`).toISOString(),
   };
 }
+
+/**
+ * 기준일(오늘 + delta일)의 "지금 시 정각 ~ 지금 분" 구간 — 진행 중인 시를 분 단위로 맞대기 위한 조회 범위.
+ * RPC가 끝을 포함(<=)하므로 끝은 그 분 직전(−1ms)이다. 정각(minute 0)이면 볼 구간이 없어 null.
+ */
+export function kstPartialHourBounds(
+  today: string, delta: number, hour: number, minute: number,
+): { startISO: string; endISO: string } | null {
+  if (minute <= 0) return null;
+  const { startISO } = kstDayBounds(today, delta);
+  const start = new Date(startISO).getTime() + hour * 3_600_000;
+  return {
+    startISO: new Date(start).toISOString(),
+    endISO: new Date(start + minute * 60_000 - 1).toISOString(),
+  };
+}
+
+/**
+ * 기준일의 "같은 시각(분 단위)까지" 누적 — 끝난 시는 하루치 행에서, 진행 중인 시는 그 시 정각~지금 분 구간 조회
+ * 결과(partial)에서 더한다. 시 단위로만 자르면 14:05에 기준일은 14:59까지 들어가 오늘이 늘 불리해 보였다.
+ */
+export const sumUptoMinute = (full: TodayPopupSales[], partial: TodayPopupSales[], hour: number) =>
+  sumUpto(full, hour - 1) + partial.reduce((s, p) => s + p.totalRevenue, 0);

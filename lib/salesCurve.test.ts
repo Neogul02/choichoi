@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSalesCurve, curveKeyOf, REFERENCE_KEY, AXIS_FROM, AXIS_TO, sumUpto, mergeHourly, kstDayBounds } from './salesCurve'
+import { buildSalesCurve, curveKeyOf, REFERENCE_KEY, AXIS_FROM, AXIS_TO, sumUpto, mergeHourly, kstDayBounds, kstPartialHourBounds, sumUptoMinute } from './salesCurve'
 import type { TodayPopupSales } from '@/types/api'
 
 const row = (popupId: number, hourly: Array<[number, number]>): TodayPopupSales => ({
@@ -122,5 +122,25 @@ describe('비교 헬퍼', () => {
       startISO: '2026-09-29T15:00:00.000Z',
       endISO: '2026-09-30T14:59:59.999Z',
     })
+  })
+
+  it('kstPartialHourBounds는 기준일의 정각~지금 분 직전까지다', () => {
+    // 오늘 10/31 14:10 → 지난주(10/24) 14:00:00 ~ 14:09:59.999 KST
+    expect(kstPartialHourBounds('2026-10-31', -7, 14, 10)).toEqual({
+      startISO: '2026-10-24T05:00:00.000Z',
+      endISO: '2026-10-24T05:09:59.999Z',
+    })
+  })
+
+  it('kstPartialHourBounds는 정각이면 볼 구간이 없다', () => {
+    expect(kstPartialHourBounds('2026-10-31', -1, 14, 0)).toBeNull()
+  })
+
+  it('sumUptoMinute는 끝난 시까지 + 진행 중인 시의 분 단위 구간만 더한다', () => {
+    const full = [row(1, [[9, 100], [13, 200], [14, 600]]), row(2, [[13, 50]])]
+    const partial = [row(1, [[14, 120]])]
+    // 14:10 기준 — 14시 전체(600)가 아니라 14:00~14:09(120)만 들어간다
+    expect(sumUptoMinute(full, partial, 14)).toBe(100 + 200 + 50 + 120)
+    expect(sumUptoMinute(full, [], 14)).toBe(350)
   })
 })

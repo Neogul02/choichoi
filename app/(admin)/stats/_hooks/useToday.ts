@@ -2,20 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { useSalesCompareDays } from '@/hooks/useSalesCompareDays';
+import { useSalesCompareDays, useSalesCompareCurrentHour } from '@/hooks/useSalesCompareDays';
 import { fetchTodaysSalesByPopupForStats, fetchTodaysMenuSalesForStats } from '@/app/actions/stats';
 import { kstToday } from '@/lib/date';
-import { useKstHour } from '@/hooks/useKstHour';
-import { mergeHourly, sumUpto } from '@/lib/salesCurve';
+import { useKstTime } from '@/hooks/useKstTime';
+import { mergeHourly, sumUpto, sumUptoMinute } from '@/lib/salesCurve';
 import type { MenuSalesItem, TodayPopupSales } from '@/types/api';
+
+// 조회 전 빈 값 — 렌더마다 새 배열을 만들면 아래 memo가 매번 다시 돈다
+const NO_ROWS: TodayPopupSales[] = [];
 
 /** 'all'이면 오늘 매출이 난 팝업 전체 합산 */
 export type TodayScope = number | 'all';
 
 export interface TodayComparison {
-  /** 어제 **같은 시각까지**의 누적 — 데이터가 없으면 null */
+  /** 어제 **같은 시각(분 단위)까지**의 누적 — 데이터가 없으면 null */
   yesterday: number | null;
-  /** 지난주 같은 요일 **같은 시각까지**의 누적 — 데이터가 없으면 null */
+  /** 지난주 같은 요일 **같은 시각(분 단위)까지**의 누적 — 데이터가 없으면 null */
   lastWeek: number | null;
 }
 
@@ -42,8 +45,8 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
   const [popups, setPopups] = useState<TodayPopupSales[]>(initialPopups ?? []);
   const [scope, setScope] = useState<TodayScope>('all');
   const [breakdown, setBreakdown] = useState<MenuSalesItem[]>([]);
-  // 비교 기준이 되는 "지금 시각" — 1분마다 따라간다
-  const nowHour = useKstHour();
+  // 비교 기준이 되는 "지금 시각" — 분이 바뀔 때마다 따라간다
+  const { hour: nowHour, minute: nowMinute } = useKstTime();
   const [isLoading, setIsLoading] = useState(true);
 
   const loadPopups = useCallback(async () => {
@@ -62,6 +65,10 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
   const compareQuery = useSalesCompareDays(kstToday());
   const yesterdayRows = compareQuery.data?.yesterday ?? null;
   const lastWeekRows = compareQuery.data?.lastWeek ?? null;
+  // 진행 중인 시는 기준일도 "정각 ~ 지금 분"까지만 — 시 단위로 자르면 14:05에 기준일은 14:59까지 들어간다
+  const partialQuery = useSalesCompareCurrentHour(kstToday(), nowHour, nowMinute);
+  const yesterdayPartial = partialQuery.data?.yesterday ?? NO_ROWS;
+  const lastWeekPartial = partialQuery.data?.lastWeek ?? NO_ROWS;
 
   // 선택한 범위의 판매 품목 + 비교값
   useEffect(() => {
@@ -99,16 +106,15 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
     [scope],
   );
 
-  // 비교는 **같은 시각까지의 누적**끼리 한다. 하루 전체 합과 맞대면 오전엔 늘 "폭망"으로 보인다.
+  // 비교는 **같은 시각(분 단위)까지의 누적**끼리 한다. 하루 전체 합과 맞대면 오전엔 늘 "폭망"으로 보인다.
   const comparison = useMemo<TodayComparison>(() => {
-    const cap = nowHour;
     const y = scopeRows(yesterdayRows);
     const w = scopeRows(lastWeekRows);
     return {
-      yesterday: y && y.length > 0 ? sumUpto(y, cap) : null,
-      lastWeek: w && w.length > 0 ? sumUpto(w, cap) : null,
+      yesterday: y && y.length > 0 ? sumUptoMinute(y, scopeRows(yesterdayPartial) ?? [], nowHour) : null,
+      lastWeek: w && w.length > 0 ? sumUptoMinute(w, scopeRows(lastWeekPartial) ?? [], nowHour) : null,
     };
-  }, [yesterdayRows, lastWeekRows, scopeRows, nowHour]);
+  }, [yesterdayRows, lastWeekRows, yesterdayPartial, lastWeekPartial, scopeRows, nowHour]);
 
   // 어제 곡선 — 차트에 깔 점선 기준선. 곡선은 하루 전체를 그리되,
   // 숫자로 보여줄 값은 "지금 시각까지"여야 오늘과 맞대 비교가 된다.
@@ -117,14 +123,13 @@ export function useToday(initialPopups?: TodayPopupSales[] | null) {
     if (rows == null) return null;
     if (rows.length === 0) return { hourly: [], total: 0, uptoNow: 0, hasData: false };
     const hourly = mergeHourly(rows);
-    const cap = nowHour;
     return {
       hourly,
       total: hourly.reduce((s, h) => s + h.revenue, 0),
-      uptoNow: hourly.reduce((s, h) => (h.hour <= cap ? s + h.revenue : s), 0),
+      uptoNow: sumUptoMinute(rows, scopeRows(yesterdayPartial) ?? [], nowHour),
       hasData: true,
     };
-  }, [yesterdayRows, scopeRows, nowHour]);
+  }, [yesterdayRows, yesterdayPartial, scopeRows, nowHour]);
 
   /** 오늘 지금 시각까지의 누적 — 비교값과 같은 잣대 */
   // 정정한 팝업은 하루 시간대 입력이 없으면 시각별 값이 없다 — hourly로 더하면 0원이 돼 "어제 대비 -100%"로 보였다.
