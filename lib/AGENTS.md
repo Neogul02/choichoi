@@ -108,7 +108,7 @@
 
 ## 그 외
 
-`tiers.ts`(매출 티어) · `popupPeriod.ts`(팝업 기간 상태·달력 배경 그라데이션) ·
+`tiers.ts`(매출 티어) · `popupPeriod.ts`(팝업 기간 상태·달력 배경 그라데이션·`shiftFollowsPopupPeriod` — 팝업 기간 수정 시 함께 옮길 파트 판정) ·
 `staff-columns.ts`(공통 select 목록) · `storage-keys.ts`(localStorage 키) ·
 `toast.ts`(`showMsg`) · `discord.ts`(웹훅) · `utils.ts`(`formatPrice`·`formatBreakMinutes` 등) ·
 `useModal`·`useModalKeyboard`·`useBodyScrollLock`·`useCurrentRole`(공통 훅)

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { formatPrice } from '@/lib/utils'
+import { withholding33 } from '@/lib/payroll-deductions'
 
 interface Deduction {
   key: string
@@ -31,6 +32,8 @@ export default function PayCalculatorPanel() {
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(DEDUCTIONS.map(d => [d.key, d.defaultChecked])),
   )
+  // 3.3%는 사업소득(프리랜서) 원천징수라 4대보험과 같이 떼지 않는다 — 한쪽을 켜면 다른 쪽을 끈다
+  const [withholdingOn, setWithholdingOn] = useState(false)
   const [customDeductions, setCustomDeductions] = useState<CustomDeduction[]>([])
   const [newCustomLabel, setNewCustomLabel] = useState('')
   const [newCustomRate, setNewCustomRate] = useState('')
@@ -50,7 +53,11 @@ export default function PayCalculatorPanel() {
     amount: Math.round(gross * (d.rate / 100)),
   })), [customDeductions, gross])
 
-  const totalDeduction = rows.reduce((s, r) => s + r.amount, 0) + customRows.reduce((s, r) => s + r.amount, 0)
+  const withholding = withholdingOn ? withholding33(gross) : null
+
+  const totalDeduction = rows.reduce((s, r) => s + r.amount, 0)
+    + customRows.reduce((s, r) => s + r.amount, 0)
+    + (withholding?.total ?? 0)
   const netPay = gross - totalDeduction
 
   const handleGrossChange = (v: string) => {
@@ -66,6 +73,16 @@ export default function PayCalculatorPanel() {
     setNewCustomRate('')
   }
 
+  const toggleInsurance = (key: string, on: boolean) => {
+    setChecked(p => ({ ...p, [key]: on }))
+    if (on) setWithholdingOn(false)
+  }
+
+  const toggleWithholding = (on: boolean) => {
+    setWithholdingOn(on)
+    if (on) setChecked(Object.fromEntries(DEDUCTIONS.map(d => [d.key, false])))
+  }
+
   const removeCustomDeduction = (id: number) => setCustomDeductions(p => p.filter(d => d.id !== id))
 
   const handleCopy = () => {
@@ -77,6 +94,9 @@ export default function PayCalculatorPanel() {
     for (const r of rows) {
       if (r.amount === 0 && !checked[r.key]) continue
       lines.push(`- ${r.label} (${(r.rate * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%): -${formatPrice(r.amount)}원`)
+    }
+    if (withholding) {
+      lines.push(`- 원천징수 3.3% (소득세 ${formatPrice(withholding.incomeTax)}원 + 지방소득세 ${formatPrice(withholding.localTax)}원): -${formatPrice(withholding.total)}원`)
     }
     for (const r of customRows) {
       lines.push(`- ${r.label} (${r.rate}%): -${formatPrice(r.amount)}원`)
@@ -121,7 +141,7 @@ export default function PayCalculatorPanel() {
                 <input
                   type="checkbox"
                   checked={checked[row.key]}
-                  onChange={e => setChecked(p => ({ ...p, [row.key]: e.target.checked }))}
+                  onChange={e => toggleInsurance(row.key, e.target.checked)}
                   className="w-4 h-4 accent-primary-700 cursor-pointer"
                 />
                 <span className="text-[13px] font-semibold text-ink">{row.label}</span>
@@ -134,6 +154,27 @@ export default function PayCalculatorPanel() {
               </span>
             </label>
           ))}
+
+          <label className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-hairline bg-canvas-soft cursor-pointer">
+            <span className="flex items-center gap-2 min-w-0">
+              <input
+                type="checkbox"
+                checked={withholdingOn}
+                onChange={e => toggleWithholding(e.target.checked)}
+                className="w-4 h-4 accent-primary-700 cursor-pointer"
+              />
+              <span className="text-[13px] font-semibold text-ink">원천징수</span>
+              <span className="text-[11px] text-ink-faint">3.3% · 프리랜서</span>
+            </span>
+            <span className={`text-[13px] font-bold ${withholdingOn ? 'text-ink' : 'text-ink-faint'}`}>
+              {withholding ? `-${formatPrice(withholding.total)}원` : '—'}
+            </span>
+          </label>
+          {withholding && (
+            <p className="m-0 -mt-1 px-3 text-[11px] text-ink-faint">
+              소득세 3% {formatPrice(withholding.incomeTax)}원 + 지방소득세 0.3% {formatPrice(withholding.localTax)}원 (각 10원 미만 절사)
+            </p>
+          )}
 
           {customRows.map(row => (
             <div
@@ -192,7 +233,7 @@ export default function PayCalculatorPanel() {
         </div>
 
         <p className="text-[11px] text-ink-faint leading-relaxed m-0">
-          4대보험 요율 기준 간이 계산이며, 소득세·지방소득세는 커스텀 항목으로 직접 추가해야 합니다. 실제 공제액은 소득 구간·부양가족 수 등에 따라 달라질 수 있습니다.
+          4대보험 요율 기준 간이 계산입니다. 3.3% 원천징수는 4대보험 대신 적용하는 사업소득 공제라 함께 선택되지 않습니다. 근로소득세는 커스텀 항목으로 직접 추가하세요. 실제 공제액은 소득 구간·부양가족 수 등에 따라 달라질 수 있습니다.
         </p>
 
         <button

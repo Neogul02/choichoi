@@ -5,6 +5,7 @@ import { wrap, requireAdmin, requireAuth } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import { classifyStaffByPopupSchedule } from './staffPopups';
 import { createDefaultCashierShifts } from './roster';
+import { shiftFollowsPopupPeriod } from '@/lib/popupPeriod';
 import type { ApiResponse, FetchEventsResponse } from '@/types/api';
 import type { PopupClosedDay, PopupEvent } from '@/types/database';
 
@@ -46,6 +47,16 @@ async function deletePopupEvent(id: number): Promise<void> {
   if (error) throw error
 }
 
+async function getPopupEvent(id: number): Promise<PopupEvent> {
+  const { data, error } = await supabaseAdmin
+    .from('popup_events')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (error) throw error
+  return data as PopupEvent
+}
+
 async function updatePopupEvent(id: number, name: string, startDate: string, endDate: string): Promise<PopupEvent> {
   const { data, error } = await supabaseAdmin
     .from('popup_events')
@@ -55,6 +66,42 @@ async function updatePopupEvent(id: number, name: string, startDate: string, end
     .single()
   if (error) throw error
   return data as PopupEvent
+}
+
+/**
+ * 팝업 기간을 따라가던 파트(활성 기간 = 수정 전 팝업 기간, lib/popupPeriod.ts shiftFollowsPopupPeriod)를
+ * 새 기간으로 옮긴다. 이걸 빼먹으면 기본 파트가 옛 기간에 남아 새 기간 근무표에 파트가 안 뜬다.
+ */
+async function movePopupPeriodShifts(before: PopupEvent, startDate: string, endDate: string): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from('roster_shifts')
+    .select('id, popup_id, active_from, active_to')
+    .eq('popup_id', before.id)
+  if (error) throw error
+  const ids = (data ?? []).filter(s => shiftFollowsPopupPeriod(s, before)).map(s => s.id)
+  if (ids.length === 0) return
+  const { error: updateError } = await supabaseAdmin
+    .from('roster_shifts')
+    .update({ active_from: startDate, active_to: endDate })
+    .in('id', ids)
+  if (updateError) throw updateError
+}
+
+/**
+ * 팝업 수정 + 따라가는 파트 기간 이동. 두 테이블을 한 트랜잭션으로 묶을 수 없어서 팝업을 먼저 바꾸고
+ * (검증·제약에 걸리면 여기서 끝나 아무것도 안 바뀐다) 파트 이동이 실패하면 팝업을 원래 값으로 되돌린다.
+ */
+async function editPopupEventWithShifts(id: number, name: string, startDate: string, endDate: string): Promise<PopupEvent> {
+  const before = await getPopupEvent(id)
+  const updated = await updatePopupEvent(id, name, startDate, endDate)
+  if (before.start_date === startDate && before.end_date === endDate) return updated
+  try {
+    await movePopupPeriodShifts(before, startDate, endDate)
+  } catch (e) {
+    await updatePopupEvent(id, before.name, before.start_date, before.end_date).catch(() => {})
+    throw e
+  }
+  return updated
 }
 
 async function setPopupEventActive(id: number, isActive: boolean): Promise<PopupEvent> {
@@ -96,7 +143,7 @@ export async function removePopupEvent(id: number): Promise<ApiResponse> { retur
 export async function editPopupEvent(id: number, name: string, startDate: string, endDate: string): Promise<ApiResponse<PopupEvent>> {
   const parsed = PopupEventSchema.safeParse({ name, startDate, endDate });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  const res = await wrap(async () => { await requireAdmin(); return updatePopupEvent(id, parsed.data.name, parsed.data.startDate, parsed.data.endDate); });
+  const res = await wrap(async () => { await requireAdmin(); return editPopupEventWithShifts(id, parsed.data.name, parsed.data.startDate, parsed.data.endDate); });
   // 기간을 수정하면(연장 등) 새로 기간에 들어온 근무자를 다시 분류
   if (res.success && res.data) await classifyStaffByPopupSchedule(id);
   return res;

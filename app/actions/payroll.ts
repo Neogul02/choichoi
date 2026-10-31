@@ -6,6 +6,7 @@ import type { StaffRole } from '@/types/database'
 import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import { decryptResidentId } from '@/lib/pii-crypto'
+import { isDefaultDeduction, type DefaultDeduction } from '@/lib/payroll-deductions'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, requireManagerOrAdmin, wrap } from './_base'
 
 export interface PayrollRow {
@@ -210,6 +211,34 @@ function mapAssignmentsToDetails(rows: AssignmentDetailRow[]): StaffDayDetail[] 
   })
 }
 
+type ShiftTimeRow = { start_time: string; end_time: string; break_minutes: number | null }
+type PayrollAssignmentRow = {
+  staff_id: number
+  start_time: string | null
+  end_time: string | null
+  break_minutes: number | null
+  work_date: string
+  roster_shifts: ShiftTimeRow[] | ShiftTimeRow | null
+}
+
+// 파트 시각·휴게는 배정 행에 조인해서 받는다 — 예전엔 roster_shifts 테이블 전체를 따로 읽어 맵으로 맞췄다.
+// 조인 결과가 없어도(파트 삭제 등) 근무 사실은 유효하므로 건너뛰지 않는다. 시간·휴게는 배정 행의 확정값이 우선이다.
+const PAYROLL_ASSIGNMENT_COLUMNS = 'staff_id, start_time, end_time, break_minutes, work_date, roster_shifts!roster_assignments_shift_id_fkey(start_time, end_time, break_minutes)'
+
+function sumPaidByStaff(rows: PayrollAssignmentRow[]): Map<number, { days: number; minutes: number }> {
+  const totals = new Map<number, { days: number; minutes: number }>()
+  for (const a of rows) {
+    const shift = (Array.isArray(a.roster_shifts) ? a.roster_shifts[0] : a.roster_shifts) ?? null
+    const startStr = a.start_time ?? shift?.start_time
+    const endStr = a.end_time ?? shift?.end_time
+    if (!startStr || !endStr) continue // 시간이 전혀 없는 행은 계산 불가 — 백필 이후로는 존재하지 않는다
+    const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift?.break_minutes)
+    const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
+    totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
+  }
+  return totals
+}
+
 function buildPayrollRows(
   totals: Map<number, { days: number; minutes: number }>,
   staffMap: Map<number, { id: number; name: string; phone: string | null; bank_name: string | null; bank_account: string | null; hourly_rate: number | null }>,
@@ -240,10 +269,10 @@ export async function fetchMonthlyPayroll(
     const lastDay = new Date(year, month + 1, 0).getDate()
     const to = `${year}-${pad(month + 1)}-${pad(lastDay)}`
 
-    const [assignRes, staffRes, shiftRes] = await Promise.all([
+    const [assignRes, staffRes] = await Promise.all([
       supabaseAdmin
         .from('roster_assignments')
-        .select('staff_id, shift_id, start_time, end_time, break_minutes, work_date, popup_events(start_date, end_date)')
+        .select(`${PAYROLL_ASSIGNMENT_COLUMNS}, popup_events(start_date, end_date)`)
         .eq('staff_role', staffRole)
         .gte('work_date', from)
         .lte('work_date', to),
@@ -251,34 +280,20 @@ export async function fetchMonthlyPayroll(
         .from('staff_profiles')
         .select('id, name, phone, bank_name, bank_account, hourly_rate')
         .eq('staff_role', staffRole),
-      supabaseAdmin
-        .from('roster_shifts')
-        .select('id, start_time, end_time, break_minutes'),
     ])
 
     if (assignRes.error) return { success: false, error: assignRes.error.message }
 
     const staffMap = new Map((staffRes.data ?? []).map(s => [s.id, s]))
-    const shiftMap = new Map((shiftRes.data ?? []).map(s => [s.id, s]))
 
-    const totals = new Map<number, { days: number; minutes: number }>()
-    for (const a of assignRes.data ?? []) {
-      // 파트 행이 없어도(삭제·비활성 팝업 등) 근무 사실은 유효하다 — 예전에는 여기서 continue로 건너뛰어
-      // 그 사람의 급여가 조용히 0원이 됐다. 시간·휴게는 배정 행에 확정 기록돼 있으므로 파트는 보조값일 뿐이다.
-      const shift = shiftMap.get(a.shift_id)
-      // 팝업 이벤트 종료 후 남은 유령 배정은 급여 합계에서 제외 (fetchStaffMonthlyDetail과 동일 기준)
+    // 팝업 이벤트 종료 후 남은 유령 배정은 급여 합계에서 제외 (fetchStaffMonthlyDetail과 동일 기준)
+    const valid = (assignRes.data ?? []).filter(a => {
       const peRaw = a.popup_events
       const pe = (Array.isArray(peRaw) ? peRaw[0] : peRaw) as { start_date: string; end_date: string } | null
-      if (pe && (a.work_date < pe.start_date || a.work_date > pe.end_date)) continue
-      const startStr = a.start_time ?? shift?.start_time
-      const endStr = a.end_time ?? shift?.end_time
-      if (!startStr || !endStr) continue // 시간이 전혀 없는 행은 계산 불가 — 백필 이후로는 존재하지 않는다
-      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift?.break_minutes)
-      const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
-      totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
-    }
+      return !pe || (a.work_date >= pe.start_date && a.work_date <= pe.end_date)
+    })
 
-    return { success: true, data: buildPayrollRows(totals, staffMap) }
+    return { success: true, data: buildPayrollRows(sumPaidByStaff(valid as PayrollAssignmentRow[]), staffMap) }
   } catch (err) {
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
@@ -305,38 +320,24 @@ export async function fetchPopupPayroll(popupId: number): Promise<ApiResponse<Po
     if (popupError) return { success: false, error: popupError.message }
     if (!popup) return { success: false, error: '팝업을 찾을 수 없습니다.' }
 
-    const [assignRes, staffRes, shiftRes] = await Promise.all([
+    // 팝업 기간 밖 날짜로 남은 배정은 DB에서 거른다 (fetchStaffMonthlyDetail과 동일 기준의 방어 로직)
+    const [assignRes, staffRes] = await Promise.all([
       supabaseAdmin
         .from('roster_assignments')
-        .select('staff_id, shift_id, start_time, end_time, break_minutes, work_date')
-        .eq('popup_id', popupId),
+        .select(PAYROLL_ASSIGNMENT_COLUMNS)
+        .eq('popup_id', popupId)
+        .gte('work_date', popup.start_date)
+        .lte('work_date', popup.end_date),
       supabaseAdmin
         .from('staff_profiles')
         .select('id, name, phone, bank_name, bank_account, hourly_rate')
         .eq('staff_role', 'cashier'),
-      supabaseAdmin
-        .from('roster_shifts')
-        .select('id, start_time, end_time, break_minutes'),
     ])
 
     if (assignRes.error) return { success: false, error: assignRes.error.message }
 
     const staffMap = new Map((staffRes.data ?? []).map(s => [s.id, s]))
-    const shiftMap = new Map((shiftRes.data ?? []).map(s => [s.id, s]))
-
-    const totals = new Map<number, { days: number; minutes: number }>()
-    for (const a of assignRes.data ?? []) {
-      // 파트 행이 없어도 집계에서 빼지 않는다 (fetchMonthlyPayroll과 동일한 이유)
-      const shift = shiftMap.get(a.shift_id)
-      // 팝업 기간 밖 날짜로 남은 배정은 제외 (fetchStaffMonthlyDetail과 동일 기준의 방어 로직)
-      if (a.work_date < popup.start_date || a.work_date > popup.end_date) continue
-      const startStr = a.start_time ?? shift?.start_time
-      const endStr = a.end_time ?? shift?.end_time
-      if (!startStr || !endStr) continue
-      const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift?.break_minutes)
-      const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
-      totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
-    }
+    const totals = sumPaidByStaff((assignRes.data ?? []) as PayrollAssignmentRow[])
 
     return {
       success: true,
@@ -444,6 +445,104 @@ export async function addPayrollAdjustment(
     }
 
     return data as PayrollAdjustment
+  })
+}
+
+export interface StaffPayEstimateInfo {
+  hourlyRate: number | null
+  /** 이 달(month 정산 구간)에 저장된 조정 항목 — 캐셔의 팝업 구간 조정은 달에 묶이지 않아 포함하지 않는다 */
+  adjustments: PayrollAdjustment[]
+  defaultDeduction: DefaultDeduction | null
+  /** 관리자가 급여정산에서 이 달 지급 완료로 체크했는지 */
+  paid: boolean
+}
+
+/**
+ * 스케줄 화면의 이달 예상 급여용 — 시급·이 달 조정 항목·기본 공제. 본인 또는 admin|manager만.
+ * 기본급은 화면이 이미 받은 일별 상세(fetchStaffMonthlyDetail)로 계산한다 — 급여정산 상세와 같은 방식.
+ */
+export async function fetchStaffPayEstimateInfo(
+  staffId: number,
+  year: number,
+  month: number, // 0-indexed
+): Promise<ApiResponse<StaffPayEstimateInfo>> {
+  return wrap(async () => {
+    const user = await getAuthUser()
+    if (!user) throw new Error('로그인이 필요합니다.')
+    const periodKey = `month:${year}-${month}`
+    assertPeriodKey(periodKey)
+
+    let staffQuery = supabaseAdmin.from('staff_profiles').select('hourly_rate, default_deduction').eq('id', staffId)
+    if (user.role !== 'admin' && user.role !== 'manager') staffQuery = staffQuery.eq('user_profile_id', user.id)
+    let { data: staff, error: staffError } = await staffQuery.maybeSingle()
+    // 마이그레이션(20261028090000) 적용 전이면 default_deduction 컬럼이 없다 — 기본 공제 없이 동작
+    if (staffError && isMissingColumnError(staffError.code)) {
+      let fallback = supabaseAdmin.from('staff_profiles').select('hourly_rate').eq('id', staffId)
+      if (user.role !== 'admin' && user.role !== 'manager') fallback = fallback.eq('user_profile_id', user.id)
+      const res = await fallback.maybeSingle()
+      staff = res.data ? { ...res.data, default_deduction: null } : null
+      staffError = res.error
+    }
+    if (staffError) throw new Error(staffError.message)
+    if (!staff) throw new Error('권한이 없습니다.')
+
+    const [{ data: adj, error: adjError }, { count: paidCount, error: paidError }] = await Promise.all([
+      supabaseAdmin
+        .from('payroll_adjustments')
+        .select('id, label, amount')
+        .eq('period_key', periodKey)
+        .eq('staff_id', staffId)
+        .order('id'),
+      supabaseAdmin
+        .from('payroll_payments')
+        .select('staff_id', { count: 'exact', head: true })
+        .eq('period_key', periodKey)
+        .eq('staff_id', staffId),
+    ])
+    if (adjError) throw new Error(adjError.message)
+    if (paidError) throw new Error(paidError.message)
+
+    return {
+      hourlyRate: staff.hourly_rate,
+      adjustments: (adj ?? []) as PayrollAdjustment[],
+      defaultDeduction: isDefaultDeduction(staff.default_deduction) ? staff.default_deduction : null,
+      paid: (paidCount ?? 0) > 0,
+    }
+  })
+}
+
+// 컬럼이 없을 때 PostgREST가 돌려주는 코드 — select는 Postgres 42703, insert/update는 스키마 캐시 PGRST204
+const isMissingColumnError = (code: string | undefined) => code === '42703' || code === 'PGRST204'
+
+/** 직원별 기본 공제 — staffId → 'withholding33' | 'employment_insurance' (정하지 않은 직원은 빠진다) */
+export async function fetchDefaultDeductions(): Promise<ApiResponse<Record<number, DefaultDeduction>>> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    const { data, error } = await supabaseAdmin
+      .from('staff_profiles')
+      .select('id, default_deduction')
+      .not('default_deduction', 'is', null)
+    if (error) {
+      // 마이그레이션(20261028090000) 적용 전이면 컬럼이 없다 — 급여 화면은 기본 공제 없이 그대로 동작해야 한다
+      if (isMissingColumnError(error.code)) return {}
+      throw new Error(error.message)
+    }
+    const map: Record<number, DefaultDeduction> = {}
+    for (const r of data ?? []) if (isDefaultDeduction(r.default_deduction)) map[r.id] = r.default_deduction
+    return map
+  })
+}
+
+export async function setStaffDefaultDeduction(staffId: number, value: DefaultDeduction | null): Promise<ApiResponse> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    if (!Number.isInteger(staffId)) throw new Error('잘못된 요청입니다.')
+    if (value !== null && !isDefaultDeduction(value)) throw new Error('알 수 없는 공제 방식입니다.')
+    const { error } = await supabaseAdmin.from('staff_profiles').update({ default_deduction: value }).eq('id', staffId)
+    if (error) {
+      if (isMissingColumnError(error.code)) throw new Error('기본 공제 저장용 DB 마이그레이션이 아직 적용되지 않았습니다.')
+      throw new Error(error.message)
+    }
   })
 }
 

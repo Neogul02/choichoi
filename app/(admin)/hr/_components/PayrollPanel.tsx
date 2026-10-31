@@ -4,14 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchMonthlyPayroll, fetchPopupPayroll, fetchPayrollSettlement, setPayrollPaid,
+  fetchDefaultDeductions, addPayrollAdjustment,
   type PayrollRow, type PopupPayrollResult, type PayrollSettlement,
 } from '@/app/actions/payroll'
 import { fetchPopupEvents } from '@/app/actions/schedule'
+import { fetchMissingClockIns, type MissingClockIn } from '@/app/actions/attendance'
 import type { StaffRole, PopupEvent } from '@/types/database'
 import { showMsg } from '@/lib/toast'
 import { formatPhoneNumber } from '@/lib/utils'
 import { phoneMatches } from '@/lib/phone'
 import ConfirmDialog from '@/components/ConfirmDialog'
+import { DEFAULT_DEDUCTIONS, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
 import CopyText, { copyToClipboard } from '@/components/CopyText'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal, { type PayrollPeriod } from './PayrollDetailModal'
@@ -151,6 +154,38 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
     enabled: mode === 'month' && cursor != null,
   })
 
+  // 주방은 출근부로 실측한다 — 출근을 안 찍은 날은 급여가 계획값으로 잡혀 있으므로 지급 전에 알린다
+  const missingQuery = useQuery<MissingClockIn[]>({
+    queryKey: ['payrollMissingClockIns', cursor?.y, cursor?.m],
+    queryFn: async () => {
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const { y, m } = cursor!
+      const from = `${y}-${pad(m + 1)}-01`
+      const to = `${y}-${pad(m + 1)}-${pad(new Date(y, m + 1, 0).getDate())}`
+      const res = await fetchMissingClockIns(from, to)
+      return res.success && res.data ? res.data : []
+    },
+    enabled: mode === 'month' && role === 'kitchen' && cursor != null,
+  })
+  const missingByStaff = useMemo(() => {
+    const map = new Map<number, string[]>()
+    if (mode !== 'month' || role !== 'kitchen') return map
+    for (const m of missingQuery.data ?? []) {
+      if (!map.has(m.staffId)) map.set(m.staffId, [])
+      map.get(m.staffId)!.push(m.workDate.slice(5))
+    }
+    return map
+  }, [missingQuery.data, mode, role])
+
+  const defaultsQuery = useQuery<Record<number, DefaultDeduction>>({
+    queryKey: ['payroll-default-deductions'],
+    queryFn: async () => {
+      const res = await fetchDefaultDeductions()
+      return res.success && res.data ? res.data : {}
+    },
+  })
+  const defaults = defaultsQuery.data ?? {}
+
   const popupsQuery = useQuery<PopupEvent[]>({
     queryKey: ['popupEventsForPayroll'],
     queryFn: async () => {
@@ -200,6 +235,30 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   }, [allRows, search, sort])
 
   const finalPayOf = (r: PayrollRow) => r.totalPay == null ? null : r.totalPay + (adjustTotals.get(r.staffId) ?? 0)
+
+  // 기본 공제를 정해둔 직원 중 이번 구간에 아직 안 넣었고 지급 전인 사람 — 기본급(시간×시급) 기준으로 한 번에 넣는다
+  const pendingDefaults = allRows.flatMap(r => {
+    const key = defaults[r.staffId]
+    if (!key || r.totalPay == null || r.totalPay <= 0 || paidIds.has(r.staffId)) return []
+    const label = DEFAULT_DEDUCTIONS[key]
+    if ((settlement?.adjustments[r.staffId] ?? []).some(a => a.label === label)) return []
+    return [{ row: r, label, amount: quickDeductionAmount(label, r.totalPay)! }]
+  })
+  const [applyingDefaults, setApplyingDefaults] = useState(false)
+  const applyDefaults = async () => {
+    if (!periodKey || pendingDefaults.length === 0) return
+    setApplyingDefaults(true)
+    let failed = 0
+    for (const p of pendingDefaults) {
+      const res = await addPayrollAdjustment(periodKey, p.row.staffId, p.label, p.amount, false)
+      if (!res.success) failed += 1
+    }
+    setApplyingDefaults(false)
+    await queryClient.invalidateQueries({ queryKey: ['payroll-settlement', periodKey] })
+    showMsg(failed === 0
+      ? `${pendingDefaults.length}명에게 기본 공제를 넣었습니다`
+      : `${pendingDefaults.length - failed}명 적용, ${failed}명 실패 — 다시 시도해주세요`)
+  }
 
   const toggleSort = (key: SortKey) =>
     setSort(p => p.key === key ? { key, dir: p.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'name' ? 'asc' : 'desc' })
@@ -340,6 +399,16 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           >
             CSV
           </button>
+          {pendingDefaults.length > 0 && (
+            <button
+              onClick={applyDefaults}
+              disabled={applyingDefaults}
+              title={pendingDefaults.map(p => `${p.row.name}: ${p.label} ${p.amount.toLocaleString('ko-KR')}원`).join('\n')}
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-primary-50 border border-primary-700/30 text-[12px] font-bold text-primary-700 cursor-pointer hover:bg-primary-100 transition disabled:opacity-50"
+            >
+              {applyingDefaults ? '적용 중…' : `기본 공제 일괄 적용 (${pendingDefaults.length}명)`}
+            </button>
+          )}
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="이름/전화 검색"
@@ -411,6 +480,19 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                       <div className={`font-bold text-ink ${paid ? 'line-through' : ''}`}>
                         <CopyText value={row.name} label="이름">{row.name}</CopyText>
                       </div>
+                      {defaults[row.staffId] && (
+                        <span className="mt-0.5 mr-1 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-primary-50 text-primary-700 border-primary-700/30">
+                          {DEFAULT_DEDUCTIONS[defaults[row.staffId]]}
+                        </span>
+                      )}
+                      {missingByStaff.has(row.staffId) && (
+                        <div
+                          className="mt-0.5 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-rose-50 text-rose-600 border-rose-200"
+                          title={`출근 기록 없는 날: ${missingByStaff.get(row.staffId)!.join(', ')} — 계획 시간으로 계산됨. 출근부에서 결근 처리·시간 정정`}
+                        >
+                          출근 기록 없음 {missingByStaff.get(row.staffId)!.length}일
+                        </div>
+                      )}
                       {/* 송금할 때 필요한 값(전화·계좌)을 상세 모달을 열지 않고 목록에서 바로 복사 */}
                       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-0.5 text-[10px] text-ink-muted">
                         {row.phone && (
@@ -501,6 +583,8 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           bankAccount={detailTarget.bankAccount}
           hourlyRate={detailTarget.hourlyRate}
           period={detailPeriod}
+          defaultDeduction={defaults[detailTarget.staffId] ?? null}
+          onDefaultDeductionChanged={() => queryClient.invalidateQueries({ queryKey: ['payroll-default-deductions'] })}
           onClose={() => setDetailTarget(null)}
         />
       )}

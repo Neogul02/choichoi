@@ -1,7 +1,11 @@
 # app/api/
 
-**현재 HTTP 엔드포인트가 하나도 없다.** 이 디렉터리는 비어 있고, 모든 데이터 접근은
-Server Actions(`app/actions/`)로 한다.
+**HTTP 엔드포인트는 Cron 하나뿐이다.** 그 밖의 모든 데이터 접근은 Server Actions(`app/actions/`)로 한다.
+
+- `GET /api/cron/attendance-alerts` — 매일 09:00 KST(`vercel.json` crons, UTC 00:00). 퇴근 누락과
+  어제 출근 기록이 없는 주방 근무를 디스코드로 한 번 알린다. 문제가 없으면 보내지 않는다.
+  `CRON_SECRET` 환경변수가 없으면 401로 닫혀 있다(Vercel이 `Authorization: Bearer <CRON_SECRET>`을 붙여 호출).
+  조회 로직은 `lib/attendance-queries.ts`(서버 액션과 공유).
 
 과거에 있었던 것들과 없어진 이유:
 
