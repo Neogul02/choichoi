@@ -7,6 +7,7 @@ import {
   fetchAdjustmentPresets, removeAdjustmentPreset, setStaffDefaultDeduction,
   type StaffDayDetail, type PayrollAdjustment,
 } from '@/app/actions/payroll'
+import type { MissingClockIn } from '@/app/actions/attendance'
 import WelfareReportPanel from './WelfareReportPanel'
 import CopyText from '@/components/CopyText'
 import { showMsg } from '@/lib/toast'
@@ -42,6 +43,8 @@ interface Props {
   /** 직원별 기본 공제 — 급여정산의 '기본 공제 일괄 적용'이 이 값을 쓴다 */
   defaultDeduction: DefaultDeduction | null
   onDefaultDeductionChanged: () => void
+  /** 근무표엔 있는데 출근을 안 찍은 날(주방 월별 정산만) — 이 날들은 계획 시간 그대로 급여에 들어가 있다 */
+  missingClockIns?: MissingClockIn[]
   onClose: () => void
 }
 
@@ -52,8 +55,9 @@ function formatDate(dateStr: string) {
 
 export default function PayrollDetailModal({
   staffId, periodKey, initialAdjustments, onAdjustmentsChanged,
-  name, phone, bankName, bankAccount, hourlyRate, period, defaultDeduction, onDefaultDeductionChanged, onClose,
+  name, phone, bankName, bankAccount, hourlyRate, period, defaultDeduction, onDefaultDeductionChanged, missingClockIns = [], onClose,
 }: Props) {
+  const missingDates = new Set(missingClockIns.map(m => m.workDate))
   useBodyScrollLock()
   const panelRef = useRef<HTMLDivElement>(null)
   useModalKeyboard({ active: true, onClose, containerRef: panelRef })
@@ -291,6 +295,30 @@ export default function PayrollDetailModal({
             </div>
           )}
 
+          {/* 출근 기록 없는 날 — 어느 날이 계획 시간으로 계산됐는지 날짜별로 보여준다 */}
+          {missingClockIns.length > 0 && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2.5">
+              <p className="m-0 text-[12px] font-bold text-rose-600">출근 기록 없음 {missingClockIns.length}일</p>
+              <p className="m-0 mt-0.5 text-[11px] text-ink-muted">
+                근무표엔 있는데 출근을 찍지 않은 날이에요. 아래 계획 시간 그대로 급여에 들어가 있어요.
+                결근이면 출근부에서 &lsquo;결근 처리&rsquo;, 일했으면 &lsquo;시간 정정&rsquo;을 해 주세요.
+              </p>
+              <ul className="m-0 mt-2 p-0 list-none flex flex-col gap-1">
+                {missingClockIns.map(m => (
+                  <li key={m.assignmentId} className="flex items-center justify-between gap-2 text-[12px]">
+                    <span className="font-semibold text-ink">{formatDate(m.workDate)}</span>
+                    <span className="text-ink-muted tabular-nums">
+                      {m.plannedStart && m.plannedEnd ? `계획 ${formatTimeRange(m.plannedStart, m.plannedEnd)}` : '시간 미정'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <a href="/attendance" className="inline-block mt-2 text-[11px] font-semibold text-rose-600 underline underline-offset-2">
+                출근부에서 처리하기 →
+              </a>
+            </div>
+          )}
+
           {/* 근무 상세 테이블 */}
           <div>
             <h4 className="m-0 mb-2 text-[11px] font-bold text-ink-muted uppercase tracking-wide">근무 상세</h4>
@@ -313,7 +341,12 @@ export default function PayrollDetailModal({
                   <tbody>
                     {details.map((d, i) => (
                       <tr key={i} className={i !== details.length - 1 ? 'border-b border-hairline' : ''}>
-                        <td className="px-3 py-2 font-semibold text-ink whitespace-nowrap">{formatDate(d.date)}</td>
+                        <td className="px-3 py-2 font-semibold text-ink whitespace-nowrap">
+                          {formatDate(d.date)}
+                          {missingDates.has(d.date) && (
+                            <span className="ml-1 text-[9px] font-bold px-1 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200 align-middle">출근 없음</span>
+                          )}
+                        </td>
                         <td className="px-2 py-2 text-ink-muted">{d.shiftName}</td>
                         <td className={`px-2 py-2 text-center whitespace-nowrap ${d.isCustomTime ? 'text-primary-700 font-semibold' : 'text-ink-muted'}`} title={d.isCustomTime ? '파트 기본 시간이 아닌 개별 수정 시간' : undefined}>
                           {formatTimeRange(d.startTime, d.endTime)}{d.isCustomTime && <span className="ml-0.5 align-super text-[9px]">*</span>}

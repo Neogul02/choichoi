@@ -13,6 +13,7 @@ import type { StaffRole, PopupEvent } from '@/types/database'
 import { showMsg } from '@/lib/toast'
 import { formatPhoneNumber } from '@/lib/utils'
 import { phoneMatches } from '@/lib/phone'
+import { DAY_NAMES } from '@/lib/staffing'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { DEFAULT_DEDUCTIONS, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
 import CopyText, { copyToClipboard } from '@/components/CopyText'
@@ -168,12 +169,13 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
     enabled: mode === 'month' && role === 'kitchen' && cursor != null,
   })
   const missingByStaff = useMemo(() => {
-    const map = new Map<number, string[]>()
+    const map = new Map<number, MissingClockIn[]>()
     if (mode !== 'month' || role !== 'kitchen') return map
     for (const m of missingQuery.data ?? []) {
       if (!map.has(m.staffId)) map.set(m.staffId, [])
-      map.get(m.staffId)!.push(m.workDate.slice(5))
+      map.get(m.staffId)!.push(m)
     }
+    for (const list of map.values()) list.sort((a, b) => a.workDate.localeCompare(b.workDate))
     return map
   }, [missingQuery.data, mode, role])
 
@@ -486,11 +488,10 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                         </span>
                       )}
                       {missingByStaff.has(row.staffId) && (
-                        <div
-                          className="mt-0.5 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-rose-50 text-rose-600 border-rose-200"
-                          title={`출근 기록 없는 날: ${missingByStaff.get(row.staffId)!.join(', ')} — 계획 시간으로 계산됨. 출근부에서 결근 처리·시간 정정`}
-                        >
+                        // 날짜를 툴팁에만 두면 폰에선 볼 수 없었다 — 배지에 바로 적고, 누르면 상세 모달에서 날짜별 계획 시간을 보여준다
+                        <div className="mt-0.5 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-lg border bg-rose-50 text-rose-600 border-rose-200">
                           출근 기록 없음 {missingByStaff.get(row.staffId)!.length}일
+                          <span className="ml-1 font-normal">· {formatMissingDates(missingByStaff.get(row.staffId)!)}</span>
                         </div>
                       )}
                       {/* 송금할 때 필요한 값(전화·계좌)을 상세 모달을 열지 않고 목록에서 바로 복사 */}
@@ -584,10 +585,18 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           hourlyRate={detailTarget.hourlyRate}
           period={detailPeriod}
           defaultDeduction={defaults[detailTarget.staffId] ?? null}
+          missingClockIns={missingByStaff.get(detailTarget.staffId) ?? []}
           onDefaultDeductionChanged={() => queryClient.invalidateQueries({ queryKey: ['payroll-default-deductions'] })}
           onClose={() => setDetailTarget(null)}
         />
       )}
     </div>
   )
+}
+
+/** "10/14(화), 10/21(화) 외 2일" — 목록 배지가 한 줄에 들어가도록 앞의 3일만 적는다 */
+function formatMissingDates(list: MissingClockIn[]): string {
+  const label = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}(${DAY_NAMES[new Date(d + 'T00:00:00').getDay()]})`
+  const shown = list.slice(0, 3).map(m => label(m.workDate)).join(', ')
+  return list.length > 3 ? `${shown} 외 ${list.length - 3}일` : shown
 }
