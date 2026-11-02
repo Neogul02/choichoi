@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { formatPrice } from '@/lib/utils'
-import { PENSION_EMPLOYEE_PERCENT, withholding33 } from '@/lib/payroll-deductions'
+import { HEALTH_EMPLOYEE_PERCENT, LONG_TERM_CARE_PERCENT_OF_HEALTH, PENSION_EMPLOYEE_PERCENT, withholding33 } from '@/lib/payroll-deductions'
 
 interface Deduction {
   key: string
@@ -22,8 +22,8 @@ const DEDUCTIONS: Deduction[] = [
   { key: 'employment', label: '고용보험', rate: 0.009, defaultChecked: true, base: 'gross' },
   // 국민연금 요율은 급여정산 공제와 한 곳(lib/payroll-deductions)에서 — 2026년 9.5%의 근로자 몫 4.75%
   { key: 'pension', label: '국민연금', rate: PENSION_EMPLOYEE_PERCENT / 100, defaultChecked: false, base: 'gross' },
-  { key: 'health', label: '건강보험', rate: 0.03545, defaultChecked: false, base: 'gross' },
-  { key: 'longTermCare', label: '장기요양보험', rate: 0.1295, defaultChecked: false, base: 'healthInsurance' },
+  { key: 'health', label: '건강보험', rate: HEALTH_EMPLOYEE_PERCENT / 100, defaultChecked: false, base: 'gross' },
+  { key: 'longTermCare', label: '장기요양보험', rate: LONG_TERM_CARE_PERCENT_OF_HEALTH / 100, defaultChecked: false, base: 'healthInsurance' },
 ]
 
 let nextCustomId = 1

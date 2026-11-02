@@ -5,7 +5,7 @@ import { formatTimeRange } from '@/lib/workhours';
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, fetchStaffPayEstimateInfo, type StaffDayDetail, type StaffPayEstimateInfo } from '@/app/actions/payroll'
 import { minutesToHours } from '@/lib/workhours'
-import { estimatePay, DEFAULT_DEDUCTIONS, PENSION_LABEL, WITHHOLDING_LABEL } from '@/lib/payroll-deductions'
+import { estimatePay, DEFAULT_DEDUCTIONS, SOCIAL_INSURANCE_LABELS, WITHHOLDING_LABEL } from '@/lib/payroll-deductions'
 import { formatBreakMinutes } from '@/lib/utils'
 import { DAY_NAMES } from '@/lib/staffing'
 import { showMsg } from '@/lib/toast'
@@ -303,8 +303,8 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
   const deductions: string[] = []
   if (payInfo?.defaultDeduction && payInfo.defaultDeduction !== 'withholding33') deductions.push(DEFAULT_DEDUCTIONS[payInfo.defaultDeduction])
   if (checked) deductions.push(WITHHOLDING_LABEL)
-  // 이 달 국민연금 가입 대상이면 근로자 몫을 미리 뺀다(lib/nationalPension 판정, 관리자 정산과 같은 식)
-  if (payInfo?.pension?.status === 'eligible') deductions.push(PENSION_LABEL)
+  // 이 달 국민연금·건강보험 가입 대상이면 근로자 몫을 미리 뺀다(lib/nationalPension 판정, 관리자 정산과 같은 식)
+  if (payInfo?.pension?.status === 'eligible') deductions.push(...SOCIAL_INSURANCE_LABELS)
   const estimate = basePay != null ? estimatePay(basePay, adjustments, deductions) : null
   const paid = payInfo?.paid ?? false
 
@@ -354,8 +354,8 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
           {payInfo?.pension && payInfo.pension.status !== 'none' && (
             <p className="m-0 mt-2 text-[12px] font-semibold">
               {payInfo.pension.status === 'eligible'
-                ? `이번 달 국민연금 가입 대상이에요 (${payInfo.pension.reasons.join(', ')})`
-                : '다음 달까지 이어서 일하면 국민연금 가입 대상이 돼요'}
+                ? `이번 달 국민연금·건강보험 가입 대상이에요 (${payInfo.pension.reasons.join(', ')})`
+                : '다음 달까지 이어서 일하면 국민연금·건강보험 가입 대상이 돼요'}
             </p>
           )}
           <p className="m-0 mt-2 text-[11px] leading-snug opacity-60">

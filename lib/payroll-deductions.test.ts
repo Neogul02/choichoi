@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   withholding33, percentDeduction, quickDeductionAmount, WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL,
   DEFAULT_DEDUCTIONS, isDefaultDeduction, estimatePay, nationalPensionEmployee, PENSION_LABEL,
+  healthInsuranceEmployee, longTermCareEmployee, HEALTH_LABEL, LONG_TERM_CARE_LABEL,
 } from './payroll-deductions'
 
 describe('withholding33', () => {
@@ -98,5 +99,24 @@ describe('nationalPensionEmployee', () => {
   })
   it('바로 공제 라벨로도 계산된다(음수)', () => {
     expect(quickDeductionAmount(PENSION_LABEL, 1_086_800)).toBe(-51_580) // 1,086,000 × 4.75% = 51,585 → 51,580
+  })
+})
+
+describe('건강보험·장기요양 (근로자 몫)', () => {
+  it('세전 200만 원 → 건강보험 71,900원, 장기요양 9,440원', () => {
+    expect(healthInsuranceEmployee(2_000_000)).toBe(71_900)
+    expect(longTermCareEmployee(2_000_000)).toBe(9_440) // 71,900 × 13.14% = 9,447.66 → 9,440
+  })
+  it('세전 250만 원 → 건강보험 89,870원(89,875 절사), 장기요양 11,800원', () => {
+    expect(healthInsuranceEmployee(2_500_000)).toBe(89_870)
+    expect(longTermCareEmployee(2_500_000)).toBe(11_800)
+  })
+  it('바로 공제 라벨로도 음수로 계산된다', () => {
+    expect(quickDeductionAmount(HEALTH_LABEL, 2_000_000)).toBe(-71_900)
+    expect(quickDeductionAmount(LONG_TERM_CARE_LABEL, 2_000_000)).toBe(-9_440)
+  })
+  it('급여가 없으면 0', () => {
+    expect(healthInsuranceEmployee(0)).toBe(0)
+    expect(longTermCareEmployee(0)).toBe(0)
   })
 })

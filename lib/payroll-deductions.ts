@@ -32,8 +32,28 @@ export function nationalPensionEmployee(pay: number): number {
   return Math.floor((base * Math.round(PENSION_EMPLOYEE_PERCENT * 100)) / 10000 / 10) * 10
 }
 
+/**
+ * 건강보험 근로자 부담분 — 2026년 보험료율 7.19%의 절반 3.595%. 보수월액(세전 월 급여) 기준, 10원 미만 절사.
+ * 장기요양보험은 건강보험료에 붙어 같이 고지된다 — 근로자 건강보험료의 13.14%, 10원 미만 절사.
+ */
+export const HEALTH_EMPLOYEE_PERCENT = 3.595
+export const LONG_TERM_CARE_PERCENT_OF_HEALTH = 13.14
+
+export function healthInsuranceEmployee(pay: number): number {
+  if (pay <= 0) return 0
+  return Math.floor((pay * Math.round(HEALTH_EMPLOYEE_PERCENT * 1000)) / 100000 / 10) * 10
+}
+
+export function longTermCareEmployee(pay: number): number {
+  return Math.floor((healthInsuranceEmployee(pay) * Math.round(LONG_TERM_CARE_PERCENT_OF_HEALTH * 100)) / 10000 / 10) * 10
+}
+
 export const WITHHOLDING_LABEL = '원천징수 3.3%'
 export const PENSION_LABEL = `국민연금 ${PENSION_EMPLOYEE_PERCENT}%`
+export const HEALTH_LABEL = `건강보험 ${HEALTH_EMPLOYEE_PERCENT}%`
+export const LONG_TERM_CARE_LABEL = '장기요양보험'
+/** 국민연금·건강보험 가입 대상(lib/nationalPension 판정)이면 넣는 공제 — 장기요양은 건강보험에 딸려 같이 뗀다 */
+export const SOCIAL_INSURANCE_LABELS = [PENSION_LABEL, HEALTH_LABEL, LONG_TERM_CARE_LABEL] as const
 export const EMPLOYMENT_INSURANCE_LABEL = '고용보험 0.9%'
 export const EMPLOYMENT_INSURANCE_PERCENT = 0.9
 
@@ -52,6 +72,8 @@ export function quickDeductionAmount(label: string, base: number): number | null
   if (label === WITHHOLDING_LABEL) return -withholding33(base).total
   if (label === EMPLOYMENT_INSURANCE_LABEL) return -percentDeduction(base, EMPLOYMENT_INSURANCE_PERCENT)
   if (label === PENSION_LABEL) return -nationalPensionEmployee(base)
+  if (label === HEALTH_LABEL) return -healthInsuranceEmployee(base)
+  if (label === LONG_TERM_CARE_LABEL) return -longTermCareEmployee(base)
   return null
 }
 
