@@ -11,6 +11,23 @@ export interface TodaysSales {
   totalRevenue: number;
 }
 
+/** 통계탭 "날짜별 상세" — 팝업 하나의 지난 하루 (합계는 정정 반영, 시간대는 lib/dayDetail 규칙) */
+export interface PopupDayDetail {
+  date: string;
+  /** 하루 합계 — 팝업 정정(전산값) > POS. 정정했으면 corrected */
+  revenue: number;
+  orders: number;
+  corrected: boolean;
+  /** 그날 POS에 찍힌 값 — 정정한 날 차이를 보여주기 위해 따로 둔다 */
+  posRevenue: number;
+  posOrders: number;
+  hourly: import('@/lib/dayDetail').DayHourRow[];
+  hourlySource: import('@/lib/dayDetail').DayHourlySource;
+  /** 메뉴별 판매 — 수기로 넣은 품목은 POS 수량을 대신한다(오늘 현황과 같은 규칙) */
+  menu: MenuSalesItem[];
+  menuCorrected: boolean;
+}
+
 /** 오늘 매출이 난 팝업 한 곳 — POS 매출 배틀용 (매출 내림차순) */
 export interface TodayPopupSales {
   popupId: number;
