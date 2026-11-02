@@ -7,6 +7,7 @@ import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes, form
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import { decryptResidentId } from '@/lib/pii-crypto'
 import { isDefaultDeduction, type DefaultDeduction } from '@/lib/payroll-deductions'
+import { evaluatePension, type PensionResult } from '@/lib/nationalPension'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, requireManagerOrAdmin, wrap } from './_base'
 
 export interface PayrollRow {
@@ -298,6 +299,85 @@ export async function fetchMonthlyPayroll(
     if (isNextInternalControlFlowError(err)) throw err
     return { success: false, error: String(err) }
   }
+}
+
+export interface PensionRow extends PensionResult {
+  /** 같은 사람의 근무를 역할(주방·캐셔) 구분 없이 합친 값 */
+  days: number
+  hours: number
+  pay: number
+}
+
+/**
+ * 국민연금 가입 대상 판정 — staffId → 판정. 판정 규칙은 lib/nationalPension.ts.
+ * 같은 사람이 달마다 주방·캐셔 프로필을 오가므로 역할별 급여 목록이 아니라 사람 단위로 합친다
+ * (계정 연결 → 전화번호 → 프로필 순으로 같은 사람을 묶는다). 그 사람의 모든 프로필 id에 같은 판정을 돌려준다.
+ */
+export async function fetchPensionStatus(year: number, month: number): Promise<ApiResponse<Record<number, PensionRow>>> {
+  return wrap(async () => {
+    await requireManagerOrAdmin()
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 0 || month > 11) throw new Error('잘못된 달입니다.')
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const py = month === 0 ? year - 1 : year
+    const pm = month === 0 ? 11 : month - 1
+    const prevFrom = `${py}-${pad(pm + 1)}-01`
+    const from = `${year}-${pad(month + 1)}-01`
+    const to = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`
+
+    const [assignRes, staffRes, adjRes] = await Promise.all([
+      supabaseAdmin
+        .from('roster_assignments')
+        .select(`${PAYROLL_ASSIGNMENT_COLUMNS}, popup_events(start_date, end_date)`)
+        .gte('work_date', prevFrom)
+        .lte('work_date', to),
+      supabaseAdmin.from('staff_profiles').select('id, phone, hourly_rate, user_profile_id'),
+      supabaseAdmin.from('payroll_adjustments').select('staff_id, amount').eq('period_key', `month:${year}-${month}`),
+    ])
+    if (assignRes.error) throw new Error(assignRes.error.message)
+    if (staffRes.error) throw new Error(staffRes.error.message)
+    if (adjRes.error) throw new Error(adjRes.error.message)
+
+    // 급여와 같은 기준 — 팝업 기간 밖 유령 배정은 뺀다
+    const valid = (assignRes.data ?? []).filter(a => {
+      const peRaw = a.popup_events
+      const pe = (Array.isArray(peRaw) ? peRaw[0] : peRaw) as { start_date: string; end_date: string } | null
+      return !pe || (a.work_date >= pe.start_date && a.work_date <= pe.end_date)
+    }) as (PayrollAssignmentRow & { work_date: string })[]
+
+    const staff = new Map((staffRes.data ?? []).map(s => [s.id as number, s]))
+    const personOf = (staffId: number) => {
+      const s = staff.get(staffId)
+      if (s?.user_profile_id) return `user:${s.user_profile_id}`
+      const digits = (s?.phone ?? '').replace(/\D/g, '')
+      return digits ? `phone:${digits}` : `staff:${staffId}`
+    }
+
+    const cur = valid.filter(a => a.work_date >= from)
+    const prevPersons = new Set(valid.filter(a => a.work_date < from).map(a => personOf(a.staff_id)))
+
+    // 유급 시간·기본급은 프로필별(시급이 프로필에 있다)로 급여와 같은 식으로 구한 뒤 사람 단위로 더한다
+    const bonus = new Map<number, number>()
+    for (const a of adjRes.data ?? []) if (a.amount > 0) bonus.set(a.staff_id, (bonus.get(a.staff_id) ?? 0) + a.amount)
+    const persons = new Map<string, { dates: Set<string>; minutes: number; pay: number; staffIds: Set<number> }>()
+    for (const [staffId, { minutes }] of sumPaidByStaff(cur)) {
+      const key = personOf(staffId)
+      const p = persons.get(key) ?? { dates: new Set<string>(), minutes: 0, pay: 0, staffIds: new Set<number>() }
+      const rate = staff.get(staffId)?.hourly_rate ?? null
+      p.minutes += minutes
+      p.pay += (rate != null ? Math.round(minutesToHours(minutes) * rate) : 0) + (bonus.get(staffId) ?? 0)
+      p.staffIds.add(staffId)
+      persons.set(key, p)
+    }
+    for (const a of cur) persons.get(personOf(a.staff_id))?.dates.add(a.work_date)
+
+    const out: Record<number, PensionRow> = {}
+    for (const [key, p] of persons) {
+      const hours = minutesToHours(p.minutes)
+      const result = evaluatePension({ days: p.dates.size, hours, pay: p.pay, workedPrevMonth: prevPersons.has(key) })
+      for (const id of p.staffIds) out[id] = { ...result, days: p.dates.size, hours, pay: p.pay }
+    }
+    return out
+  })
 }
 
 export interface PopupPayrollResult {
