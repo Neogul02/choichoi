@@ -17,7 +17,43 @@ export function percentDeduction(base: number, percent: number): number {
   return Math.floor((Math.max(0, base) * basisPoints) / 10000)
 }
 
+/**
+ * 국민연금 근로자 부담분 — 2026년 보험료율 9.5%(연금개혁, 매년 0.5%p씩 13%까지)의 절반.
+ * 기준소득월액 = 세전 월 급여의 천 원 미만 절사, 하한·상한 안으로 맞춘다(2025.7~2026.6 고시값 — 매년 7월 바뀐다).
+ * 보험료는 10원 미만 절사. 가입 대상 판정은 lib/nationalPension.ts.
+ */
+export const PENSION_EMPLOYEE_PERCENT = 4.75
+export const PENSION_BASE_MIN = 400_000
+export const PENSION_BASE_MAX = 6_370_000
+
+export function nationalPensionEmployee(pay: number): number {
+  if (pay <= 0) return 0
+  const base = Math.min(PENSION_BASE_MAX, Math.max(PENSION_BASE_MIN, Math.floor(pay / 1000) * 1000))
+  return Math.floor((base * Math.round(PENSION_EMPLOYEE_PERCENT * 100)) / 10000 / 10) * 10
+}
+
+/**
+ * 건강보험 근로자 부담분 — 2026년 보험료율 7.19%의 절반 3.595%. 보수월액(세전 월 급여) 기준, 10원 미만 절사.
+ * 장기요양보험은 건강보험료에 붙어 같이 고지된다 — 근로자 건강보험료의 13.14%, 10원 미만 절사.
+ */
+export const HEALTH_EMPLOYEE_PERCENT = 3.595
+export const LONG_TERM_CARE_PERCENT_OF_HEALTH = 13.14
+
+export function healthInsuranceEmployee(pay: number): number {
+  if (pay <= 0) return 0
+  return Math.floor((pay * Math.round(HEALTH_EMPLOYEE_PERCENT * 1000)) / 100000 / 10) * 10
+}
+
+export function longTermCareEmployee(pay: number): number {
+  return Math.floor((healthInsuranceEmployee(pay) * Math.round(LONG_TERM_CARE_PERCENT_OF_HEALTH * 100)) / 10000 / 10) * 10
+}
+
 export const WITHHOLDING_LABEL = '원천징수 3.3%'
+export const PENSION_LABEL = `국민연금 ${PENSION_EMPLOYEE_PERCENT}%`
+export const HEALTH_LABEL = `건강보험 ${HEALTH_EMPLOYEE_PERCENT}%`
+export const LONG_TERM_CARE_LABEL = '장기요양보험'
+/** 국민연금·건강보험 가입 대상(lib/nationalPension 판정)이면 넣는 공제 — 장기요양은 건강보험에 딸려 같이 뗀다 */
+export const SOCIAL_INSURANCE_LABELS = [PENSION_LABEL, HEALTH_LABEL, LONG_TERM_CARE_LABEL] as const
 export const EMPLOYMENT_INSURANCE_LABEL = '고용보험 0.9%'
 export const EMPLOYMENT_INSURANCE_PERCENT = 0.9
 
@@ -35,6 +71,9 @@ export const isDefaultDeduction = (v: unknown): v is DefaultDeduction =>
 export function quickDeductionAmount(label: string, base: number): number | null {
   if (label === WITHHOLDING_LABEL) return -withholding33(base).total
   if (label === EMPLOYMENT_INSURANCE_LABEL) return -percentDeduction(base, EMPLOYMENT_INSURANCE_PERCENT)
+  if (label === PENSION_LABEL) return -nationalPensionEmployee(base)
+  if (label === HEALTH_LABEL) return -healthInsuranceEmployee(base)
+  if (label === LONG_TERM_CARE_LABEL) return -longTermCareEmployee(base)
   return null
 }
 
@@ -47,17 +86,16 @@ export interface PayEstimateLine {
 
 /**
  * 근무자 화면의 예상 급여 — 급여정산 상세(PayrollDetailModal)와 같은 식이다: 기본급 + 저장된 조정 항목.
- * deductions에 든 공제(직원 기본 공제, 화면에서 켠 3.3%)가 이 구간에 아직 저장돼 있지 않으면(관리자 정산 전)
- * 미리 계산해 넣는다. 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
+ * deductionLabels에 든 바로 공제(직원 기본 공제, 화면에서 켠 3.3%, 국민연금 대상이면 국민연금)가 이 구간에 아직
+ * 저장돼 있지 않으면(관리자 정산 전) 미리 계산해 넣는다. 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
  */
 export function estimatePay(
   basePay: number,
   adjustments: { label: string; amount: number }[],
-  deductions: DefaultDeduction[],
+  deductionLabels: string[],
 ): { lines: PayEstimateLine[]; finalPay: number } {
   const lines: PayEstimateLine[] = adjustments.map(a => ({ label: a.label, amount: a.amount, estimated: false }))
-  for (const d of new Set(deductions)) {
-    const label = DEFAULT_DEDUCTIONS[d]
+  for (const label of new Set(deductionLabels)) {
     const amount = quickDeductionAmount(label, basePay)
     if (amount != null && amount !== 0 && !adjustments.some(a => a.label === label)) {
       lines.push({ label, amount, estimated: true })
