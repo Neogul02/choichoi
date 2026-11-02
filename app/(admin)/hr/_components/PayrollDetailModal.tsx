@@ -214,16 +214,14 @@ export default function PayrollDetailModal({
     }
     if (finalPay != null) lines.push('', `✅ 최종 지급액: ${finalPay.toLocaleString('ko-KR')}원`)
     if (formulaLines.length > 0) {
-      lines.push('', '[ 계산식 ]', ...formulaLines, '※ 휴게시간은 근무 1건당 기본 1시간 (근무일별 개별 조정 가능)')
+      lines.push('', '[ 계산식 ]', ...formulaLines)
     }
     if (details && details.length > 0) {
       lines.push('', '[ 근무 상세 ]')
       for (const d of details) {
-        const extras = [
-          d.breakMinutes > 0 ? `휴게 ${minToH(d.breakMinutes)}h 차감${d.isCustomBreak ? '(개별)' : ''}` : d.isCustomBreak ? '휴게 미포함(개별)' : '',
-          d.isCustomTime ? '시간 개별 수정' : '',
-        ].filter(Boolean)
-        lines.push(`${d.date} ${d.shiftName} ${formatTimeRange(d.startTime, d.endTime)} = ${d.hours}h${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`)
+        // 직원에게 보내는 문구라 간략하게 — 개별 조정 여부 같은 관리용 표기는 화면에만 둔다
+        const breakNote = d.breakMinutes > 0 ? ` (휴게 ${minToH(d.breakMinutes)}h)` : ' (휴게 없음)'
+        lines.push(`${d.date} ${d.shiftName} ${formatTimeRange(d.startTime, d.endTime)} = ${d.hours}h${breakNote}`)
       }
     }
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
