@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchMonthlyPayroll, fetchPopupPayroll, fetchPayrollSettlement, setPayrollPaid,
-  fetchDefaultDeductions, addPayrollAdjustment, fetchPensionStatus,
+  fetchDefaultDeductions, addPayrollAdjustment, fetchPensionStatus, fetchInsuranceReport,
   type PayrollRow, type PopupPayrollResult, type PayrollSettlement, type PensionRow,
 } from '@/app/actions/payroll'
 import { fetchPopupEvents } from '@/app/actions/schedule'
@@ -265,6 +265,25 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
       .filter(p => p.amount !== 0)
   })
   const [applyingDefaults, setApplyingDefaults] = useState(false)
+  // 세무사에게 보내는 월별 4대보험 자료 — 역할 탭과 무관하게 그 달 일한 모든 사람(주방·캐셔 합산)
+  const [exportingInsurance, setExportingInsurance] = useState(false)
+  const handleExportInsurance = async () => {
+    if (!cursor) return
+    setExportingInsurance(true)
+    try {
+      const res = await fetchInsuranceReport(cursor.y, cursor.m)
+      if (!res.success || !res.data) { showMsg(`오류: ${res.error}`); return }
+      if (res.data.length === 0) { showMsg('이 달 근무 기록이 없습니다'); return }
+      const { downloadInsuranceExcel } = await import('./insuranceExcel')
+      await downloadInsuranceExcel(res.data, cursor.y, cursor.m)
+      const missing = res.data.filter(r => !r.residentId).length
+      if (missing > 0) showMsg(`주민번호 미등록 ${missing}명은 '(미등록)'으로 표시됐어요`)
+    } catch (e) {
+      showMsg(`엑셀을 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setExportingInsurance(false)
+    }
+  }
   const applyDefaults = async () => {
     if (!periodKey || pendingDefaults.length === 0) return
     setApplyingDefaults(true)
@@ -419,6 +438,16 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           >
             CSV
           </button>
+          {mode === 'month' && (
+            <button
+              onClick={handleExportInsurance}
+              disabled={exportingInsurance || cursor == null}
+              title="세무사 전달용 — 그 달 일한 모든 직원(주방·캐셔)의 1~31일 근무 표시, 근로일수·시간·보수, 국민연금·건강보험 가입 대상 명단(주민번호 포함)"
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exportingInsurance ? '만드는 중…' : '4대보험 자료(엑셀)'}
+            </button>
+          )}
           {pendingDefaults.length > 0 && (
             <button
               onClick={applyDefaults}
