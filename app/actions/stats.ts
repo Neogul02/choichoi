@@ -5,6 +5,7 @@ import { wrap, requireAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import { getKSTDateBounds, kstToday } from '@/lib/date';
 import { getMenuSalesByPeriod } from '@/lib/menuSales';
+import { pickDayHourly, type DayHourRow } from '@/lib/dayDetail';
 import { fetchTodaysSalesByPopup } from './orders';
 import type {
   ApiResponse,
@@ -555,9 +556,9 @@ async function getTodaysPopupSalesWithOverrides(): Promise<TodayPopupSales[]> {
     .sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
 
-// 품목 단위 대체 — 수기로 넣은 품목만 그 팝업의 POS 수량을 갈아끼운다(팝업 통계의 applyMenuManualOverrides와 같은 규칙)
-async function getTodaysMenuSalesWithOverrides(popupId: number | null): Promise<MenuSalesItem[]> {
-  const date = kstToday()
+// 품목 단위 대체 — 수기로 넣은 품목만 그 팝업의 POS 수량을 갈아끼운다(팝업 통계의 applyMenuManualOverrides와 같은 규칙).
+// 오늘 현황과 날짜별 상세가 같이 쓴다.
+async function getMenuSalesWithOverrides(date: string, popupId: number | null): Promise<MenuSalesItem[]> {
   const { start, end } = getKSTDateBounds(date)
   let manualQuery = supabaseAdmin
     .from('manual_daily_menu_sales')
@@ -603,7 +604,54 @@ export async function fetchTodaysSalesByPopupForStats(): Promise<FetchTodayPopup
 export async function fetchTodaysMenuSalesForStats(popupId: number | null): Promise<FetchMenuSalesResponse> {
   const parsed = z.number().int().positive().nullable().safeParse(popupId);
   if (!parsed.success) return { success: false, error: '팝업 ID가 올바르지 않습니다' };
-  return wrap(async () => { await requireAdmin(); return getTodaysMenuSalesWithOverrides(parsed.data); });
+  return wrap(async () => { await requireAdmin(); return getMenuSalesWithOverrides(kstToday(), parsed.data); });
+}
+
+// 팝업 하나의 지난 하루 — 합계(정정 반영)·시간대·메뉴를 한 번에. 시간대 출처 규칙은 lib/dayDetail.
+async function getPopupDayDetail(popupId: number, date: string): Promise<import('@/types/api').PopupDayDetail> {
+  const { start, end } = getKSTDateBounds(date)
+  const [dayRows, posHourRes, manualHourly, menu, manualMenuRes] = await Promise.all([
+    getPopupDaySales(date, date, popupId),
+    supabaseAdmin.rpc('get_todays_hourly_sales_by_popup', { p_start: start, p_end: end }),
+    getManualDailyHourlySales(popupId, date, date),
+    getMenuSalesWithOverrides(date, popupId),
+    supabaseAdmin.from('manual_daily_menu_sales').select('id', { count: 'exact', head: true }).eq('popup_id', popupId).eq('sale_date', date),
+  ])
+  if (posHourRes.error) throw posHourRes.error
+  if (manualMenuRes.error) throw manualMenuRes.error
+
+  const posHourly: DayHourRow[] = ((posHourRes.data ?? []) as Array<{ popup_id: number | string; hour_kst: number | string; total_revenue: number | string; total_orders: number | string }>)
+    .filter(r => Number(r.popup_id) === popupId)
+    .map(r => ({ hour: Number(r.hour_kst), revenue: Number(r.total_revenue), orders: Number(r.total_orders) }))
+  const { source, hourly } = pickDayHourly(
+    manualHourly.map(r => ({ hour: r.hour, revenue: r.totalRevenue, orders: r.totalOrders })),
+    posHourly,
+  )
+  const day = dayRows[0]
+  const posRevenue = posHourly.reduce((s, h) => s + h.revenue, 0)
+  const posOrders = posHourly.reduce((s, h) => s + (h.orders ?? 0), 0)
+
+  return {
+    date,
+    revenue: day ? Number(day.revenue) : posRevenue,
+    orders: day ? Number(day.orders) : posOrders,
+    corrected: day?.corrected ?? false,
+    posRevenue,
+    posOrders,
+    hourly,
+    hourlySource: source,
+    menu: [...menu].sort((a, b) => b.totalQuantity - a.totalQuantity),
+    menuCorrected: (manualMenuRes.count ?? 0) > 0,
+  }
+}
+
+export async function fetchPopupDayDetail(popupId: number, date: string): Promise<ApiResponse<import('@/types/api').PopupDayDetail>> {
+  const parsed = z.object({
+    popupId: z.number().int().positive(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }).safeParse({ popupId, date });
+  if (!parsed.success) return { success: false, error: '팝업 또는 날짜가 올바르지 않습니다' };
+  return wrap(async () => { await requireAdmin(); return getPopupDayDetail(parsed.data.popupId, parsed.data.date); });
 }
 
 // 팝업의 하루 매출 목록 — 팝업 통계(usePopupStats)와 팝업 비교(usePopupComparison)가 같이 쓴다. 우선순위

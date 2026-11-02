@@ -20,6 +20,7 @@ import type { PopupEvent } from '@/types/database';
 const chartFallback = () => <div className="h-40 rounded-lg bg-canvas-soft animate-pulse" />;
 const MenuBreakdownSection = dynamic(() => import('./MenuBreakdownSection'), { ssr: false, loading: chartFallback });
 const PopupStatsSection = dynamic(() => import('./PopupStatsSection'), { ssr: false, loading: chartFallback });
+const PopupDaySection = dynamic(() => import('./PopupDaySection'), { ssr: false, loading: chartFallback });
 const PopupComparisonSection = dynamic(() => import('./PopupComparisonSection'), { ssr: false, loading: chartFallback });
 const HourlySalesSection = dynamic(() => import('./HourlySalesSection'), { ssr: false, loading: chartFallback });
 
@@ -83,6 +84,11 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
               onSelectPopup={setSelectedPopupId}
               onRefresh={refreshPopupStats}
             />
+          </div>
+
+          {/* 기간 합산(위)과 별개로 지난 하루만 떼어 본다 — 시간대별 매출·메뉴 판매 */}
+          <div className="lg:col-span-2 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+            <PopupDaySection popupEvents={popupEvents} initialPopupId={selectedPopupId} />
           </div>
 
           <div className="min-w-0 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
