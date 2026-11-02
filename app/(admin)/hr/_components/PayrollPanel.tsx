@@ -16,7 +16,7 @@ import { phoneMatches } from '@/lib/phone'
 import { DAY_NAMES } from '@/lib/staffing'
 import { pensionReportDeadline } from '@/lib/nationalPension'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { DEFAULT_DEDUCTIONS, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
+import { DEFAULT_DEDUCTIONS, PENSION_LABEL, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
 import CopyText, { copyToClipboard } from '@/components/CopyText'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal, { type PayrollPeriod } from './PayrollDetailModal'
@@ -252,12 +252,17 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const finalPayOf = (r: PayrollRow) => r.totalPay == null ? null : r.totalPay + (adjustTotals.get(r.staffId) ?? 0)
 
   // 기본 공제를 정해둔 직원 중 이번 구간에 아직 안 넣었고 지급 전인 사람 — 기본급(시간×시급) 기준으로 한 번에 넣는다
+  // 직원 기본 공제 + 이 달 국민연금 가입 대상이면 국민연금 — 이미 넣은 항목·지급 완료한 직원은 건너뛴다
   const pendingDefaults = allRows.flatMap(r => {
-    const key = defaults[r.staffId]
-    if (!key || r.totalPay == null || r.totalPay <= 0 || paidIds.has(r.staffId)) return []
-    const label = DEFAULT_DEDUCTIONS[key]
-    if ((settlement?.adjustments[r.staffId] ?? []).some(a => a.label === label)) return []
-    return [{ row: r, label, amount: quickDeductionAmount(label, r.totalPay)! }]
+    if (r.totalPay == null || r.totalPay <= 0 || paidIds.has(r.staffId)) return []
+    const saved = settlement?.adjustments[r.staffId] ?? []
+    const labels: string[] = []
+    if (defaults[r.staffId]) labels.push(DEFAULT_DEDUCTIONS[defaults[r.staffId]])
+    if (pension?.[r.staffId]?.status === 'eligible') labels.push(PENSION_LABEL)
+    return labels
+      .filter(label => !saved.some(a => a.label === label))
+      .map(label => ({ row: r, label, amount: quickDeductionAmount(label, r.totalPay!)! }))
+      .filter(p => p.amount !== 0)
   })
   const [applyingDefaults, setApplyingDefaults] = useState(false)
   const applyDefaults = async () => {
@@ -271,8 +276,8 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
     setApplyingDefaults(false)
     await queryClient.invalidateQueries({ queryKey: ['payroll-settlement', periodKey] })
     showMsg(failed === 0
-      ? `${pendingDefaults.length}명에게 기본 공제를 넣었습니다`
-      : `${pendingDefaults.length - failed}명 적용, ${failed}명 실패 — 다시 시도해주세요`)
+      ? `기본 공제 ${pendingDefaults.length}건을 넣었습니다`
+      : `${pendingDefaults.length - failed}건 적용, ${failed}건 실패 — 다시 시도해주세요`)
   }
 
   const toggleSort = (key: SortKey) =>
@@ -421,7 +426,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
               title={pendingDefaults.map(p => `${p.row.name}: ${p.label} ${p.amount.toLocaleString('ko-KR')}원`).join('\n')}
               className="shrink-0 px-3 py-1.5 rounded-xl bg-primary-50 border border-primary-700/30 text-[12px] font-bold text-primary-700 cursor-pointer hover:bg-primary-100 transition disabled:opacity-50"
             >
-              {applyingDefaults ? '적용 중…' : `기본 공제 일괄 적용 (${pendingDefaults.length}명)`}
+              {applyingDefaults ? '적용 중…' : `기본 공제 일괄 적용 (${pendingDefaults.length}건)`}
             </button>
           )}
           <input
@@ -624,6 +629,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           period={detailPeriod}
           defaultDeduction={defaults[detailTarget.staffId] ?? null}
           missingClockIns={missingByStaff.get(detailTarget.staffId) ?? []}
+          pension={pension?.[detailTarget.staffId] ?? null}
           onDefaultDeductionChanged={() => queryClient.invalidateQueries({ queryKey: ['payroll-default-deductions'] })}
           onClose={() => setDetailTarget(null)}
         />

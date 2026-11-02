@@ -316,68 +316,73 @@ export interface PensionRow extends PensionResult {
 export async function fetchPensionStatus(year: number, month: number): Promise<ApiResponse<Record<number, PensionRow>>> {
   return wrap(async () => {
     await requireManagerOrAdmin()
-    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 0 || month > 11) throw new Error('잘못된 달입니다.')
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const py = month === 0 ? year - 1 : year
-    const pm = month === 0 ? 11 : month - 1
-    const prevFrom = `${py}-${pad(pm + 1)}-01`
-    const from = `${year}-${pad(month + 1)}-01`
-    const to = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`
-
-    const [assignRes, staffRes, adjRes] = await Promise.all([
-      supabaseAdmin
-        .from('roster_assignments')
-        .select(`${PAYROLL_ASSIGNMENT_COLUMNS}, popup_events(start_date, end_date)`)
-        .gte('work_date', prevFrom)
-        .lte('work_date', to),
-      supabaseAdmin.from('staff_profiles').select('id, phone, hourly_rate, user_profile_id'),
-      supabaseAdmin.from('payroll_adjustments').select('staff_id, amount').eq('period_key', `month:${year}-${month}`),
-    ])
-    if (assignRes.error) throw new Error(assignRes.error.message)
-    if (staffRes.error) throw new Error(staffRes.error.message)
-    if (adjRes.error) throw new Error(adjRes.error.message)
-
-    // 급여와 같은 기준 — 팝업 기간 밖 유령 배정은 뺀다
-    const valid = (assignRes.data ?? []).filter(a => {
-      const peRaw = a.popup_events
-      const pe = (Array.isArray(peRaw) ? peRaw[0] : peRaw) as { start_date: string; end_date: string } | null
-      return !pe || (a.work_date >= pe.start_date && a.work_date <= pe.end_date)
-    }) as (PayrollAssignmentRow & { work_date: string })[]
-
-    const staff = new Map((staffRes.data ?? []).map(s => [s.id as number, s]))
-    const personOf = (staffId: number) => {
-      const s = staff.get(staffId)
-      if (s?.user_profile_id) return `user:${s.user_profile_id}`
-      const digits = (s?.phone ?? '').replace(/\D/g, '')
-      return digits ? `phone:${digits}` : `staff:${staffId}`
-    }
-
-    const cur = valid.filter(a => a.work_date >= from)
-    const prevPersons = new Set(valid.filter(a => a.work_date < from).map(a => personOf(a.staff_id)))
-
-    // 유급 시간·기본급은 프로필별(시급이 프로필에 있다)로 급여와 같은 식으로 구한 뒤 사람 단위로 더한다
-    const bonus = new Map<number, number>()
-    for (const a of adjRes.data ?? []) if (a.amount > 0) bonus.set(a.staff_id, (bonus.get(a.staff_id) ?? 0) + a.amount)
-    const persons = new Map<string, { dates: Set<string>; minutes: number; pay: number; staffIds: Set<number> }>()
-    for (const [staffId, { minutes }] of sumPaidByStaff(cur)) {
-      const key = personOf(staffId)
-      const p = persons.get(key) ?? { dates: new Set<string>(), minutes: 0, pay: 0, staffIds: new Set<number>() }
-      const rate = staff.get(staffId)?.hourly_rate ?? null
-      p.minutes += minutes
-      p.pay += (rate != null ? Math.round(minutesToHours(minutes) * rate) : 0) + (bonus.get(staffId) ?? 0)
-      p.staffIds.add(staffId)
-      persons.set(key, p)
-    }
-    for (const a of cur) persons.get(personOf(a.staff_id))?.dates.add(a.work_date)
-
-    const out: Record<number, PensionRow> = {}
-    for (const [key, p] of persons) {
-      const hours = minutesToHours(p.minutes)
-      const result = evaluatePension({ days: p.dates.size, hours, pay: p.pay, workedPrevMonth: prevPersons.has(key) })
-      for (const id of p.staffIds) out[id] = { ...result, days: p.dates.size, hours, pay: p.pay }
-    }
-    return out
+    return computePensionStatusUnchecked(year, month)
   })
+}
+
+// 권한 검사 없는 내부 구현 — export하지 않는다(급여정산·직원 예상 급여가 각자 권한을 확인한 뒤 부른다)
+async function computePensionStatusUnchecked(year: number, month: number): Promise<Record<number, PensionRow>> {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 0 || month > 11) throw new Error('잘못된 달입니다.')
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const py = month === 0 ? year - 1 : year
+  const pm = month === 0 ? 11 : month - 1
+  const prevFrom = `${py}-${pad(pm + 1)}-01`
+  const from = `${year}-${pad(month + 1)}-01`
+  const to = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`
+
+  const [assignRes, staffRes, adjRes] = await Promise.all([
+    supabaseAdmin
+      .from('roster_assignments')
+      .select(`${PAYROLL_ASSIGNMENT_COLUMNS}, popup_events(start_date, end_date)`)
+      .gte('work_date', prevFrom)
+      .lte('work_date', to),
+    supabaseAdmin.from('staff_profiles').select('id, phone, hourly_rate, user_profile_id'),
+    supabaseAdmin.from('payroll_adjustments').select('staff_id, amount').eq('period_key', `month:${year}-${month}`),
+  ])
+  if (assignRes.error) throw new Error(assignRes.error.message)
+  if (staffRes.error) throw new Error(staffRes.error.message)
+  if (adjRes.error) throw new Error(adjRes.error.message)
+
+  // 급여와 같은 기준 — 팝업 기간 밖 유령 배정은 뺀다
+  const valid = (assignRes.data ?? []).filter(a => {
+    const peRaw = a.popup_events
+    const pe = (Array.isArray(peRaw) ? peRaw[0] : peRaw) as { start_date: string; end_date: string } | null
+    return !pe || (a.work_date >= pe.start_date && a.work_date <= pe.end_date)
+  }) as (PayrollAssignmentRow & { work_date: string })[]
+
+  const staff = new Map((staffRes.data ?? []).map(s => [s.id as number, s]))
+  const personOf = (staffId: number) => {
+    const s = staff.get(staffId)
+    if (s?.user_profile_id) return `user:${s.user_profile_id}`
+    const digits = (s?.phone ?? '').replace(/\D/g, '')
+    return digits ? `phone:${digits}` : `staff:${staffId}`
+  }
+
+  const cur = valid.filter(a => a.work_date >= from)
+  const prevPersons = new Set(valid.filter(a => a.work_date < from).map(a => personOf(a.staff_id)))
+
+  // 유급 시간·기본급은 프로필별(시급이 프로필에 있다)로 급여와 같은 식으로 구한 뒤 사람 단위로 더한다
+  const bonus = new Map<number, number>()
+  for (const a of adjRes.data ?? []) if (a.amount > 0) bonus.set(a.staff_id, (bonus.get(a.staff_id) ?? 0) + a.amount)
+  const persons = new Map<string, { dates: Set<string>; minutes: number; pay: number; staffIds: Set<number> }>()
+  for (const [staffId, { minutes }] of sumPaidByStaff(cur)) {
+    const key = personOf(staffId)
+    const p = persons.get(key) ?? { dates: new Set<string>(), minutes: 0, pay: 0, staffIds: new Set<number>() }
+    const rate = staff.get(staffId)?.hourly_rate ?? null
+    p.minutes += minutes
+    p.pay += (rate != null ? Math.round(minutesToHours(minutes) * rate) : 0) + (bonus.get(staffId) ?? 0)
+    p.staffIds.add(staffId)
+    persons.set(key, p)
+  }
+  for (const a of cur) persons.get(personOf(a.staff_id))?.dates.add(a.work_date)
+
+  const out: Record<number, PensionRow> = {}
+  for (const [key, p] of persons) {
+    const hours = minutesToHours(p.minutes)
+    const result = evaluatePension({ days: p.dates.size, hours, pay: p.pay, workedPrevMonth: prevPersons.has(key) })
+    for (const id of p.staffIds) out[id] = { ...result, days: p.dates.size, hours, pay: p.pay }
+  }
+  return out
 }
 
 export interface PopupPayrollResult {
@@ -535,6 +540,8 @@ export interface StaffPayEstimateInfo {
   defaultDeduction: DefaultDeduction | null
   /** 관리자가 급여정산에서 이 달 지급 완료로 체크했는지 */
   paid: boolean
+  /** 이 달 국민연금 판정(lib/nationalPension) — 대상이면 예상 급여에 국민연금 공제를 미리 넣는다 */
+  pension: PensionRow | null
 }
 
 /**
@@ -566,7 +573,7 @@ export async function fetchStaffPayEstimateInfo(
     if (staffError) throw new Error(staffError.message)
     if (!staff) throw new Error('권한이 없습니다.')
 
-    const [{ data: adj, error: adjError }, { count: paidCount, error: paidError }] = await Promise.all([
+    const [{ data: adj, error: adjError }, { count: paidCount, error: paidError }, pensionMap] = await Promise.all([
       supabaseAdmin
         .from('payroll_adjustments')
         .select('id, label, amount')
@@ -578,6 +585,7 @@ export async function fetchStaffPayEstimateInfo(
         .select('staff_id', { count: 'exact', head: true })
         .eq('period_key', periodKey)
         .eq('staff_id', staffId),
+      computePensionStatusUnchecked(year, month),
     ])
     if (adjError) throw new Error(adjError.message)
     if (paidError) throw new Error(paidError.message)
@@ -587,6 +595,7 @@ export async function fetchStaffPayEstimateInfo(
       adjustments: (adj ?? []) as PayrollAdjustment[],
       defaultDeduction: isDefaultDeduction(staff.default_deduction) ? staff.default_deduction : null,
       paid: (paidCount ?? 0) > 0,
+      pension: pensionMap[staffId] ?? null,
     }
   })
 }
