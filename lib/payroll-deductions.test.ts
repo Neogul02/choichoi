@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   withholding33, percentDeduction, quickDeductionAmount, WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL,
-  DEFAULT_DEDUCTIONS, isDefaultDeduction, estimatePay,
+  DEFAULT_DEDUCTIONS, isDefaultDeduction, estimatePay, nationalPensionEmployee, PENSION_LABEL,
 } from './payroll-deductions'
 
 describe('withholding33', () => {
@@ -61,25 +61,42 @@ describe('estimatePay', () => {
   })
 
   it('기본 공제가 아직 없으면 미리 계산해 예상으로 표시', () => {
-    const r = estimatePay(343_750, [], ['withholding33'])
+    const r = estimatePay(343_750, [], [WITHHOLDING_LABEL])
     expect(r.lines).toEqual([{ label: WITHHOLDING_LABEL, amount: -11_340, estimated: true }])
     expect(r.finalPay).toBe(332_410)
   })
 
   it('같은 공제가 이미 저장돼 있으면 두 번 빼지 않는다', () => {
-    const r = estimatePay(343_750, [{ label: WITHHOLDING_LABEL, amount: -11_340 }], ['withholding33'])
+    const r = estimatePay(343_750, [{ label: WITHHOLDING_LABEL, amount: -11_340 }], [WITHHOLDING_LABEL])
     expect(r.lines).toHaveLength(1)
     expect(r.lines[0].estimated).toBe(false)
     expect(r.finalPay).toBe(332_410)
   })
 
   it('기본급 0이면 공제 줄을 만들지 않는다', () => {
-    expect(estimatePay(0, [], ['employment_insurance'])).toEqual({ lines: [], finalPay: 0 })
+    expect(estimatePay(0, [], [EMPLOYMENT_INSURANCE_LABEL])).toEqual({ lines: [], finalPay: 0 })
   })
 
   it('공제 여러 개를 함께 미리 계산하고, 같은 공제가 중복으로 와도 한 번만 뺀다', () => {
-    const r = estimatePay(343_750, [], ['employment_insurance', 'withholding33', 'withholding33'])
+    const r = estimatePay(343_750, [], [EMPLOYMENT_INSURANCE_LABEL, WITHHOLDING_LABEL, WITHHOLDING_LABEL])
     expect(r.lines.map(l => l.label)).toEqual([EMPLOYMENT_INSURANCE_LABEL, WITHHOLDING_LABEL])
     expect(r.finalPay).toBe(343_750 - 3_093 - 11_340)
+  })
+})
+
+describe('nationalPensionEmployee', () => {
+  it('기준소득월액(천 원 미만 절사) × 4.75%, 10원 미만 절사', () => {
+    // 2,421,900 → 기준 2,421,000 × 4.75% = 114,997.5 → 114,990
+    expect(nationalPensionEmployee(2_421_900)).toBe(114_990)
+  })
+  it('하한·상한 — 적게 받아도 하한 기준, 많이 받아도 상한 기준', () => {
+    expect(nationalPensionEmployee(300_000)).toBe(19_000) // 400,000 × 4.75%
+    expect(nationalPensionEmployee(9_000_000)).toBe(302_570) // 6,370,000 × 4.75% = 302,575 → 302,570
+  })
+  it('급여가 없으면 0', () => {
+    expect(nationalPensionEmployee(0)).toBe(0)
+  })
+  it('바로 공제 라벨로도 계산된다(음수)', () => {
+    expect(quickDeductionAmount(PENSION_LABEL, 1_086_800)).toBe(-51_580) // 1,086,000 × 4.75% = 51,585 → 51,580
   })
 })

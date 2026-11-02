@@ -17,7 +17,23 @@ export function percentDeduction(base: number, percent: number): number {
   return Math.floor((Math.max(0, base) * basisPoints) / 10000)
 }
 
+/**
+ * 국민연금 근로자 부담분 — 2026년 보험료율 9.5%(연금개혁, 매년 0.5%p씩 13%까지)의 절반.
+ * 기준소득월액 = 세전 월 급여의 천 원 미만 절사, 하한·상한 안으로 맞춘다(2025.7~2026.6 고시값 — 매년 7월 바뀐다).
+ * 보험료는 10원 미만 절사. 가입 대상 판정은 lib/nationalPension.ts.
+ */
+export const PENSION_EMPLOYEE_PERCENT = 4.75
+export const PENSION_BASE_MIN = 400_000
+export const PENSION_BASE_MAX = 6_370_000
+
+export function nationalPensionEmployee(pay: number): number {
+  if (pay <= 0) return 0
+  const base = Math.min(PENSION_BASE_MAX, Math.max(PENSION_BASE_MIN, Math.floor(pay / 1000) * 1000))
+  return Math.floor((base * Math.round(PENSION_EMPLOYEE_PERCENT * 100)) / 10000 / 10) * 10
+}
+
 export const WITHHOLDING_LABEL = '원천징수 3.3%'
+export const PENSION_LABEL = `국민연금 ${PENSION_EMPLOYEE_PERCENT}%`
 export const EMPLOYMENT_INSURANCE_LABEL = '고용보험 0.9%'
 export const EMPLOYMENT_INSURANCE_PERCENT = 0.9
 
@@ -35,6 +51,7 @@ export const isDefaultDeduction = (v: unknown): v is DefaultDeduction =>
 export function quickDeductionAmount(label: string, base: number): number | null {
   if (label === WITHHOLDING_LABEL) return -withholding33(base).total
   if (label === EMPLOYMENT_INSURANCE_LABEL) return -percentDeduction(base, EMPLOYMENT_INSURANCE_PERCENT)
+  if (label === PENSION_LABEL) return -nationalPensionEmployee(base)
   return null
 }
 
@@ -47,17 +64,16 @@ export interface PayEstimateLine {
 
 /**
  * 근무자 화면의 예상 급여 — 급여정산 상세(PayrollDetailModal)와 같은 식이다: 기본급 + 저장된 조정 항목.
- * deductions에 든 공제(직원 기본 공제, 화면에서 켠 3.3%)가 이 구간에 아직 저장돼 있지 않으면(관리자 정산 전)
- * 미리 계산해 넣는다. 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
+ * deductionLabels에 든 바로 공제(직원 기본 공제, 화면에서 켠 3.3%, 국민연금 대상이면 국민연금)가 이 구간에 아직
+ * 저장돼 있지 않으면(관리자 정산 전) 미리 계산해 넣는다. 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
  */
 export function estimatePay(
   basePay: number,
   adjustments: { label: string; amount: number }[],
-  deductions: DefaultDeduction[],
+  deductionLabels: string[],
 ): { lines: PayEstimateLine[]; finalPay: number } {
   const lines: PayEstimateLine[] = adjustments.map(a => ({ label: a.label, amount: a.amount, estimated: false }))
-  for (const d of new Set(deductions)) {
-    const label = DEFAULT_DEDUCTIONS[d]
+  for (const label of new Set(deductionLabels)) {
     const amount = quickDeductionAmount(label, basePay)
     if (amount != null && amount !== 0 && !adjustments.some(a => a.label === label)) {
       lines.push({ label, amount, estimated: true })

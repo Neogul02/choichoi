@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import {
   fetchStaffMonthlyDetail, fetchStaffPopupDetail, addPayrollAdjustment, removePayrollAdjustment,
   fetchAdjustmentPresets, removeAdjustmentPreset, setStaffDefaultDeduction,
-  type StaffDayDetail, type PayrollAdjustment,
+  type StaffDayDetail, type PayrollAdjustment, type PensionRow,
 } from '@/app/actions/payroll'
 import type { MissingClockIn } from '@/app/actions/attendance'
 import WelfareReportPanel from './WelfareReportPanel'
@@ -17,7 +17,7 @@ import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import {
-  DEFAULT_DEDUCTIONS, EMPLOYMENT_INSURANCE_LABEL, WITHHOLDING_LABEL, isDefaultDeduction, percentDeduction, quickDeductionAmount,
+  DEFAULT_DEDUCTIONS, EMPLOYMENT_INSURANCE_LABEL, PENSION_LABEL, WITHHOLDING_LABEL, isDefaultDeduction, percentDeduction, quickDeductionAmount,
   type DefaultDeduction,
 } from '@/lib/payroll-deductions'
 
@@ -45,6 +45,8 @@ interface Props {
   onDefaultDeductionChanged: () => void
   /** 근무표엔 있는데 출근을 안 찍은 날(주방 월별 정산만) — 이 날들은 계획 시간 그대로 급여에 들어가 있다 */
   missingClockIns?: MissingClockIn[]
+  /** 이 달 국민연금 판정(월별 정산만) — 대상이면 공제 안내를 띄우고 카톡 복사 문구에 상태를 적는다 */
+  pension?: PensionRow | null
   onClose: () => void
 }
 
@@ -55,7 +57,7 @@ function formatDate(dateStr: string) {
 
 export default function PayrollDetailModal({
   staffId, periodKey, initialAdjustments, onAdjustmentsChanged,
-  name, phone, bankName, bankAccount, hourlyRate, period, defaultDeduction, onDefaultDeductionChanged, missingClockIns = [], onClose,
+  name, phone, bankName, bankAccount, hourlyRate, period, defaultDeduction, onDefaultDeductionChanged, missingClockIns = [], pension = null, onClose,
 }: Props) {
   const missingDates = new Set(missingClockIns.map(m => m.workDate))
   useBodyScrollLock()
@@ -206,6 +208,11 @@ export default function PayrollDetailModal({
     ]
     if (hourlyRate != null) lines.push(`시급: ${hourlyRate.toLocaleString('ko-KR')}원`)
     if (basePay != null) lines.push(`기본급: ${basePay.toLocaleString('ko-KR')}원`)
+    if (pension && pension.status !== 'none') {
+      lines.push(pension.status === 'eligible'
+        ? `국민연금: 가입 대상 (${pension.reasons.join(', ')})`
+        : '국민연금: 이번 달은 첫 달이라 제외 (다음 달도 근무하면 가입 대상)')
+    }
     if (adjustments.length > 0) {
       lines.push('', '[ 조정 내역 ]')
       for (const a of adjustments) {
@@ -370,6 +377,40 @@ export default function PayrollDetailModal({
             )}
           </div>
 
+          {/* 국민연금 — 가입 대상인데 공제가 아직 없으면 바로 넣을 수 있게. 3.3%(사업소득)와는 같이 쓰지 않는다 */}
+          {pension && pension.status !== 'none' && (() => {
+            const pensionSaved = adjustments.some(a => a.label === PENSION_LABEL)
+            const withholdingSaved = adjustments.some(a => a.label === WITHHOLDING_LABEL)
+            const amount = basePay != null ? quickDeductionAmount(PENSION_LABEL, basePay) : null
+            return (
+              <div className={`rounded-lg border px-3 py-2.5 ${pension.status === 'eligible' ? 'border-indigo-200 bg-indigo-50/60' : 'border-hairline bg-canvas-soft'}`}>
+                <p className={`m-0 text-[12px] font-bold ${pension.status === 'eligible' ? 'text-indigo-700' : 'text-ink-muted'}`}>
+                  {pension.status === 'eligible' ? '국민연금 가입 대상' : '국민연금 첫 달 — 이번 달은 제외'}
+                  <span className="ml-1 font-normal">· {pension.reasons.join(', ')}</span>
+                </p>
+                <p className="m-0 mt-0.5 text-[11px] text-ink-muted">
+                  주방·캐셔 합산 {pension.days}일 · {pension.hours}h · {pension.pay.toLocaleString('ko-KR')}원
+                  {pension.status === 'first-month' && ' — 다음 달까지 이어서 일하면 가입 대상'}
+                </p>
+                {pension.status === 'eligible' && !pensionSaved && amount != null && amount !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => addQuickDeduction(PENSION_LABEL)}
+                    disabled={savingAdj}
+                    className="mt-2 px-2.5 py-1 rounded-full border border-indigo-300 bg-canvas text-indigo-700 text-[11px] font-bold cursor-pointer hover:bg-indigo-50 transition disabled:opacity-50"
+                  >
+                    {PENSION_LABEL} 공제 넣기 ({amount.toLocaleString('ko-KR')}원)
+                  </button>
+                )}
+                {pension.status === 'eligible' && withholdingSaved && (
+                  <p className="m-0 mt-1.5 text-[11px] font-semibold text-amber-700">
+                    3.3%(사업소득)가 들어가 있어요 — 국민연금 가입자는 근로소득(4대보험)으로 처리하는 게 원칙이라 세무 처리를 확인하세요.
+                  </p>
+                )}
+              </div>
+            )
+          })()}
+
           {/* 급여 계산 */}
           <div>
             <h4 className="m-0 mb-2 text-[11px] font-bold text-ink-muted uppercase tracking-wide">급여 계산</h4>
@@ -425,7 +466,7 @@ export default function PayrollDetailModal({
                 <div className="px-3 py-2 border-b border-hairline">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[11px] font-semibold text-ink-muted mr-0.5">바로 공제</span>
-                    {[WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL].map(label => {
+                    {[WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL, PENSION_LABEL].map(label => {
                       const amount = quickDeductionAmount(label, basePay)!
                       const added = adjustments.some(a => a.label === label)
                       return (
