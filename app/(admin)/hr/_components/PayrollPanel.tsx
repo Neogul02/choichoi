@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchMonthlyPayroll, fetchPopupPayroll, fetchPayrollSettlement, setPayrollPaid,
-  fetchDefaultDeductions, addPayrollAdjustment,
-  type PayrollRow, type PopupPayrollResult, type PayrollSettlement,
+  fetchDefaultDeductions, addPayrollAdjustment, fetchPensionStatus,
+  type PayrollRow, type PopupPayrollResult, type PayrollSettlement, type PensionRow,
 } from '@/app/actions/payroll'
 import { fetchPopupEvents } from '@/app/actions/schedule'
 import { fetchMissingClockIns, type MissingClockIn } from '@/app/actions/attendance'
@@ -14,8 +14,9 @@ import { showMsg } from '@/lib/toast'
 import { formatPhoneNumber } from '@/lib/utils'
 import { phoneMatches } from '@/lib/phone'
 import { DAY_NAMES } from '@/lib/staffing'
+import { pensionReportDeadline } from '@/lib/nationalPension'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { DEFAULT_DEDUCTIONS, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
+import { DEFAULT_DEDUCTIONS, SOCIAL_INSURANCE_LABELS, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
 import CopyText, { copyToClipboard } from '@/components/CopyText'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal, { type PayrollPeriod } from './PayrollDetailModal'
@@ -179,6 +180,18 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
     return map
   }, [missingQuery.data, mode, role])
 
+  // 국민연금 가입 대상 — 사람 단위(주방·캐셔 합산) 판정이라 역할 탭과 무관하게 같은 달이면 같은 결과다
+  const pensionQuery = useQuery<Record<number, PensionRow>>({
+    queryKey: ['payroll-pension', cursor?.y, cursor?.m],
+    queryFn: async () => {
+      const res = await fetchPensionStatus(cursor!.y, cursor!.m)
+      if (!res.success) throw new Error(res.error || '국민연금 판정 조회 실패')
+      return res.data ?? {}
+    },
+    enabled: mode === 'month' && cursor != null,
+  })
+  const pension = mode === 'month' ? pensionQuery.data ?? null : null
+
   const defaultsQuery = useQuery<Record<number, DefaultDeduction>>({
     queryKey: ['payroll-default-deductions'],
     queryFn: async () => {
@@ -239,12 +252,17 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const finalPayOf = (r: PayrollRow) => r.totalPay == null ? null : r.totalPay + (adjustTotals.get(r.staffId) ?? 0)
 
   // 기본 공제를 정해둔 직원 중 이번 구간에 아직 안 넣었고 지급 전인 사람 — 기본급(시간×시급) 기준으로 한 번에 넣는다
+  // 직원 기본 공제 + 이 달 국민연금·건강보험 가입 대상이면 국민연금·건강보험·장기요양 — 이미 넣은 항목·지급 완료한 직원은 건너뛴다
   const pendingDefaults = allRows.flatMap(r => {
-    const key = defaults[r.staffId]
-    if (!key || r.totalPay == null || r.totalPay <= 0 || paidIds.has(r.staffId)) return []
-    const label = DEFAULT_DEDUCTIONS[key]
-    if ((settlement?.adjustments[r.staffId] ?? []).some(a => a.label === label)) return []
-    return [{ row: r, label, amount: quickDeductionAmount(label, r.totalPay)! }]
+    if (r.totalPay == null || r.totalPay <= 0 || paidIds.has(r.staffId)) return []
+    const saved = settlement?.adjustments[r.staffId] ?? []
+    const labels: string[] = []
+    if (defaults[r.staffId]) labels.push(DEFAULT_DEDUCTIONS[defaults[r.staffId]])
+    if (pension?.[r.staffId]?.status === 'eligible') labels.push(...SOCIAL_INSURANCE_LABELS)
+    return labels
+      .filter(label => !saved.some(a => a.label === label))
+      .map(label => ({ row: r, label, amount: quickDeductionAmount(label, r.totalPay!)! }))
+      .filter(p => p.amount !== 0)
   })
   const [applyingDefaults, setApplyingDefaults] = useState(false)
   const applyDefaults = async () => {
@@ -258,8 +276,8 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
     setApplyingDefaults(false)
     await queryClient.invalidateQueries({ queryKey: ['payroll-settlement', periodKey] })
     showMsg(failed === 0
-      ? `${pendingDefaults.length}명에게 기본 공제를 넣었습니다`
-      : `${pendingDefaults.length - failed}명 적용, ${failed}명 실패 — 다시 시도해주세요`)
+      ? `기본 공제 ${pendingDefaults.length}건을 넣었습니다`
+      : `${pendingDefaults.length - failed}건 적용, ${failed}건 실패 — 다시 시도해주세요`)
   }
 
   const toggleSort = (key: SortKey) =>
@@ -408,7 +426,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
               title={pendingDefaults.map(p => `${p.row.name}: ${p.label} ${p.amount.toLocaleString('ko-KR')}원`).join('\n')}
               className="shrink-0 px-3 py-1.5 rounded-xl bg-primary-50 border border-primary-700/30 text-[12px] font-bold text-primary-700 cursor-pointer hover:bg-primary-100 transition disabled:opacity-50"
             >
-              {applyingDefaults ? '적용 중…' : `기본 공제 일괄 적용 (${pendingDefaults.length}명)`}
+              {applyingDefaults ? '적용 중…' : `기본 공제 일괄 적용 (${pendingDefaults.length}건)`}
             </button>
           )}
           <input
@@ -418,6 +436,28 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           />
         </div>
       </div>
+
+      {/* 국민연금 가입 대상 — 월별 정산에서만. 판정 규칙은 lib/nationalPension.ts */}
+      {pension && cursor && !isLoading && (() => {
+        const eligible = rows.filter(r => pension[r.staffId]?.status === 'eligible')
+        const firstMonth = rows.filter(r => pension[r.staffId]?.status === 'first-month')
+        if (eligible.length === 0 && firstMonth.length === 0) return null
+        const deadline = pensionReportDeadline(cursor.y, cursor.m)
+        return (
+          <div className="mx-3 mb-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-[12px] text-ink-secondary">
+            <b className="text-indigo-700">국민연금·건강보험 가입 대상 {eligible.length}명</b>
+            {eligible.length > 0 && <span className="text-ink-muted"> · {eligible.map(r => r.name).join(', ')}</span>}
+            {firstMonth.length > 0 && (
+              <span className="text-ink-muted"> · 첫 달이라 이번 달 제외 {firstMonth.length}명({firstMonth.map(r => r.name).join(', ')}) — 다음 달도 일하면 대상</span>
+            )}
+            {eligible.length > 0 && (
+              <p className="m-0 mt-0.5 text-[11px] text-ink-muted">
+                자격취득신고 기한 {Number(deadline.slice(5, 7))}월 {Number(deadline.slice(8))}일 · 국민연금 의정부지사(동두천 담당) 031-828-3613 · 건강보험공단 1577-1000
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 본문 */}
       {isLoading ? (
@@ -486,6 +526,9 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                         <span className="mt-0.5 mr-1 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-primary-50 text-primary-700 border-primary-700/30">
                           {DEFAULT_DEDUCTIONS[defaults[row.staffId]]}
                         </span>
+                      )}
+                      {pension?.[row.staffId] && pension[row.staffId].status !== 'none' && (
+                        <PensionBadge row={pension[row.staffId]} />
                       )}
                       {missingByStaff.has(row.staffId) && (
                         // 날짜를 툴팁에만 두면 폰에선 볼 수 없었다 — 배지에 바로 적고, 누르면 상세 모달에서 날짜별 계획 시간을 보여준다
@@ -586,6 +629,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           period={detailPeriod}
           defaultDeduction={defaults[detailTarget.staffId] ?? null}
           missingClockIns={missingByStaff.get(detailTarget.staffId) ?? []}
+          pension={pension?.[detailTarget.staffId] ?? null}
           onDefaultDeductionChanged={() => queryClient.invalidateQueries({ queryKey: ['payroll-default-deductions'] })}
           onClose={() => setDetailTarget(null)}
         />
@@ -599,4 +643,20 @@ function formatMissingDates(list: MissingClockIn[]): string {
   const label = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}(${DAY_NAMES[new Date(d + 'T00:00:00').getDay()]})`
   const shown = list.slice(0, 3).map(m => label(m.workDate)).join(', ')
   return list.length > 3 ? `${shown} 외 ${list.length - 3}일` : shown
+}
+
+/** 국민연금 판정 배지 — 근거(충족 조건)와 합산 값을 바로 보이게 적는다(주방·캐셔 근무를 합친 값) */
+function PensionBadge({ row }: { row: PensionRow }) {
+  const eligible = row.status === 'eligible'
+  return (
+    <span
+      className={`mt-0.5 mr-1 inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-lg border ${
+        eligible ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-canvas-soft text-ink-muted border-hairline'
+      }`}
+      title={`${row.days}일 · ${row.hours}h · ${row.pay.toLocaleString('ko-KR')}원 (주방·캐셔 합산)`}
+    >
+      {eligible ? '국민연금·건강보험 대상' : '국민연금·건강보험 첫 달(다음 달부터)'}
+      <span className="ml-1 font-normal">· {row.reasons.join(', ')}</span>
+    </span>
+  )
 }
