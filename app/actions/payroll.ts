@@ -393,7 +393,9 @@ export interface InsuranceReportRow {
   /** 복호화한 주민등록번호 — 계정에 등록하지 않았으면 null */
   residentId: string | null
   phone: string | null
-  /** 직종 부호(lib/insuranceReport JOB_CODE) — 주방·캐셔를 다 했으면 더 많이 일한 쪽 */
+  /** 주방·캐셔 — 둘 다 했으면 그 달 더 많이 일한 쪽 */
+  staffRole: StaffRole
+  /** 직종 부호(lib/insuranceReport JOB_CODE) — staffRole 기준 */
   jobCode: string
   /** 그 달 근무한 날(1~31) */
   workDays: number[]
@@ -472,11 +474,13 @@ export async function fetchInsuranceReport(year: number, month: number): Promise
       const profile = staff.get(ids[0])
       const userId = ids.map(id => staff.get(id)?.user_profile_id).find((v): v is string => !!v)
       const { days, hours, pay, status, reasons } = pen
+      const staffRole: StaffRole = p.roleDays.cashier > p.roleDays.kitchen ? 'cashier' : 'kitchen'
       rows.push({
         name: profile?.name ?? '?',
         residentId: userId ? rrnByUser.get(userId) ?? null : null,
         phone: ids.map(id => staff.get(id)?.phone).find((v): v is string => !!v) ?? null,
-        jobCode: JOB_CODE[p.roleDays.cashier > p.roleDays.kitchen ? 'cashier' : 'kitchen'],
+        staffRole,
+        jobCode: JOB_CODE[staffRole],
         workDays: [...p.monthDates].map(d => Number(d.slice(8))).sort((a, b) => a - b),
         days, hours, avgDailyHours: averageDailyHours(hours, days), pay,
         startDate: continuousStartDate([...p.dates], reportMonth),

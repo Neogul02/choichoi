@@ -4,12 +4,15 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { F, type PdfStyle } from '@/components/popup-report/theme'
 import type { InsuranceReportRow } from '@/app/actions/payroll'
-import { BUSINESS_INFO } from '@/lib/insuranceReport'
+import { BUSINESS_INFO, formatResidentId, groupByRole } from '@/lib/insuranceReport'
 import { formatPhoneNumber } from '@/lib/utils'
 
 /** 신고서에 써 온 이직사유 코드 — 일용근로라 매달 '1' */
 const LEAVE_REASON_CODE = '1'
 const PER_PAGE = 4
+
+/** '일평균 근로시간' 칸에 쓸 값 — 서식 이름대로 하루 평균, 또는 그동안 써 온 총 시간 */
+export type LaborHoursMode = 'average' | 'total'
 
 // 폭 — 본문 506pt = 왼쪽 항목칸 85 + 근로자 4명 × 105.25
 const W = 506
@@ -54,14 +57,9 @@ function WorkerRow({ label, h, workers, render, labelStyle }: {
   )
 }
 
-const formatRrn = (rrn: string | null) => {
-  if (!rrn) return ''
-  const d = rrn.replace(/\D/g, '')
-  return d.length === 13 ? `${d.slice(0, 6)}-${d.slice(6)}` : rrn
-}
 const won = (n: number) => `${n.toLocaleString('ko-KR')} 원`
 
-function FormPage({ workers, year, month, reportDate }: { workers: (InsuranceReportRow | null)[]; year: number; month: number; reportDate: string }) {
+function FormPage({ workers, year, month, reportDate, hoursMode }: { workers: (InsuranceReportRow | null)[]; year: number; month: number; reportDate: string; hoursMode: LaborHoursMode }) {
   const [ry, rm, rd] = reportDate.split('-').map(Number)
   const lastDay = new Date(year, month + 1, 0).getDate()
   const dayGroups = [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15], [16, 17, 18, 19, 20], [21, 22, 23, 24, 25], [26, 27, 28, 29, 30]]
@@ -134,7 +132,7 @@ function FormPage({ workers, year, month, reportDate }: { workers: (InsuranceRep
 
       {/* 근로자 */}
       <WorkerRow label="성명" h={15} workers={workers} render={w => <Text>{w.name}</Text>} />
-      <WorkerRow label={<Text>주민등록번호{'\n'}(외국인등록번호)</Text>} h={24} workers={workers} render={w => <Text>{formatRrn(w.residentId)}</Text>} />
+      <WorkerRow label={<Text>주민등록번호{'\n'}(외국인등록번호)</Text>} h={24} workers={workers} render={w => <Text>{formatResidentId(w.residentId)}</Text>} />
       <View style={[s.row, { height: 15 }]}>
         <Cell w={33}>국적</Cell>
         <Cell w={LABEL - 33}>체류자격</Cell>
@@ -182,7 +180,7 @@ function FormPage({ workers, year, month, reportDate }: { workers: (InsuranceRep
         {workers.map((w, i) => (
           <View key={i} style={[s.cell, { width: COL, flexDirection: 'row', paddingHorizontal: 0 }, i === PER_PAGE - 1 ? { borderRightWidth: 0 } : {}]}>
             <View style={{ width: 40, borderRightWidth: B, borderColor: LINE, height: '100%', justifyContent: 'center', alignItems: 'center' }}><Text>{w ? `${w.days} 일` : ''}</Text></View>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>{w ? `${w.avgDailyHours} h` : ''}</Text></View>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>{w ? `${hoursMode === 'total' ? w.hours : w.avgDailyHours} h` : ''}</Text></View>
           </View>
         ))}
       </View>
@@ -252,22 +250,27 @@ function FormPage({ workers, year, month, reportDate }: { workers: (InsuranceRep
   )
 }
 
-export default function LaborReportDocument({ rows, year, month, reportDate }: {
+export default function LaborReportDocument({ rows, year, month, reportDate, hoursMode = 'average' }: {
   rows: InsuranceReportRow[]
   year: number
   month: number // 0-indexed
   /** 신고일(YYYY-MM-DD) — 서식 아래 날짜 */
   reportDate: string
+  hoursMode?: LaborHoursMode
 }) {
+  // 주방·캐셔를 한 장에 섞지 않는다 — 주방 묶음을 다 채운 뒤 캐셔는 새 장에서 시작
   const pages: (InsuranceReportRow | null)[][] = []
-  for (let i = 0; i < Math.max(rows.length, 1); i += PER_PAGE) {
-    const chunk: (InsuranceReportRow | null)[] = rows.slice(i, i + PER_PAGE)
-    while (chunk.length < PER_PAGE) chunk.push(null)
-    pages.push(chunk)
+  for (const group of groupByRole(rows)) {
+    for (let i = 0; i < group.rows.length; i += PER_PAGE) {
+      const chunk: (InsuranceReportRow | null)[] = group.rows.slice(i, i + PER_PAGE)
+      while (chunk.length < PER_PAGE) chunk.push(null)
+      pages.push(chunk)
+    }
   }
+  if (pages.length === 0) pages.push([null, null, null, null])
   return (
     <Document title={`근로내용 확인신고서(일용근로자용) ${year}년 ${month + 1}월분`}>
-      {pages.map((workers, i) => <FormPage key={i} workers={workers} year={year} month={month} reportDate={reportDate} />)}
+      {pages.map((workers, i) => <FormPage key={i} workers={workers} year={year} month={month} reportDate={reportDate} hoursMode={hoursMode} />)}
     </Document>
   )
 }
