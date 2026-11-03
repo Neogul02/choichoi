@@ -8,6 +8,7 @@ import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import { decryptResidentId } from '@/lib/pii-crypto'
 import { isDefaultDeduction, type DefaultDeduction } from '@/lib/payroll-deductions'
 import { evaluatePension, type PensionResult } from '@/lib/nationalPension'
+import { averageDailyHours, continuousStartDate, JOB_CODE } from '@/lib/insuranceReport'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, requireManagerOrAdmin, wrap } from './_base'
 
 export interface PayrollRow {
@@ -320,6 +321,13 @@ export async function fetchPensionStatus(year: number, month: number): Promise<A
   })
 }
 
+/** 같은 사람 묶기 — 계정 연결 → 전화번호 → 프로필. 국민연금 판정과 4대보험 자료가 같은 기준을 쓴다 */
+function personKeyOf(staffId: number, s: { user_profile_id: string | null; phone: string | null } | undefined): string {
+  if (s?.user_profile_id) return `user:${s.user_profile_id}`
+  const digits = (s?.phone ?? '').replace(/\D/g, '')
+  return digits ? `phone:${digits}` : `staff:${staffId}`
+}
+
 // 권한 검사 없는 내부 구현 — export하지 않는다(급여정산·직원 예상 급여가 각자 권한을 확인한 뒤 부른다)
 async function computePensionStatusUnchecked(year: number, month: number): Promise<Record<number, PensionRow>> {
   if (!Number.isInteger(year) || !Number.isInteger(month) || month < 0 || month > 11) throw new Error('잘못된 달입니다.')
@@ -351,12 +359,7 @@ async function computePensionStatusUnchecked(year: number, month: number): Promi
   }) as (PayrollAssignmentRow & { work_date: string })[]
 
   const staff = new Map((staffRes.data ?? []).map(s => [s.id as number, s]))
-  const personOf = (staffId: number) => {
-    const s = staff.get(staffId)
-    if (s?.user_profile_id) return `user:${s.user_profile_id}`
-    const digits = (s?.phone ?? '').replace(/\D/g, '')
-    return digits ? `phone:${digits}` : `staff:${staffId}`
-  }
+  const personOf = (staffId: number) => personKeyOf(staffId, staff.get(staffId))
 
   const cur = valid.filter(a => a.work_date >= from)
   const prevPersons = new Set(valid.filter(a => a.work_date < from).map(a => personOf(a.staff_id)))
@@ -383,6 +386,105 @@ async function computePensionStatusUnchecked(year: number, month: number): Promi
     for (const id of p.staffIds) out[id] = { ...result, days: p.dates.size, hours, pay: p.pay }
   }
   return out
+}
+
+export interface InsuranceReportRow {
+  name: string
+  /** 복호화한 주민등록번호 — 계정에 등록하지 않았으면 null */
+  residentId: string | null
+  phone: string | null
+  /** 직종 부호(lib/insuranceReport JOB_CODE) — 주방·캐셔를 다 했으면 더 많이 일한 쪽 */
+  jobCode: string
+  /** 그 달 근무한 날(1~31) */
+  workDays: number[]
+  days: number
+  hours: number
+  avgDailyHours: number
+  /** 세전 보수 — 기본급 + 수당 */
+  pay: number
+  /** 이번 달까지 끊김 없이 이어진 근무의 첫날(자격취득일) */
+  startDate: string | null
+  pension: PensionResult
+}
+
+/**
+ * 세무사에게 보내는 월별 4대보험 자료 — 그 달 일한 모든 사람(주방·캐셔 합산)의 근무일·시간·보수와 국민연금·건강보험 판정.
+ * 주민등록번호를 복호화하므로 admin만. 엑셀은 화면이 만든다(PayrollPanel).
+ */
+export async function fetchInsuranceReport(year: number, month: number): Promise<ApiResponse<InsuranceReportRow[]>> {
+  return wrap(async () => {
+    await requireAdmin()
+    const pension = await computePensionStatusUnchecked(year, month)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const reportMonth = `${year}-${pad(month + 1)}`
+    const to = `${reportMonth}-${pad(new Date(year, month + 1, 0).getDate())}`
+
+    // 입사일 계산에 지난 근무 전체가 필요하다 — PostgREST 기본 1000행 제한에 걸리지 않게 나눠 읽는다
+    const history: { staff_id: number; work_date: string; staff_role: StaffRole; popup_events: unknown }[] = []
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from('roster_assignments')
+        .select('staff_id, work_date, staff_role, popup_events(start_date, end_date)')
+        .lte('work_date', to)
+        .order('id')
+        .range(offset, offset + 999)
+      if (error) throw new Error(error.message)
+      history.push(...((data ?? []) as typeof history))
+      if (!data || data.length < 1000) break
+    }
+    const valid = history.filter(a => {
+      const pe = (Array.isArray(a.popup_events) ? a.popup_events[0] : a.popup_events) as { start_date: string; end_date: string } | null
+      return !pe || (a.work_date >= pe.start_date && a.work_date <= pe.end_date)
+    })
+
+    const { data: staffRows, error: staffErr } = await supabaseAdmin.from('staff_profiles').select('id, name, phone, user_profile_id')
+    if (staffErr) throw new Error(staffErr.message)
+    const staff = new Map((staffRows ?? []).map(s => [s.id as number, s]))
+
+    type Person = { staffIds: Set<number>; dates: Set<string>; monthDates: Set<string>; roleDays: Record<StaffRole, number> }
+    const persons = new Map<string, Person>()
+    for (const a of valid) {
+      const key = personKeyOf(a.staff_id, staff.get(a.staff_id))
+      const p = persons.get(key) ?? { staffIds: new Set<number>(), dates: new Set<string>(), monthDates: new Set<string>(), roleDays: { kitchen: 0, cashier: 0 } }
+      p.dates.add(a.work_date)
+      if (a.work_date.startsWith(reportMonth)) {
+        p.staffIds.add(a.staff_id)
+        p.monthDates.add(a.work_date)
+        p.roleDays[a.staff_role] += 1
+      }
+      persons.set(key, p)
+    }
+
+    const userIds = [...new Set([...persons.values()].flatMap(p => [...p.staffIds].map(id => staff.get(id)?.user_profile_id).filter((v): v is string => !!v)))]
+    const rrnByUser = new Map<string, string>()
+    if (userIds.length > 0) {
+      const { data, error } = await supabaseAdmin.from('user_profiles').select('id, resident_reg_no_enc').in('id', userIds)
+      if (error) throw new Error(error.message)
+      for (const u of data ?? []) if (u.resident_reg_no_enc) rrnByUser.set(u.id, decryptResidentId(u.resident_reg_no_enc))
+    }
+
+    const rows: InsuranceReportRow[] = []
+    for (const p of persons.values()) {
+      if (p.monthDates.size === 0) continue
+      const ids = [...p.staffIds]
+      const pen = ids.map(id => pension[id]).find(Boolean)
+      if (!pen) continue
+      const profile = staff.get(ids[0])
+      const userId = ids.map(id => staff.get(id)?.user_profile_id).find((v): v is string => !!v)
+      const { days, hours, pay, status, reasons } = pen
+      rows.push({
+        name: profile?.name ?? '?',
+        residentId: userId ? rrnByUser.get(userId) ?? null : null,
+        phone: ids.map(id => staff.get(id)?.phone).find((v): v is string => !!v) ?? null,
+        jobCode: JOB_CODE[p.roleDays.cashier > p.roleDays.kitchen ? 'cashier' : 'kitchen'],
+        workDays: [...p.monthDates].map(d => Number(d.slice(8))).sort((a, b) => a - b),
+        days, hours, avgDailyHours: averageDailyHours(hours, days), pay,
+        startDate: continuousStartDate([...p.dates], reportMonth),
+        pension: { status, reasons },
+      })
+    }
+    return rows.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  })
 }
 
 export interface PopupPayrollResult {
