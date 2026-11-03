@@ -7,6 +7,7 @@ export const BUSINESS_INFO = {
   managementNo: '44717023170',
   registrationNo: '447-17-02317',
   address: '경기도 동두천시 동두천로 119, 102호',
+  mobile: '010-8366-2414',
 } as const
 
 /** 직종 부호 — 신고서에 써 온 값(캐셔 61, 주방 87) */
