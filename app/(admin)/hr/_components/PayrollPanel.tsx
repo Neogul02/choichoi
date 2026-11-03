@@ -17,7 +17,7 @@ import { phoneMatches } from '@/lib/phone'
 import { DAY_NAMES } from '@/lib/staffing'
 import { pensionReportDeadline } from '@/lib/nationalPension'
 import ConfirmDialog from '@/components/ConfirmDialog'
-import { DEFAULT_DEDUCTIONS, SOCIAL_INSURANCE_LABELS, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
+import { DEFAULT_DEDUCTIONS, isSameDeduction, quickDeductionAmount, type DefaultDeduction } from '@/lib/payroll-deductions'
 import CopyText, { copyToClipboard } from '@/components/CopyText'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal, { type PayrollPeriod } from './PayrollDetailModal'
@@ -256,17 +256,20 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const finalPayOf = (r: PayrollRow) => r.totalPay == null ? null : r.totalPay + (adjustTotals.get(r.staffId) ?? 0)
 
   // 기본 공제를 정해둔 직원 중 이번 구간에 아직 안 넣었고 지급 전인 사람 — 기본급(시간×시급) 기준으로 한 번에 넣는다
-  // 직원 기본 공제 + 이 달 국민연금·건강보험 가입 대상이면 국민연금·건강보험·장기요양 — 이미 넣은 항목·지급 완료한 직원은 건너뛴다
+  // 직원 기본 공제 + 이 달 국민연금·건강보험 가입 대상이면 국민연금·건강보험·장기요양 — 이미 넣은 항목(같은 종류)·지급 완료한 직원은 건너뛴다.
+  // 4대보험은 서버가 사람 단위(주방·캐셔 합산)로 한 번 계산해 프로필별로 나눈 금액을 쓴다(fetchPensionStatus deductions).
   const pendingDefaults = allRows.flatMap(r => {
     if (r.totalPay == null || r.totalPay <= 0 || paidIds.has(r.staffId)) return []
     const saved = settlement?.adjustments[r.staffId] ?? []
-    const labels: string[] = []
-    if (defaults[r.staffId]) labels.push(DEFAULT_DEDUCTIONS[defaults[r.staffId]])
-    if (pension?.[r.staffId]?.status === 'eligible') labels.push(...SOCIAL_INSURANCE_LABELS)
-    return labels
-      .filter(label => !saved.some(a => a.label === label))
-      .map(label => ({ row: r, label, amount: quickDeductionAmount(label, r.totalPay!)! }))
-      .filter(p => p.amount !== 0)
+    const items: { label: string; amount: number }[] = []
+    if (defaults[r.staffId]) {
+      const label = DEFAULT_DEDUCTIONS[defaults[r.staffId]]
+      items.push({ label, amount: quickDeductionAmount(label, r.totalPay)! })
+    }
+    if (pension?.[r.staffId]?.status === 'eligible') items.push(...pension[r.staffId].deductions)
+    return items
+      .filter(d => d.amount !== 0 && !saved.some(a => isSameDeduction(a.label, d.label)))
+      .map(d => ({ row: r, ...d }))
   })
   const [applyingDefaults, setApplyingDefaults] = useState(false)
   // 세무사에게 보내는 월별 4대보험 자료 — 역할 탭과 무관하게 그 달 일한 모든 사람(주방·캐셔 합산)

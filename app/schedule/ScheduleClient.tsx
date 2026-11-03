@@ -5,7 +5,7 @@ import { formatTimeRange } from '@/lib/workhours';
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, fetchStaffPayEstimateInfo, type StaffDayDetail, type StaffPayEstimateInfo } from '@/app/actions/payroll'
 import { minutesToHours } from '@/lib/workhours'
-import { estimatePay, DEFAULT_DEDUCTIONS, SOCIAL_INSURANCE_LABELS, WITHHOLDING_LABEL } from '@/lib/payroll-deductions'
+import { estimatePay, isSameDeduction, DEFAULT_DEDUCTIONS, WITHHOLDING_LABEL } from '@/lib/payroll-deductions'
 import { formatBreakMinutes } from '@/lib/utils'
 import { DAY_NAMES } from '@/lib/staffing'
 import { showMsg } from '@/lib/toast'
@@ -289,7 +289,7 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
 }) {
   const adjustments = payInfo?.adjustments ?? []
   // 관리자가 이미 3.3%를 넣었으면 확정값이라 끌 수 없다. 아니면 직원 기본 공제가 3.3%일 때 켜진 채로 시작한다
-  const withholdingSaved = adjustments.some(a => a.label === WITHHOLDING_LABEL)
+  const withholdingSaved = adjustments.some(a => isSameDeduction(a.label, WITHHOLDING_LABEL))
   const [withholdingOn, setWithholdingOn] = useState(payInfo?.defaultDeduction === 'withholding33')
   // payInfo가 늦게 도착해도(포커스 재조회 등) 기본값을 따라가도록, 사용자가 건드리기 전까지는 기본 공제를 쓴다
   const [touched, setTouched] = useState(false)
@@ -300,11 +300,12 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
   const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
   const hourlyRate = payInfo?.hourlyRate ?? null
   const basePay = hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
-  const deductions: string[] = []
+  const deductions: (string | { label: string; amount: number })[] = []
   if (payInfo?.defaultDeduction && payInfo.defaultDeduction !== 'withholding33') deductions.push(DEFAULT_DEDUCTIONS[payInfo.defaultDeduction])
   if (checked) deductions.push(WITHHOLDING_LABEL)
-  // 이 달 국민연금·건강보험 가입 대상이면 근로자 몫을 미리 뺀다(lib/nationalPension 판정, 관리자 정산과 같은 식)
-  if (payInfo?.pension?.status === 'eligible') deductions.push(...SOCIAL_INSURANCE_LABELS)
+  // 이 달 국민연금·건강보험 가입 대상이면 근로자 몫을 미리 뺀다 — 서버가 사람 단위로 계산해 이 프로필 몫으로 나눈 금액(관리자 정산과 같은 값)
+  const insuranceEligible = payInfo?.pension?.status === 'eligible'
+  if (insuranceEligible) deductions.push(...payInfo!.pension!.deductions)
   const estimate = basePay != null ? estimatePay(basePay, adjustments, deductions) : null
   const paid = payInfo?.paid ?? false
 
@@ -351,6 +352,11 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
             3.3% 공제 적용
             {withholdingSaved && <span className="text-[11px] font-normal opacity-80">· 정산에 반영됨</span>}
           </label>
+          {checked && insuranceEligible && (
+            <p className="m-0 mt-1.5 text-[11px] font-semibold text-amber-200">
+              4대보험 가입자는 보통 3.3%를 떼지 않아요. 실제 공제는 관리자 정산을 따라요.
+            </p>
+          )}
           {payInfo?.pension && payInfo.pension.status !== 'none' && (
             <p className="m-0 mt-2 text-[12px] font-semibold">
               {payInfo.pension.status === 'eligible'
