@@ -4,7 +4,7 @@ English | [한국어](README.ko.md)
 
 An **in-house web POS + lightweight ERP** built for the real store operations of **Hiyorisando** — [@Hiyorisando_official](https://www.instagram.com/hiyorisando_official/) — a bakery brand that runs pop-up stores nationwide. This isn't a demo or a portfolio project; it's a system in daily production use for checkout and settlement across multiple pop-up locations.
 
-It covers the full back-office workload a pop-up store operation needs in one system: order entry and checkout (POS), inventory management, HR management (candidate tracking, per-part roster assignment, automated payroll settlement, e-signed employment contracts), and sales analytics.
+It covers the full back-office workload a pop-up store operation needs in one system: order entry and checkout (POS), inventory management, HR management (candidate tracking, per-part roster assignment, a kitchen attendance kiosk, automated payroll settlement with deductions and social-insurance eligibility, e-signed employment contracts, monthly labor reports for the tax accountant), and sales analytics.
 
 ---
 
@@ -12,16 +12,19 @@ It covers the full back-office workload a pop-up store operation needs in one sy
 
 | Module | Description |
 |--------|-------------|
-| **POS** | Touch/keyboard-friendly cashier checkout screen, real-time per-menu stock deduction, tier-based revenue banners and confetti |
+| **POS** | Touch/keyboard-friendly cashier checkout, real-time per-menu stock deduction, tier-based revenue banners and confetti, a "today" panel (per-menu sales, cumulative curve, vs. yesterday / same weekday last week at the same minute), a live sales battle between pop-ups running the same day, and a shared co-edited note |
 | **Customer display** | Real-time cart mirroring screen relayed purely over WebSocket, no checkout capability |
 | **Order status** | View completed orders, toggle preparation status |
-| **Inventory** | Dual-unit tracking of sealed/opened ingredient remainders, restock history |
-| **HR management (HRM)** | Manage candidate/active/rejected worker status, per-popup/per-part roster assignment (drag-free optimistic-update grid); workers active at multiple stores are tracked via an N:M popup-assignment history table |
-| **Payroll** | Paid work-hour calculation with automatic break-time deduction, per-worker settlement amounts |
+| **Inventory** | Dual-unit tracking of sealed/opened ingredient remainders, restock history, a visual storage board (drag-and-drop shelves/fridges) |
+| **HR management (HRM)** | Candidate/active/retired worker status, per-popup/per-part roster assignment (optimistic-update grid, last-week copy, auto-fill), per-popup closed days (department-store holidays) excluded from bulk assignment; workers active at multiple stores are tracked via an N:M popup-assignment history table. A pop-up's default shift follows its period when the dates are edited |
+| **Attendance kiosk** | A kitchen iPad logged in with a dedicated `kiosk` role: clock-in/out by phone number; clock-out overwrites that day's roster assignment with the actual times (planned times kept for audit). Days with a roster entry but no clock-in are flagged in payroll and sent to Discord every morning |
+| **Payroll** | Paid hours from a single work-hour module (break rules, overnight shifts), monthly (kitchen) or per-pop-up (cashier) settlement, saved adjustments and paid checkmarks, quick deductions (3.3% withholding, employment insurance 0.9%, national pension 4.75%, health insurance 3.595% + long-term care), per-worker default deductions with bulk apply, national pension/health insurance eligibility per month, KakaoTalk-ready pay slip text |
+| **Labor reports** | One click per month: an Excel file for the tax accountant (1–31 day grid, days/hours/pay, eligible-for-insurance list with national ID and start date) and the official *근로내용 확인신고서 (daily workers)* form rendered as PDF, 4 workers per page |
+| **Worker schedule** | Workers see their monthly calendar and an estimated pay card that mirrors the admin payroll detail (base pay, adjustments, optional 3.3% preview, insurance deductions, paid status, per-day breakdown) |
 | **E-signed employment contracts** | Standard employment contract PDF generated and previewed server-side in real time, signed by workers directly in the app |
 | **Schedule** | Read-only unified kitchen/store roster view for managers, plus per-date memos |
-| **Sales analytics** | Today's/period sales, per-menu and per-hour breakdowns, monthly calendar, per-popup settlement |
-| **Notifications** | Discord webhook auto-notifications for contract signing, logins, and next-day shift digests (Vercel Cron) |
+| **Sales analytics** | Today vs. yesterday / last week (minute-accurate), per-pop-up analysis and comparison, a single-day drill-down (hourly sales + menu sales for any past day), monthly calendar, manual corrections from the department store's official figures, pop-up report PDF |
+| **Notifications** | Discord webhooks for contract signing, logins, order/menu/role events, server-action failures, and a daily 09:00 KST missing-clock-in digest (Vercel Cron) |
 
 ---
 
@@ -61,9 +64,11 @@ It covers the full back-office workload a pop-up store operation needs in one sy
 | Auth | Supabase Auth (email + password) | 3-tier role system (admin > manager > user), route-level protection in `proxy.ts` |
 | Realtime | Supabase Realtime Broadcast + Presence | No need to manage WebSocket infrastructure directly; fully compatible with Vercel serverless |
 | Database | Supabase (PostgreSQL) | Principle of least privilege via RLS + separated service role |
-| PDF generation | @react-pdf/renderer + pdfjs-dist | Server-side rendering of employment contracts; preview reuses the same component (mobile falls back to pdfjs-dist canvas rendering since iframe PDF viewers aren't supported) |
+| PDF generation | @react-pdf/renderer + pdfjs-dist | Employment contracts, roster print, pop-up reports and the labor-report form; the preview reuses the same component (mobile falls back to pdfjs-dist canvas rendering since iframe PDF viewers aren't supported) |
+| Spreadsheets | ExcelJS | Monthly labor-report workbook for the tax accountant, loaded only when the button is pressed |
+| Collaborative editing | Yjs | Conflict-free shared POS note across iPads (CRDT over Realtime Broadcast) |
 | Testing | Vitest | Unit tests for pure logic like payroll and work-hour calculations |
-| Deployment | Vercel | Edge network + Cron (next-day shift assignment Discord digest) |
+| Deployment | Vercel | Edge network + Cron (daily missing-clock-in digest) |
 
 ---
 
@@ -85,10 +90,13 @@ app/actions/
 ├── staffPopups.ts       # Worker ↔ popup many-to-many assignment
 ├── roster.ts              # Part definitions, per-date assignment, tier ranking
 ├── roster-view.ts          # Manager-facing unified read-only schedule view
-├── payroll.ts                # Payroll settlement calculation
+├── payroll.ts                # Payroll settlement, deductions, pension/health eligibility, labor reports
+├── attendance.ts              # Kitchen attendance kiosk (clock-in/out, missing clock-ins)
+├── storage.ts                  # Visual storage board for inventory
 ├── workers.ts                 # Staff accounts/profiles, invite-code signup
 ├── contracts.ts                # Employment contract creation, e-signature, deletion
-├── pos-note.ts                  # POS announcement memo
+├── pos-note.ts                  # Shared POS note (Yjs document)
+├── devtools.ts / error-report.ts # Diagnostics, client error reporting
 └── discord.ts                    # Discord notifications
 ```
 
@@ -101,8 +109,8 @@ app/actions/
 **Why:** The cart is ephemeral data until checkout — there's no reason to persist it in the DB. Broadcast relays over WebSocket with no DB I/O, and is unaffected by Vercel serverless function restarts.
 
 ### Service role key isolation
-**Decision:** Isolate `lib/supabase-admin.ts` as a separate module.
-**Why:** This physically prevents accidental `NEXT_PUBLIC_` prefix mistakes. Because the file itself is only imported from Server Actions, it can never end up in the client bundle. The roles of the anon client (`supabase-browser.ts`, `supabase-server.ts`) and the admin client (`supabase-admin.ts`) are cleanly separated at the code level.
+**Decision:** Isolate `lib/supabase-admin-client.ts` as a separate module.
+**Why:** This physically prevents accidental `NEXT_PUBLIC_` prefix mistakes. Because the file itself is only imported from Server Actions, it can never end up in the client bundle. The roles of the anon client (`supabase-browser.ts`, `supabase-server.ts`) and the admin client (`supabase-admin-client.ts`) are cleanly separated at the code level.
 
 ### Employment contract PDFs — server-rendered, with the original JSONB payload retained
 **Decision:** PDFs are always generated server-side (via `@react-pdf/renderer`'s `renderToBuffer`), and the entire form data as filled in at authoring time is stored alongside it in `contracts.contract_data` (JSONB). `contracts.worker_id` only ever references `staff_profiles.id`, the single source of truth for workers.
@@ -115,6 +123,18 @@ app/actions/
 ### Soft delete
 **Decision:** Deleting a menu item sets `is_active = false`.
 **Why:** `order_items.menu_item_id` references `menu_items.id` as a foreign key. A hard delete would break that FK for past orders, making sales aggregation impossible. Soft delete permanently preserves order history and revenue integrity.
+
+### Sales corrections — one precedence rule, in the database
+**Decision:** Daily figures follow *pop-up correction (`popup_daily_sales`) > that pop-up's POS rollup (`sales_daily`)*, and a whole-day correction (`daily_sales`) overrides the sum of pop-ups. The rule lives only in the SQL functions `get_popup_day_sales` / `get_day_sales`; every screen (calendar, lifetime totals, pop-up stats, today) calls them.
+**Why:** Pop-ups inside department stores are settled on the store's official figures, which differ slightly from the POS. The same rule used to be re-implemented in four places, and one day's revenue showed different numbers on different screens.
+
+### Attendance overwrites the roster with actual times
+**Decision:** Clocking out rewrites that day's `roster_assignments` row with the measured times and break; the planned values are kept in `attendance_records.planned_*`. Payroll still reads only the assignment row.
+**Why:** Payroll, the roster and the worker's own screen must agree on one number. Keeping actuals in a separate table would have forced every payroll query to merge two sources.
+
+### Deductions and insurance eligibility as pure functions
+**Decision:** Withholding, insurance premiums (`lib/payroll-deductions.ts`) and the monthly national pension/health insurance eligibility rule (`lib/nationalPension.ts`: 8+ days, 60+ paid hours or ₩2.2M+, and only if the worker also worked the previous month) are pure, unit-tested functions. Admin payroll, the bulk-apply button, the worker's estimated pay, the labor reports and the deduction calculator all call them.
+**Why:** These numbers go to workers and to government filings. A single tested source keeps the admin screen, the worker screen and the exported documents identical.
 
 ---
 
@@ -147,7 +167,9 @@ Channels: orders-{popupId}, cart-display-{popupId}, pos-presence-{popupId},
 proxy.ts (Next.js 16, replaces middleware.ts — creating both causes a conflict, so
           middleware.ts must never be created)
   admin only:      /stats, /hr, /settings
-  manager+:        /inventory, /roster
+  manager+:        /roster
+  any logged-in:   /inventory (editing is guarded inside the Server Actions)
+  kiosk role:      locked to /attendance (admins may also open it)
   Behavior: validates the JWT locally on every request via supabase.auth.getClaims()
             (asymmetric key, JWKS cached in-instance) — eliminates the per-request
             Auth-server round trip that getUser() requires
@@ -179,11 +201,11 @@ Server Action self-guards
 ```
 lib/supabase-browser.ts  ← ANON_KEY, client-side login/signup/storage uploads
 lib/supabase-server.ts   ← ANON_KEY, auth checks in server components/actions
-lib/supabase-admin.ts    ← SERVICE_ROLE_KEY, imported only from Server Actions
+lib/supabase-admin-client.ts    ← SERVICE_ROLE_KEY, imported only from Server Actions
 lib/supabase.ts          ← ANON_KEY, dedicated singleton for client realtime channels
 ```
 
-`supabase-admin.ts` is a server-only module and is never included in the client bundle.
+`supabase-admin-client.ts` is a server-only module and is never included in the client bundle.
 
 **Sensitive data encryption** — highly sensitive personal data such as national ID numbers is encrypted at rest with `PII_ENCRYPTION_KEY`, and only masked values are ever shown on screen.
 
@@ -196,7 +218,8 @@ lib/supabase.ts          ← ANON_KEY, dedicated singleton for client realtime c
 | **Guest** | Ordering customer | `/display` |
 | **Staff** (user) | Cashier / kitchen worker | `/pos`, `/orders`, `/my`, `/schedule`, `/inventory` (read-only) |
 | **Manager** | On-site manager | All of the above + `/inventory` (edit), `/roster` |
-| **Admin** | Overall operations lead | All routes + `/stats`, `/hr`, `/settings` |
+| **Kiosk** | Kitchen iPad account for clocking in/out | `/attendance` only |
+| **Admin** | Overall operations lead | All routes + `/stats`, `/hr`, `/settings`, `/attendance` |
 
 All roles share the same Supabase Auth account system; permissions are distinguished solely by the `app_metadata.role` JWT claim, evaluated in one place (`lib/auth-role.ts`) by both `proxy.ts` and Server Actions. Never read the role from `user_metadata` — any logged-in user can rewrite it from the browser. The role read on the client is only used to decide what to show in the UI — actual access control is entirely enforced by `proxy.ts` and the in-action guards in Server Actions.
 
@@ -215,12 +238,15 @@ app/
 ├── display/                       # Customer display (view/order modes, no auth required)
 ├── orders/                         # Order status
 ├── my/                              # My info — edit profile, order stats, view/sign contracts
-├── schedule/                         # Worker-facing personal shift schedule view
+├── schedule/                         # Worker-facing schedule + estimated pay
+├── attendance/                        # Kitchen attendance kiosk (kiosk / admin)
+├── api/cron/attendance-alerts/        # Daily missing-clock-in digest (Vercel Cron, CRON_SECRET)
 ├── (admin)/                             # Protected by proxy.ts + layout.tsx (admin only)
 │   ├── stats/                            # Sales analytics (split into custom hooks/components)
 │   ├── settings/                          # Menu/popup management + user basics + dev tools
 │   └── hr/                                 # HR — candidate/active management, roster assignment,
-│                                             payroll settlement, contract authoring/signing/listing
+│                                             payroll settlement & deductions, labor reports (Excel/PDF),
+│                                             contract authoring/signing/listing
 └── (staff)/                               # Protected by proxy.ts + layout.tsx (admin, manager)
     ├── inventory/                          # Inventory (ingredients, stock in/out log)
     └── roster/                              # Schedule — read-only full roster view + per-date memos
@@ -235,8 +261,14 @@ components/
 └── SignaturePad.tsx                   # Canvas signature input
 
 lib/
-├── supabase-browser.ts / supabase-server.ts / supabase-admin.ts / supabase.ts
+├── supabase-browser.ts / supabase-server.ts / supabase-admin-client.ts / supabase.ts
 ├── workhours.ts                  # Pure functions for payroll/paid-hour calculation (auto break deduction)
+├── payroll-deductions.ts          # Withholding and insurance premium calculations
+├── nationalPension.ts              # Monthly national pension / health insurance eligibility
+├── insuranceReport.ts              # Labor-report rules (start date, daily average, job codes)
+├── attendance.ts                   # Clock-in/out time rules
+├── closedDays.ts                   # Pop-up closed-day rule
+├── salesCurve.ts / dayDetail.ts     # Sales curve and minute-accurate comparisons, single-day drill-down
 ├── staffing.ts                    # Roster assignment candidate filtering/sorting
 ├── tiers.ts                        # Revenue tier system definitions
 ├── discord.ts                       # Discord webhook notifications
@@ -251,7 +283,7 @@ types/
 
 ## Database schema
 
-20 tables on Supabase (PostgreSQL).
+31 tables on Supabase (PostgreSQL).
 
 ### Core domain
 
@@ -261,7 +293,10 @@ types/
 | `orders` | `id`, `total_price`, `payment_method`, `payment_status`, `cashier_name`, `is_prepared`, `popup_id`, `created_at` | KST filtering is applied at query time |
 | `order_items` | `order_id`, `menu_item_id`, `quantity`, `unit_price`, `subtotal` | Kept for FK integrity |
 | `popup_events` | `id`, `name`, `start_date`, `end_date`, `is_active` | The popup name itself doubles as the store identity |
-| `daily_sales` | `sale_date` (UNIQUE), `total_revenue`, `total_orders`, `note` | Manual sales entry |
+| `daily_sales` | `sale_date` (UNIQUE), `total_revenue`, `total_orders`, `note` | Whole-day manual sales entry |
+| `popup_daily_sales` | `popup_id`, `sale_date` (UNIQUE pair), `total_revenue`, `total_orders` | Per-pop-up correction from the store's official figures |
+| `popup_closed_days` | `popup_id`, `closed_date`, `reason` | Days a pop-up does not open (department-store holidays) |
+| `sales_daily` / `menu_sales_daily` | per date × pop-up (× menu) | POS rollups the sales functions read |
 
 ### Inventory
 
@@ -269,6 +304,7 @@ types/
 |-------|-------------|-------|
 | `ingredients` | `id`, `name`, `category`, `unit_type` (`count`\|`weight`), `sealed_count`, `opened_remaining`, `reorder_at_containers` | Dual unit: sealed containers / opened remainder |
 | `restock_events` | `id`, `ingredient_id`, `sealed_delta`, `opened_delta`, `note`, `created_by` | Manual restock log |
+| `storage_objects` / `storage_object_items` | position, size, contained ingredients | Visual storage board |
 
 ### HR, roster & payroll
 
@@ -281,6 +317,8 @@ types/
 | `roster_shift_requirements` | `work_date`, `shift_id`, `required` | Required headcount per date |
 | `roster_assignments` | `work_date`, `shift_id`, `staff_id`, `staff_role`, `popup_id`, `start_time`, `end_time`, `break_minutes` | Actual per-date assignment |
 | `contracts` | `id`, `worker_id` (FK → `staff_profiles.id`), `popup_id`, `hourly_rate`, `pdf_url`, `contract_data` (jsonb), `worker_signed_at` | Employment contract; PDF lives in a private Storage bucket |
+| `attendance_records` | `assignment_id`, `staff_id`, `work_date`, `clock_in_at`, `clock_out_at`, `planned_*`, `status` | Kiosk clock-ins; planned values kept after the assignment is overwritten |
+| `payroll_payments` / `payroll_adjustments` / `payroll_adjustment_presets` | `period_key` (`month:Y-M` / `popup:id`), `staff_id`, `label`, `amount` | Paid checkmarks, deductions/allowances, reusable presets |
 | `roster_memos` | `memo_date`, `content`, `author_name` | Per-date schedule memos |
 
 ### Operations
@@ -288,8 +326,9 @@ types/
 | Table | Key columns | Notes |
 |-------|-------------|-------|
 | `memos` | `id`, `title`, `content`, `color`, `is_pinned`, `type` (`note`\|`checklist`) | **Unused** — the memo screen was removed 2026-10-09; the table is kept until the data is confirmed disposable |
-| `pos_note` | `content`, `updated_by`, `updated_at` | POS announcement, always a single row |
-| `manual_menu_sales` / `manual_daily_menu_sales` / `manual_hourly_sales` | `popup_id`, `menu_item_id`/`hour`, `quantity`/`total_revenue` | Manual sales-correction entries per popup |
+| `pos_note` | `ydoc`, `epoch`, `content`, `updated_by` | Shared POS note (Yjs document), always a single row |
+| `admin_code_attempts` | `user_id`, attempt counters | Rate limit for the admin second code |
+| `manual_menu_sales` / `manual_daily_menu_sales` / `manual_hourly_sales` / `manual_daily_hourly_sales` | `popup_id`, (`sale_date`), `menu_item_id`/`hour`, `quantity`/`total_revenue` | Manual sales-correction entries per pop-up (whole period or per day) |
 
 **Key design decisions:**
 - `menu_items.is_active = false` — soft delete, preserves `order_items` FK integrity
@@ -316,6 +355,7 @@ cp .env.example .env
 | `SIGNUP_CODE` | Invite code required for signup | Server only |
 | `ADMIN_LOGIN_CODE` | Second code admins must enter after their password; proxy and Server Actions treat an admin as a regular user until it is entered in that session. Changing it signs every admin out of admin rights. Empty = gate off | **Server only** |
 | `PII_ENCRYPTION_KEY` | Encryption key for highly sensitive data such as national ID numbers (32 bytes, base64) | **Server only** |
+| `CRON_SECRET` | Bearer token Vercel Cron sends to `/api/cron/attendance-alerts` | **Server only** |
 | `DISCORD_WEBHOOK_URL` | Notifications for login / signup / order completion / menu reorder / role change / staff removal / password reset / action-failure alerts (optional) | Server only |
 
 To make someone an admin, use Settings → user management (it writes both `app_metadata.role` and `user_profiles.worker_role`). If you edit `user_profiles.worker_role` directly in the dashboard/SQL instead, the `user_profiles_sync_role` trigger copies it into `app_metadata.role`; either way the change takes effect on the user's next token refresh (≤ 1 hour) or re-login. Accounts created in Authentication → Users need a `user_profiles` row before they get any role.
