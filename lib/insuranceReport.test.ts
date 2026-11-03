@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { continuousStartDate, averageDailyHours } from './insuranceReport'
+import { continuousStartDate, averageDailyHours, isDefaultReportTarget } from './insuranceReport'
 
 describe('continuousStartDate', () => {
   it('이번 달에 처음 왔으면 이번 달 첫 근무일', () => {
@@ -27,5 +27,14 @@ describe('averageDailyHours', () => {
   it('0.1h 단위 반올림, 근무일 없으면 0', () => {
     expect(averageDailyHours(52, 7)).toBe(7.4)
     expect(averageDailyHours(0, 0)).toBe(0)
+  })
+})
+
+describe('isDefaultReportTarget', () => {
+  it('월 보수 50만 원 이하는 기본으로 빼고, 넘으면 넣는다', () => {
+    expect(isDefaultReportTarget(500_000)).toBe(false)
+    expect(isDefaultReportTarget(343_750)).toBe(false)
+    expect(isDefaultReportTarget(500_001)).toBe(true)
+    expect(isDefaultReportTarget(618_750)).toBe(true)
   })
 })

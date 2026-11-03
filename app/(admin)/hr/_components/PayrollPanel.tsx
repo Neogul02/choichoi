@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchMonthlyPayroll, fetchPopupPayroll, fetchPayrollSettlement, setPayrollPaid,
   fetchDefaultDeductions, addPayrollAdjustment, fetchPensionStatus, fetchInsuranceReport,
-  type PayrollRow, type PopupPayrollResult, type PayrollSettlement, type PensionRow,
+  type PayrollRow, type PopupPayrollResult, type PayrollSettlement, type PensionRow, type InsuranceReportRow,
 } from '@/app/actions/payroll'
 import { fetchPopupEvents } from '@/app/actions/schedule'
 import { fetchMissingClockIns, type MissingClockIn } from '@/app/actions/attendance'
@@ -20,6 +21,9 @@ import { DEFAULT_DEDUCTIONS, SOCIAL_INSURANCE_LABELS, quickDeductionAmount, type
 import CopyText, { copyToClipboard } from '@/components/CopyText'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal, { type PayrollPeriod } from './PayrollDetailModal'
+
+// 신고서 미리보기는 react-pdf를 끌고 오므로 버튼을 누를 때만 불러온다
+const LaborReportModal = dynamic(() => import('./LaborReportModal'), { ssr: false })
 
 interface Props {
   defaultRole: StaffRole
@@ -267,6 +271,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const [applyingDefaults, setApplyingDefaults] = useState(false)
   // 세무사에게 보내는 월별 4대보험 자료 — 역할 탭과 무관하게 그 달 일한 모든 사람(주방·캐셔 합산)
   const [exportingInsurance, setExportingInsurance] = useState<'excel' | 'pdf' | null>(null)
+  const [laborReport, setLaborReport] = useState<{ rows: InsuranceReportRow[]; y: number; m: number } | null>(null)
   const handleExportInsurance = async (kind: 'excel' | 'pdf') => {
     if (!cursor) return
     setExportingInsurance(kind)
@@ -278,8 +283,9 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
         const { downloadInsuranceExcel } = await import('./insuranceExcel')
         await downloadInsuranceExcel(res.data, cursor.y, cursor.m)
       } else {
-        const { downloadLaborReportPdf } = await import('./laborReportPdf')
-        await downloadLaborReportPdf(res.data, cursor.y, cursor.m)
+        // 바로 내려받지 않고 미리보기 창에서 넣을 사람을 고른다(월 보수 50만 원 이하는 처음부터 빠져 있다)
+        setLaborReport({ rows: res.data, y: cursor.y, m: cursor.m })
+        return
       }
       const missing = res.data.filter(r => !r.residentId).length
       if (missing > 0) showMsg(`주민번호 미등록 ${missing}명은 '(미등록)'으로 표시됐어요`)
@@ -459,7 +465,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                 title="고용·산재 근로내용 확인신고서(일용근로자용) 서식 그대로 — 한 장에 4명, 그 달 일한 모든 직원(주민번호 포함)"
                 className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {exportingInsurance === 'pdf' ? '만드는 중…' : '근로내용 확인신고서(PDF)'}
+                {exportingInsurance === 'pdf' ? '불러오는 중…' : '근로내용 확인신고서(PDF)'}
               </button>
             </>
           )}
@@ -657,6 +663,10 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
         onConfirm={handleRetire}
         onClose={() => setRetireTarget(null)}
       />
+
+      {laborReport && (
+        <LaborReportModal rows={laborReport.rows} year={laborReport.y} month={laborReport.m} onClose={() => setLaborReport(null)} />
+      )}
 
       {detailTarget && detailPeriod && periodKey && (
         <PayrollDetailModal

@@ -36,3 +36,11 @@ export function continuousStartDate(dates: string[], reportMonth: string): strin
 export function averageDailyHours(hours: number, days: number): number {
   return days > 0 ? Math.round((hours / days) * 10) / 10 : 0
 }
+
+/** 근로내용 확인신고서에 기본으로 넣는 기준 — 월 보수 50만 원 이하는 신고하지 않아 왔다(관리자 확인, 2026-11-03) */
+export const LABOR_REPORT_MIN_PAY = 500_000
+
+/** 미리보기 창이 처음 체크해 두는 사람 — 월 보수가 50만 원을 넘는 사람 */
+export function isDefaultReportTarget(pay: number): boolean {
+  return pay > LABOR_REPORT_MIN_PAY
+}

@@ -11,6 +11,9 @@ import { formatPhoneNumber } from '@/lib/utils'
 const LEAVE_REASON_CODE = '1'
 const PER_PAGE = 4
 
+/** '일평균 근로시간' 칸에 쓸 값 — 서식 이름대로 하루 평균, 또는 그동안 써 온 총 시간 */
+export type LaborHoursMode = 'average' | 'total'
+
 // 폭 — 본문 506pt = 왼쪽 항목칸 85 + 근로자 4명 × 105.25
 const W = 506
 const LABEL = 85
@@ -61,7 +64,7 @@ const formatRrn = (rrn: string | null) => {
 }
 const won = (n: number) => `${n.toLocaleString('ko-KR')} 원`
 
-function FormPage({ workers, year, month, reportDate }: { workers: (InsuranceReportRow | null)[]; year: number; month: number; reportDate: string }) {
+function FormPage({ workers, year, month, reportDate, hoursMode }: { workers: (InsuranceReportRow | null)[]; year: number; month: number; reportDate: string; hoursMode: LaborHoursMode }) {
   const [ry, rm, rd] = reportDate.split('-').map(Number)
   const lastDay = new Date(year, month + 1, 0).getDate()
   const dayGroups = [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15], [16, 17, 18, 19, 20], [21, 22, 23, 24, 25], [26, 27, 28, 29, 30]]
@@ -182,7 +185,7 @@ function FormPage({ workers, year, month, reportDate }: { workers: (InsuranceRep
         {workers.map((w, i) => (
           <View key={i} style={[s.cell, { width: COL, flexDirection: 'row', paddingHorizontal: 0 }, i === PER_PAGE - 1 ? { borderRightWidth: 0 } : {}]}>
             <View style={{ width: 40, borderRightWidth: B, borderColor: LINE, height: '100%', justifyContent: 'center', alignItems: 'center' }}><Text>{w ? `${w.days} 일` : ''}</Text></View>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>{w ? `${w.avgDailyHours} h` : ''}</Text></View>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>{w ? `${hoursMode === 'total' ? w.hours : w.avgDailyHours} h` : ''}</Text></View>
           </View>
         ))}
       </View>
@@ -252,12 +255,13 @@ function FormPage({ workers, year, month, reportDate }: { workers: (InsuranceRep
   )
 }
 
-export default function LaborReportDocument({ rows, year, month, reportDate }: {
+export default function LaborReportDocument({ rows, year, month, reportDate, hoursMode = 'average' }: {
   rows: InsuranceReportRow[]
   year: number
   month: number // 0-indexed
   /** 신고일(YYYY-MM-DD) — 서식 아래 날짜 */
   reportDate: string
+  hoursMode?: LaborHoursMode
 }) {
   const pages: (InsuranceReportRow | null)[][] = []
   for (let i = 0; i < Math.max(rows.length, 1); i += PER_PAGE) {
@@ -267,7 +271,7 @@ export default function LaborReportDocument({ rows, year, month, reportDate }: {
   }
   return (
     <Document title={`근로내용 확인신고서(일용근로자용) ${year}년 ${month + 1}월분`}>
-      {pages.map((workers, i) => <FormPage key={i} workers={workers} year={year} month={month} reportDate={reportDate} />)}
+      {pages.map((workers, i) => <FormPage key={i} workers={workers} year={year} month={month} reportDate={reportDate} hoursMode={hoursMode} />)}
     </Document>
   )
 }
