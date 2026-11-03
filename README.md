@@ -36,18 +36,28 @@ It covers the full back-office workload a pop-up store operation needs in one sy
     <td align="center"><b>Order status</b><br/><img src="public/screenshots/orders.png" alt="Order status" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Sales analytics — today, per-menu, per-hour</b><br/><img src="public/screenshots/stats_1.png" alt="Stats 1" width="100%"/></td>
-    <td align="center"><b>Sales analytics — order history, monthly calendar</b><br/><img src="public/screenshots/stats_2.png" alt="Stats 2" width="100%"/></td>
+    <td align="center"><b>Sales analytics — today vs. yesterday / last week</b><br/><img src="public/screenshots/stats_1.png" alt="Stats today" width="100%"/></td>
+    <td align="center"><b>Sales analytics — per-pop-up analysis</b><br/><img src="public/screenshots/stats_2.png" alt="Stats per pop-up" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Sales analytics — per-popup breakdown & settlement</b><br/><img src="public/screenshots/stats_3.png" alt="Stats 3" width="100%"/></td>
-    <td align="center"><b>Schedule — per-part roster assignment</b><br/><img src="public/screenshots/schedule.png" alt="Schedule" width="100%"/></td>
+    <td align="center"><b>Sales analytics — single-day drill-down</b><br/><img src="public/screenshots/stats_3.png" alt="Stats day detail" width="100%"/></td>
+    <td align="center"><b>HR — per-part roster assignment</b><br/><img src="public/screenshots/schedule.png" alt="Roster" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Inventory — ingredient stock in/out</b><br/><img src="public/screenshots/inventory.png" alt="Inventory" width="100%"/></td>
-    <td align="center"><b>Settings — menu CRUD, popup management</b><br/><img src="public/screenshots/settings.png" alt="Settings" width="100%"/></td>
+    <td align="center"><b>Payroll — deductions & pension/health eligibility</b><br/><img src="public/screenshots/payroll.png" alt="Payroll" width="100%"/></td>
+    <td align="center"><b>Attendance kiosk</b><br/><img src="public/screenshots/attendance.png" alt="Attendance" width="100%"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Worker schedule — estimated pay</b><br/><img src="public/screenshots/worker_schedule.png" alt="Worker schedule" width="100%"/></td>
+    <td align="center"><b>Inventory — visual storage board</b><br/><img src="public/screenshots/inventory.png" alt="Inventory" width="100%"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Settings — menu CRUD, pop-up management</b><br/><img src="public/screenshots/settings.png" alt="Settings" width="100%"/></td>
+    <td></td>
   </tr>
 </table>
+
+> Staff names, phone numbers, national ID numbers and bank accounts in the screenshots are replaced with fake values.
 
 ---
 
