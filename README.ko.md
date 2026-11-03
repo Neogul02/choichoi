@@ -36,18 +36,28 @@
     <td align="center"><b>주문 현황</b><br/><img src="public/screenshots/orders.png" alt="주문현황" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>매출 통계 — 오늘·메뉴별·시간대별</b><br/><img src="public/screenshots/stats_1.png" alt="통계1" width="100%"/></td>
-    <td align="center"><b>매출 통계 — 주문 내역·월간 캘린더</b><br/><img src="public/screenshots/stats_2.png" alt="통계2" width="100%"/></td>
+    <td align="center"><b>매출 통계 — 오늘 vs 어제·지난주</b><br/><img src="public/screenshots/stats_1.png" alt="통계 오늘" width="100%"/></td>
+    <td align="center"><b>매출 통계 — 팝업별 분석</b><br/><img src="public/screenshots/stats_2.png" alt="통계 팝업별" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>매출 통계 — 팝업별 분석·정산</b><br/><img src="public/screenshots/stats_3.png" alt="통계3" width="100%"/></td>
-    <td align="center"><b>일정표 — 파트별 로스터 배정</b><br/><img src="public/screenshots/schedule.png" alt="일정" width="100%"/></td>
+    <td align="center"><b>매출 통계 — 날짜별 상세</b><br/><img src="public/screenshots/stats_3.png" alt="통계 날짜별 상세" width="100%"/></td>
+    <td align="center"><b>인사 — 파트별 로스터 배정</b><br/><img src="public/screenshots/schedule.png" alt="근무표" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>재고관리 — 식재료 입출고</b><br/><img src="public/screenshots/inventory.png" alt="재고" width="100%"/></td>
+    <td align="center"><b>급여정산 — 공제·국민연금/건강보험 판정</b><br/><img src="public/screenshots/payroll.png" alt="급여정산" width="100%"/></td>
+    <td align="center"><b>출근부(키오스크)</b><br/><img src="public/screenshots/attendance.png" alt="출근부" width="100%"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>근무자 스케줄 — 이달 예상 급여</b><br/><img src="public/screenshots/worker_schedule.png" alt="근무자 스케줄" width="100%"/></td>
+    <td align="center"><b>재고 — 비주얼 보관함</b><br/><img src="public/screenshots/inventory.png" alt="재고" width="100%"/></td>
+  </tr>
+  <tr>
     <td align="center"><b>설정 — 메뉴 CRUD·팝업 관리</b><br/><img src="public/screenshots/settings.png" alt="설정" width="100%"/></td>
+    <td></td>
   </tr>
 </table>
+
+> 스크린샷의 직원 이름·전화번호·주민등록번호·계좌번호는 가짜 값으로 바꿔 찍었습니다.
 
 ---
 
