@@ -28,8 +28,8 @@ interface Props {
   onClose: () => void
 }
 
-// 이름·주민번호·전화로 한 사람을 가린다(같은 이름이 둘이어도 구분)
-const keyOf = (r: InsuranceReportRow) => `${r.name}|${r.residentId ?? ''}|${r.phone ?? ''}`
+// 서버의 사람 묶음 키(계정 → 전화 → 프로필) — 이름이 같고 전화·주민번호가 없는 두 사람도 다르게 가린다
+const keyOf = (r: InsuranceReportRow) => r.key
 
 export default function InsuranceExportModal({ kind, rows, year, month, onClose }: Props) {
   useBodyScrollLock()
