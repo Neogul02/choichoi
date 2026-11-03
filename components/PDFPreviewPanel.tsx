@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { usePDF } from '@react-pdf/renderer'
 import { ContractDocument } from './ContractDocument'
 import type { ContractData } from './ContractDocument'
@@ -72,20 +72,18 @@ function PdfCanvasView({ url }: { url: string }) {
 }
 
 // usePDF는 클라이언트에서만 동작 — PDFRenderer를 분리해 마운트 후 렌더
-function PDFRenderer({ contractData }: Props) {
-  const [instance, updateInstance] = usePDF({
-    document: <ContractDocument {...contractData} />,
-  })
+function PDFRenderer({ document, title }: { document: ReactElement; title: string }) {
+  const [instance, updateInstance] = usePDF({ document })
   const [displayUrl, setDisplayUrl] = useState<string | null>(null)
   const [useNativeViewer, setUseNativeViewer] = useState(true)
 
   useEffect(() => { setUseNativeViewer(canUseNativePdfViewer()) }, [])
 
-  // contractData 레퍼런스가 바뀔 때마다 재렌더 (부모에서 debounce로 빈도 제어)
+  // document 레퍼런스가 바뀔 때마다 재렌더 (부모에서 debounce·memo로 빈도 제어)
   useEffect(() => {
-    updateInstance(<ContractDocument {...contractData} />)
+    updateInstance(document)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contractData])
+  }, [document])
 
   // 로딩 완료 시에만 displayUrl 교체 → 기존 뷰 유지하다가 조용히 교체
   useEffect(() => {
@@ -109,7 +107,7 @@ function PDFRenderer({ contractData }: Props) {
         <iframe
           src={displayUrl}
           className='w-full h-full border-none'
-          title='근로계약서 미리보기'
+          title={title}
         />
       ) : (
         <PdfCanvasView url={displayUrl} />
@@ -129,7 +127,8 @@ function PDFRenderer({ contractData }: Props) {
   )
 }
 
-export default function PDFPreviewPanel({ contractData }: Props) {
+/** 아무 react-pdf 문서나 미리 보여준다 — document가 바뀔 때마다 다시 그리므로 부모가 memo·debounce한다 */
+export function PdfPreview({ document, title }: { document: ReactElement; title: string }) {
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => { setIsMounted(true) }, [])
 
@@ -141,5 +140,10 @@ export default function PDFPreviewPanel({ contractData }: Props) {
     )
   }
 
-  return <PDFRenderer contractData={contractData} />
+  return <PDFRenderer document={document} title={title} />
+}
+
+export default function PDFPreviewPanel({ contractData }: Props) {
+  const document = useMemo(() => <ContractDocument {...contractData} />, [contractData])
+  return <PdfPreview document={document} title='근로계약서 미리보기' />
 }
