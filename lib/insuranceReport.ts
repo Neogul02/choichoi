@@ -44,3 +44,18 @@ export const LABOR_REPORT_MIN_PAY = 500_000
 export function isDefaultReportTarget(pay: number): boolean {
   return pay > LABOR_REPORT_MIN_PAY
 }
+
+/** 주민등록번호를 'YYMMDD-NNNNNNN'으로 — 13자리가 아니면(외국인 번호 등) 받은 그대로 */
+export function formatResidentId(rrn: string | null): string {
+  if (!rrn) return ''
+  const d = rrn.replace(/\D/g, '')
+  return d.length === 13 ? `${d.slice(0, 6)}-${d.slice(6)}` : rrn
+}
+
+/** 주방 먼저, 그다음 캐셔 — 각 묶음 안은 받은 순서 그대로(이름순) */
+export const REPORT_ROLE_ORDER = ['kitchen', 'cashier'] as const
+export const REPORT_ROLE_LABEL: Record<(typeof REPORT_ROLE_ORDER)[number], string> = { kitchen: '주방', cashier: '캐셔' }
+
+export function groupByRole<T extends { staffRole: 'kitchen' | 'cashier' }>(rows: T[]): { role: 'kitchen' | 'cashier'; rows: T[] }[] {
+  return REPORT_ROLE_ORDER.map(role => ({ role, rows: rows.filter(r => r.staffRole === role) })).filter(g => g.rows.length > 0)
+}

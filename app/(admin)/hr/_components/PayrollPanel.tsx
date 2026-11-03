@@ -22,8 +22,8 @@ import CopyText, { copyToClipboard } from '@/components/CopyText'
 import { ROLE_LABELS } from './constants'
 import PayrollDetailModal, { type PayrollPeriod } from './PayrollDetailModal'
 
-// 신고서 미리보기는 react-pdf를 끌고 오므로 버튼을 누를 때만 불러온다
-const LaborReportModal = dynamic(() => import('./LaborReportModal'), { ssr: false })
+// 근로 자료 미리보기 창은 react-pdf·exceljs를 끌고 오므로 버튼을 누를 때만 불러온다
+const InsuranceExportModal = dynamic(() => import('./InsuranceExportModal'), { ssr: false })
 
 interface Props {
   defaultRole: StaffRole
@@ -271,7 +271,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
   const [applyingDefaults, setApplyingDefaults] = useState(false)
   // 세무사에게 보내는 월별 4대보험 자료 — 역할 탭과 무관하게 그 달 일한 모든 사람(주방·캐셔 합산)
   const [exportingInsurance, setExportingInsurance] = useState<'excel' | 'pdf' | null>(null)
-  const [laborReport, setLaborReport] = useState<{ rows: InsuranceReportRow[]; y: number; m: number } | null>(null)
+  const [exportTarget, setExportTarget] = useState<{ kind: 'excel' | 'pdf'; rows: InsuranceReportRow[]; y: number; m: number } | null>(null)
   const handleExportInsurance = async (kind: 'excel' | 'pdf') => {
     if (!cursor) return
     setExportingInsurance(kind)
@@ -279,18 +279,10 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
       const res = await fetchInsuranceReport(cursor.y, cursor.m)
       if (!res.success || !res.data) { showMsg(`오류: ${res.error}`); return }
       if (res.data.length === 0) { showMsg('이 달 근무 기록이 없습니다'); return }
-      if (kind === 'excel') {
-        const { downloadInsuranceExcel } = await import('./insuranceExcel')
-        await downloadInsuranceExcel(res.data, cursor.y, cursor.m)
-      } else {
-        // 바로 내려받지 않고 미리보기 창에서 넣을 사람을 고른다(월 보수 50만 원 이하는 처음부터 빠져 있다)
-        setLaborReport({ rows: res.data, y: cursor.y, m: cursor.m })
-        return
-      }
-      const missing = res.data.filter(r => !r.residentId).length
-      if (missing > 0) showMsg(`주민번호 미등록 ${missing}명은 '(미등록)'으로 표시됐어요`)
+      // 바로 내려받지 않고 미리보기 창에서 넣을 사람을 고른다(월 보수 50만 원 이하는 처음부터 빠져 있다)
+      setExportTarget({ kind, rows: res.data, y: cursor.y, m: cursor.m })
     } catch (e) {
-      showMsg(`엑셀을 만들지 못했습니다: ${e instanceof Error ? e.message : String(e)}`)
+      showMsg(`근로 자료를 불러오지 못했습니다: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setExportingInsurance(null)
     }
@@ -457,7 +449,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                 title="세무사 전달용 — 그 달 일한 모든 직원(주방·캐셔)의 1~31일 근무 표시, 근로일수·시간·보수, 국민연금·건강보험 가입 대상 명단(주민번호 포함)"
                 className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {exportingInsurance === 'excel' ? '만드는 중…' : '4대보험 자료(엑셀)'}
+                {exportingInsurance === 'excel' ? '불러오는 중…' : '4대보험 자료(엑셀)'}
               </button>
               <button
                 onClick={() => handleExportInsurance('pdf')}
@@ -664,8 +656,8 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
         onClose={() => setRetireTarget(null)}
       />
 
-      {laborReport && (
-        <LaborReportModal rows={laborReport.rows} year={laborReport.y} month={laborReport.m} onClose={() => setLaborReport(null)} />
+      {exportTarget && (
+        <InsuranceExportModal kind={exportTarget.kind} rows={exportTarget.rows} year={exportTarget.y} month={exportTarget.m} onClose={() => setExportTarget(null)} />
       )}
 
       {detailTarget && detailPeriod && periodKey && (
