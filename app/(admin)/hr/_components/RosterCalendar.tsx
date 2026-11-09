@@ -63,14 +63,36 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
       return { staffRole: 'cashier', popupId: (ongoing ?? popups[0]).id };
     });
   }, [roleFilter, popups]);
-  // 뷰 상태(월 커서·월/주 토글·범위 필터·선택 날짜 + localStorage 동기화)
+  // 팝업 기간 뷰 — 캐셔 개별 보기는 그 팝업으로 고정, 주방·캐셔 전체는 목록에서 고른다(기본: 진행 중 → 다음 예정)
+  const periodOptions = useMemo(
+    () => [...popups].sort((a, b) => a.start_date.localeCompare(b.start_date) || a.id - b.id),
+    [popups],
+  );
+  const [pickedPeriodPopupId, setPickedPeriodPopupId] = useState<number | null>(null);
+  const periodLocked = unit.staffRole === 'cashier' && !isAllPopups(unit);
+  const periodPopup = useMemo(() => {
+    if (periodLocked) return periodOptions.find(p => p.id === unit.popupId) ?? null;
+    const picked = periodOptions.find(p => p.id === pickedPeriodPopupId);
+    if (picked) return picked;
+    const today = kstToday();
+    return pickOngoingPopup(periodOptions, today)
+      ?? periodOptions.find(p => p.start_date > today)
+      ?? periodOptions[periodOptions.length - 1]
+      ?? null;
+  }, [periodLocked, periodOptions, unit.popupId, pickedPeriodPopupId]);
+  const period = useMemo(
+    () => (periodPopup ? { from: periodPopup.start_date, to: periodPopup.end_date } : null),
+    [periodPopup],
+  );
+
+  // 뷰 상태(월 커서·월/주/기간 토글·범위 필터·선택 날짜 + localStorage 동기화)
   const {
-    cursor, setCursor, todayStr, viewMode, weekStart, setWeekStart,
+    cursor, setCursor, todayStr, viewMode, isPeriod, weekStart, setWeekStart,
     selectedDate, setSelectedDate,
     resetOnCursorChange, weekEndStr, loadFrom, loadTo,
     gridDates, visibleDates, targetFrom, targetTo, targetLabel,
     syncCursorToDate, moveWeek, switchView,
-  } = useRosterView();
+  } = useRosterView(period);
 
   // 데이터(파트·배정·요구 인원) 로딩 + 단건 변경
   const {
@@ -398,6 +420,11 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
 
         <CalendarToolbar
           viewMode={viewMode}
+          isPeriod={isPeriod}
+          periodOptions={periodOptions}
+          periodPopup={periodPopup}
+          periodLocked={periodLocked}
+          onPeriodPopupChange={setPickedPeriodPopupId}
           cursor={cursor}
           weekStart={weekStart}
           weekEndStr={weekEndStr}
@@ -447,6 +474,7 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
         ) : (
           <MonthGrid
             gridDates={gridDates}
+            showMonthOnBoundary={isPeriod}
             todayStr={todayStr}
             selectedDate={selectedDate}
             shifts={visibleShifts}

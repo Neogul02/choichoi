@@ -5,6 +5,7 @@ import type { Workbook } from 'exceljs'
 import type { InsuranceReportRow } from '@/app/actions/payroll'
 import { BUSINESS_INFO, formatResidentId, groupByRole, REPORT_ROLE_LABEL } from '@/lib/insuranceReport'
 import { DAY_NAMES } from '@/lib/staffing'
+import { pensionReportDeadline } from '@/lib/nationalPension'
 import { formatPhoneNumber } from '@/lib/utils'
 
 /** 신고서에 써 온 이직사유 코드 — 일용근로라 매달 '1' */
@@ -88,7 +89,8 @@ export async function downloadInsuranceExcel(rows: InsuranceReportRow[], year: n
 
   // ── 국민연금·건강보험 가입 대상 ───────────────────────────────────────────
   const ws2 = wb.addWorksheet('4대보험 가입대상')
-  ws2.addRow([`국민연금·건강보험 가입 대상 — ${label} (자격취득신고 기한 ${month === 11 ? year + 1 : year}년 ${month === 11 ? 1 : month + 2}월 15일)`]).font = { bold: true, size: 14 }
+  const [dy, dm, dd] = pensionReportDeadline(year, month).split('-').map(Number)
+  ws2.addRow([`국민연금·건강보험 가입 대상 — ${label} (자격취득신고 기한 ${dy}년 ${dm}월 ${dd}일)`]).font = { bold: true, size: 14 }
   ws2.addRow(['판정: 한 달에 근무 8일 이상·유급 60시간 이상·세전 220만 원 이상 중 하나, 단 전 달부터 이어서 근무한 경우'])
   ws2.addRow([])
   const h2 = ws2.addRow(['번호', '구분', '성명', '주민등록번호', '입사일', '월 보수(세전)', '월 근로시간', '근로일수', '전화번호', '판정 근거'])

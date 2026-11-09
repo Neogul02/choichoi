@@ -8,6 +8,8 @@ import DayCell from './DayCell';
 interface Props {
   /** 달력 셀 날짜 목록 — null은 빈 칸 (주 시작 패딩 등) */
   gridDates: (string | null)[];
+  /** 기간 뷰 — 달을 넘어가므로 첫 칸과 매월 1일에 월을 붙인다 */
+  showMonthOnBoundary?: boolean;
   todayStr: string;
   selectedDate: string | null;
   shifts: RosterShift[];
@@ -31,7 +33,7 @@ interface Props {
  * 그리드와 무관한 상태 변화가 35~42개 셀 전체를 다시 그리지 않도록 한다.
  */
 function MonthGrid({
-  gridDates, todayStr, selectedDate, shifts, getAssigned, getRequired, getShiftLabel, getDayTint, violationDates, getClosedLabel, onSelectDate, onDropStaff,
+  gridDates, showMonthOnBoundary = false, todayStr, selectedDate, shifts, getAssigned, getRequired, getShiftLabel, getDayTint, violationDates, getClosedLabel, onSelectDate, onDropStaff,
 }: Props) {
   return (
     <div className="grid grid-cols-7 gap-1">
@@ -42,11 +44,13 @@ function MonthGrid({
       ))}
       {gridDates.map((dateStr, i) => {
         if (!dateStr) return <div key={`empty-${i}`} />;
+        const dayNum = Number(dateStr.slice(8));
+        const withMonth = showMonthOnBoundary && (dayNum === 1 || gridDates[i - 1] == null);
         return (
           <DayCell
             key={dateStr}
             dateStr={dateStr}
-            dayNum={Number(dateStr.slice(8))}
+            dayLabel={withMonth ? `${Number(dateStr.slice(5, 7))}/${dayNum}` : String(dayNum)}
             day={i % 7}
             isToday={dateStr === todayStr}
             isSelected={dateStr === selectedDate}
