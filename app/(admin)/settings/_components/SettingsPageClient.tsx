@@ -23,14 +23,44 @@ type ColorOption = { name: string; value: string };
 
 const COLOR_PALETTE: ColorOption[] = [
   { name: '빨강', value: '#E53935' },
+  { name: '다홍', value: '#F4511E' },
   { name: '주황', value: '#FB8C00' },
   { name: '노랑', value: '#FDD835' },
+  { name: '연두', value: '#C0CA33' },
   { name: '초록', value: '#7CB342' },
+  { name: '진초록', value: '#2E7D32' },
+  { name: '민트', value: '#26A69A' },
   { name: '하늘', value: '#00ACC1' },
   { name: '파랑', value: '#1E88E5' },
   { name: '남색', value: '#3949AB' },
   { name: '보라', value: '#8E24AA' },
+  { name: '분홍', value: '#EC407A' },
+  { name: '갈색', value: '#8D6E63' },
+  { name: '베이지', value: '#D7B98E' },
+  { name: '회색', value: '#78909C' },
+  { name: '검정', value: '#37474F' },
 ];
+
+/** 팔레트 + 직접 고르기(커스텀 색) */
+function ColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  const isCustom = !COLOR_PALETTE.some(c => c.value.toLowerCase() === value.toLowerCase());
+  return (
+    <div className="flex flex-1 min-w-0 flex-wrap items-center gap-1.5">
+      {COLOR_PALETTE.map(c => (
+        <button key={c.value} type="button" title={c.name}
+          onClick={() => onChange(c.value)}
+          className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-all ${value.toLowerCase() === c.value.toLowerCase() ? 'border-ink scale-110' : 'border-transparent'}`}
+          style={{ backgroundColor: c.value }} aria-label={c.name} />
+      ))}
+      <label title="직접 고르기"
+        className={`relative w-6 h-6 rounded-full border-2 cursor-pointer overflow-hidden transition-all ${isCustom ? 'border-ink scale-110' : 'border-hairline'}`}
+        style={isCustom ? { backgroundColor: value } : { background: 'conic-gradient(#E53935, #FDD835, #7CB342, #00ACC1, #3949AB, #8E24AA, #E53935)' }}>
+        <input type="color" value={value} onChange={e => onChange(e.target.value.toUpperCase())}
+          className="absolute inset-0 opacity-0 cursor-pointer" aria-label="직접 색 고르기" />
+      </label>
+    </div>
+  )
+}
 
 const INITIAL_ADD = { name: '', price: '', color: COLOR_PALETTE[0].value, emoji: '', isDiscount: false };
 
@@ -94,7 +124,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
       [item.id]: {
         name: item.name,
         price: String(Math.abs(item.price)),
-        color: COLOR_PALETTE.some(c => c.value === item.color) ? item.color : COLOR_PALETTE[0].value,
+        color: /^#[0-9A-Fa-f]{6}$/.test(item.color) ? item.color : COLOR_PALETTE[0].value,
         emoji: item.emoji ?? '',
         isDiscount: item.price < 0,
       },
@@ -250,14 +280,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                     할인 메뉴로 등록
                   </label>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex gap-1.5">
-                      {COLOR_PALETTE.map(c => (
-                        <button key={c.value} type="button"
-                          onClick={() => setAddForm(p => ({ ...p, color: c.value }))}
-                          className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-all ${addForm.color === c.value ? 'border-ink scale-110' : 'border-transparent'}`}
-                          style={{ backgroundColor: c.value }} aria-label={c.name} />
-                      ))}
-                    </div>
+                    <ColorPicker value={addForm.color} onChange={color => setAddForm(p => ({ ...p, color }))} />
                     <button type="submit" disabled={isAdding}
                       className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
                       {isAdding ? '추가 중...' : '추가'}
@@ -327,14 +350,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                               할인 메뉴로 등록
                             </label>
                             <div className="flex items-center justify-between gap-3">
-                              <div className="flex gap-1.5">
-                                {COLOR_PALETTE.map(c => (
-                                  <button key={c.value} type="button"
-                                    onClick={() => setInlineEdits(p => ({ ...p, [item.id]: { ...p[item.id], color: c.value } }))}
-                                    className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-all ${draft.color === c.value ? 'border-ink scale-110' : 'border-transparent'}`}
-                                    style={{ backgroundColor: c.value }} aria-label={c.name} />
-                                ))}
-                              </div>
+                              <ColorPicker value={draft.color} onChange={color => setInlineEdits(p => ({ ...p, [item.id]: { ...p[item.id], color } }))} />
                               <div className="flex gap-1.5">
                                 <button type="button" onClick={() => cancelEdit(item.id)} disabled={isSaving}
                                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-hairline bg-canvas text-ink-muted hover:bg-canvas-soft cursor-pointer disabled:opacity-50 transition-colors">
