@@ -61,3 +61,18 @@ export const monthEndDateStr = (y: number, m: number): string => {
 export const prevDate = (s: string): string => addDays(s, -1)
 
 export const dayOfWeek = (s: string): number => parseDate(s).getDay()
+
+/**
+ * 기간(시작~종료) 입력에서 시작일을 바꿨을 때의 종료일 — 비어 있거나 시작보다 앞서면 같은 날로 맞춘다.
+ * 달력 입력이 엉뚱한 달(오늘)에서 열리지 않고 시작일과 같은 달·같은 날에서 열리게 하려는 것.
+ */
+export function syncRangeEnd(from: string, to: string): string {
+  if (!from) return to;
+  return !to || to < from ? from : to;
+}
+
+/** 종료일을 바꿨을 때의 시작일 — 비어 있거나 종료보다 늦으면 같은 날로 맞춘다 */
+export function syncRangeStart(from: string, to: string): string {
+  if (!to) return from;
+  return !from || from > to ? to : from;
+}

@@ -1,5 +1,7 @@
 'use client';
 
+import { syncRangeEnd, syncRangeStart } from '@/lib/date';
+
 import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { showMsg } from '@/lib/toast';
@@ -267,13 +269,13 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
             <div className="flex items-center gap-1.5">
               <input
                 type="date" value={from} min={monthStart} max={to || monthEnd}
-                onChange={e => setFrom(e.target.value)}
+                onChange={e => { const v = e.target.value; setFrom(v); setTo(t => syncRangeEnd(v, t)); }}
                 className={`${inputCls} flex-1 min-w-0`}
               />
               <span className="text-ink-faint text-[12px] shrink-0">~</span>
               <input
                 type="date" value={to} min={from || monthStart} max={monthEnd}
-                onChange={e => setTo(e.target.value)}
+                onChange={e => { const v = e.target.value; setTo(v); setFrom(f => syncRangeStart(f, v)); }}
                 className={`${inputCls} flex-1 min-w-0`}
               />
             </div>

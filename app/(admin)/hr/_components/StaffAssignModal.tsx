@@ -11,7 +11,7 @@ import { buildClosedDayIndex, isClosedDay, type ClosedDayIndex } from '@/lib/clo
 import type { RosterUnit } from '@/app/actions/roster'
 import type { StaffProfile, RosterShift, PopupEvent } from '@/types/database'
 import { DAY_NAMES as DAY_LABELS, pickOngoingPopup } from '@/lib/staffing'
-import { kstToday } from '@/lib/date'
+import { kstToday, syncRangeEnd, syncRangeStart } from '@/lib/date'
 import { getPopupPeriod } from '@/lib/popupPeriod'
 
 interface Props {
@@ -226,7 +226,7 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
               <input
                 type="date"
                 value={fromDate}
-                onChange={e => setFromDate(e.target.value)}
+                onChange={e => { const v = e.target.value; setFromDate(v); setToDate(t => syncRangeEnd(v, t)); }}
                 className="flex-1 px-3 py-2 border border-hairline rounded-lg text-[12px] bg-canvas focus:outline-none focus:border-primary-700"
               />
               <span className="text-ink-faint text-[12px]">~</span>
@@ -234,7 +234,7 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
                 type="date"
                 value={toDate}
                 min={fromDate}
-                onChange={e => setToDate(e.target.value)}
+                onChange={e => { const v = e.target.value; setToDate(v); setFromDate(f => syncRangeStart(f, v)); }}
                 className="flex-1 px-3 py-2 border border-hairline rounded-lg text-[12px] bg-canvas focus:outline-none focus:border-primary-700"
               />
             </div>
