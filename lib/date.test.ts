@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, monthEndDateStr, kstToday, getKSTDateBounds, utcToKst, utcToKstDateStr } from './date'
+import { parseDate, toDateStr, ymdToDateStr, addDays, prevDate, dayOfWeek, monthEndDateStr, kstToday, getKSTDateBounds, utcToKst, utcToKstDateStr, syncRangeEnd, syncRangeStart } from './date'
 
 describe('addDays / prevDate', () => {
   it('월 경계를 넘는다', () => {
@@ -93,5 +93,20 @@ describe('utcToKst / utcToKstDateStr', () => {
   it('자정 부근 UTC 시각은 KST에서 날짜가 넘어간다', () => {
     expect(utcToKstDateStr('2026-08-02T15:00:00Z')).toBe('2026-08-03')
     expect(utcToKstDateStr('2026-08-02T14:59:59Z')).toBe('2026-08-02')
+  })
+})
+
+describe('syncRangeEnd / syncRangeStart', () => {
+  it('시작일을 고르면 비었거나 앞선 종료일을 같은 날로 맞춘다', () => {
+    expect(syncRangeEnd('2026-11-13', '')).toBe('2026-11-13')
+    expect(syncRangeEnd('2026-11-13', '2026-11-01')).toBe('2026-11-13')
+    expect(syncRangeEnd('2026-11-13', '2026-12-03')).toBe('2026-12-03')
+    expect(syncRangeEnd('', '2026-12-03')).toBe('2026-12-03')
+  })
+  it('종료일을 고르면 비었거나 늦은 시작일을 같은 날로 맞춘다', () => {
+    expect(syncRangeStart('', '2026-12-03')).toBe('2026-12-03')
+    expect(syncRangeStart('2026-12-10', '2026-12-03')).toBe('2026-12-03')
+    expect(syncRangeStart('2026-11-13', '2026-12-03')).toBe('2026-11-13')
+    expect(syncRangeStart('2026-11-13', '')).toBe('2026-11-13')
   })
 })

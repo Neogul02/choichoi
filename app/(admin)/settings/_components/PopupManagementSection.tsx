@@ -1,5 +1,7 @@
 'use client';
 
+import { syncRangeEnd, syncRangeStart } from '@/lib/date';
+
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -146,11 +148,11 @@ export default function PopupManagementSection() {
             <label className={labelCls}>
               시작일 {startWeekday && <span className="text-primary-700">({startWeekday}요일)</span>}
             </label>
-            <input type="date" value={form.startDate} onChange={e => onChange({ startDate: e.target.value })} className={inputCls} />
+            <input type="date" value={form.startDate} onChange={e => onChange({ startDate: e.target.value, endDate: syncRangeEnd(e.target.value, form.endDate) })} className={inputCls} />
           </div>
           <div className="flex-1 flex flex-col gap-0.5">
             <label className={labelCls}>종료일</label>
-            <input type="date" value={form.endDate} onChange={e => onChange({ endDate: e.target.value })} className={inputCls} />
+            <input type="date" value={form.endDate} onChange={e => onChange({ endDate: e.target.value, startDate: syncRangeStart(form.startDate, e.target.value) })} className={inputCls} />
           </div>
         </div>
       </>

@@ -7,7 +7,7 @@ import { WeeklyRosterDocument } from './WeeklyRosterDocument'
 import { fetchWeeklyRosterForPrint } from '@/app/actions/roster'
 import type { WeeklyRosterEntry } from '@/app/actions/roster'
 import { showMsg } from '@/lib/toast'
-import { toDateStr, addDays } from '@/lib/date'
+import { toDateStr, addDays, syncRangeEnd, syncRangeStart } from '@/lib/date'
 import { DAY_NAMES as DAY_KR } from '@/lib/staffing'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
@@ -90,8 +90,8 @@ export default function RosterPrintModal({ onClose }: Props) {
     setDisplayUrl(null)
   }
 
-  const handleFromChange = (v: string) => { setFrom(v); resetPreview() }
-  const handleToChange = (v: string) => { setTo(v); resetPreview() }
+  const handleFromChange = (v: string) => { setFrom(v); setTo(t => syncRangeEnd(v, t)); resetPreview() }
+  const handleToChange = (v: string) => { setTo(v); setFrom(f => syncRangeStart(f, v)); resetPreview() }
   const handleRoleChange = (role: 'kitchen' | 'cashier') => { setStaffRole(role); resetPreview() }
 
   const applyWeekPreset = (offsetWeeks: number) => {
