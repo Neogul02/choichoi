@@ -12,13 +12,14 @@ import type { RosterUnit, RosterMonthData } from '@/app/actions/roster';
 import { fetchPopupClosedDays, addPopupClosedDays, removePopupClosedDay } from '@/app/actions/schedule';
 import { buildClosedDayIndex, isClosedDay, type ClosedDayIndex } from '@/lib/closedDays';
 import type { RosterShift, RosterAssignment, StaffProfile } from '@/types/database';
+import type { RosterViewMode } from './useRosterView';
 
 interface Options {
   unit: RosterUnit;
   /** 낙관적 추가 시 이름 표시용 — 전체 직원 목록 */
   staffList: StaffProfile[];
   cursor: { y: number; m: number } | null;
-  viewMode: 'month' | 'week';
+  viewMode: RosterViewMode;
   weekStart: string | null;
   loadFrom: string;
   loadTo: string;
@@ -106,9 +107,9 @@ export function useRosterRange({
       }
     }
     loadRange().then(() => setIsLoading(false));
-    // loadRange·onCursorChange는 최신 뷰 상태를 클로저로 캡처 — deps는 재로드 트리거(cursor·unit·뷰)만 등록
+    // loadRange·onCursorChange는 최신 뷰 상태를 클로저로 캡처 — deps는 재로드 트리거(cursor·unit·뷰·범위)만 등록
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursor, unit, viewMode, weekStart]);
+  }, [cursor, unit, viewMode, weekStart, loadFrom, loadTo]);
 
   // 낙관적 추가 — 임시 음수 id로 즉시 표시 후 서버 행으로 치환, 실패(중복 배정 등) 시 제거
   // useCallback로 안정화 — MonthGrid에 이 함수(경유 핸들러)를 props로 내려 memo 경계를 두기 위함
