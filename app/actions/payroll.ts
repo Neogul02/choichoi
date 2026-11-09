@@ -9,6 +9,7 @@ import { decryptResidentId } from '@/lib/pii-crypto'
 import { isDefaultDeduction, splitSocialInsurance, type DefaultDeduction } from '@/lib/payroll-deductions'
 import { evaluatePension, type PensionResult } from '@/lib/nationalPension'
 import { averageDailyHours, continuousStartDate, JOB_CODE } from '@/lib/insuranceReport'
+import { selectAllRows } from '@/lib/selectAllRows'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, requireManagerOrAdmin, wrap } from './_base'
 
 export interface PayrollRow {
@@ -329,17 +330,6 @@ function personKeyOf(staffId: number, s: { user_profile_id: string | null; phone
   if (s?.user_profile_id) return `user:${s.user_profile_id}`
   const digits = (s?.phone ?? '').replace(/\D/g, '')
   return digits ? `phone:${digits}` : `staff:${staffId}`
-}
-
-/** PostgREST 기본 1000행 제한에 걸리지 않게 나눠 읽는다 — 판정·신고 자료는 행이 빠지면 조용히 틀린다 */
-async function selectAllRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
-  const out: T[] = []
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await page(offset, offset + 999)
-    if (error) throw new Error(error.message)
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) return out
-  }
 }
 
 type PensionAssignmentRow = PayrollAssignmentRow & { work_date: string; popup_id: number | null; popup_events: unknown }
