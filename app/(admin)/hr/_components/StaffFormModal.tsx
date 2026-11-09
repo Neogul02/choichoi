@@ -1,5 +1,7 @@
 'use client';
 
+import { syncRangeEnd, syncRangeStart } from '@/lib/date';
+
 import { useEffect, useRef, useState } from 'react';
 import { formatBankAccountInput, normalizeBankAccount, isValidBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank';
 import { toast } from 'sonner';
@@ -318,9 +320,9 @@ export default function StaffFormModal({
               <div className="flex flex-col gap-1.5">
                 {ranges.map((r, i) => (
                   <div key={i} className="flex items-center gap-1.5">
-                    <input type="date" value={r.from} onChange={e => updateRange(i, { from: e.target.value })} className={inputCls} />
+                    <input type="date" value={r.from} onChange={e => updateRange(i, { from: e.target.value, to: syncRangeEnd(e.target.value, r.to) })} className={inputCls} />
                     <span className="text-ink-faint text-[12px] shrink-0">~</span>
-                    <input type="date" value={r.to} onChange={e => updateRange(i, { to: e.target.value })} className={inputCls} />
+                    <input type="date" value={r.to} onChange={e => updateRange(i, { to: e.target.value, from: syncRangeStart(r.from, e.target.value) })} className={inputCls} />
                     <button type="button" onClick={() => setRanges(p => p.filter((_, idx) => idx !== i))}
                       className="shrink-0 w-7 h-7 rounded-lg bg-canvas-soft border-none text-ink-faint cursor-pointer hover:bg-rose-50 hover:text-rose-500 transition text-[14px]">
                       ×
