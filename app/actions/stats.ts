@@ -1,5 +1,6 @@
 'use server';
 
+import { selectAllRows, dedupeById } from '@/lib/selectAllRows';
 import { z } from 'zod';
 import { wrap, requireAdmin } from './_base';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
@@ -418,12 +419,10 @@ async function getOrdersByDate(kstDateStr: string, popupId?: string | number | n
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
-    .limit(10000)
 
   if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
 
-  const { data, error } = await query
-  if (error) throw error
+  const data = dedupeById(await selectAllRows((from, to) => query.range(from, to)))
   type OrderItemRow = {
     menu_item_id: number
     quantity: number

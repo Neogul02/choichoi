@@ -1,5 +1,6 @@
 'use server';
 
+import { selectAllRows, dedupeById, PAGE_SIZE } from '@/lib/selectAllRows'
 import { after } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin-client'
 import { z } from 'zod';
@@ -161,13 +162,11 @@ async function getTodaysOrderList(popupId?: string | number | null): Promise<Ord
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
-    .limit(10000)
 
   if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
 
-  const { data, error } = await query
-  if (error) throw error
-  return (data ?? []).map((order) => ({
+  const data = dedupeById(await selectAllRows((from, to) => query.range(from, to)))
+  return data.map((order) => ({
     ...order,
     popup_name: (order.popup_events as unknown as { name: string } | null)?.name ?? null,
   })) as unknown as OrderRecord[]
@@ -186,15 +185,15 @@ async function getTodaysOrderListWithItems(
     .gte('created_at', start)
     .lte('created_at', end)
     .order('id', { ascending: false })
-    .limit(limit ?? 10000)
 
   if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
 
-  const { data, error } = await query
+  // limit이 있으면(최근 N건) 한 번에, 없으면 하루치 전부를 1000행씩 나눠 읽는다
+  const data = limit != null && limit <= PAGE_SIZE
+    ? await (async () => { const { data, error } = await query.limit(limit); if (error) throw error; return data ?? [] })()
+    : dedupeById(await selectAllRows((from, to) => query.range(from, to)))
 
-  if (error) throw error
-
-  return (data ?? []).map((order) => {
+  return data.map((order) => {
     const rawItems = (order.order_items ?? []) as unknown as Array<{
       menu_item_id: number
       quantity: number
