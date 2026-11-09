@@ -1,5 +1,7 @@
 'use client';
 
+import { syncRangeEnd, syncRangeStart } from '@/lib/date';
+
 import { useRef, useState } from 'react';
 import TimeOfDayField from '@/components/TimeOfDayField';
 import { formatTimeRange, crossesMidnight, shiftRawMinutes, minutesToHours } from '@/lib/workhours';
@@ -19,11 +21,13 @@ interface Props {
   shifts: RosterShift[];
   onShiftsChange: (shifts: RosterShift[]) => void;
   onClose: () => void;
+  /** 캐셔 개별 팝업 보기일 때 그 팝업 운영 기간 — 활성 기간이 비어 있으면 이 값으로 미리 채운다 */
+  popupPeriod?: { from: string; to: string } | null;
 }
 
 const EMPTY_FORM: RosterShiftInput = { name: '', start_time: '09:00', end_time: '18:00', weekday_required: 1, weekend_required: 1, active_from: null, active_to: null, break_minutes: 0 };
 
-export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChange, onClose }: Props) {
+export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChange, onClose, popupPeriod = null }: Props) {
   useBodyScrollLock();
   const [editingId, setEditingId] = useState<number | 'new' | null>(null);
   const [form, setForm] = useState<RosterShiftInput>(EMPTY_FORM);
@@ -47,8 +51,9 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
       end_time: shift.end_time,
       weekday_required: shift.weekday_required,
       weekend_required: shift.weekend_required,
-      active_from: shift.active_from ?? null,
-      active_to: shift.active_to ?? null,
+      // 활성 기간이 비어 있던 파트는 팝업 기간으로 미리 채운다 — 지우면 다시 '제한 없음'
+      active_from: shift.active_from ?? (shift.active_to ? null : popupPeriod?.from ?? null),
+      active_to: shift.active_to ?? (shift.active_from ? null : popupPeriod?.to ?? null),
       break_minutes: shift.break_minutes,
     });
   };
@@ -173,17 +178,17 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <label className={labelCls}>활성 기간 <span className="font-normal text-ink-faint">(비워두면 제한 없음)</span></label>
+        <label className={labelCls}>활성 기간 <span className="font-normal text-ink-faint">({popupPeriod ? '기본은 팝업 기간 · ' : ''}비워두면 제한 없음)</span></label>
         <div className="flex items-center gap-1.5">
           <input
             type="date" value={form.active_from ?? ''}
-            onChange={e => setForm(f => ({ ...f, active_from: e.target.value || null }))}
+            onChange={e => { const v = e.target.value; setForm(f => ({ ...f, active_from: v || null, active_to: syncRangeEnd(v, f.active_to ?? '') || null })); }}
             className={`${inputCls} flex-1`}
           />
           <span className="text-ink-faint text-[12px] shrink-0">~</span>
           <input
             type="date" value={form.active_to ?? ''}
-            onChange={e => setForm(f => ({ ...f, active_to: e.target.value || null }))}
+            onChange={e => { const v = e.target.value; setForm(f => ({ ...f, active_to: v || null, active_from: syncRangeStart(f.active_from ?? '', v) || null })); }}
             className={`${inputCls} flex-1`}
           />
         </div>
@@ -289,7 +294,7 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
 
           {editingId === 'new' ? editForm : (
             <button
-              onClick={() => { setEditingId('new'); setForm(EMPTY_FORM); }}
+              onClick={() => { setEditingId('new'); setForm({ ...EMPTY_FORM, active_from: popupPeriod?.from ?? null, active_to: popupPeriod?.to ?? null }); }}
               className="w-full py-2 rounded-lg border border-dashed border-hairline bg-transparent text-[12px] text-primary-600 font-bold cursor-pointer hover:border-primary-400 hover:bg-primary-50/40 transition"
             >
               + 파트 추가

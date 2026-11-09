@@ -524,6 +524,7 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
           shifts={shifts}
           onShiftsChange={setShifts}
           onClose={() => setShowShiftManage(false)}
+          popupPeriod={periodLocked ? period : null}
         />
       )}
 

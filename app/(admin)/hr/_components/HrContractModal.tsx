@@ -1,5 +1,7 @@
 'use client'
 
+import { syncRangeEnd, syncRangeStart } from '@/lib/date'
+
 import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -209,9 +211,9 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
             <div>
               <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">계약기간</p>
               <div className="flex items-center gap-1.5">
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
+                <input type="date" value={startDate} onChange={e => { const v = e.target.value; setStartDate(v); setEndDate(t => syncRangeEnd(v, t)); }} className={inputCls} />
                 <span className="text-ink-faint text-[11px] shrink-0">~</span>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
+                <input type="date" value={endDate} onChange={e => { const v = e.target.value; setEndDate(v); setStartDate(f => syncRangeStart(f, v)); }} className={inputCls} />
               </div>
               {startDate && endDate && (
                 <p className="m-0 mt-1 text-[10px] text-ink-muted">
