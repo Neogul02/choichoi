@@ -5,7 +5,8 @@ import type { RosterShift, RosterAssignment } from '@/types/database';
 
 interface Props {
   dateStr: string;
-  dayNum: number;
+  /** 칸 왼쪽 위 날짜 — 보통 일(日)만, 기간 뷰에서 달이 바뀌는 칸은 `12/1`처럼 월을 붙인다 */
+  dayLabel: string;
   day: number;
   isToday: boolean;
   isSelected: boolean;
@@ -30,7 +31,7 @@ interface Props {
 
 /** 달력 셀 하나 — memo로 감싸 날짜 선택·팝오버 등 무관한 부모 상태 변화에 재렌더되지 않게 한다 */
 function DayCell({
-  dateStr, dayNum, day, isToday, isSelected, isPast, hasViolation, closedLabel, shifts, getAssigned, getRequired, getShiftLabel, tint, onSelectDate, onDropStaff,
+  dateStr, dayLabel, day, isToday, isSelected, isPast, hasViolation, closedLabel, shifts, getAssigned, getRequired, getShiftLabel, tint, onSelectDate, onDropStaff,
 }: Props) {
   // 드래그오버 강조는 순수 시각 상태라 셀 내부에서만 관리
   const [dragOver, setDragOver] = useState(false);
@@ -67,10 +68,10 @@ function DayCell({
     >
       <span className="flex items-center gap-0.5 mb-0.5">
         <span className={`text-[11px] font-bold leading-none ${
-          isToday ? 'text-white bg-primary-700 rounded-full w-[18px] h-[18px] flex items-center justify-center'
+          isToday ? 'text-white bg-primary-700 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center'
           : day === 0 ? 'text-red-400' : day === 6 ? 'text-blue-400' : 'text-ink-muted'
         }`}>
-          {dayNum}
+          {dayLabel}
         </span>
         {hasViolation && (
           <span className="text-[9px] leading-none" title="근무 규칙 위반 있음 (휴식 9시간 미만 또는 주 최대일 초과)">⚠️</span>

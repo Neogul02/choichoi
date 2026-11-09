@@ -17,7 +17,8 @@ import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours, formatTimeRange } from '@/lib/workhours'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import {
-  DEFAULT_DEDUCTIONS, EMPLOYMENT_INSURANCE_LABEL, HEALTH_LABEL, LONG_TERM_CARE_LABEL, PENSION_LABEL, SOCIAL_INSURANCE_LABELS, WITHHOLDING_LABEL, isDefaultDeduction, percentDeduction, quickDeductionAmount,
+  DEFAULT_DEDUCTIONS, EMPLOYMENT_INSURANCE_LABEL, HEALTH_LABEL, LONG_TERM_CARE_LABEL, PENSION_LABEL, SOCIAL_INSURANCE_LABELS, WITHHOLDING_LABEL,
+  deductionKind, isSameDeduction, isDefaultDeduction, percentDeduction, quickDeductionAmount,
   type DefaultDeduction,
 } from '@/lib/payroll-deductions'
 
@@ -152,9 +153,18 @@ export default function PayrollDetailModal({
   }
 
   // ── 바로 공제: 기본급 × 비율 ─────────────────────────────────────────────
+  // 국민연금·건강보험·장기요양은 가입 대상이면 서버가 사람 단위(주방·캐셔·수당 합산)로 계산해 이 프로필 몫으로 나눈 금액을 쓴다 —
+  // 이 화면의 기본급으로 따로 계산하면 수당이 빠지고, 프로필이 둘인 사람은 하한이 두 번 걸린다.
+  const isSocialKind = (label: string) => ['pension', 'health', 'longTermCare'].includes(deductionKind(label) ?? '')
+  const quickAmount = (label: string): number | null => {
+    if (isSocialKind(label) && pension?.status === 'eligible') {
+      return pension.deductions.find(d => isSameDeduction(d.label, label))?.amount ?? 0
+    }
+    return basePay != null ? quickDeductionAmount(label, basePay) : null
+  }
   const addQuickDeductionAsync = async (label: string) => {
     if (basePay == null) return false
-    const amount = quickDeductionAmount(label, basePay)
+    const amount = quickAmount(label)
     if (amount == null || amount === 0) return true
     return addAdjustment(label, amount, false)
   }
@@ -163,7 +173,7 @@ export default function PayrollDetailModal({
   // 근무가 바뀌어 기본급이 달라지면 저장된 공제 금액이 어긋난다 — 지우고 현재 기본급으로 다시 넣는다
   const recalcQuickDeduction = async (a: PayrollAdjustment) => {
     if (basePay == null) return
-    const amount = quickDeductionAmount(a.label, basePay)
+    const amount = quickAmount(a.label)
     if (amount == null) return
     const res = await removePayrollAdjustment(a.id)
     if (!res.success) { showMsg(`오류: ${res.error}`); return }
@@ -380,9 +390,9 @@ export default function PayrollDetailModal({
 
           {/* 국민연금·건강보험 — 가입 대상인데 공제가 아직 없으면 바로 넣을 수 있게. 3.3%(사업소득)와는 같이 쓰지 않는다 */}
           {pension && pension.status !== 'none' && (() => {
-            const missing = SOCIAL_INSURANCE_LABELS.filter(l => !adjustments.some(a => a.label === l))
-            const withholdingSaved = adjustments.some(a => a.label === WITHHOLDING_LABEL)
-            const amount = basePay != null ? missing.reduce((s, l) => s + (quickDeductionAmount(l, basePay) ?? 0), 0) : null
+            const missing = SOCIAL_INSURANCE_LABELS.filter(l => !adjustments.some(a => isSameDeduction(a.label, l)))
+            const withholdingSaved = adjustments.some(a => isSameDeduction(a.label, WITHHOLDING_LABEL))
+            const amount = basePay != null ? missing.reduce((s, l) => s + (quickAmount(l) ?? 0), 0) : null
             return (
               <div className={`rounded-lg border px-3 py-2.5 ${pension.status === 'eligible' ? 'border-indigo-200 bg-indigo-50/60' : 'border-hairline bg-canvas-soft'}`}>
                 <p className={`m-0 text-[12px] font-bold ${pension.status === 'eligible' ? 'text-indigo-700' : 'text-ink-muted'}`}>
@@ -433,7 +443,7 @@ export default function PayrollDetailModal({
 
               {/* 조정 항목 목록 */}
               {adjustments.map(a => {
-                const expected = basePay != null ? quickDeductionAmount(a.label, basePay) : null
+                const expected = basePay != null ? quickAmount(a.label) : null
                 return (
                 <div key={a.id} className="flex justify-between items-center px-3 py-2 border-b border-hairline group">
                   <span className="text-[12px] text-ink">
@@ -468,14 +478,16 @@ export default function PayrollDetailModal({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[11px] font-semibold text-ink-muted mr-0.5">바로 공제</span>
                     {[WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL, PENSION_LABEL, HEALTH_LABEL, LONG_TERM_CARE_LABEL].map(label => {
-                      const amount = quickDeductionAmount(label, basePay)!
-                      const added = adjustments.some(a => a.label === label)
+                      const amount = quickAmount(label) ?? 0
+                      const added = adjustments.some(a => isSameDeduction(a.label, label))
                       return (
                         <button
                           key={label}
                           onClick={() => addQuickDeduction(label)}
                           disabled={savingAdj || added}
-                          title={added ? '이미 추가됨' : `기본급 ${basePay.toLocaleString('ko-KR')}원 기준`}
+                          title={added ? '이미 추가됨' : isSocialKind(label) && pension?.status === 'eligible'
+                            ? `주방·캐셔·수당 합산 보수 ${pension.pay.toLocaleString('ko-KR')}원 기준(이 프로필 몫)`
+                            : `기본급 ${basePay.toLocaleString('ko-KR')}원 기준`}
                           className="px-2 py-1 rounded-full border border-primary-700/30 bg-primary-50 text-primary-700 text-[11px] font-bold cursor-pointer hover:bg-primary-100 transition disabled:opacity-40 disabled:cursor-default"
                         >
                           {label} {amount.toLocaleString('ko-KR')}원

@@ -67,14 +67,67 @@ export type DefaultDeduction = keyof typeof DEFAULT_DEDUCTIONS
 export const isDefaultDeduction = (v: unknown): v is DefaultDeduction =>
   typeof v === 'string' && Object.prototype.hasOwnProperty.call(DEFAULT_DEDUCTIONS, v)
 
-/** 빠른 공제 항목의 조정 금액(음수) — 라벨로 기존 항목과 맞춰 재계산 여부를 판단한다 */
+/**
+ * 바로 공제의 종류 — 저장된 조정 항목은 라벨 문자열뿐이라 라벨로 종류를 알아낸다.
+ * 라벨에 요율이 들어 있어(예: '국민연금 4.75%') 요율이 바뀌면 라벨도 바뀌므로, 정확히 같은 문자열이 아니라
+ * 종류로 맞춘다 — 그래야 요율을 고친 뒤에도 지난달에 넣은 '국민연금 4.75%'를 같은 공제로 본다.
+ */
+export type DeductionKind = 'withholding33' | 'employment' | 'pension' | 'health' | 'longTermCare'
+
+const KIND_PATTERNS: [DeductionKind, RegExp][] = [
+  ['withholding33', /^원천징수 3\.3%$/],
+  ['employment', /^고용보험( [\d.]+%)?$/],
+  ['pension', /^국민연금( [\d.]+%)?$/],
+  ['health', /^건강보험( [\d.]+%)?$/],
+  ['longTermCare', /^장기요양(보험)?( [\d.]+%)?$/],
+]
+
+export function deductionKind(label: string): DeductionKind | null {
+  const t = label.trim()
+  return KIND_PATTERNS.find(([, re]) => re.test(t))?.[0] ?? null
+}
+
+/** 두 라벨이 같은 바로 공제인지 — 종류가 없는 항목(수당·직접 입력)은 문자열이 같을 때만 */
+export function isSameDeduction(a: string, b: string): boolean {
+  const ka = deductionKind(a)
+  return ka != null ? ka === deductionKind(b) : a === b
+}
+
+/** 빠른 공제 항목의 조정 금액(음수) — 종류로 계산하므로 요율이 바뀐 뒤의 옛 라벨도 지금 요율로 다시 계산된다 */
 export function quickDeductionAmount(label: string, base: number): number | null {
-  if (label === WITHHOLDING_LABEL) return -withholding33(base).total
-  if (label === EMPLOYMENT_INSURANCE_LABEL) return -percentDeduction(base, EMPLOYMENT_INSURANCE_PERCENT)
-  if (label === PENSION_LABEL) return -nationalPensionEmployee(base)
-  if (label === HEALTH_LABEL) return -healthInsuranceEmployee(base)
-  if (label === LONG_TERM_CARE_LABEL) return -longTermCareEmployee(base)
-  return null
+  switch (deductionKind(label)) {
+    case 'withholding33': return -withholding33(base).total
+    case 'employment': return -percentDeduction(base, EMPLOYMENT_INSURANCE_PERCENT)
+    case 'pension': return -nationalPensionEmployee(base)
+    case 'health': return -healthInsuranceEmployee(base)
+    case 'longTermCare': return -longTermCareEmployee(base)
+    default: return null
+  }
+}
+
+/**
+ * 한 사람의 국민연금·건강보험·장기요양을 그 사람의 월 보수 합계로 한 번 계산해, 프로필(주방·캐셔)별 보수 비율로 나눈다.
+ * 프로필마다 따로 계산하면 적은 쪽에도 국민연금 하한(40만 원)이 걸려 실제 보험료보다 더 뗀다.
+ * 나눈 끝전은 보수가 가장 큰 프로필이 가진다 — 합계가 사람 단위 보험료와 정확히 같다.
+ */
+export function splitSocialInsurance(profilePays: { staffId: number; pay: number }[]): Record<number, { label: string; amount: number }[]> {
+  const total = profilePays.reduce((s, p) => s + Math.max(0, p.pay), 0)
+  const out: Record<number, { label: string; amount: number }[]> = {}
+  for (const p of profilePays) out[p.staffId] = []
+  if (total <= 0 || profilePays.length === 0) return out
+  const largest = profilePays.reduce((a, b) => (b.pay > a.pay ? b : a))
+  for (const label of SOCIAL_INSURANCE_LABELS) {
+    const whole = -(quickDeductionAmount(label, total) ?? 0)
+    let given = 0
+    for (const p of profilePays) {
+      if (p === largest) continue
+      const share = Math.floor((whole * Math.max(0, p.pay)) / total / 10) * 10
+      given += share
+      if (share > 0) out[p.staffId].push({ label, amount: -share })
+    }
+    if (whole - given > 0) out[largest.staffId].push({ label, amount: -(whole - given) })
+  }
+  return out
 }
 
 export interface PayEstimateLine {
@@ -86,18 +139,24 @@ export interface PayEstimateLine {
 
 /**
  * 근무자 화면의 예상 급여 — 급여정산 상세(PayrollDetailModal)와 같은 식이다: 기본급 + 저장된 조정 항목.
- * deductionLabels에 든 바로 공제(직원 기본 공제, 화면에서 켠 3.3%, 국민연금 대상이면 국민연금)가 이 구간에 아직
- * 저장돼 있지 않으면(관리자 정산 전) 미리 계산해 넣는다. 같은 라벨의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
+ * deductions에 든 바로 공제(직원 기본 공제, 화면에서 켠 3.3%, 국민연금·건강보험 대상이면 그 보험료)가 이 구간에 아직
+ * 저장돼 있지 않으면(관리자 정산 전) 미리 계산해 넣는다. 같은 종류의 항목이 이미 있으면 그 저장값을 쓴다 — 두 번 빼지 않는다.
+ * 금액을 함께 준 항목(사람 단위로 나눈 4대보험, splitSocialInsurance)은 그 금액을 그대로 쓴다.
  */
 export function estimatePay(
   basePay: number,
   adjustments: { label: string; amount: number }[],
-  deductionLabels: string[],
+  deductions: (string | { label: string; amount: number })[],
 ): { lines: PayEstimateLine[]; finalPay: number } {
   const lines: PayEstimateLine[] = adjustments.map(a => ({ label: a.label, amount: a.amount, estimated: false }))
-  for (const label of new Set(deductionLabels)) {
-    const amount = quickDeductionAmount(label, basePay)
-    if (amount != null && amount !== 0 && !adjustments.some(a => a.label === label)) {
+  const seen = new Set<string>()
+  for (const d of deductions) {
+    const label = typeof d === 'string' ? d : d.label
+    const key = deductionKind(label) ?? label
+    if (seen.has(key)) continue
+    seen.add(key)
+    const amount = typeof d === 'string' ? quickDeductionAmount(label, basePay) : d.amount
+    if (amount != null && amount !== 0 && !adjustments.some(a => isSameDeduction(a.label, label))) {
       lines.push({ label, amount, estimated: true })
     }
   }

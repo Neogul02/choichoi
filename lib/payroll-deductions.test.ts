@@ -3,6 +3,7 @@ import {
   withholding33, percentDeduction, quickDeductionAmount, WITHHOLDING_LABEL, EMPLOYMENT_INSURANCE_LABEL,
   DEFAULT_DEDUCTIONS, isDefaultDeduction, estimatePay, nationalPensionEmployee, PENSION_LABEL,
   healthInsuranceEmployee, longTermCareEmployee, HEALTH_LABEL, LONG_TERM_CARE_LABEL,
+  deductionKind, isSameDeduction, splitSocialInsurance,
 } from './payroll-deductions'
 
 describe('withholding33', () => {
@@ -118,5 +119,51 @@ describe('건강보험·장기요양 (근로자 몫)', () => {
   it('급여가 없으면 0', () => {
     expect(healthInsuranceEmployee(0)).toBe(0)
     expect(longTermCareEmployee(0)).toBe(0)
+  })
+})
+
+describe('deductionKind / isSameDeduction', () => {
+  it('요율이 바뀐 라벨도 같은 종류로 본다', () => {
+    expect(deductionKind('국민연금 4.75%')).toBe('pension')
+    expect(deductionKind('국민연금 5%')).toBe('pension')
+    expect(isSameDeduction('국민연금 4.75%', '국민연금 5%')).toBe(true)
+    expect(isSameDeduction('건강보험 3.545%', HEALTH_LABEL)).toBe(true)
+    expect(isSameDeduction(LONG_TERM_CARE_LABEL, '장기요양')).toBe(true)
+  })
+  it('종류가 다르거나 직접 입력한 항목은 문자열이 같을 때만 같다', () => {
+    expect(isSameDeduction(PENSION_LABEL, HEALTH_LABEL)).toBe(false)
+    expect(isSameDeduction('교통비', '교통비')).toBe(true)
+    expect(isSameDeduction('교통비', '식대')).toBe(false)
+    expect(deductionKind('국민연금 환급')).toBeNull()
+  })
+  it('옛 요율 라벨도 지금 요율로 계산된다', () => {
+    expect(quickDeductionAmount('국민연금 4.5%', 2_000_000)).toBe(-95_000)
+  })
+})
+
+describe('splitSocialInsurance', () => {
+  const sum = (r: Record<number, { label: string; amount: number }[]>, label: string) =>
+    Object.values(r).flat().filter(d => d.label === label).reduce((s, d) => s + d.amount, 0)
+
+  it('프로필이 하나면 사람 단위 보험료 그대로', () => {
+    const r = splitSocialInsurance([{ staffId: 1, pay: 2_000_000 }])
+    expect(r[1]).toEqual([
+      { label: PENSION_LABEL, amount: -95_000 },
+      { label: HEALTH_LABEL, amount: -71_900 },
+      { label: LONG_TERM_CARE_LABEL, amount: -9_440 },
+    ])
+  })
+
+  it('주방·캐셔로 나뉘어도 합계는 합친 보수로 한 번 계산한 값 — 적은 쪽에 하한이 따로 걸리지 않는다', () => {
+    // 주방 100만 + 캐셔 15만 = 115만 → 국민연금 54,620(1,150,000 × 4.75% = 54,625 → 54,620)
+    const r = splitSocialInsurance([{ staffId: 1, pay: 1_000_000 }, { staffId: 2, pay: 150_000 }])
+    expect(sum(r, PENSION_LABEL)).toBe(-54_620)
+    expect(sum(r, HEALTH_LABEL)).toBe(-(Math.floor(1_150_000 * 3595 / 100000 / 10) * 10))
+    // 캐셔 몫은 보수 비율만큼 — 프로필별로 따로 계산했다면 하한 40만 원 기준 19,000원이 됐을 것
+    expect(-r[2].find(d => d.label === PENSION_LABEL)!.amount).toBeLessThan(19_000)
+  })
+
+  it('보수가 없으면 아무것도 넣지 않는다', () => {
+    expect(splitSocialInsurance([{ staffId: 1, pay: 0 }])).toEqual({ 1: [] })
   })
 })
