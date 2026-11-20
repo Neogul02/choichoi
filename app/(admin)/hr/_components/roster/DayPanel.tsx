@@ -1,5 +1,6 @@
 'use client';
 
+import { shiftCopyLine, assignmentCopyLine } from '@/lib/roster/copyText';
 import { useEffect, useRef, useState } from 'react';
 import TimeOfDayField from '@/components/TimeOfDayField';
 import { formatTimeRange, crossesMidnight, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours';
@@ -93,17 +94,9 @@ export default function DayPanel({
         const assigned = getAssigned(dateStr, shift.id);
         if (assigned.length === 0) continue;
         hasAny = true;
-        lines.push(`[${getShiftLabel(shift)}] ${formatTimeRange(shift.start_time, shift.end_time)}`);
-        for (const a of assigned) {
-          // 개별 수정 시간·휴게 미포함은 이름 옆에 표기 — 파트 기본과 다르게 일하는 사람이 헷갈리지 않도록
-          const extras = [
-            a.start_time || a.end_time
-              ? `${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)}`
-              : '',
-            a.break_minutes === 0 ? '휴게 미포함' : '',
-          ].filter(Boolean);
-          lines.push(`· ${a.staff_profiles?.name ?? ''}${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`);
-        }
+        // 파트 줄에 기본 휴게, 이름 옆에는 파트와 다른 시간·휴게만 — 받는 사람이 쉬는 시간까지 한 번에 알도록
+        lines.push(shiftCopyLine(getShiftLabel(shift), shift));
+        for (const a of assigned) lines.push(assignmentCopyLine(a, shift));
         lines.push('');
       }
 
