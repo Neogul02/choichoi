@@ -57,6 +57,8 @@ export type ContractData = {
   paymentDirect: boolean
   paymentTransfer: boolean
   includesHolidayPay?: boolean
+  /** 계약기간 중 시급이 바뀌는 경우(예: 2027-01-01부터 13,000원) — 임금란에 함께 적고 예상 급여도 날짜별로 계산 */
+  rateChange?: { from: string; rate: number }
   // 7. 사회보험
   insuranceEmployment: boolean
   insuranceIndustrial: boolean
@@ -154,6 +156,14 @@ export function ContractDocument(p: ContractData) {
   const totalWeeklyHours = days.reduce((sum, d) => sum + calcNetHours(d), 0)
   const specificDates = p.specificWorkDates ?? []
   const totalSpecificHours = specificDates.reduce((sum, d) => sum + calcNetHoursForDate(d), 0)
+  const rateOn = (date: string) => (p.rateChange && date >= p.rateChange.from ? p.rateChange.rate : p.hourlyRate)
+  const totalSpecificPay = specificDates.reduce((sum, d) => sum + calcNetHoursForDate(d) * rateOn(d.date), 0)
+  // 주휴수당 포함 시급의 내역 — 시급 = 기본시급 × 1.2 (주 5일 기준 하루치 주휴를 녹인 값)
+  const holidayBreakdown = (rate: number) => {
+    const base = Math.round(rate / 1.2)
+    return `기본시급 ${base.toLocaleString('ko-KR')}원 + 주휴수당 ${(rate - base).toLocaleString('ko-KR')}원`
+  }
+  const fmtDate = (d: string) => `${d.slice(0, 4)}. ${Number(d.slice(5, 7))}. ${Number(d.slice(8))}.`
 
   return (
     <Document title='단시간근로자 표준근로계약서' author={p.employerName}>
@@ -289,7 +299,8 @@ export function ContractDocument(p: ContractData) {
             <Text>  ○ 주휴일 : </Text>
             {p.weeklyHolidayDay
               ? <><Text>매주 </Text><Underline value={p.weeklyHolidayDay} width={24} /><Text>요일</Text></>
-              : <Text>없음</Text>
+              // 주휴수당을 시급에 녹여 주는 경우 '없음'이라고 쓰면 주휴를 안 준다는 뜻으로 읽힌다
+              : <Text>{p.includesHolidayPay ? '근무일이 매주 달라 주휴일을 따로 정하지 않고, 주휴수당은 시급에 포함하여 지급' : '없음'}</Text>
             }
           </View>
         </View>
@@ -305,6 +316,17 @@ export function ContractDocument(p: ContractData) {
               <Text style={{ marginLeft: 6, fontSize: 7.5, color: '#059669' }}> ※ 주휴수당 포함</Text>
             )}
           </View>
+          {p.includesHolidayPay && p.hourlyRate > 0 && (
+            <Text style={s.note}>
+              ※ 위 시급은 주휴수당을 포함한 금액임({holidayBreakdown(p.hourlyRate)})
+            </Text>
+          )}
+          {p.rateChange && (
+            <Text style={s.note}>
+              ※ {fmtDate(p.rateChange.from)} 근무분부터 시급 {p.rateChange.rate.toLocaleString('ko-KR')}원 적용
+              {p.includesHolidayPay ? `(주휴수당 포함, ${holidayBreakdown(p.rateChange.rate)})` : ''}
+            </Text>
+          )}
           <View style={[s.bullet, s.row]}>
             <Text>- 상여금 : 있음 ( {p.hasBonus ? '○' : ' '} ) </Text>
             <Underline value={p.hasBonus && p.bonusAmount ? p.bonusAmount.toLocaleString('ko-KR') : ''} width={60} />
@@ -334,8 +356,8 @@ export function ContractDocument(p: ContractData) {
           </View>
           {specificDates.length > 0 && totalSpecificHours > 0 && (
             <View style={[s.bullet, s.row]}>
-              <Text>- 계약기간 총 예상 급여 : {totalSpecificHours}시간 × {p.hourlyRate.toLocaleString('ko-KR')}원 = </Text>
-              <Text style={{ fontFamily: F, fontWeight: 'bold' }}>{Math.round(totalSpecificHours * p.hourlyRate).toLocaleString('ko-KR')}원</Text>
+              <Text>- 계약기간 총 예상 급여 : {totalSpecificHours}시간 × {p.rateChange ? '날짜별 시급' : `${p.hourlyRate.toLocaleString('ko-KR')}원`} = </Text>
+              <Text style={{ fontFamily: F, fontWeight: 'bold' }}>{Math.round(totalSpecificPay).toLocaleString('ko-KR')}원</Text>
             </View>
           )}
           {specificDates.length === 0 && days.length > 0 && (

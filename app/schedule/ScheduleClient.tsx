@@ -5,6 +5,7 @@ import { formatTimeRange } from '@/lib/workhours';
 import { getMyStaffProfile, type StaffPickerItem } from '@/app/actions/staff'
 import { fetchStaffMonthlyDetail, fetchStaffPayEstimateInfo, type StaffDayDetail, type StaffPayEstimateInfo } from '@/app/actions/payroll'
 import { minutesToHours } from '@/lib/workhours'
+import { basePayByDate } from '@/lib/wagePolicy'
 import { estimatePay, isSameDeduction, DEFAULT_DEDUCTIONS, WITHHOLDING_LABEL } from '@/lib/payroll-deductions'
 import { formatBreakMinutes } from '@/lib/utils'
 import { DAY_NAMES } from '@/lib/staffing'
@@ -299,7 +300,10 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
   const breakSum = details.reduce((s, d) => s + d.breakMinutes, 0)
   const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
   const hourlyRate = payInfo?.hourlyRate ?? null
-  const basePay = hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
+  const { pay: basePay, segments: paySegments } = basePayByDate(details.map(d => ({ date: d.date, paidMinutes: d.paidMinutes })), hourlyRate)
+  const rateFormula = paySegments.length > 1
+    ? paySegments.map(s => `${s.hours}h × ${won(s.rate)}`).join(' + ')
+    : `${totalHours}h × ${won(paySegments[0]?.rate ?? hourlyRate ?? 0)}`
   const deductions: (string | { label: string; amount: number })[] = []
   if (payInfo?.defaultDeduction && payInfo.defaultDeduction !== 'withholding33') deductions.push(DEFAULT_DEDUCTIONS[payInfo.defaultDeduction])
   if (checked) deductions.push(WITHHOLDING_LABEL)
@@ -327,7 +331,7 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
           <p className="m-0 mt-1.5 text-[32px] font-extrabold leading-tight tracking-tight">{won(estimate.finalPay)}</p>
           <div className="mt-4 pt-3 border-t border-white/15 space-y-1.5 text-[13px]">
             <Line label="실근무 − 휴게" value={`${minutesToHours(rawSum)}h − ${minutesToHours(breakSum)}h = ${totalHours}h`} />
-            <Line label={`기본급 (${totalHours}h × ${won(hourlyRate!)})`} value={won(basePay!)} />
+            <Line label={`기본급 (${rateFormula})`} value={won(basePay!)} />
             {estimate.lines.map((l, i) => (
               <Line
                 key={i}

@@ -90,3 +90,9 @@ export function paidMinutes(
 export function minutesToHours(min: number): number {
   return Math.round(min / 60 * 10) / 10
 }
+
+/** 'HH:MM' + 분 → 'HH:MM' (24시를 넘으면 다음 날 시각으로 감는다) */
+export function addMinutesToHHMM(hhmm: string, minutes: number): string {
+  const total = (((hhmmToMinutes(hhmm) + minutes) % MINUTES_IN_DAY) + MINUTES_IN_DAY) % MINUTES_IN_DAY
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}

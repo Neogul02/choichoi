@@ -15,6 +15,7 @@ import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours, formatTimeRange } from '@/lib/workhours'
+import { basePayByDate, formatAppliedRates } from '@/lib/wagePolicy'
 import { DAY_NAMES as DAY_KO } from '@/lib/staffing'
 import {
   DEFAULT_DEDUCTIONS, EMPLOYMENT_INSURANCE_LABEL, HEALTH_LABEL, LONG_TERM_CARE_LABEL, PENSION_LABEL, SOCIAL_INSURANCE_LABELS, WITHHOLDING_LABEL,
@@ -113,7 +114,12 @@ export default function PayrollDetailModal({
   const rawSum = details?.reduce((s, d) => s + d.rawMinutes, 0) ?? 0
   const breakSum = details?.reduce((s, d) => s + d.breakMinutes, 0) ?? 0
   const totalHours = details ? minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0)) : 0
-  const basePay = details != null && hourlyRate != null ? Math.round(totalHours * hourlyRate) : null
+  // 근무일별 적용 시급(2027년부터 13,000원 하한)으로 나눠 계산 — 한 시급이면 총 시간 × 시급과 같다
+  const { pay: basePayCalc, segments: paySegments } = basePayByDate(details?.map(d => ({ date: d.date, paidMinutes: d.paidMinutes })) ?? [], hourlyRate)
+  const basePay = details != null ? basePayCalc : null
+  const rateFormula = paySegments.length > 1
+    ? paySegments.map(s => `${s.hours}h × ${s.rate.toLocaleString('ko-KR')}원`).join(' + ')
+    : `${totalHours}h × ${(paySegments[0]?.rate ?? hourlyRate ?? 0).toLocaleString('ko-KR')}원`
 
   const adjustTotal = adjustments.reduce((s, a) => s + a.amount, 0)
   const finalPay = basePay != null ? basePay + adjustTotal : null
@@ -124,7 +130,7 @@ export default function PayrollDetailModal({
   if (details && details.length > 0) {
     formulaLines.push(`실근무 ${minToH(rawSum)}h − 휴게 ${minToH(breakSum)}h = 유급 ${totalHours}h`)
     if (hourlyRate != null && basePay != null) {
-      formulaLines.push(`기본급 = ${totalHours}h × ${hourlyRate.toLocaleString('ko-KR')}원 = ${basePay.toLocaleString('ko-KR')}원`)
+      formulaLines.push(`기본급 = ${rateFormula} = ${basePay.toLocaleString('ko-KR')}원`)
     }
     for (const a of adjustments) {
       formulaLines.push(`${a.amount >= 0 ? '+' : '−'} ${a.label} ${Math.abs(a.amount).toLocaleString('ko-KR')}원`)
@@ -217,7 +223,7 @@ export default function PayrollDetailModal({
       '',
       `총 근무: ${details?.length ?? 0}일 / ${totalHours}h`,
     ]
-    if (hourlyRate != null) lines.push(`시급: ${hourlyRate.toLocaleString('ko-KR')}원`)
+    if (hourlyRate != null) lines.push(`시급: ${formatAppliedRates(paySegments, hourlyRate)}`)
     if (basePay != null) lines.push(`기본급: ${basePay.toLocaleString('ko-KR')}원`)
     if (pension && pension.status !== 'none') {
       lines.push(pension.status === 'eligible'
@@ -430,7 +436,7 @@ export default function PayrollDetailModal({
               <div className="flex justify-between items-center px-3 py-2.5 border-b border-hairline">
                 <span className="text-[12px] text-ink-muted">
                   기본급
-                  {hourlyRate != null && <span className="ml-1 text-ink-faint">({totalHours}h × {hourlyRate.toLocaleString('ko-KR')}원)</span>}
+                  {hourlyRate != null && <span className="ml-1 text-ink-faint">({rateFormula})</span>}
                 </span>
                 <span className="text-[13px] font-bold text-ink">
                   {details == null
