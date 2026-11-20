@@ -5,6 +5,7 @@ import { usePresence } from '@/hooks/usePresence'
 import SalesBanner from '@/components/SalesBanner'
 import SalesBattle from '@/components/SalesBattle'
 import PosTodaySummary from '@/components/PosTodaySummary'
+import PopupPeriodWarning from '@/components/PopupPeriodWarning'
 import { memo, useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -566,6 +567,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
       <NavBar activeCashiers={activeCashiers} />
 
       <main className="min-h-screen p-3 md:p-5 pb-24 md:pb-5 md:px-8 max-w-[1100px] mx-auto">
+        <PopupPeriodWarning popupId={popupId} />
         {/* 결제 대기 헤더 */}
         <motion.header
           initial={{ opacity: 0, y: -8 }}
