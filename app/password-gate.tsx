@@ -1,5 +1,6 @@
 'use client'
 
+import { kstToday } from '@/lib/date'
 import { useEffect, useRef, useState } from 'react'
 import { formatBankAccountInput, isValidBankAccount, normalizeBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
 import { usePathname } from 'next/navigation'
@@ -91,8 +92,15 @@ export default function PasswordGate({ children, initial }: { children: React.Re
     hasFetchedPopupsRef.current = true
     fetchActivePopupEvents().then((result) => {
       if (result.success && result.data) {
-        setPopupEvents(result.data)
-        if (result.data.length === 1) setSelectedPopupId(result.data[0].id)
+        // 이미 끝난 팝업은 근무지로 고를 수 없게 뺀다 — 끝난 '대구 신세계 #2'를 골라 #3 첫날 주문이 잘못 쌓인 적이 있다.
+        // 오늘 운영 중인 팝업을 맨 위로, 그다음 시작 예정 순
+        const today = kstToday()
+        const list = result.data
+          .filter(p => p.end_date >= today)
+          .sort((a, b) => Number(b.start_date <= today) - Number(a.start_date <= today) || a.start_date.localeCompare(b.start_date))
+        setPopupEvents(list)
+        const ongoing = list.filter(p => p.start_date <= today)
+        if (ongoing.length === 1) setSelectedPopupId(ongoing[0].id)
       }
     })
   }, [pathname])
@@ -401,7 +409,9 @@ export default function PasswordGate({ children, initial }: { children: React.Re
         <option value=''>근무지 선택</option>
         <option value='kitchen'>주방</option>
         {popupEvents.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
+          <option key={p.id} value={p.id}>
+            {p.name} ({Number(p.start_date.slice(5, 7))}/{Number(p.start_date.slice(8))}~{Number(p.end_date.slice(5, 7))}/{Number(p.end_date.slice(8))}){p.start_date <= kstToday() ? ' · 오늘 운영' : ''}
+          </option>
         ))}
       </select>
       <span className='pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint'>
