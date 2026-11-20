@@ -27,13 +27,15 @@ export function sameDayOfRun(current: PopupPeriod, compare: PopupPeriod, today: 
 export const popupBaseName = (name: string) => name.replace(/\s*#\s*\d+\s*$/, '').trim()
 
 /**
- * 비교할 수 있는 지난 팝업 — 지금 팝업보다 먼저 시작해 이미 끝난 것.
- * 같은 매장의 지난 회차(대구 신세계 #3 → #2)를 맨 앞에, 나머지는 최근 끝난 순. 맨 앞이 기본 비교 대상이다.
+ * 비교할 수 있는 지난 팝업 — 지금 팝업보다 먼저 시작해 이미 끝난 것, 최근 끝난 순.
+ * 같은 매장의 지난 회차가 있으면 그것들만 보인다(대구 신세계는 대구 신세계끼리) — 매장마다 규모가 달라
+ * 다른 매장과 맞대면 의미가 없다. 같은 매장 기록이 없는 첫 회차만 전체 지난 팝업 중에서 고른다.
  */
 export function pastPopupsFor(current: PopupPeriod, all: PopupPeriod[], today: string): PopupPeriod[] {
   const base = popupBaseName(current.name)
-  const sameStore = (p: PopupPeriod) => (popupBaseName(p.name) === base ? 0 : 1)
-  return all
+  const past = all
     .filter(p => p.id !== current.id && p.start_date < current.start_date && p.end_date < today)
-    .sort((a, b) => sameStore(a) - sameStore(b) || b.end_date.localeCompare(a.end_date) || b.id - a.id)
+    .sort((a, b) => b.end_date.localeCompare(a.end_date) || b.id - a.id)
+  const sameStore = past.filter(p => popupBaseName(p.name) === base)
+  return sameStore.length > 0 ? sameStore : past
 }
