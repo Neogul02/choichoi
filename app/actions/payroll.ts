@@ -10,6 +10,7 @@ import { isDefaultDeduction, splitSocialInsurance, type DefaultDeduction } from 
 import { evaluatePension, type PensionResult } from '@/lib/nationalPension'
 import { averageDailyHours, continuousStartDate, JOB_CODE } from '@/lib/insuranceReport'
 import { selectAllRows } from '@/lib/selectAllRows'
+import { basePayByDate, type PaySegment } from '@/lib/wagePolicy'
 import { getAuthUser, isNextInternalControlFlowError, requireAdmin, requireManagerOrAdmin, wrap } from './_base'
 
 export interface PayrollRow {
@@ -18,10 +19,13 @@ export interface PayrollRow {
   phone: string | null
   bankName: string | null
   bankAccount: string | null
+  /** 프로필 시급(원본) — 실제 적용 시급은 근무일에 따라 다를 수 있어 appliedRates를 본다 */
   hourlyRate: number | null
   days: number
   totalHours: number
   totalPay: number | null
+  /** 적용 시급별 시간·금액 — 2027년부터 13,000원 하한(lib/wagePolicy) 때문에 한 구간에 둘일 수 있다 */
+  paySegments: PaySegment[]
 }
 
 export interface StaffWorkAssignment {
@@ -30,6 +34,8 @@ export interface StaffWorkAssignment {
   shiftName: string
   startTime: string
   endTime: string
+  /** 그날 휴게(분) — 배정 개별값 > 파트 기본(급여와 같은 규칙). 계약서 근로시간이 급여와 맞도록 */
+  breakMinutes: number
 }
 
 export async function fetchStaffAssignmentsInRange(
@@ -44,7 +50,7 @@ export async function fetchStaffAssignmentsInRange(
 
     let query = supabaseAdmin
       .from('roster_assignments')
-      .select('work_date, start_time, end_time, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time)')
+      .select('work_date, start_time, end_time, break_minutes, roster_shifts!roster_assignments_shift_id_fkey(name, start_time, end_time, break_minutes)')
       .eq('staff_id', staffId)
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
@@ -58,7 +64,7 @@ export async function fetchStaffAssignmentsInRange(
 
     const results: StaffWorkAssignment[] = (data ?? []).map(a => {
       const shiftRaw = a.roster_shifts
-      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string } | null
+      const shift = (Array.isArray(shiftRaw) ? shiftRaw[0] : shiftRaw) as { name: string; start_time: string; end_time: string; break_minutes: number | null } | null
       const d = new Date(a.work_date + 'T00:00:00')
       return {
         date: a.work_date,
@@ -68,6 +74,7 @@ export async function fetchStaffAssignmentsInRange(
         // 근로계약서에 들어가는 시간 — 개별 수정된 근무 시간이 있으면 그 값이 실제 근무 조건이다
         startTime: a.start_time ?? shift?.start_time ?? '00:00',
         endTime: a.end_time ?? shift?.end_time ?? '00:00',
+        breakMinutes: resolveBreakMinutes(a.break_minutes, shift?.break_minutes),
       }
     })
 
@@ -228,31 +235,34 @@ type PayrollAssignmentRow = {
 // 조인 결과가 없어도(파트 삭제 등) 근무 사실은 유효하므로 건너뛰지 않는다. 시간·휴게는 배정 행의 확정값이 우선이다.
 const PAYROLL_ASSIGNMENT_COLUMNS = 'staff_id, start_time, end_time, break_minutes, work_date, roster_shifts!roster_assignments_shift_id_fkey(start_time, end_time, break_minutes)'
 
-function sumPaidByStaff(rows: PayrollAssignmentRow[]): Map<number, { days: number; minutes: number }> {
-  const totals = new Map<number, { days: number; minutes: number }>()
+type StaffPaidTotal = { days: number; minutes: number; byDate: { date: string; paidMinutes: number }[] }
+
+function sumPaidByStaff(rows: PayrollAssignmentRow[]): Map<number, StaffPaidTotal> {
+  const totals = new Map<number, StaffPaidTotal>()
   for (const a of rows) {
     const shift = (Array.isArray(a.roster_shifts) ? a.roster_shifts[0] : a.roster_shifts) ?? null
     const startStr = a.start_time ?? shift?.start_time
     const endStr = a.end_time ?? shift?.end_time
     if (!startStr || !endStr) continue // 시간이 전혀 없는 행은 계산 불가 — 백필 이후로는 존재하지 않는다
     const paidMin = paidMinutes(startStr, endStr, a.break_minutes, shift?.break_minutes)
-    const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0 }
-    totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin })
+    const prev = totals.get(a.staff_id) ?? { days: 0, minutes: 0, byDate: [] }
+    prev.byDate.push({ date: a.work_date, paidMinutes: paidMin })
+    totals.set(a.staff_id, { days: prev.days + 1, minutes: prev.minutes + paidMin, byDate: prev.byDate })
   }
   return totals
 }
 
 function buildPayrollRows(
-  totals: Map<number, { days: number; minutes: number }>,
+  totals: Map<number, StaffPaidTotal>,
   staffMap: Map<number, { id: number; name: string; phone: string | null; bank_name: string | null; bank_account: string | null; hourly_rate: number | null }>,
 ): PayrollRow[] {
   const rows: PayrollRow[] = []
-  for (const [staffId, { days, minutes }] of totals) {
+  for (const [staffId, { days, minutes, byDate }] of totals) {
     const staff = staffMap.get(staffId)
     if (!staff) continue
     const totalHours = minutesToHours(minutes)
-    const totalPay = staff.hourly_rate != null ? Math.round(totalHours * staff.hourly_rate) : null
-    rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: staff.bank_name ?? null, bankAccount: staff.bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay })
+    const { pay: totalPay, segments } = basePayByDate(byDate, staff.hourly_rate)
+    rows.push({ staffId, name: staff.name, phone: staff.phone, bankName: staff.bank_name ?? null, bankAccount: staff.bank_account ?? null, hourlyRate: staff.hourly_rate, days, totalHours, totalPay, paySegments: segments })
   }
   rows.sort((a, b) => b.totalHours - a.totalHours)
   return rows
@@ -402,12 +412,12 @@ async function computePensionStatusUnchecked(year: number, month: number, onlySt
   // 유급 시간·기본급은 프로필별(시급이 프로필에 있다)로 급여와 같은 식으로 구한 뒤 사람 단위로 더한다
   type Person = { dates: Set<string>; minutes: number; profiles: { staffId: number; pay: number }[] }
   const persons = new Map<string, Person>()
-  for (const [staffId, { minutes }] of sumPaidByStaff(cur)) {
+  for (const [staffId, { minutes, byDate }] of sumPaidByStaff(cur)) {
     const key = personOf(staffId)
     const p = persons.get(key) ?? { dates: new Set<string>(), minutes: 0, profiles: [] }
     const rate = staff.get(staffId)?.hourly_rate ?? null
     p.minutes += minutes
-    p.profiles.push({ staffId, pay: (rate != null ? Math.round(minutesToHours(minutes) * rate) : 0) + (bonus.get(staffId) ?? 0) })
+    p.profiles.push({ staffId, pay: (basePayByDate(byDate, rate).pay ?? 0) + (bonus.get(staffId) ?? 0) })
     persons.set(key, p)
   }
   for (const a of cur) persons.get(personOf(a.staff_id))?.dates.add(a.work_date)
