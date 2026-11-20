@@ -4,7 +4,10 @@ import NavBar from '@/components/NavBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems, setMenuItemSoldOut } from '@/app/actions/menu';
+import { getAllMenu, createNewMenuItem, editMenuItem, removeMenuItem, reorderMenuItems, fetchPopupMenuHidden, setPopupMenuSelling } from '@/app/actions/menu';
+import { fetchPopupEvents } from '@/app/actions/schedule';
+import { kstToday } from '@/lib/date';
+import type { PopupEvent } from '@/types/database';
 import type { MenuItem } from '@/types/database';
 import DevToolsSection from './DevToolsSection';
 import UserManagementSection from './UserManagementSection';
@@ -14,7 +17,7 @@ type ActiveTab = 'menu' | 'popups' | 'users' | 'devtools';
 
 // 탭 순서 = 쓰는 빈도 순. 설명은 "무엇을 하는 곳인지"를 한 줄로만 말한다.
 const TABS: { id: ActiveTab; label: string; desc: string }[] = [
-  { id: 'menu', label: '메뉴 관리', desc: 'POS에 보이는 메뉴와 순서를 관리합니다' },
+  { id: 'menu', label: '메뉴 관리', desc: 'POS에 보이는 메뉴와 순서, 팝업별 판매 여부를 관리합니다 — 메뉴 아래 팝업 이름을 눌러 그 팝업에서 켜고 끕니다' },
   { id: 'popups', label: '팝업 관리', desc: '행사 기간과 활성 상태를 관리합니다' },
   { id: 'users', label: '유저 관리', desc: '계정 권한·연락처를 관리합니다' },
   { id: 'devtools', label: '개발자 도구', desc: '배포 환경, 서버 액션, 데이터베이스 구조를 확인합니다' },
@@ -85,8 +88,32 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
   // 삭제 확인
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
-  // 품절 토글
-  const [togglingSoldOutId, setTogglingSoldOutId] = useState<number | null>(null);
+  // 팝업별 판매 — 진행 중·예정 팝업마다 이 메뉴를 팔지 켜고 끈다(끈 것만 popup_menu_hidden에 기록)
+  const [sellPopups, setSellPopups] = useState<PopupEvent[]>([]);
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+  const [togglingKey, setTogglingKey] = useState<string | null>(null);
+  useEffect(() => {
+    const today = kstToday();
+    Promise.all([fetchPopupEvents(), fetchPopupMenuHidden()]).then(([pRes, hRes]) => {
+      if (pRes.success && pRes.data) {
+        setSellPopups(pRes.data.filter(p => p.is_active && p.end_date >= today).sort((a, b) => a.start_date.localeCompare(b.start_date)));
+      }
+      if (hRes.success && hRes.data) setHiddenKeys(new Set(hRes.data.map(h => `${h.popupId}|${h.menuItemId}`)));
+    });
+  }, []);
+  const togglePopupSelling = async (popupId: number, menuItemId: number) => {
+    const key = `${popupId}|${menuItemId}`;
+    const selling = hiddenKeys.has(key); // 지금 꺼져 있으면 켠다
+    setTogglingKey(key);
+    const res = await setPopupMenuSelling(popupId, menuItemId, selling);
+    setTogglingKey(null);
+    if (!res.success) { toast.error(`오류: ${res.error}`); return; }
+    setHiddenKeys(prev => {
+      const next = new Set(prev);
+      if (selling) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (initialMenuItems != null) return; // 서버 프리페치 성공 시 재조회 생략
@@ -166,18 +193,6 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
       setMenuItems(p => p.filter(m => m.id !== id));
       cancelEdit(id);
       toast.success('삭제됐습니다');
-    } else {
-      toast.error(`오류: ${res.error}`);
-    }
-  };
-
-  // ── 품절 토글 ───────────────────────────────────────────
-  const handleToggleSoldOut = async (item: MenuItem) => {
-    setTogglingSoldOutId(item.id);
-    const res = await setMenuItemSoldOut(item.id, !item.is_sold_out);
-    setTogglingSoldOutId(null);
-    if (res.success && res.data) {
-      setMenuItems(p => p.map(m => m.id === item.id ? res.data! : m));
     } else {
       toast.error(`오류: ${res.error}`);
     }
@@ -381,18 +396,34 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                               {item.price < 0 && (
                                 <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600">할인</span>
                               )}
-                              {item.is_sold_out && (
-                                <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-ink text-white">품절</span>
-                              )}
                               <span className="ml-2 text-xs text-ink-muted">₩{item.price.toLocaleString('ko-KR')}</span>
+                              {sellPopups.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {sellPopups.map(p => {
+                                    const key = `${p.id}|${item.id}`;
+                                    const selling = !hiddenKeys.has(key);
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        type="button"
+                                        onClick={() => togglePopupSelling(p.id, item.id)}
+                                        disabled={togglingKey === key}
+                                        aria-pressed={selling}
+                                        title={selling ? `${p.name}에서 판매 중 — 누르면 이 팝업 POS에서 숨김` : `${p.name}에서 판매 안 함 — 누르면 다시 판매`}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition-colors disabled:opacity-50 ${
+                                          selling
+                                            ? 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
+                                            : 'bg-canvas text-ink-faint border-hairline line-through hover:bg-canvas-soft'
+                                        }`}
+                                      >
+                                        {p.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                             <div className="flex gap-1.5 shrink-0">
-                              <button onClick={() => handleToggleSoldOut(item)} disabled={togglingSoldOutId === item.id}
-                                className={`px-2.5 py-1 rounded-md text-xs font-semibold border-none cursor-pointer transition-colors disabled:opacity-50 ${
-                                  item.is_sold_out ? 'bg-ink text-white hover:bg-ink/85' : 'bg-canvas-soft text-ink-muted hover:bg-hairline'
-                                }`}>
-                                {item.is_sold_out ? '품절 해제' : '품절 처리'}
-                              </button>
                               <button onClick={() => startEdit(item)}
                                 className="px-2.5 py-1 rounded-md text-xs font-semibold border-none bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer transition-colors">
                                 수정

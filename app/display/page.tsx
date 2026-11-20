@@ -216,11 +216,12 @@ function DisplayContent({ popupId }: { popupId: string }) {
 
   useEffect(() => {
     if (mode === 'menu' && menuItems.length === 0) {
-      fetchMenuItems().then((result) => {
+      // 이 팝업에서 파는 메뉴만 — 설정에서 팝업별로 끈 메뉴는 고객 화면에도 보이지 않는다
+      fetchMenuItems(popupId).then((result) => {
         if (result.success) setMenuItems(result.data ?? []);
       });
     }
-  }, [mode, menuItems.length]);
+  }, [mode, menuItems.length, popupId]);
 
   return (
     <div className="h-dvh bg-canvas-soft flex flex-col select-none overflow-hidden">

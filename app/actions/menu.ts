@@ -2,7 +2,7 @@
 
 import { after } from 'next/server';
 import { z } from 'zod';
-import { wrap, requireAdmin, requireAuth } from './_base';
+import { wrap, requireAdmin } from './_base';
 import { notifyDiscord } from '@/lib/discord';
 import { supabaseAdmin } from '@/lib/supabase-admin-client';
 import type { ApiResponse, FetchMenuItemsResponse } from '@/types/api';
@@ -15,15 +15,26 @@ const MenuItemSchema = z.object({
   emoji: z.string().trim().max(8, '이모지는 하나만 입력해주세요').nullable().optional(),
 });
 
-async function getMenuItems(): Promise<MenuItem[]> {
-  const { data, error } = await supabaseAdmin
-    .from('menu_items')
-    .select('*')
-    .eq('is_active', true)
-    .order('display_order', { ascending: true })
+/** 그 팝업에서 팔지 않는 메뉴 id — popup_menu_hidden(행이 없으면 판매) */
+async function getHiddenMenuIds(popupId: number): Promise<Set<number>> {
+  const { data, error } = await supabaseAdmin.from('popup_menu_hidden').select('menu_item_id').eq('popup_id', popupId)
+  if (error) throw error
+  return new Set((data ?? []).map(r => r.menu_item_id as number))
+}
+
+/** 판매 중인 메뉴 — popupId를 주면 그 팝업에서 끈 메뉴는 뺀다(POS·고객 디스플레이) */
+async function getMenuItems(popupId?: number | null): Promise<MenuItem[]> {
+  const [{ data, error }, hidden] = await Promise.all([
+    supabaseAdmin
+      .from('menu_items')
+      .select('*')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true }),
+    popupId ? getHiddenMenuIds(popupId) : Promise.resolve(new Set<number>()),
+  ])
 
   if (error) throw error
-  return data ?? []
+  return (data ?? []).filter(m => !hidden.has(m.id))
 }
 
 async function getAllMenuItems(): Promise<MenuItem[]> {
@@ -88,28 +99,6 @@ async function deleteMenuItem(id: number): Promise<void> {
   if (error) throw error
 }
 
-async function updateMenuItemStock(id: number, stock: number | null): Promise<MenuItem> {
-  const { data, error } = await supabaseAdmin
-    .from('menu_items')
-    .update({ stock, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as MenuItem
-}
-
-async function updateMenuItemSoldOut(id: number, soldOut: boolean): Promise<MenuItem> {
-  const { data, error } = await supabaseAdmin
-    .from('menu_items')
-    .update({ is_sold_out: soldOut, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data as MenuItem
-}
-
 async function updateMenuOrder(orderedIds: number[]): Promise<void> {
   const updates = orderedIds.map((id, index) =>
     supabaseAdmin
@@ -127,8 +116,35 @@ async function updateMenuOrder(orderedIds: number[]): Promise<void> {
 }
 
 
-// fetchMenuItems·updateMenuStock은 /pos(오픈 페이지)와 공유돼 인증 게이트를 두지 않는다 — 나머지는 /settings(admin 전용) 전용
-export async function fetchMenuItems(): Promise<FetchMenuItemsResponse> { return wrap(getMenuItems); }
+// fetchMenuItems는 /pos·고객 디스플레이와 공유돼 인증 게이트를 두지 않는다 — 나머지는 /settings(admin 전용) 전용
+export async function fetchMenuItems(popupId?: string | number | null): Promise<FetchMenuItemsResponse> {
+  const id = Number(popupId)
+  return wrap(() => getMenuItems(Number.isInteger(id) && id > 0 ? id : null));
+}
+
+/** 팝업별로 끈 메뉴 전체 — 설정 > 메뉴의 팝업별 판매 칩 */
+export async function fetchPopupMenuHidden(): Promise<ApiResponse<{ popupId: number; menuItemId: number }[]>> {
+  return wrap(async () => {
+    await requireAdmin();
+    const { data, error } = await supabaseAdmin.from('popup_menu_hidden').select('popup_id, menu_item_id');
+    if (error) throw error;
+    return (data ?? []).map(r => ({ popupId: r.popup_id as number, menuItemId: r.menu_item_id as number }));
+  });
+}
+
+/** 한 팝업에서 그 메뉴를 팔지/말지 — 끄면 그 팝업 POS·고객 디스플레이에서 사라진다 */
+export async function setPopupMenuSelling(popupId: number, menuItemId: number, selling: boolean): Promise<ApiResponse> {
+  const parsed = z.object({ popupId: z.number().int().positive(), menuItemId: z.number().int().positive(), selling: z.boolean() })
+    .safeParse({ popupId, menuItemId, selling });
+  if (!parsed.success) return { success: false, error: '잘못된 요청입니다' };
+  return wrap(async () => {
+    await requireAdmin();
+    const { error } = selling
+      ? await supabaseAdmin.from('popup_menu_hidden').delete().eq('popup_id', popupId).eq('menu_item_id', menuItemId)
+      : await supabaseAdmin.from('popup_menu_hidden').upsert({ popup_id: popupId, menu_item_id: menuItemId }, { onConflict: 'popup_id,menu_item_id', ignoreDuplicates: true });
+    if (error) throw error;
+  });
+}
 export async function getAllMenu(): Promise<FetchMenuItemsResponse> { return wrap(async () => { await requireAdmin(); return getAllMenuItems(); }); }
 
 export async function createNewMenuItem(name: string, price: number, color: string, emoji?: string | null): Promise<ApiResponse<MenuItem>> {
@@ -150,20 +166,7 @@ export async function removeMenuItem(id: number): Promise<ApiResponse> {
   return result;
 }
 
-export async function updateMenuStock(id: number, stock: number | null): Promise<ApiResponse<MenuItem>> {
-  const parsed = z.object({
-    id: z.number().int().positive(),
-    stock: z.number().int().nullable(),
-  }).safeParse({ id, stock });
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  return wrap(async () => { await requireAuth(); return updateMenuItemStock(parsed.data.id, parsed.data.stock); });
-}
 
-export async function setMenuItemSoldOut(id: number, soldOut: boolean): Promise<ApiResponse<MenuItem>> {
-  const parsed = z.object({ id: z.number().int().positive(), soldOut: z.boolean() }).safeParse({ id, soldOut });
-  if (!parsed.success) return { success: false, error: '올바르지 않은 요청입니다' };
-  return wrap(async () => { await requireAdmin(); return updateMenuItemSoldOut(parsed.data.id, parsed.data.soldOut); });
-}
 
 export async function reorderMenuItems(orderedIds: number[]): Promise<ApiResponse> {
   const parsed = z.array(z.number().int().positive()).min(1).safeParse(orderedIds);
