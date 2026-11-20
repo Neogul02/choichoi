@@ -316,12 +316,6 @@ async function getPopupEventName(popupId: number): Promise<string | null> {
   return data?.name ?? null
 }
 
-/** POS 결제 시 메뉴 재고 차감 — 단일 호출부라 비공개로 둔다 */
-async function decrementMenuStock(items: { id: number; count: number }[]): Promise<void> {
-  const { error } = await supabaseAdmin.rpc('decrement_menu_stock', { p_items: items })
-  if (error) throw error
-}
-
 export async function saveOrder(items: OrderItemInput[], totalPrice: number, cashierName?: string, popupId?: string | null): Promise<SaveOrderResponse> {
   const parsed = SaveOrderSchema.safeParse({ items, totalPrice });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
@@ -336,15 +330,8 @@ export async function saveOrder(items: OrderItemInput[], totalPrice: number, cas
   try {
     const order = await createOrder(items, totalPrice, cashierName, popupId);
 
-    // 할인 블록(음수 가격 메뉴)은 실물 재고가 없으므로 차감 대상에서 제외.
-    // 재고 차감 실패는 주문을 막지 않으므로 매출 집계와 병렬 실행해 왕복 1회를 줄인다.
-    const stockItems = items.filter((i) => i.price > 0).map((i) => ({ id: i.id, count: i.count }))
-    const [sales] = await Promise.all([
-      getTodaysSales(popupId),
-      stockItems.length > 0
-        ? decrementMenuStock(stockItems).catch((err) => console.error('[saveOrder] 메뉴 재고 차감 실패:', err))
-        : Promise.resolve(),
-    ]);
+    // 메뉴 재고 차감은 2026-11 재고 기능을 없애며 뺐다(팝업별 판매 on/off로 대체) — 결제마다 쓰기 1회 절약
+    const sales = await getTodaysSales(popupId);
 
     // 주문 완료 알림 — 응답 반환 후 실행 (서버리스에서도 완료가 보장됨)
     after(async () => {

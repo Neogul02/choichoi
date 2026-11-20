@@ -14,7 +14,7 @@ export default async function PosPage() {
   }
 
   const [menuRes, salesRes, ordersRes] = await Promise.all([
-    fetchMenuItems(),
+    fetchMenuItems(popupId),
     fetchTodaysSales(popupId),
     fetchTodaysOrdersWithItems(10, popupId),
   ])
