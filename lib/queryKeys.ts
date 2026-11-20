@@ -6,6 +6,8 @@
  */
 export const queryKeys = {
   menuItems: ['menu-items'] as const,
+  /** 그 팝업에서 파는 메뉴 — menuItems로 무효화하면 함께 갱신된다 */
+  menuItemsFor: (popupId: string | null) => ['menu-items', popupId] as const,
   todaySalesAll: ['today-sales'] as const,
   todaySales: (popupId: string | null) => ['today-sales', popupId] as const,
   todaySalesByPopup: ['today-sales-by-popup'] as const,
