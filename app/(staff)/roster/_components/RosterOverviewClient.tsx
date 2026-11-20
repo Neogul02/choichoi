@@ -1,5 +1,6 @@
 'use client';
 
+import { shiftCopyLine, assignmentCopyLine } from '@/lib/roster/copyText';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatTimeRange } from '@/lib/workhours';
 import NavBar from '@/components/NavBar';
@@ -213,16 +214,8 @@ function DayDetailCard({ overview, dateStr, today, closedDays }: {
         for (const shift of u.data.shifts) {
           const assigned = u.data.assignments.filter(a => a.work_date === dateStr && a.shift_id === shift.id);
           if (assigned.length === 0) continue;
-          unitLines.push(`[${shift.name}] ${formatTimeRange(shift.start_time, shift.end_time)}`);
-          for (const a of assigned) {
-            const extras = [
-              a.start_time || a.end_time
-                ? `${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)}`
-                : '',
-              a.break_minutes === 0 ? '휴게 미포함' : '',
-            ].filter(Boolean);
-            unitLines.push(`· ${a.staff_profiles?.name ?? ''}${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`);
-          }
+          unitLines.push(shiftCopyLine(shift.name, shift));
+          for (const a of assigned) unitLines.push(assignmentCopyLine(a, shift));
         }
         if (unitLines.length === 0) continue;
         hasAny = true;
