@@ -1,5 +1,6 @@
 'use client'
 
+import { formatAppliedRates } from '@/lib/wagePolicy'
 import { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -32,6 +33,9 @@ interface Props {
 }
 
 type ViewMode = 'month' | 'popup'
+/** 적용 시급 — 2027년 하한 때문에 구간 안에서 바뀌면 `12500→13000` */
+const rateText = (r: PayrollRow) => r.paySegments.length > 0 ? r.paySegments.map(x => String(x.rate)).join('→') : r.hourlyRate != null ? String(r.hourlyRate) : ''
+
 type SortKey = 'name' | 'days' | 'totalHours' | 'hourlyRate' | 'totalPay'
 
 const SORT_LABELS: Record<SortKey, string> = {
@@ -331,7 +335,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
       ['이름', '전화', '근무일', '총 시간(h)', '시급(원)', '기본급(원)', '조정(원)', '지급액(원)'].join(','),
       ...rows.map(r => [
         esc(r.name), esc(r.phone ?? ''), String(r.days), String(r.totalHours),
-        r.hourlyRate != null ? String(r.hourlyRate) : '',
+        esc(rateText(r)),
         r.totalPay != null ? String(r.totalPay) : '',
         String(adjustTotals.get(r.staffId) ?? 0),
         finalPayOf(r) != null ? String(finalPayOf(r)) : '',
@@ -355,7 +359,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
       ...rows.map(r => [
         r.name, r.phone ? formatPhoneNumber(r.phone) : '', r.bankName ?? '', r.bankAccount ?? '',
         String(r.days), String(r.totalHours),
-        r.hourlyRate != null ? String(r.hourlyRate) : '',
+        rateText(r),
         r.totalPay != null ? String(r.totalPay) : '',
         String(adjustTotals.get(r.staffId) ?? 0),
         finalPayOf(r) != null ? String(finalPayOf(r)) : '',
@@ -600,7 +604,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 text-right text-ink-muted">
                       {row.hourlyRate != null
-                        ? <CopyText value={row.hourlyRate.toLocaleString('ko-KR')} label="시급" toastValue={`${row.hourlyRate.toLocaleString('ko-KR')}원`}>{row.hourlyRate.toLocaleString('ko-KR')}원</CopyText>
+                        ? <CopyText value={rateText(row)} label="시급" toastValue={formatAppliedRates(row.paySegments, row.hourlyRate)}>{formatAppliedRates(row.paySegments, row.hourlyRate)}</CopyText>
                         : <span className="text-ink-faint text-[11px]">미설정</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right font-bold text-ink">

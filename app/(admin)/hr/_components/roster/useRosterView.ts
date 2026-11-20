@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getWeekStart } from '@/lib/staffing';
 import { parseDate, addDays, ymdToDateStr } from '@/lib/date';
+import { buildPeriodGrid } from '@/lib/roster/periodGrid';
 
 // WeeklyRosterPrintModal.tsx도 초기 인쇄 범위를 정할 때 같은 키를 읽으므로 공유 상수로 노출한다
 export const ROSTER_CURSOR_KEY = 'roster_cursor';
@@ -64,13 +65,7 @@ export function useRosterView(period: { from: string; to: string } | null = null
 
   // 달력 그리드 — 월 뷰는 그 달 전체, 기간 뷰는 팝업 기간이 걸친 주들을 이어 붙이고 기간 밖은 빈 칸
   const gridDates = useMemo(() => {
-    if (isPeriod) {
-      const cells: (string | null)[] = [];
-      for (let d = getWeekStart(periodFrom); d <= periodTo || cells.length % 7 !== 0; d = addDays(d, 1)) {
-        cells.push(d >= periodFrom && d <= periodTo ? d : null);
-      }
-      return cells;
-    }
+    if (isPeriod) return buildPeriodGrid(periodFrom, periodTo);
     if (!cursor) return [];
     const firstDay = new Date(cursor.y, cursor.m, 1).getDay();
     const lastDate = new Date(cursor.y, cursor.m + 1, 0).getDate();
