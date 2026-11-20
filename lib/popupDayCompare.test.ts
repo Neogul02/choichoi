@@ -20,9 +20,10 @@ describe('지난 팝업 같은 일차', () => {
   it('지난 팝업 목록 — 먼저 시작해 끝난 것만, 최근 끝난 순', () => {
     expect(pastPopupsFor(cheong, [daegu, gangnam, cheong], '2026-11-20').map(p => p.id)).toEqual([36, 30])
   })
-  it('같은 매장 지난 회차가 기본(맨 앞)', () => {
+  it('같은 매장 지난 회차가 있으면 그것만 (대구는 대구끼리)', () => {
     const daegu3 = { id: 38, name: '대구 신세계 #3', start_date: '2026-11-20', end_date: '2026-12-03' }
-    expect(pastPopupsFor(daegu3, [daegu, gangnam, cheong, daegu3], '2026-11-20').map(p => p.id)).toEqual([30, 36])
+    const daegu1 = { id: 20, name: '대구 신세계', start_date: '2026-09-01', end_date: '2026-09-10' }
+    expect(pastPopupsFor(daegu3, [daegu, gangnam, cheong, daegu3, daegu1], '2026-11-20').map(p => p.id)).toEqual([30, 20])
     expect(sameDayOfRun(daegu3, daegu, '2026-11-20')).toEqual({ date: '2026-10-23', dayNo: 1 })
   })
 })
