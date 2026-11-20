@@ -1,7 +1,7 @@
 'use client';
 
+import { shiftCopyLine, assignmentCopyLine } from '@/lib/roster/copyText';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { formatTimeRange } from '@/lib/workhours';
 import { showMsg } from '@/lib/toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { clearRosterRange, copyPreviousWeek } from '@/app/actions/roster';
@@ -264,16 +264,8 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
         for (const shift of visibleShifts) {
           const assigned = getAssigned(dateStr, shift.id);
           if (assigned.length === 0) continue;
-          dayLines.push(`[${shift.name}] ${formatTimeRange(shift.start_time, shift.end_time)}`);
-          for (const a of assigned) {
-            const extras = [
-              a.start_time || a.end_time
-                ? `${(a.start_time ?? shift.start_time).slice(0, 5)}~${(a.end_time ?? shift.end_time).slice(0, 5)}`
-                : '',
-              a.break_minutes === 0 ? '휴게 미포함' : '',
-            ].filter(Boolean);
-            dayLines.push(`· ${a.staff_profiles?.name ?? ''}${extras.length > 0 ? ` (${extras.join(', ')})` : ''}`);
-          }
+          dayLines.push(shiftCopyLine(getShiftLabel(shift), shift));
+          for (const a of assigned) dayLines.push(assignmentCopyLine(a, shift));
         }
         if (dayLines.length === 0) continue;
         hasAny = true;

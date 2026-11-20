@@ -14,6 +14,8 @@ import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import SignaturePad from '@/components/SignaturePad'
 import { formatPhoneInput } from '@/lib/phone'
+import { addMinutesToHHMM } from '@/lib/workhours'
+import { COMPANY_RATE_SCHEDULE, companyStandardRate, minimumRateWithHoliday, minimumWageOn } from '@/lib/wagePolicy'
 
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
@@ -64,7 +66,10 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
   const [weeklyHolidayDay, setWeeklyHolidayDay] = useState('')
 
   // 임금
-  const [hourlyRate, setHourlyRate] = useState(staff.hourly_rate?.toString() ?? '10030')
+  // 프로필 시급이 없으면 오늘 기준 회사 기본 시급(lib/wagePolicy) — 예전엔 2024년 최저임금(10,030원)이 박혀 있었다
+  const [hourlyRate, setHourlyRate] = useState(() => (staff.hourly_rate ?? companyStandardRate(today())).toString())
+  // 우리 시급은 주휴수당을 녹인 금액이다 — 계약서에 '주휴수당 포함'과 내역을 적어야 나중에 주휴수당을 따로 청구받지 않는다
+  const [includesHolidayPay, setIncludesHolidayPay] = useState(true)
   const [paymentDay, setPaymentDay] = useState('25')
 
   // 사회보험
@@ -95,6 +100,23 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
     })
   }, [staff.id, staff.popup_id, startDate, endDate])
 
+  // 계약기간 중 회사 하한 시급(2027-01-01부터 13,000원)이 시작되면 계약서 임금란에 함께 적는다
+  const rateNum = parseInt(hourlyRate) || 0
+  const contractEnd = endDate || startDate
+  const rateChange = useMemo(() => {
+    const step = COMPANY_RATE_SCHEDULE.find(x => x.enforced && x.from > startDate && x.from <= contractEnd && x.rate > rateNum)
+    return step ? { from: step.from, rate: step.rate } : null
+  }, [startDate, contractEnd, rateNum])
+  // 시작일에 이미 하한이 적용되는데 시급이 낮으면 그 금액으로 맞추라고 알린다
+  const floorAtStart = COMPANY_RATE_SCHEDULE.filter(x => x.enforced && x.from <= startDate).pop()?.rate ?? 0
+  const legalMin = startDate ? minimumWageOn(startDate) : 0
+  const holidayMin = startDate ? minimumRateWithHoliday(startDate) : 0
+  const rateError = rateNum > 0 && rateNum < legalMin
+    ? `최저임금(${legalMin.toLocaleString('ko-KR')}원) 미만입니다 — 저장할 수 없습니다`
+    : includesHolidayPay && rateNum > 0 && rateNum < holidayMin
+      ? `주휴수당 포함 시급은 최저임금 × 1.2 = ${holidayMin.toLocaleString('ko-KR')}원 이상이어야 합니다`
+      : null
+
   const contractData: ContractData = useMemo(() => ({
     employerName, employerAddress, employerRepresentative, employerPhone,
     workerName: staff.name,
@@ -103,11 +125,19 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
     startDate, endDate: endDate || undefined,
     workplace, jobDescription,
     workDays: [],
+    // 휴게 길이는 그날 스케줄 값(파트 기본·개별 설정)을 따른다 — 급여와 같은 시간이 계약서에 적히도록.
+    // 휴게가 없는 날(짧은 근무)은 휴게 칸을 비운다
     specificWorkDates: specificWorkDates.length > 0
-      ? specificWorkDates.map(d => ({ ...d, breakStart, breakEnd }))
+      ? specificWorkDates.map(d => {
+          const mins = (d as SpecificWorkDate & { breakMinutes?: number }).breakMinutes
+          if (mins === 0) return { ...d, breakStart: '', breakEnd: '' }
+          return { ...d, breakStart, breakEnd: mins != null ? addMinutesToHHMM(breakStart, mins) : breakEnd }
+        })
       : undefined,
     weeklyHolidayDay,
     hourlyRate: parseInt(hourlyRate) || 0,
+    includesHolidayPay,
+    rateChange: rateChange ?? undefined,
     hasBonus: false,
     hasOtherAllowance: false,
     overtimeRate: 50,
@@ -123,7 +153,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
     staff.name, workerPhone, workerAddress,
     startDate, endDate, workplace, jobDescription,
     breakStart, breakEnd, weeklyHolidayDay,
-    hourlyRate, paymentDay,
+    hourlyRate, includesHolidayPay, rateChange, paymentDay,
     insuranceEmployment, insuranceIndustrial, insurancePension, insuranceHealth,
     specialTerms, specificWorkDates, signatureBase64,
   ])
@@ -146,6 +176,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
   })
 
   const handleComplete = async () => {
+    if (rateNum < legalMin) { showMsg(`시급이 최저임금(${legalMin.toLocaleString('ko-KR')}원)보다 낮습니다`); return }
     setSaving(true)
     const r = await generateContract({ workerId: staff.id, workerName: staff.name, popupId: staff.popup_id ?? undefined, startDate, hourlyRate: Number(hourlyRate), contractData })
     setSaving(false)
@@ -166,8 +197,8 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
+      {/* 바깥 클릭으로 닫지 않는다 — 입력·서명하던 계약서가 실수로 날아갔다. 닫기 버튼/Esc로만 닫는다 */}
       <div
         ref={panelRef}
         role="dialog"
@@ -233,6 +264,9 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
             {/* 휴게시간 / 주휴일 */}
             <div>
               <p className="m-0 mb-1.5 text-[11px] font-bold text-ink-muted uppercase tracking-wide">휴게시간</p>
+              {specificWorkDates.length > 0 && (
+                <p className="m-0 mb-1 text-[10px] text-ink-faint">시작 시각만 공통 — 휴게 길이는 날짜별 스케줄 값(없는 날은 비움)을 따릅니다</p>
+              )}
               <div className="flex items-center gap-1.5">
                 <input type="time" value={breakStart} onChange={e => setBreakStart(e.target.value)} className={inputCls} />
                 <span className="text-ink-faint text-[11px] shrink-0">~</span>
@@ -248,6 +282,22 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
                 <div><label className={labelCls}>시급 (원)</label><input type="number" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} className={inputCls} /></div>
                 <div><label className={labelCls}>임금 지급일</label><input value={paymentDay} onChange={e => setPaymentDay(e.target.value)} placeholder="예: 25" className={inputCls} /></div>
               </div>
+              <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-ink-secondary cursor-pointer">
+                <input type="checkbox" checked={includesHolidayPay} onChange={e => setIncludesHolidayPay(e.target.checked)} className="w-3.5 h-3.5 cursor-pointer" />
+                주휴수당 포함 시급 (계약서에 기본시급·주휴수당 내역 표기)
+              </label>
+              {rateError && <p className="m-0 mt-1 text-[10px] font-semibold text-rose-600">{rateError}</p>}
+              {floorAtStart > rateNum && rateNum > 0 && (
+                <p className="m-0 mt-1 text-[10px] text-amber-700">
+                  {startDate.slice(0, 4)}년 근무는 회사 기준 {floorAtStart.toLocaleString('ko-KR')}원으로 지급됩니다.{' '}
+                  <button type="button" onClick={() => setHourlyRate(String(floorAtStart))} className="underline bg-transparent border-none p-0 text-amber-700 cursor-pointer text-[10px] font-bold">{floorAtStart.toLocaleString('ko-KR')}원으로 맞추기</button>
+                </p>
+              )}
+              {rateChange && (
+                <p className="m-0 mt-1 text-[10px] text-emerald-700">
+                  계약기간 중 {rateChange.from}부터 {rateChange.rate.toLocaleString('ko-KR')}원 적용 — 계약서 임금란에 자동 표기됩니다
+                </p>
+              )}
             </div>
 
             {/* 사회보험 */}
@@ -272,7 +322,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
                 value={specialTerms}
                 onChange={e => setSpecialTerms(e.target.value)}
                 rows={4}
-                placeholder="특약사항을 입력하세요&#10;예: 수습기간 1개월 (시급의 90% 적용), 교통비 월정액 지급 등"
+                placeholder="특약사항을 입력하세요&#10;예: 교통비 월정액 지급, 유니폼 지급 등&#10;※ 1년 미만 계약은 수습 감액(90%)을 적용할 수 없습니다"
                 className={`${inputCls} resize-y`}
               />
             </div>

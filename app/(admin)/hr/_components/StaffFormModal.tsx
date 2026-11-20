@@ -1,6 +1,7 @@
 'use client';
 
-import { syncRangeEnd, syncRangeStart } from '@/lib/date';
+import { companyStandardRate } from '@/lib/wagePolicy';
+import { kstToday, syncRangeEnd, syncRangeStart } from '@/lib/date';
 
 import { useEffect, useRef, useState } from 'react';
 import { formatBankAccountInput, normalizeBankAccount, isValidBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank';
@@ -161,8 +162,8 @@ export default function StaffFormModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
+      {/* 바깥 클릭으로 닫지 않는다 — 입력 중이던 내용이 실수로 날아갔다. 닫기 버튼/Esc로만 닫는다 */}
       <div
         ref={panelRef}
         role="dialog"
@@ -378,7 +379,10 @@ export default function StaffFormModal({
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1">
               <label className={labelCls}>시급 (원)</label>
-              <input type="number" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} placeholder="10,030" className={inputCls} />
+              <input type="number" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} placeholder={companyStandardRate(kstToday()).toLocaleString('ko-KR')} className={inputCls} />
+              {hourlyRate && Number(hourlyRate) < 13_000 && (
+                <span className="text-[10px] text-ink-faint">2027-01-01 근무분부터는 13,000원으로 자동 계산됩니다</span>
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <label className={labelCls}>계정 연결 <span className="text-ink-faint font-normal">(가입된 근무자)</span></label>

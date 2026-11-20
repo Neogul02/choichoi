@@ -20,6 +20,7 @@ import { DEFAULT_REPORT_CHARTS, isReportChartAvailable } from '@/components/Popu
 import type { PopupReportData, ReportSection } from '@/components/PopupReportDocument';
 
 const PopupManualEntryModal = dynamic(() => import('./PopupManualEntryModal'), { ssr: false });
+const SalesSheetPasteModal = dynamic(() => import('./SalesSheetPasteModal'), { ssr: false });
 const PopupReportModal = dynamic(() => import('./PopupReportModal'), { ssr: false });
 
 type Metric = 'revenue' | 'orderCount';
@@ -101,6 +102,7 @@ export default function PopupStatsSection({
   const selectedPopup = popupEvents.find((p) => p.id === selectedPopupId) ?? null;
   const [metric, setMetric] = useState<Metric>('revenue');
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [showSheetPaste, setShowSheetPaste] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
   const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
@@ -301,7 +303,14 @@ export default function PopupStatsSection({
                   </div>
                 </div>
 
-                <div className="flex justify-end mb-3">
+                <div className="flex justify-end gap-2 mb-3">
+                  <button
+                    onClick={() => setShowSheetPaste(true)}
+                    title="엑셀 매출 정산표를 복사해 붙여넣으면 날짜별 매출·건수를 한 번에 반영합니다"
+                    className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[12px] font-bold bg-canvas text-ink-secondary border border-hairline cursor-pointer hover:bg-canvas-soft transition"
+                  >
+                    정산표 붙여넣기
+                  </button>
                   <button
                     onClick={() => setShowReportModal(true)}
                     className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-[12px] font-bold bg-primary-700 text-white border-none cursor-pointer hover:bg-primary-800 transition"
@@ -690,6 +699,17 @@ export default function PopupStatsSection({
           endDate={selectedPopup.end_date}
           onClose={() => setShowManualEntry(false)}
           onSaved={() => { setShowManualEntry(false); onRefresh(); }}
+        />
+      )}
+
+      {showSheetPaste && selectedPopup && (
+        <SalesSheetPasteModal
+          popupId={selectedPopup.id}
+          popupName={selectedPopup.name}
+          startDate={selectedPopup.start_date}
+          endDate={selectedPopup.end_date}
+          onClose={() => setShowSheetPaste(false)}
+          onSaved={() => { setShowSheetPaste(false); onRefresh(); }}
         />
       )}
 
