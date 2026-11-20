@@ -13,7 +13,6 @@ import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { fireConfetti, fireTierConfetti } from '@/lib/confetti'
 import FloatingEmojis from '@/components/FloatingEmojis'
 import PosNoteWidget from '@/components/PosNoteWidget'
-import MenuStockModal from '@/components/MenuStockModal'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import { fetchMenuItems } from '@/app/actions/menu';
 import { saveOrder, fetchTodaysOrdersWithItems, fetchTodaysSales, fetchTodaysSalesByPopup } from '@/app/actions/orders'
@@ -102,9 +101,6 @@ const MenuCard = memo(function MenuCard({
         <p className="m-0 text-xl md:text-2xl font-extrabold text-ink-secondary">
           {formatPrice(item.price)}원
         </p>
-        <p className="m-0 h-4 text-[11px] font-normal text-ink-muted">
-          {item.stock !== null ? `${item.stock}개` : ' '}
-        </p>
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -168,7 +164,6 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   } | null>(null)
   const [cashierName, setCashierName] = useState<string | null>(null)
   const [popupId, setPopupId] = useState(initialPopupId ?? '0')
-  const [stockModalOpen, setStockModalOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [showNote, setShowNote] = useState(true)
   const lastPaymentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -322,15 +317,16 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
   })
 
   const menuQuery = useQuery<MenuItem[]>({
-    queryKey: queryKeys.menuItems,
+    // 이 팝업에서 파는 메뉴만(설정 > 메뉴의 팝업별 판매) — 팝업이 바뀌면 키도 바뀐다
+    queryKey: queryKeys.menuItemsFor(popupId),
     queryFn: async () => {
-      const result = await fetchMenuItems()
+      const result = await fetchMenuItems(popupId)
       if (!result.success) throw new Error(result.error || '메뉴 로딩 실패')
       return result.data ?? []
     },
     staleTime: 5 * 60 * 1000,
     placeholderData: (previousData) => previousData,
-    ...(initialMenu != null ? { initialData: initialMenu } : {}),
+    ...(initialMenu != null && popupId === initialPopupId ? { initialData: initialMenu } : {}),
   })
 
   const menuItems = useMemo(() => menuQuery.data ?? [], [menuQuery.data])
@@ -769,14 +765,6 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
             )}
           </section>
 
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={() => setStockModalOpen(true)}
-              className="text-[11px] font-semibold text-ink-faint hover:text-ink-muted bg-transparent border-none cursor-pointer transition-colors px-1 py-0.5"
-            >
-              재고 설정
-            </button>
-          </div>
 
           {showNote && <PosNoteWidget cashierName={cashierName} />}
 
@@ -843,12 +831,6 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
       </main>
       <FloatingEmojis burstKey={flashKey} />
-      <MenuStockModal
-        open={stockModalOpen}
-        menuItems={menuItems}
-        onClose={() => setStockModalOpen(false)}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: queryKeys.menuItems })}
-      />
       <ConfirmDialog
         open={resetConfirmOpen}
         title="주문을 초기화할까요?"
