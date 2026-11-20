@@ -20,4 +20,10 @@ export const queryKeys = {
   /** 어제·지난주의 "지금 시 정각 ~ 지금 분" 구간 매출 — 분이 바뀌면 키도 바뀐다 */
   salesCompareCurrentHour: (today: string, hour: number, minute: number) =>
     ['sales-compare-current-hour', today, hour, minute] as const,
+  /** 팝업 전체 목록(종료 포함) — POS '지난 팝업 비교' 선택지 */
+  popupEventsAll: ['popup-events-all'] as const,
+  /** 지난 팝업 같은 일차의 하루 시간대 매출 / 그날 "정각~지금 분" 구간 */
+  popupDayCompare: (date: string) => ['popup-day-compare', date] as const,
+  popupDayCompareCurrentHour: (date: string, hour: number, minute: number) =>
+    ['popup-day-compare-current-hour', date, hour, minute] as const,
 }
