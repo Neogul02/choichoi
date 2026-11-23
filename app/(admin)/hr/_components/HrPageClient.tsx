@@ -18,7 +18,6 @@ import type { StaffProfile, StaffStatus, StaffRole, RosterShift, PopupEvent, Sta
 import StaffFormModal from './StaffFormModal';
 import RosterCalendar from './RosterCalendar';
 import PayrollPanel from './PayrollPanel';
-import PayCalculatorPanel from './PayCalculatorPanel';
 import ContractsPanel from './ContractsPanel';
 import StaffAssignModal from './StaffAssignModal';
 import ImportStaffFromPopupModal from './ImportStaffFromPopupModal';
@@ -34,9 +33,8 @@ import { birthFromMasked, birthFromResidentId, formatResidentId } from '@/lib/re
 const HrContractModal = dynamic(() => import('./HrContractModal'), { ssr: false });
 const StaffContractsListModal = dynamic(() => import('./StaffContractsListModal'), { ssr: false });
 const StaffCalendarModal = dynamic(() => import('./StaffCalendarModal'), { ssr: false });
-const WeeklyRosterPrintModal = dynamic(() => import('./WeeklyRosterPrintModal'), { ssr: false });
 
-type RightTab = 'roster' | 'payroll' | 'calculator' | 'contracts';
+type RightTab = 'roster' | 'payroll' | 'contracts';
 
 export interface InitialRoster {
   unit: RosterUnit;
@@ -144,7 +142,6 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
   const contractsList = useModal<StaffProfile>();
   const assigning = useModal<StaffProfile>();
   const calendar = useModal<StaffProfile>();
-  const rosterPrint = useModal();
 
   // 계약서 작성완료 — worker_id뿐 아니라 popup_id까지 짝지어 판정 (팝업 이동 시 재계약 필요 케이스 반영)
   const contractKey = (workerId: number, popupId: number | null) => `${workerId}:${popupId}`;
@@ -479,10 +476,10 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
 
           {/* 우측: 탭 + 패널 */}
           <div className="flex-1 min-w-0 w-full lg:min-w-[300px] flex flex-col gap-3">
-            {/* 우측 탭 + 근무표 인쇄 */}
+            {/* 우측 탭 */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 w-fit">
-                {([['roster', '스케줄 달력'], ['payroll', '급여 정산'], ['calculator', '공제 계산기'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
+                {([['roster', '스케줄 달력'], ['payroll', '급여 정산'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
                   <button
                     key={tab}
                     onClick={() => setRightTab(tab)}
@@ -494,12 +491,6 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => rosterPrint.open()}
-                className="px-3 py-2 rounded-xl bg-canvas border border-hairline text-[13px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-soft transition shadow-level-1"
-              >
-                근무표 인쇄
-              </button>
             </div>
 
             {rightTab === 'roster'
@@ -517,9 +508,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       return false;
                     }}
                   />
-                : rightTab === 'calculator'
-                  ? <PayCalculatorPanel />
-                  : <ContractsPanel
+                : <ContractsPanel
                     staffList={staffList}
                     popups={initialPopups}
                     refreshSignal={contractsRefreshKey}
@@ -601,9 +590,6 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
         />
       )}
 
-      {rosterPrint.isOpen && (
-        <WeeklyRosterPrintModal onClose={rosterPrint.close} />
-      )}
 
       <ConfirmDialog
         open={statusChangeTarget != null}

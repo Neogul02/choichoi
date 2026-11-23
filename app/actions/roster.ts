@@ -6,7 +6,7 @@ import type { RosterShift, RosterShiftRequirement, RosterAssignment, StaffRole }
 import { paidMinutes, shiftRawMinutes, minutesToHours, resolveBreakMinutes } from '@/lib/workhours'
 import { addDays, kstToday, kstYearMonth, ymdToDateStr, monthEndDateStr } from '@/lib/date'
 import { wrap, requireAuth, requireAdmin, requireManagerOrAdmin } from './_base'
-import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, shiftStartPriority, applyUnitFilter, castAssignment, castAssignments, isAllPopups, materializeFromShift } from '@/lib/roster/query-helpers'
+import { ASSIGNMENT_COLUMNS, SNAPSHOT_COLUMNS, DEFAULT_SHIFTS, applyUnitFilter, castAssignment, castAssignments, isAllPopups, materializeFromShift } from '@/lib/roster/query-helpers'
 
 // 스케줄 단위(unit) = 주방 전체(popupId null) 또는 캐셔의 특정 팝업
 export interface RosterUnit {
@@ -60,15 +60,6 @@ export interface MyShift {
 
 export interface MyRosterData {
   shifts: MyShift[] // 이번 달 1일 ~ 다음 달 말일
-}
-
-export interface WeeklyRosterEntry {
-  work_date: string
-  shift_name: string
-  name: string
-  phone: string | null
-  start_time: string
-  end_time: string
 }
 
 // 역할 검사 없는 내부 구현 — 반드시 requireAdmin()/requireManagerOrAdmin()으로 감싼 exported 함수를 통해서만 호출할 것.
@@ -737,67 +728,6 @@ export async function clearPopupAssignmentsOnDates(
   })
 }
 
-export async function fetchWeeklyRosterForPrint(from: string, to: string, staffRole?: StaffRole): Promise<ApiResponse<WeeklyRosterEntry[]>> {
-  return wrap(async () => {
-    await requireAdmin()
-    const staffQuery = supabaseAdmin
-      .from('staff_profiles')
-      .select('id, name, phone, sort_order')
-      .eq('status', 'confirmed')
-    const { data: staffData, error: staffError } = staffRole
-      ? await staffQuery.eq('staff_role', staffRole)
-      : await staffQuery
-    if (staffError) throw new Error(staffError.message)
-
-    const staffArr = (staffData ?? []) as { id: number; name: string; phone: string | null; sort_order: number }[]
-    if (staffArr.length === 0) return []
-
-    const staffMap = new Map(staffArr.map(s => [s.id, s]))
-
-    const { data: assignData, error: assignError } = await supabaseAdmin
-      .from('roster_assignments')
-      .select('work_date, start_time, end_time, staff_id, roster_shifts!roster_assignments_shift_id_fkey (name, start_time, end_time, sort_order)')
-      .gte('work_date', from)
-      .lte('work_date', to)
-      .in('staff_id', staffArr.map(s => s.id))
-      .order('work_date')
-    if (assignError) throw new Error(assignError.message)
-
-    type WeeklyAssignRow = {
-      work_date: string
-      start_time: string | null
-      end_time: string | null
-      staff_id: number
-      roster_shifts: { name: string; start_time: string; end_time: string; sort_order: number } | null
-    }
-    const withOrder = ((assignData ?? []) as unknown as WeeklyAssignRow[]).map(a => {
-      const shift = a.roster_shifts
-      const staff = staffMap.get(a.staff_id)!
-      return {
-        work_date: a.work_date,
-        shift_name: shift?.name ?? '',
-        name: staff.name,
-        phone: staff.phone,
-        start_time: a.start_time ?? shift?.start_time ?? '00:00',
-        end_time: a.end_time ?? shift?.end_time ?? '00:00',
-        shift_sort_order: shift?.sort_order ?? 99,
-        sort_order: staff.sort_order,
-      }
-    })
-
-    withOrder.sort((a, b) =>
-      a.work_date !== b.work_date
-        ? a.work_date.localeCompare(b.work_date)
-        : shiftStartPriority(a.start_time) !== shiftStartPriority(b.start_time)
-        ? shiftStartPriority(a.start_time) - shiftStartPriority(b.start_time)
-        : a.shift_sort_order !== b.shift_sort_order
-        ? a.shift_sort_order - b.shift_sort_order
-        : a.sort_order - b.sort_order
-    )
-
-    return withOrder.map(({ sort_order: _s, shift_sort_order: _ss, ...entry }) => entry)
-  })
-}
 
 // 이번 달 1일 ~ 다음 달 말일 근무 배정을 조회 — 본인/관리자 조회 양쪽에서 공유
 // 시급·급여는 여기서 절대 내려보내지 않는다: 이 데이터는 근무자 본인 브라우저까지 가므로 급여 정보는 관리자 화면(payroll)에서만 조회

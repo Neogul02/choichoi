@@ -1,10 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchMenuItems, getAllMenu } from '@/app/actions/menu';
-import { fetchTodaysSales, fetchTodaysOrders, fetchTodaysOrdersWithItems } from '@/app/actions/orders';
-import { fetchMonthlySalesCalendar, fetchMenuSalesBreakdown, fetchDailySalesByPeriod } from '@/app/actions/stats';
+import { fetchMenuItems, getAllMenu, fetchPopupMenuHidden } from '@/app/actions/menu';
+import { fetchTodaysSales, fetchTodaysOrdersWithItems, fetchHourlySalesByPopup } from '@/app/actions/orders';
+import {
+  fetchMonthlySalesCalendar, fetchTodaysSalesForStats, fetchTodaysSalesByPopupForStats, fetchLifetimeSalesTotals,
+  fetchPopupDailySales, fetchPopupDayDetail,
+} from '@/app/actions/stats';
 import { fetchPopupEvents } from '@/app/actions/schedule';
+import { kstToday } from '@/lib/date';
+import { pickOngoingPopup } from '@/lib/staffing';
+import { FEATURES, DISABLED_FEATURE_LABELS } from '@/lib/features';
 import { fetchDbSchema, type SchemaTable } from '@/app/actions/devtools';
 import CopyText from '@/components/CopyText';
 
@@ -25,38 +31,30 @@ interface ApiLog {
 
 let _logId = 0;
 
-function todayISO() {
-  const d = new Date();
-  const s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  return { start: `${s}T00:00:00+09:00`, end: `${s}T23:59:59+09:00` };
+/** 진행 중인 팝업(없으면 최신) — 팝업 단위 액션 점검용 */
+async function currentPopupId(): Promise<number | null> {
+  const res = await fetchPopupEvents();
+  const list = res.success ? res.data ?? [] : [];
+  return (pickOngoingPopup(list, kstToday()) ?? list[0])?.id ?? null;
 }
 
+const kstDayISO = (d: string) => ({ start: new Date(`${d}T00:00:00+09:00`).toISOString(), end: new Date(`${d}T23:59:59.999+09:00`).toISOString() });
+
+// 화면들이 실제로 쓰는 조회 액션 — 결과·응답 시간을 그 자리에서 본다(쓰기 액션은 넣지 않는다)
 const API_ACTIONS: { label: string; desc: string; fn: () => Promise<unknown> }[] = [
-  { label: 'fetchMenuItems', desc: '활성 메뉴만 — is_active=true, display_order 오름차순', fn: fetchMenuItems },
-  { label: 'getAllMenu', desc: '전체 메뉴 — 비활성(삭제) 항목 포함', fn: getAllMenu },
-  { label: 'fetchTodaysSales', desc: '오늘 주문 건수·매출 합계 — KST 00:00~23:59', fn: fetchTodaysSales },
-  { label: 'fetchTodaysOrders', desc: '오늘 주문 목록 — order_items 없는 경량 조회', fn: fetchTodaysOrders },
-  { label: 'fetchTodaysOrdersWithItems(5)', desc: '최근 5건 + order_items + menu_items 중첩 조인', fn: () => fetchTodaysOrdersWithItems(5) },
-  {
-    label: 'fetchMonthlySalesCalendar',
-    desc: '이번 달 날짜별 매출 — RPC get_monthly_sales_by_date',
-    fn: () => { const n = new Date(); return fetchMonthlySalesCalendar(n.getFullYear(), n.getMonth() + 1); },
-  },
-  {
-    label: 'fetchMenuSalesBreakdown',
-    desc: '오늘 메뉴별 수량·매출 — orders → order_items → menu_items 배치 조인',
-    fn: () => { const { start, end } = todayISO(); return fetchMenuSalesBreakdown(start, end); },
-  },
-  {
-    label: 'fetchDailySalesByPeriod',
-    desc: '이번 달 일별 매출 — 1000건 페이지네이션, KST 변환',
-    fn: () => {
-      const d = new Date();
-      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      return fetchDailySalesByPeriod(`${m}-01T00:00:00+09:00`, todayISO().end);
-    },
-  },
-  { label: 'fetchPopupEvents', desc: '팝업 행사 목록 — start_date 내림차순', fn: fetchPopupEvents },
+  { label: 'fetchMenuItems(진행 팝업)', desc: 'POS 메뉴 — 활성 메뉴 중 그 팝업에서 끈 메뉴(popup_menu_hidden) 제외', fn: async () => fetchMenuItems(await currentPopupId()) },
+  { label: 'getAllMenu', desc: '전체 메뉴 — 비활성 포함(설정 › 메뉴)', fn: getAllMenu },
+  { label: 'fetchPopupMenuHidden', desc: '팝업별로 끈 메뉴 목록', fn: fetchPopupMenuHidden },
+  { label: 'fetchPopupEvents', desc: '팝업 목록 — 기간·활성·수수료(fee_percent)', fn: fetchPopupEvents },
+  { label: 'fetchTodaysSales', desc: 'POS 오늘 합계 — 결제 번호에 쓰는 원본(정정 미반영)', fn: () => fetchTodaysSales() },
+  { label: 'fetchTodaysSalesForStats', desc: '통계 오늘 합계 — 수기 정정 반영(get_day_sales)', fn: fetchTodaysSalesForStats },
+  { label: 'fetchTodaysSalesByPopupForStats', desc: '통계 오늘 팝업별 시간대 매출', fn: fetchTodaysSalesByPopupForStats },
+  { label: 'fetchHourlySalesByPopup(어제)', desc: '어제 팝업별 시간대 매출 — 어제·지난주·지난 팝업 비교 원본', fn: () => { const d = new Date(Date.now() + 9 * 3600e3 - 86400e3).toISOString().slice(0, 10); const b = kstDayISO(d); return fetchHourlySalesByPopup(b.start, b.end); } },
+  { label: 'fetchTodaysOrdersWithItems(5)', desc: '최근 주문 5건 + 품목(1000건 나눠 읽기)', fn: () => fetchTodaysOrdersWithItems(5) },
+  { label: 'fetchMonthlySalesCalendar', desc: '이번 달 달력 — 날짜·팝업별 매출(정정 반영)', fn: () => { const n = new Date(); return fetchMonthlySalesCalendar(n.getFullYear(), n.getMonth() + 1); } },
+  { label: 'fetchPopupDailySales(진행 팝업)', desc: '팝업 일별 매출 — 팝업 정정 > 날짜 정정 > POS', fn: async () => { const id = await currentPopupId(); return id ? fetchPopupDailySales(id) : '팝업 없음'; } },
+  { label: 'fetchPopupDayDetail(진행 팝업, 오늘)', desc: '하루 상세 창 — 합계·시간대·메뉴', fn: async () => { const id = await currentPopupId(); return id ? fetchPopupDayDetail(id, kstToday()) : '팝업 없음'; } },
+  { label: 'fetchLifetimeSalesTotals', desc: '누적 총매출 — 집계 테이블(sales_daily) 기반', fn: fetchLifetimeSalesTotals },
 ];
 
 /** Postgres 정식 타입명은 길어서 표에서 줄바꿈을 유발한다 — 통용되는 축약형으로 보여준다 */
@@ -157,6 +155,21 @@ export default function DevToolsSection() {
           </Field>
           <Field label="Supabase 프로젝트">
             <EnvValue value={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+          </Field>
+          <Field label="런타임">
+            <div className="flex flex-wrap gap-1">
+              {process.env.NEXT_PUBLIC_NEXT_VERSION && <Tag tone="info">Next.js {process.env.NEXT_PUBLIC_NEXT_VERSION}</Tag>}
+              <Tag tone="info">React 19</Tag>
+              <Tag tone="info">Supabase</Tag>
+            </div>
+          </Field>
+          <Field label="꺼 둔 기능 (lib/features.ts)">
+            <div className="flex flex-wrap gap-1">
+              {(Object.keys(FEATURES) as (keyof typeof FEATURES)[]).filter(k => !FEATURES[k]).map(k => (
+                <Tag key={k} tone="warn">{DISABLED_FEATURE_LABELS[k]}</Tag>
+              ))}
+              {(Object.keys(FEATURES) as (keyof typeof FEATURES)[]).every(k => FEATURES[k]) && <Tag tone="ok">없음</Tag>}
+            </div>
           </Field>
         </div>
       </Panel>

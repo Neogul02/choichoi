@@ -1,5 +1,6 @@
 'use client';
 
+import { FEATURES } from '@/lib/features';
 import { hardNavigate } from '@/lib/hardNavigate';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -27,7 +28,8 @@ const ALL_NAV_LINKS = [
   { href: '/roster', label: '일정표', minRole: 'manager' },
   { href: '/hr', label: '인사', minRole: 'admin' },
   { href: '/attendance', label: '출근부', minRole: 'admin' },
-  { href: '/inventory', label: '재고', minRole: 'user' },
+  // 재고 탭은 일시 비활성(lib/features) — 다시 켜면 메뉴에 돌아온다
+  ...(FEATURES.inventory ? [{ href: '/inventory', label: '재고', minRole: 'user' } as const] : []),
   { href: '/schedule', label: '스케줄', minRole: 'user' },
   { href: '/my', label: 'MY', minRole: 'user' },
   { href: '/settings', label: '설정', minRole: 'admin' },

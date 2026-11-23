@@ -39,6 +39,14 @@ async function createPopupEvent(name: string, startDate: string, endDate: string
   return data as PopupEvent
 }
 
+const FeePercentSchema = z.number().min(0).max(100).nullable();
+
+async function updatePopupFee(id: number, feePercent: number | null): Promise<PopupEvent> {
+  const { data, error } = await supabaseAdmin.from('popup_events').update({ fee_percent: feePercent }).eq('id', id).select().single()
+  if (error) throw error
+  return data as PopupEvent
+}
+
 async function deletePopupEvent(id: number): Promise<void> {
   const { error } = await supabaseAdmin
     .from('popup_events')
@@ -125,10 +133,16 @@ export async function togglePopupEventActive(id: number, isActive: boolean): Pro
   return wrap(async () => { await requireAdmin(); return setPopupEventActive(id, isActive); });
 }
 
-export async function createNewPopupEvent(name: string, startDate: string, endDate: string): Promise<ApiResponse<PopupEvent>> {
+export async function createNewPopupEvent(name: string, startDate: string, endDate: string, feePercent: number | null = null): Promise<ApiResponse<PopupEvent>> {
   const parsed = PopupEventSchema.safeParse({ name, startDate, endDate });
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
-  const res = await wrap(async () => { await requireAdmin(); return createPopupEvent(parsed.data.name, parsed.data.startDate, parsed.data.endDate); });
+  const fee = FeePercentSchema.safeParse(feePercent);
+  if (!fee.success) return { success: false, error: '수수료는 0~100% 사이로 입력하세요' };
+  const res = await wrap(async () => {
+    await requireAdmin();
+    const created = await createPopupEvent(parsed.data.name, parsed.data.startDate, parsed.data.endDate);
+    return fee.data == null ? created : updatePopupFee(created.id, fee.data);
+  });
   if (res.success && res.data) {
     // 기간 안에 이미 배정된 근무자가 있으면(드문 경우지만 과거 날짜로 소급 생성 등) 바로 팝업 소속으로 분류
     await classifyStaffByPopupSchedule(res.data.id);
@@ -136,6 +150,13 @@ export async function createNewPopupEvent(name: string, startDate: string, endDa
     await createDefaultCashierShifts(res.data.id, parsed.data.startDate, parsed.data.endDate);
   }
   return res;
+}
+
+/** 팝업 고정 수수료율(%) — null이면 미설정 */
+export async function setPopupFeePercent(id: number, feePercent: number | null): Promise<ApiResponse<PopupEvent>> {
+  const fee = FeePercentSchema.safeParse(feePercent);
+  if (!fee.success || !Number.isInteger(id) || id <= 0) return { success: false, error: '수수료는 0~100% 사이로 입력하세요' };
+  return wrap(async () => { await requireAdmin(); return updatePopupFee(id, fee.data); });
 }
 
 export async function removePopupEvent(id: number): Promise<ApiResponse> { return wrap(async () => { await requireAdmin(); return deletePopupEvent(id); }); }
