@@ -42,7 +42,6 @@ export default async function StatsPage() {
     <StatsPageClient
       initialSummary={summaryRes.success ? summaryRes.data ?? null : null}
       initialOrders={null}
-      initialBreakdown={null}
       initialCalendar={initialCalendar}
       initialPopupEvents={popupsRes.success ? popupsRes.data ?? null : null}
       todayPopups={todayPopupsRes.success ? todayPopupsRes.data ?? null : null}

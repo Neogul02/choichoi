@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import { fetchTodaysMenuSales } from '@/app/actions/orders';
@@ -10,11 +10,8 @@ import { useKstTime } from '@/hooks/useKstTime';
 import { mergeHourly, sumUpto, sumUptoMinute } from '@/lib/salesCurve';
 import type { MenuSalesItem, TodayPopupSales } from '@/types/api';
 import { queryKeys } from '@/lib/queryKeys';
-import { usePopupDayCompare, usePopupEventsAll } from '@/hooks/usePopupDayCompare';
-import { pastPopupsFor, popupDayIndex, sameDayOfRun } from '@/lib/popupDayCompare';
-import { DAY_NAMES } from '@/lib/staffing';
-
-const COMPARE_POPUP_KEY = 'pos_compare_popup_id';
+import PastPopupCompare from './PastPopupCompare';
+import SalesDelta from './SalesDelta';
 
 interface Props {
   /** 오늘 매출이 난 팝업별 집계 — 배틀 칸과 같은 쿼리 결과를 받는다 */
@@ -36,24 +33,6 @@ const SalesBattleChart = dynamic(() => import('./SalesBattleChart'), {
 });
 
 const MINE_COLOR = '#084431'; // primary-700 — 배틀 칸에서 내 팝업에 쓰는 색과 같다
-
-function Delta({ label, now, before }: { label: string; now: number; before: number | null }) {
-  if (before == null || before === 0) {
-    return <span className="text-ink-faint">{label} —</span>;
-  }
-  const diff = now - before;
-  const pct = Math.round((diff / before) * 100);
-  const up = diff >= 0;
-  return (
-    <span className="whitespace-nowrap">
-      <span className="text-ink-faint">{label} </span>
-      <span className={up ? 'font-bold text-emerald-600' : 'font-bold text-rose-500'}>
-        {up ? '▲' : '▼'} {Math.abs(pct)}%
-      </span>
-      <span className="ml-1 text-ink-faint tabular-nums">(₩{before.toLocaleString('ko-KR')})</span>
-    </span>
-  );
-}
 
 /**
  * POS '오늘 현황' 칸 — 통계탭 오늘 현황의 축약판.
@@ -90,37 +69,6 @@ export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, to
   const compareQuery = useSalesCompareDays(today, !hidden);
   // 진행 중인 시는 기준일도 "정각 ~ 지금 분"까지만 — 통계탭과 같은 규칙(lib/salesCurve sumUptoMinute)
   const partialQuery = useSalesCompareCurrentHour(today, nowHour, nowMinute, !hidden);
-
-  // ── 지난 팝업 같은 일차 비교 — 오늘이 운영 N일차면 고른 지난 팝업의 N일차 같은 시각까지와 맞댄다
-  const popupsQuery = usePopupEventsAll(!hidden && currentPopupId != null);
-  const currentPopup = popupsQuery.data?.find(p => p.id === currentPopupId) ?? null;
-  const pastPopups = useMemo(
-    () => (currentPopup ? pastPopupsFor(currentPopup, popupsQuery.data ?? [], today) : []),
-    [currentPopup, popupsQuery.data, today],
-  );
-  const [comparePopupId, setComparePopupId] = useState<number | null>(null);
-  useEffect(() => {
-    try {
-      const saved = Number(localStorage.getItem(COMPARE_POPUP_KEY));
-      if (saved) setComparePopupId(saved);
-    } catch { /* 저장소를 못 쓰면 기본값(최근 끝난 팝업) */ }
-  }, []);
-  const comparePopup = pastPopups.find(p => p.id === comparePopupId) ?? pastPopups[0] ?? null;
-  const pickComparePopup = (id: number) => {
-    setComparePopupId(id);
-    try { localStorage.setItem(COMPARE_POPUP_KEY, String(id)); } catch { /* 무시 */ }
-  };
-  const run = currentPopup && comparePopup ? sameDayOfRun(currentPopup, comparePopup, today) : null;
-  const pastDay = usePopupDayCompare(run?.date ?? null, nowHour, nowMinute, !hidden);
-  const pastCompare = useMemo(() => {
-    if (!comparePopup || !run || !pastDay.full) return null;
-    const full = pastDay.full.filter(r => r.popupId === comparePopup.id);
-    const partial = pastDay.partial.filter(r => r.popupId === comparePopup.id);
-    return {
-      uptoNow: full.length > 0 ? sumUptoMinute(full, partial, nowHour) : null,
-      dayTotal: full.reduce((s, r) => s + r.totalRevenue, 0),
-    };
-  }, [comparePopup, run, pastDay.full, pastDay.partial, nowHour]);
 
   const mine = useMemo(() => scope(rows), [rows, scope]);
   const todayUptoNow = sumUpto(mine, nowHour);
@@ -187,37 +135,12 @@ export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, to
           </div>
 
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
-            <Delta label="어제 같은 시각" now={todayUptoNow} before={compare?.yesterday ?? null} />
-            <Delta label="지난주 같은 시각" now={todayUptoNow} before={compare?.lastWeek ?? null} />
+            <SalesDelta label="어제 같은 시각" now={todayUptoNow} before={compare?.yesterday ?? null} />
+            <SalesDelta label="지난주 같은 시각" now={todayUptoNow} before={compare?.lastWeek ?? null} />
           </div>
 
-          {/* 지난 팝업 같은 일차 — 날짜가 아니라 운영 며칠째인지로 맞춘다(주말·평일은 괄호 요일로 확인) */}
-          {pastPopups.length > 0 && comparePopup && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-              <select
-                value={comparePopup.id}
-                onChange={e => pickComparePopup(Number(e.target.value))}
-                aria-label="비교할 지난 팝업"
-                className="max-w-[140px] truncate rounded-md border border-hairline bg-canvas px-1.5 py-0.5 text-[11px] font-semibold text-ink-secondary cursor-pointer"
-              >
-                {pastPopups.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              {run ? (
-                <>
-                  <Delta
-                    label={`${run.dayNo}일차(${DAY_NAMES[new Date(`${run.date}T00:00:00`).getDay()]}) 같은 시각`}
-                    now={todayUptoNow}
-                    before={pastCompare?.uptoNow ?? null}
-                  />
-                  {pastCompare && pastCompare.dayTotal > 0 && (
-                    <span className="text-ink-faint whitespace-nowrap tabular-nums">그날 전체 ₩{pastCompare.dayTotal.toLocaleString('ko-KR')}</span>
-                  )}
-                </>
-              ) : (
-                <span className="text-ink-faint">그 팝업은 {currentPopup ? (popupDayIndex(currentPopup, today) ?? 0) + 1 : ''}일차까지 운영하지 않았어요</span>
-              )}
-            </div>
-          )}
+          {/* 지난 팝업 같은 운영 일차·같은 시각 */}
+          <PastPopupCompare currentPopupId={currentPopupId} todayUptoNow={todayUptoNow} enabled={!hidden} />
 
           <div className="mt-3">
             <div className="mb-1 flex items-baseline justify-between gap-2">

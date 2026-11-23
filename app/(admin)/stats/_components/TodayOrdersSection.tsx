@@ -7,6 +7,9 @@ import { utcToKst } from '@/lib/date';
 import type { OrderRecordWithItems } from '@/types/api';
 
 interface Props {
+  /** 접혀 있으면 조회하지 않는다 — 오늘 주문 전체(품목 포함)는 가장 무거운 조회 */
+  open: boolean;
+  onToggle: () => void;
   orders: OrderRecordWithItems[];
   todayRevenue: number;
   isLoading: boolean;
@@ -18,7 +21,7 @@ function formatKSTTime(isoString: string): string {
   return `${String(kst.getUTCHours()).padStart(2, '0')}:${String(kst.getUTCMinutes()).padStart(2, '0')}:${String(kst.getUTCSeconds()).padStart(2, '0')}`;
 }
 
-export default function TodayOrdersSection({ orders, todayRevenue, isLoading, onDeleteOrder }: Props) {
+export default function TodayOrdersSection({ open, onToggle, orders, todayRevenue, isLoading, onDeleteOrder }: Props) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrderRecordWithItems | null>(null);
 
@@ -33,14 +36,29 @@ export default function TodayOrdersSection({ orders, todayRevenue, isLoading, on
     setDeletingId(null);
   };
 
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mt-4 w-full flex items-center justify-between rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 text-[12px] font-bold text-ink-secondary cursor-pointer hover:bg-[#ececeb]"
+      >
+        오늘 주문 목록 <span className="text-ink-faint font-semibold">펼치기 ▾</span>
+      </button>
+    );
+  }
+
   return (
-    <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+    <div className="mt-4">
       <SectionHeader
         title="오늘 주문 내역"
         right={
-          <div className="text-right">
-            <div className="text-[10px] text-ink-faint font-medium">오늘 {orders.length}건</div>
-            <strong className="text-base text-primary-700 font-extrabold tabular-nums">₩{todayRevenue.toLocaleString('ko-KR')}</strong>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-[10px] text-ink-faint font-medium">오늘 {orders.length}건</div>
+              <strong className="text-base text-primary-700 font-extrabold tabular-nums">₩{todayRevenue.toLocaleString('ko-KR')}</strong>
+            </div>
+            <button type="button" onClick={onToggle} className="text-[11px] font-semibold text-ink-faint bg-transparent border-none cursor-pointer hover:text-ink-muted">접기 ▴</button>
           </div>
         }
       />
