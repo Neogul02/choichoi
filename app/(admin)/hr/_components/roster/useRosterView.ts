@@ -5,8 +5,6 @@ import { getWeekStart } from '@/lib/staffing';
 import { parseDate, addDays, ymdToDateStr } from '@/lib/date';
 import { buildPeriodGrid } from '@/lib/roster/periodGrid';
 
-// WeeklyRosterPrintModal.tsx도 초기 인쇄 범위를 정할 때 같은 키를 읽으므로 공유 상수로 노출한다
-export const ROSTER_CURSOR_KEY = 'roster_cursor';
 
 /** 월 / 주 / 팝업 기간 — 기간 뷰는 달을 넘는 팝업(예: 11/13~12/3)을 한 화면에 이어서 보여준다 */
 export type RosterViewMode = 'month' | 'week' | 'period';
@@ -42,10 +40,6 @@ export function useRosterView(period: { from: string; to: string } | null = null
     localStorage.setItem('roster_viewMode', viewMode);
   }, [viewMode]);
 
-  // 현재 보고 있는 달 저장 (근무표 인쇄 모달 자동 날짜에 사용)
-  useEffect(() => {
-    if (cursor) localStorage.setItem(ROSTER_CURSOR_KEY, JSON.stringify(cursor));
-  }, [cursor]);
 
   /** 월/단위 변경 시 뷰 리셋 */
   const resetOnCursorChange = () => {

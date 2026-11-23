@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { formatPrice } from '@/lib/utils';
-import { afterFee, feePercentOf, monthSettlement } from '@/lib/popupSettlement';
+import { afterFee, feePercentOf } from '@/lib/popupSettlement';
+import { monthPopupsOf, popupTotalsOf } from '../_lib/monthPopups';
 import { getDayTierSwatch } from '../_lib/tierSwatch';
 import { makePopupColorOf, UNASSIGNED_POPUP_COLOR } from '../_lib/popupColor';
 import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
@@ -12,9 +13,6 @@ import SectionHeader from './SectionHeader';
 import { DAY_NAMES } from '@/lib/staffing';
 
 
-const MATERIAL_COST_KEY = 'choichoi_material_cost';
-const OTHER_COST_KEY = 'choichoi_other_cost';
-const FEE_PERCENT_KEY = 'choichoi_fee_percent';
 
 /** 2026-10-02 ~ 2026-10-15 → 10.2~10.15 */
 function formatRangeLabel(start: string, end: string): string {
@@ -46,63 +44,25 @@ interface Props {
 
 export default function CalendarSection({ calendarSales, popupEvents, calendarMonth, isLoading, todayStr, onMonthChange, saveDay, removeDay, onPopupSaved }: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  // 정산 계산기는 가끔 쓰므로 접어 둔다
-  const [showSettlement, setShowSettlement] = useState(false);
   // ?? {}가 매 렌더 새 객체를 만들어 아래 useMemo 의존성이 매번 바뀌는 것을 막는다
   const manualByDate: Record<string, ManualSalesEntry> = useMemo(
     () => calendarSales.manualByDate ?? {},
     [calendarSales.manualByDate],
   );
-  const [materialCost, setMaterialCost] = useState(() => {
-    try { const s = localStorage.getItem(MATERIAL_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
-  });
-  const [otherCost, setOtherCost] = useState(() => {
-    try { const s = localStorage.getItem(OTHER_COST_KEY); return s ? parseInt(s, 10) : 0; } catch { return 0; }
-  });
-  const [feePercent, setFeePercent] = useState(() => {
-    try { const s = localStorage.getItem(FEE_PERCENT_KEY); return s ? parseFloat(s) : 32; } catch { return 32; }
-  });
 
   const monthYearLabel = `${calendarMonth.getFullYear()}년 ${calendarMonth.getMonth() + 1}월`;
   const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
-
-  const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
-    const next = isNaN(val) ? 0 : val;
-    setFeePercent(next);
-    try { localStorage.setItem(FEE_PERCENT_KEY, String(next)); } catch { /* ignore */ }
-  };
-
   const buildDateKey = (year: number, monthIndex: number, day: number) =>
     `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  // 이 달에 걸치는 팝업만 추린다 — 일정 띠·범례·색 배정이 모두 이 목록 하나를 기준으로 돈다.
-  // 시작일 순으로 두면 달력 위에서 아래로 읽는 순서와 범례 순서가 같아진다.
-  const monthPopups = useMemo(() => {
-    const first = buildDateKey(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-    const last = buildDateKey(calendarMonth.getFullYear(), calendarMonth.getMonth(), daysInMonth);
-    return popupEvents
-      .filter((p) => p.start_date <= last && p.end_date >= first)
-      .sort((a, b) => (a.start_date === b.start_date ? a.id - b.id : a.start_date < b.start_date ? -1 : 1));
-  }, [popupEvents, calendarMonth, daysInMonth]);
+  // 이 달에 걸치는 팝업 — 일정 띠·범례·색 배정이 모두 이 목록 하나를 기준으로 돈다
+  const monthPopups = useMemo(() => monthPopupsOf(popupEvents, calendarMonth), [popupEvents, calendarMonth]);
 
   const colorOf = useMemo(() => makePopupColorOf(monthPopups.map((p) => p.id)), [monthPopups]);
 
-  // 팝업별 월 합계 — 날짜별 POS 집계(popupByDate)에서만 더한다.
-  // 일정 기간으로 일 매출을 쪼개 나누면, 두 팝업이 같이 도는 날(실제로 있다) 매출이 양쪽에 중복 계상된다.
-  const popupTotals = useMemo(() => {
-    const acc = new Map<number | null, { revenue: number; orders: number }>();
-    for (const list of Object.values(calendarSales.popupByDate ?? {})) {
-      for (const row of list) {
-        const cur = acc.get(row.popupId) ?? { revenue: 0, orders: 0 };
-        cur.revenue += row.revenue;
-        cur.orders += row.orders;
-        acc.set(row.popupId, cur);
-      }
-    }
-    return acc;
-  }, [calendarSales.popupByDate]);
+  // 팝업별 월 합계(팝업 정정 반영) — _lib/monthPopups
+  const popupTotals = useMemo(() => popupTotalsOf(calendarSales), [calendarSales]);
 
   // 수동 입력으로 정정한 날은 칸 금액(수동값)과 팝업 내역 합(POS)이 어긋난다 — 범례에 한 줄로 밝힌다
   const hasManualInMonth = useMemo(() => {
@@ -110,29 +70,9 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
     return Object.keys(manualByDate).some((d) => d.startsWith(prefix));
   }, [manualByDate, calendarMonth]);
 
-  // 정산 — 팝업마다 설정한 수수료(설정 > 팝업 관리), 미설정·나머지는 아래 계산기의 기본 수수료
-  const settlement = useMemo(
-    () => monthSettlement(
-      calendarSales.monthTotal,
-      monthPopups.map(p => ({ revenue: popupTotals.get(p.id)?.revenue ?? 0, feePercent: feePercentOf(p) })),
-      feePercent,
-    ),
-    [calendarSales.monthTotal, monthPopups, popupTotals, feePercent],
-  );
-  const afterFeeTotal = settlement.afterFee;
-  const estimatedSettlement = afterFeeTotal - materialCost - otherCost;
-
   // 미지정 몫은 팝업 목록에 없지만 매출이 있으면 범례에 꼭 띄운다 — 조용히 사라지면 합이 안 맞는 이유를 알 수 없다
   const unassigned = popupTotals.get(null) ?? null;
 
-  const handleCostChange = (setter: (v: number) => void, storageKey: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/[^0-9]/g, '');
-    const value = raw ? parseInt(raw, 10) : 0;
-    setter(value);
-    try { localStorage.setItem(storageKey, String(value)); } catch { /* ignore */ }
-  };
-
-  const formatCostDisplay = (val: number) => val === 0 ? '' : val.toLocaleString('ko-KR');
 
   return (
     <>
@@ -297,70 +237,6 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
         </div>
       )}
 
-      {!showSettlement ? (
-        <button
-          type="button"
-          onClick={() => setShowSettlement(true)}
-          className="mt-4 w-full flex items-center justify-between rounded-xl border border-[#dce8e0] bg-canvas px-4 py-2.5 text-[13px] font-bold text-primary-700 cursor-pointer hover:bg-primary-50"
-        >
-          {monthYearLabel} 예상 정산 계산기 <span className="text-[12px] font-semibold">펼치기 ▾</span>
-        </button>
-      ) : (
-      <div className="mt-4 bg-canvas border border-[#dce8e0] rounded-xl overflow-hidden">
-        <button type="button" onClick={() => setShowSettlement(false)} className="w-full flex items-center justify-between bg-primary-700 px-4 py-3 border-none cursor-pointer text-left">
-          <h4 className="m-0 text-[14px] font-bold text-white">{monthYearLabel} 예상 정산 계산기</h4>
-          <span className="text-[12px] font-semibold text-white/80">접기 ▴</span>
-        </button>
-        <div className="px-4 py-1">
-          <div className="flex items-center justify-between py-3 border-b border-hairline">
-            <span className="text-sm text-ink-muted">최종 월매출</span>
-            <strong className="text-sm font-bold text-[#111]">₩{formatPrice(calendarSales.monthTotal)}</strong>
-          </div>
-          <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-sm text-ink-muted">{settlement.usesFallback ? '기본 수수료' : '팝업 수수료'}</span>
-              <div className="relative">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={feePercent}
-                  onChange={handleFeeChange}
-                  className="w-16 text-right text-sm border border-hairline rounded-lg px-2 py-1 pr-5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-canvas-soft"
-                />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-muted font-bold pointer-events-none">%</span>
-              </div>
-            </div>
-            <strong className="text-sm font-bold text-primary-700">₩{formatPrice(afterFeeTotal)}</strong>
-          </div>
-          <p className="m-0 -mt-1 pb-2 border-b border-hairline text-[10px] text-ink-faint leading-relaxed">
-            수수료 ₩{formatPrice(settlement.fee)} — 팝업마다 설정한 수수료(설정 › 팝업 관리)로 계산하고,
-            {settlement.usesFallback ? ' 수수료를 정하지 않은 팝업·팝업 미지정 매출에만 왼쪽 기본 수수료를 씁니다.' : ' 이 달은 모든 팝업에 수수료가 설정돼 있어요.'}
-          </p>
-          <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
-            <span className="text-sm text-ink-muted shrink-0">재료비</span>
-            <div className="flex items-center gap-1">
-              <span className="text-[13px] text-ink-faint">₩</span>
-              <input type="text" inputMode="numeric" value={formatCostDisplay(materialCost)} onChange={handleCostChange(setMaterialCost, MATERIAL_COST_KEY)} onFocus={(e) => e.target.select()} placeholder="0" className="w-28 md:w-36 text-right text-sm border border-hairline rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-canvas-soft" />
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
-            <span className="text-sm text-ink-muted shrink-0">기타</span>
-            <div className="flex items-center gap-1">
-              <span className="text-[13px] text-ink-faint">₩</span>
-              <input type="text" inputMode="numeric" value={formatCostDisplay(otherCost)} onChange={handleCostChange(setOtherCost, OTHER_COST_KEY)} onFocus={(e) => e.target.select()} placeholder="0" className="w-28 md:w-36 text-right text-sm border border-hairline rounded-lg px-2.5 py-1.5 outline-none focus:border-primary-700 focus:ring-1 focus:ring-primary-700/20 bg-canvas-soft" />
-            </div>
-          </div>
-          <div className="flex items-center justify-between py-4">
-            <span className="text-[15px] font-extrabold text-[#111]">예상 정산금액</span>
-            <strong className={`text-[15px] font-extrabold ${estimatedSettlement >= 0 ? 'text-primary-700' : 'text-red-600'}`}>
-              {estimatedSettlement < 0 && '-'}₩{formatPrice(Math.abs(estimatedSettlement))}
-            </strong>
-          </div>
-        </div>
-      </div>
-      )}
     </div>
 
       {selectedDate && (

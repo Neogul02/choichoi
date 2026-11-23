@@ -17,6 +17,7 @@ import type { PopupEvent } from '@/types/database';
 
 // recharts를 쓰는 차트 섹션들은 지연 로드 — 초기 번들에서 recharts(수백 KB)를 제외
 const chartFallback = () => <div className="h-40 rounded-lg bg-canvas-soft animate-pulse" />;
+const CalculatorBubble = dynamic(() => import('./CalculatorBubble'), { ssr: false });
 const PopupStatsSection = dynamic(() => import('./PopupStatsSection'), { ssr: false, loading: chartFallback });
 
 interface Props {
@@ -43,7 +44,7 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
   return (
     <>
       <NavBar />
-      <main className="min-h-screen p-3 md:p-5 max-w-[1100px] mx-auto">
+      <main className="min-h-screen p-3 md:p-5 pb-24 md:pb-24 max-w-[1100px] mx-auto">
         <div className="max-w-[800px] lg:max-w-none mx-auto flex flex-col gap-3 md:gap-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
           {/* ① 오늘 — 매출 카드 + 오늘 현황(팝업별 곡선·비교·판매 품목) + 오늘 주문(펼칠 때만 조회) */}
           <section className="min-w-0 bg-canvas rounded-xl p-3 md:p-4 shadow-level-1 border border-hairline">
@@ -110,6 +111,9 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
           </div>
         </div>
       </main>
+
+      {/* 계산기 버블 — 정산·공제 계산기를 어디서든 띄운다(POS 메모처럼) */}
+      <CalculatorBubble calendarSales={calendarSales} popupEvents={popupEvents} calendarMonth={calendarMonth} />
 
     </>
   );

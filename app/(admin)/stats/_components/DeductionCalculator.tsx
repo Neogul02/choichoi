@@ -28,7 +28,7 @@ const DEDUCTIONS: Deduction[] = [
 
 let nextCustomId = 1
 
-export default function PayCalculatorPanel() {
+export default function DeductionCalculator() {
   const [grossInput, setGrossInput] = useState('')
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(DEDUCTIONS.map(d => [d.key, d.defaultChecked])),
@@ -114,10 +114,8 @@ export default function PayCalculatorPanel() {
   }
 
   return (
-    <div className="bg-canvas rounded-2xl border border-hairline shadow-level-1 overflow-hidden">
-      <div className="px-4 py-3 border-b border-hairline bg-canvas-soft">
-        <span className="text-[13px] font-bold text-ink">공제 계산기</span>
-      </div>
+    // 통계 계산기 버블 안에 들어가므로 카드 테두리·제목은 버블이 그린다
+    <div>
 
       <div className="p-4 flex flex-col gap-4">
         <div>
