@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import NavBar from '@/components/NavBar';
 import { kstToday } from '@/lib/date';
@@ -13,16 +13,13 @@ import TodayOrdersSection from './TodayOrdersSection';
 import CalendarSection from './CalendarSection';
 import LifetimeTotalCard from './LifetimeTotalCard';
 import TodaySection from './TodaySection';
-import type { TodaysSales, OrderRecordWithItems, MenuSalesItem, CalendarSalesData, LifetimeSalesTotals, TodayPopupSales } from '@/types/api';
+import type { TodaysSales, OrderRecordWithItems, MenuSalesItem, CalendarSalesData, TodayPopupSales } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 
 // recharts를 쓰는 차트 섹션들은 지연 로드 — 초기 번들에서 recharts(수백 KB)를 제외
 const chartFallback = () => <div className="h-40 rounded-lg bg-canvas-soft animate-pulse" />;
 const MenuBreakdownSection = dynamic(() => import('./MenuBreakdownSection'), { ssr: false, loading: chartFallback });
 const PopupStatsSection = dynamic(() => import('./PopupStatsSection'), { ssr: false, loading: chartFallback });
-const PopupDaySection = dynamic(() => import('./PopupDaySection'), { ssr: false, loading: chartFallback });
-const PopupComparisonSection = dynamic(() => import('./PopupComparisonSection'), { ssr: false, loading: chartFallback });
-const HourlySalesSection = dynamic(() => import('./HourlySalesSection'), { ssr: false, loading: chartFallback });
 
 interface Props {
   initialSummary: TodaysSales | null;
@@ -30,16 +27,13 @@ interface Props {
   initialBreakdown: MenuSalesItem[] | null;
   initialCalendar: CalendarSalesData | null;
   initialPopupEvents: PopupEvent[] | null;
-  /** 첫 팝업부터 오늘까지의 누적 집계 — 통계탭에만 노출 */
-  /** 서버가 기다리지 않고 넘긴 누적 합계 — 카드 안에서 use()로 푼다 */
-  lifetimeTotals: Promise<LifetimeSalesTotals | null>;
   /** 오늘 매출이 난 팝업별 집계 — '오늘 현황' 섹션 프리페치 */
   todayPopups: TodayPopupSales[] | null;
 }
 
 // 초기 데이터는 서버 컴포넌트(page.tsx)가 병렬 조회해 props로 내려준다 — hr 페이지와 동일 패턴
 // null인 항목은 각 훅이 기존 경로로 직접 조회한다
-export default function StatsPageClient({ initialSummary, initialOrders, initialBreakdown, initialCalendar, initialPopupEvents, lifetimeTotals, todayPopups }: Props) {
+export default function StatsPageClient({ initialSummary, initialOrders, initialBreakdown, initialCalendar, initialPopupEvents, todayPopups }: Props) {
   const { summary, todayOrders, isLoading, refresh, handleDeleteOrder } = useTodayStats({ summary: initialSummary, orders: initialOrders });
   const { breakdown, period: breakdownPeriod, isLoading: isBreakdownLoading, periodLabel, setPeriod: setBreakdownPeriod } = useBreakdown(initialBreakdown);
   const { calendarMonth, calendarSales, isLoading: isCalendarLoading, changeMonth, refresh: refreshCalendar, saveDay, removeDay } = useCalendar(initialCalendar);
@@ -58,17 +52,7 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
           </div>
 
           <div className="lg:col-span-2">
-            <Suspense fallback={<div className="h-[58px] rounded-xl border border-hairline bg-canvas-soft animate-pulse" />}>
-              <LifetimeTotalCard totals={lifetimeTotals} />
-            </Suspense>
-          </div>
-
-          <div className="lg:col-span-2">
             <TodaySection initialPopups={todayPopups} />
-          </div>
-
-          <div className="lg:col-span-2 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <PopupComparisonSection popupEvents={popupEvents} />
           </div>
 
           <div className="lg:col-span-2 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
@@ -86,12 +70,7 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
             />
           </div>
 
-          {/* 기간 합산(위)과 별개로 지난 하루만 떼어 본다 — 시간대별 매출·메뉴 판매 */}
-          <div className="lg:col-span-2 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <PopupDaySection popupEvents={popupEvents} initialPopupId={selectedPopupId} />
-          </div>
-
-          <div className="min-w-0 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+          <div className="lg:col-span-2 min-w-0 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
             <MenuBreakdownSection
               breakdown={breakdown}
               period={breakdownPeriod}
@@ -99,10 +78,6 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
               periodLabel={periodLabel}
               onPeriodChange={setBreakdownPeriod}
             />
-          </div>
-
-          <div className="min-w-0 bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
-            <HourlySalesSection todayOrders={todayOrders} isLoadingToday={isLoading} popupEvents={popupEvents} />
           </div>
 
           <TodayOrdersSection
@@ -123,6 +98,11 @@ export default function StatsPageClient({ initialSummary, initialOrders, initial
             removeDay={removeDay}
             onPopupSaved={() => { refreshCalendar(); refreshPopupStats(); }}
           />
+
+          {/* 전체 기간 집계라 맨 아래 — 화면에 닿을 때만 조회한다 */}
+          <div className="lg:col-span-2">
+            <LifetimeTotalCard />
+          </div>
         </div>
       </main>
 
