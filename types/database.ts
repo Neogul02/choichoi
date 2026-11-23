@@ -29,6 +29,8 @@ export interface PopupEvent {
   start_date: string;
   end_date: string;
   is_active: boolean;
+  /** 고정 수수료율(%) — 통계 정산 예상에 쓴다. 미설정이면 null */
+  fee_percent?: number | null;
   created_at: string;
 }
 

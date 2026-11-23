@@ -6,15 +6,23 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import {
-  fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent, togglePopupEventActive,
+  fetchPopupEvents, createNewPopupEvent, removePopupEvent, editPopupEvent, togglePopupEventActive, setPopupFeePercent,
 } from '@/app/actions/schedule';
 import type { PopupEvent } from '@/types/database';
 import { DAY_NAMES } from '@/lib/staffing';
 import PopupClosedDaysPanel from './PopupClosedDaysPanel';
 
-type EventForm = { name: string; startDate: string; endDate: string };
+/** feePercent: 입력 문자열 — 비우면 수수료 미설정 */
+type EventForm = { name: string; startDate: string; endDate: string; feePercent: string };
 
-const INITIAL_FORM: EventForm = { name: '', startDate: '', endDate: '' };
+const INITIAL_FORM: EventForm = { name: '', startDate: '', endDate: '', feePercent: '' };
+
+/** '32' → 32, '' → null, 이상한 값 → undefined(검증 실패) */
+function parseFee(raw: string): number | null | undefined {
+  if (raw.trim() === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : undefined;
+}
 
 function weekdayOf(date: string): string | null {
   return date ? DAY_NAMES[new Date(date + 'T00:00:00').getDay()] : null;
@@ -23,6 +31,7 @@ function weekdayOf(date: string): string | null {
 function validateForm(form: EventForm): string | null {
   if (!form.name.trim() || !form.startDate || !form.endDate) return '모든 항목을 입력하세요';
   if (form.startDate > form.endDate) return '종료일이 시작일보다 앞입니다';
+  if (parseFee(form.feePercent) === undefined) return '수수료는 0~100% 사이로 입력하세요';
   return null;
 }
 
@@ -59,7 +68,7 @@ export default function PopupManagementSection() {
     const invalid = validateForm(addForm);
     if (invalid) { toast.error(invalid); return; }
     setIsAdding(true);
-    const res = await createNewPopupEvent(addForm.name.trim(), addForm.startDate, addForm.endDate);
+    const res = await createNewPopupEvent(addForm.name.trim(), addForm.startDate, addForm.endDate, parseFee(addForm.feePercent) ?? null);
     setIsAdding(false);
     if (res.success && res.data) {
       setEvents(p => [res.data!, ...p]);
@@ -72,7 +81,7 @@ export default function PopupManagementSection() {
 
   // ── 인라인 수정 ────────────────────────────────────────
   const startEdit = (ev: PopupEvent) => {
-    setInlineEdits(p => ({ ...p, [ev.id]: { name: ev.name, startDate: ev.start_date, endDate: ev.end_date } }));
+    setInlineEdits(p => ({ ...p, [ev.id]: { name: ev.name, startDate: ev.start_date, endDate: ev.end_date, feePercent: ev.fee_percent != null ? String(Number(ev.fee_percent)) : '' } }));
   };
 
   const cancelEdit = (id: number) => {
@@ -85,7 +94,11 @@ export default function PopupManagementSection() {
     const invalid = validateForm(draft);
     if (invalid) { toast.error(invalid); return; }
     setSavingId(id);
-    const res = await editPopupEvent(id, draft.name.trim(), draft.startDate, draft.endDate);
+    let res = await editPopupEvent(id, draft.name.trim(), draft.startDate, draft.endDate);
+    // 수수료는 기간 수정(근무 파트 이동 포함)과 별개라 따로 저장한다
+    const fee = parseFee(draft.feePercent) ?? null;
+    const before = events.find(e => e.id === id);
+    if (res.success && (before?.fee_percent == null ? null : Number(before.fee_percent)) !== fee) res = await setPopupFeePercent(id, fee);
     setSavingId(null);
     if (res.success && res.data) {
       setEvents(p => p.map(ev => ev.id === id ? res.data! : ev));
@@ -154,6 +167,19 @@ export default function PopupManagementSection() {
             <label className={labelCls}>종료일</label>
             <input type="date" value={form.endDate} onChange={e => onChange({ endDate: e.target.value, startDate: syncRangeStart(form.startDate, e.target.value) })} className={inputCls} />
           </div>
+        </div>
+        <div className="mt-2.5 flex items-center gap-2">
+          <label className={labelCls}>수수료</label>
+          <div className="relative">
+            <input
+              type="number" inputMode="decimal" min={0} max={100} step={0.1}
+              value={form.feePercent} placeholder="예: 32"
+              onChange={e => onChange({ feePercent: e.target.value })}
+              className={`w-24 pr-7 text-right ${inputCls}`}
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-ink-faint">%</span>
+          </div>
+          <span className="text-[11px] text-ink-faint">통계탭에서 매출 − 수수료(정산 예상)를 바로 보여줍니다</span>
         </div>
       </>
     );
@@ -228,6 +254,7 @@ export default function PopupManagementSection() {
                       )}
                       <span className="block text-xs text-ink-muted">
                         {ev.start_date} ~ {ev.end_date}
+                        {ev.fee_percent != null && <span className="ml-1.5 text-ink-faint">· 수수료 {Number(ev.fee_percent)}%</span>}
                       </span>
                     </div>
                     <div className="flex gap-1.5 shrink-0">

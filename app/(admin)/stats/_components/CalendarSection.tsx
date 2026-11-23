@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { formatPrice } from '@/lib/utils';
+import { afterFee, feePercentOf, monthSettlement } from '@/lib/popupSettlement';
 import { getDayTierSwatch } from '../_lib/tierSwatch';
 import { makePopupColorOf, UNASSIGNED_POPUP_COLOR } from '../_lib/popupColor';
 import type { CalendarSalesData, ManualSalesEntry } from '@/types/api';
@@ -65,9 +66,6 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
   const monthYearLabel = `${calendarMonth.getFullYear()}년 ${calendarMonth.getMonth() + 1}월`;
   const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay();
   const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
-  const clampedFee = Math.min(100, Math.max(0, feePercent));
-  const afterFee = Math.round(calendarSales.monthTotal * (1 - clampedFee / 100));
-  const estimatedSettlement = afterFee - materialCost - otherCost;
 
   const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -111,6 +109,18 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
     const prefix = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-`;
     return Object.keys(manualByDate).some((d) => d.startsWith(prefix));
   }, [manualByDate, calendarMonth]);
+
+  // 정산 — 팝업마다 설정한 수수료(설정 > 팝업 관리), 미설정·나머지는 아래 계산기의 기본 수수료
+  const settlement = useMemo(
+    () => monthSettlement(
+      calendarSales.monthTotal,
+      monthPopups.map(p => ({ revenue: popupTotals.get(p.id)?.revenue ?? 0, feePercent: feePercentOf(p) })),
+      feePercent,
+    ),
+    [calendarSales.monthTotal, monthPopups, popupTotals, feePercent],
+  );
+  const afterFeeTotal = settlement.afterFee;
+  const estimatedSettlement = afterFeeTotal - materialCost - otherCost;
 
   // 미지정 몫은 팝업 목록에 없지만 매출이 있으면 범례에 꼭 띄운다 — 조용히 사라지면 합이 안 맞는 이유를 알 수 없다
   const unassigned = popupTotals.get(null) ?? null;
@@ -239,18 +249,28 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
           </div>
           {monthPopups.map((p) => {
             const t = popupTotals.get(p.id);
+            const fee = feePercentOf(p);
             return (
               <div key={p.id} className="flex items-center gap-2 px-3 py-2 border-b border-hairline last:border-b-0">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: colorOf(p.id) }} />
-                <span className="min-w-0 flex-1 truncate text-[12px] font-bold text-ink">{p.name}</span>
-                <span className="shrink-0 text-[10px] text-ink-faint tabular-nums">
-                  {formatRangeLabel(p.start_date, p.end_date)}
+                {/* 이름·기간·수수료는 왼쪽에 쌓고, 금액은 오른쪽에 한 줄로 — 금액이 길어도 줄바꿈되지 않게 */}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] font-bold text-ink">{p.name}</span>
+                  <span className="block text-[10px] text-ink-faint tabular-nums">
+                    {formatRangeLabel(p.start_date, p.end_date)}
+                    {fee != null && <> · 수수료 {fee}%</>}
+                  </span>
                 </span>
-                <span className="w-[82px] shrink-0 text-right tabular-nums">
+                <span className="shrink-0 text-right tabular-nums whitespace-nowrap">
                   <span className="block text-[12px] font-extrabold text-primary-700">
                     {t ? `₩${formatPrice(t.revenue)}` : '—'}
                   </span>
-                  {t && <span className="block text-[10px] text-ink-faint">{t.orders.toLocaleString('ko-KR')}건</span>}
+                  {t && (
+                    <span className="block text-[10px] text-ink-faint">
+                      {t.orders.toLocaleString('ko-KR')}건
+                      {fee != null && <> · 정산 <b className="font-bold text-ink-secondary">₩{formatPrice(afterFee(t.revenue, fee))}</b></>}
+                    </span>
+                  )}
                 </span>
               </div>
             );
@@ -258,9 +278,11 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
           {unassigned && (
             <div className="flex items-center gap-2 px-3 py-2 border-t border-hairline">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: UNASSIGNED_POPUP_COLOR }} />
-              <span className="min-w-0 flex-1 truncate text-[12px] font-bold text-ink-muted">팝업 미지정</span>
-              <span className="shrink-0 text-[10px] text-ink-faint">주문에 팝업이 안 붙은 건</span>
-              <span className="w-[82px] shrink-0 text-right tabular-nums">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12px] font-bold text-ink-muted">팝업 미지정</span>
+                <span className="block text-[10px] text-ink-faint">주문에 팝업이 안 붙은 건</span>
+              </span>
+              <span className="shrink-0 text-right tabular-nums whitespace-nowrap">
                 <span className="block text-[12px] font-extrabold text-ink-muted">₩{formatPrice(unassigned.revenue)}</span>
                 <span className="block text-[10px] text-ink-faint">{unassigned.orders.toLocaleString('ko-KR')}건</span>
               </span>
@@ -296,7 +318,7 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
           </div>
           <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-sm text-ink-muted">팝업 수수료</span>
+              <span className="text-sm text-ink-muted">{settlement.usesFallback ? '기본 수수료' : '팝업 수수료'}</span>
               <div className="relative">
                 <input
                   type="number"
@@ -310,8 +332,12 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-muted font-bold pointer-events-none">%</span>
               </div>
             </div>
-            <strong className="text-sm font-bold text-primary-700">₩{formatPrice(afterFee)}</strong>
+            <strong className="text-sm font-bold text-primary-700">₩{formatPrice(afterFeeTotal)}</strong>
           </div>
+          <p className="m-0 -mt-1 pb-2 border-b border-hairline text-[10px] text-ink-faint leading-relaxed">
+            수수료 ₩{formatPrice(settlement.fee)} — 팝업마다 설정한 수수료(설정 › 팝업 관리)로 계산하고,
+            {settlement.usesFallback ? ' 수수료를 정하지 않은 팝업·팝업 미지정 매출에만 왼쪽 기본 수수료를 씁니다.' : ' 이 달은 모든 팝업에 수수료가 설정돼 있어요.'}
+          </p>
           <div className="flex items-center justify-between gap-4 py-3 border-b border-hairline">
             <span className="text-sm text-ink-muted shrink-0">재료비</span>
             <div className="flex items-center gap-1">
