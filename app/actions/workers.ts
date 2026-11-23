@@ -238,6 +238,51 @@ export interface CreateWorkerAccountInput {
 }
 
 /**
+ * 이 계정이 들어갈 수 있는 팝업 — 'all'(관리자·매니저) 또는 배정된 팝업 id 집합.
+ * 배정은 staff_profiles.popup_id(현재 소속)와 staff_popup_assignments(겸직·이력) 둘 다 본다.
+ * 로그인(checkPopupAccess)과 상단 근무지 바꾸기(fetchSwitchablePopups)가 같은 규칙을 쓴다.
+ */
+async function allowedPopupIdsFor(user: { id: string; accountRole: string | null }): Promise<'all' | Set<number>> {
+  if (user.accountRole === 'admin' || user.accountRole === 'manager') return 'all'
+  const { data: staffRows, error } = await supabaseAdmin.from('staff_profiles').select('id, popup_id').eq('user_profile_id', user.id)
+  if (error) throw new Error(error.message)
+  const ids = new Set<number>()
+  for (const p of staffRows ?? []) if (p.popup_id != null) ids.add(p.popup_id as number)
+  const staffIds = (staffRows ?? []).map(p => p.id as number)
+  if (staffIds.length > 0) {
+    const { data: assigned, error: aErr } = await supabaseAdmin.from('staff_popup_assignments').select('popup_id').in('staff_id', staffIds)
+    if (aErr) throw new Error(aErr.message)
+    for (const a of assigned ?? []) ids.add(a.popup_id as number)
+  }
+  return ids
+}
+
+/**
+ * 상단 근무지 바꾸기 — 로그아웃 없이 바로 옮길 수 있는 근무지 목록.
+ * 오늘 운영 중인 활성 팝업 중 이 계정이 들어갈 수 있는 곳 + 주방(누구나, 출근부 계정은 주방만).
+ * 실제로 옮길 때는 checkPopupAccess로 한 번 더 확인한다(목록은 화면용).
+ */
+export async function fetchSwitchablePopups(): Promise<ApiResponse<{ id: number | null; name: string }[]>> {
+  return wrap(async () => {
+    const user = await getAuthUser()
+    if (!user) throw new Error('로그인이 필요합니다.')
+    const kitchen = { id: null, name: '주방' }
+    if (user.role === 'kiosk') return [kitchen]
+    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+    const { data, error } = await supabaseAdmin
+      .from('popup_events').select('id, name, start_date, end_date, is_active')
+      .lte('start_date', today).gte('end_date', today)
+      .order('start_date', { ascending: false })
+    if (error) throw new Error(error.message)
+    const allowed = await allowedPopupIdsFor(user)
+    const popups = (data ?? [])
+      .filter(p => p.is_active !== false && (allowed === 'all' || allowed.has(p.id as number)))
+      .map(p => ({ id: p.id as number, name: p.name as string }))
+    return [...popups, kitchen]
+  })
+}
+
+/**
  * 근무지(팝업) 접근 권한 검증 — 인사탭에서 그 팝업에 배정해둔 캐셔만 그 팝업으로 로그인된다.
  *
  * 주방은 누구나 들어갈 수 있다(운영 방침). 관리자·매니저는 전 팝업을 오가야 하므로 통과시킨다.
@@ -259,29 +304,15 @@ export async function checkPopupAccess(
     if (user.role === 'kiosk') return { success: false, error: '출근부 계정은 근무지를 "주방"으로 선택해 로그인하세요.' }
 
     // 2차 코드는 이 판정 다음 단계라 아직 통과 전일 수 있다 — 근무지 판정은 계정 역할로 한다(권한 부여가 아님)
-    if (user.accountRole === 'admin' || user.accountRole === 'manager') {
-      return { success: true, data: { allowed: true } }
-    }
+    const allowed = await allowedPopupIdsFor(user)
+    if (allowed === 'all' || allowed.has(popupId)) return { success: true, data: { allowed: true } }
 
     const { data: staffRows, error: staffError } = await supabaseAdmin
       .from('staff_profiles')
       .select('id, name, popup_id, staff_role, popup_events(name)')
       .eq('user_profile_id', user.id)
     if (staffError) throw new Error(staffError.message)
-
     const profiles = staffRows ?? []
-    if (profiles.some(p => p.popup_id === popupId)) return { success: true, data: { allowed: true } }
-
-    // 겸직은 N:M 테이블에만 있을 수 있다
-    const staffIds = profiles.map(p => p.id)
-    if (staffIds.length > 0) {
-      const { data: assigned } = await supabaseAdmin
-        .from('staff_popup_assignments')
-        .select('popup_id')
-        .in('staff_id', staffIds)
-        .eq('popup_id', popupId)
-      if ((assigned ?? []).length > 0) return { success: true, data: { allowed: true } }
-    }
 
     // 어디로 가야 하는지 알려준다 — 그냥 "권한 없음"만 띄우면 현장에서 문의가 몰린다
     const mine = profiles

@@ -1,5 +1,6 @@
 'use client';
 
+import PopupSwitcher from './PopupSwitcher';
 import { FEATURES } from '@/lib/features';
 import { hardNavigate } from '@/lib/hardNavigate';
 import Link from 'next/link';
@@ -181,11 +182,8 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <Link href={visibleLinks[0]?.href ?? '/my'} className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0 no-underline hover:opacity-70 transition-opacity">ChoiChoi</Link>
-                    {popupName && (
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200 shrink-0">
-                        {popupName}
-                      </span>
-                    )}
+                    {/* 근무지 배지 — 눌러서 로그아웃 없이 바꾼다(권한은 서버가 확인) */}
+                    {popupName && <PopupSwitcher popupName={popupName} />}
                     {activeCashiers.length > 0 && (
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="hidden md:inline text-[11px] text-ink-faint shrink-0">접속</span>
