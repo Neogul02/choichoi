@@ -244,7 +244,7 @@ export interface CreateWorkerAccountInput {
  */
 async function allowedPopupIdsFor(user: { id: string; accountRole: string | null }): Promise<'all' | Set<number>> {
   if (user.accountRole === 'admin' || user.accountRole === 'manager') return 'all'
-  const { data: staffRows, error } = await supabaseAdmin.from('staff_profiles').select('id, popup_id').eq('user_profile_id', user.id)
+  const { data: staffRows, error } = await supabaseAdmin.from('staff_profiles').select('id, popup_id, staff_role').eq('user_profile_id', user.id)
   if (error) throw new Error(error.message)
   const ids = new Set<number>()
   for (const p of staffRows ?? []) if (p.popup_id != null) ids.add(p.popup_id as number)
@@ -258,8 +258,19 @@ async function allowedPopupIdsFor(user: { id: string; accountRole: string | null
 }
 
 /**
+ * 주방 접근 — 관리자·매니저·출근부 계정, 그리고 인사에 주방(kitchen)으로 등록된 근무자만.
+ * 예전엔 '주방은 누구나'였는데, 캐셔가 주방으로 들어가 주방 화면(일정·출근)을 쓰는 걸 막는다(2026-11).
+ */
+async function canEnterKitchen(user: { id: string; role: string | null; accountRole: string | null }): Promise<boolean> {
+  if (user.accountRole === 'admin' || user.accountRole === 'manager' || user.role === 'kiosk' || user.accountRole === 'kiosk') return true
+  const { data, error } = await supabaseAdmin.from('staff_profiles').select('id').eq('user_profile_id', user.id).eq('staff_role', 'kitchen').limit(1)
+  if (error) throw new Error(error.message)
+  return (data ?? []).length > 0
+}
+
+/**
  * 상단 근무지 바꾸기 — 로그아웃 없이 바로 옮길 수 있는 근무지 목록.
- * 오늘 운영 중인 활성 팝업 중 이 계정이 들어갈 수 있는 곳 + 주방(누구나, 출근부 계정은 주방만).
+ * 오늘 운영 중인 활성 팝업 중 이 계정이 들어갈 수 있는 곳 + 주방(주방 인원·관리자만, 출근부 계정은 주방만).
  * 실제로 옮길 때는 checkPopupAccess로 한 번 더 확인한다(목록은 화면용).
  */
 export async function fetchSwitchablePopups(): Promise<ApiResponse<{ id: number | null; name: string }[]>> {
@@ -278,14 +289,14 @@ export async function fetchSwitchablePopups(): Promise<ApiResponse<{ id: number 
     const popups = (data ?? [])
       .filter(p => p.is_active !== false && (allowed === 'all' || allowed.has(p.id as number)))
       .map(p => ({ id: p.id as number, name: p.name as string }))
-    return [...popups, kitchen]
+    return (await canEnterKitchen(user)) ? [...popups, kitchen] : popups
   })
 }
 
 /**
  * 근무지(팝업) 접근 권한 검증 — 인사탭에서 그 팝업에 배정해둔 캐셔만 그 팝업으로 로그인된다.
  *
- * 주방은 누구나 들어갈 수 있다(운영 방침). 관리자·매니저는 전 팝업을 오가야 하므로 통과시킨다.
+ * 주방은 주방 인원만(canEnterKitchen). 관리자·매니저는 전 팝업·주방을 오가야 하므로 통과시킨다.
  * 배정 판정은 staff_profiles.popup_id(현재 소속)와 staff_popup_assignments(겸직·이력) 둘 다 본다 —
  * 한 캐셔가 여러 팝업을 오가는 경우가 실제로 있어서 한쪽만 보면 멀쩡한 사람이 잠긴다.
  *
@@ -298,8 +309,12 @@ export async function checkPopupAccess(
     const user = await getAuthUser()
     if (!user) return { success: false, error: '로그인이 필요합니다.' }
 
-    // 주방(popupId null)은 제한 없음
-    if (popupId == null) return { success: true, data: { allowed: true } }
+    // 주방(popupId null) — 인사에 주방으로 등록된 근무자·관리자·매니저·출근부 계정만
+    if (popupId == null) {
+      return (await canEnterKitchen(user))
+        ? { success: true, data: { allowed: true } }
+        : { success: false, error: '주방 근무자만 주방으로 들어갈 수 있습니다. 배정된 팝업을 선택해 주세요.' }
+    }
     // 출근부 키오스크 계정은 주방 아이패드 전용 — 팝업 POS로 들어가 결제를 칠 이유가 없다
     if (user.role === 'kiosk') return { success: false, error: '출근부 계정은 근무지를 "주방"으로 선택해 로그인하세요.' }
 
