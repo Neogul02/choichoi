@@ -1,6 +1,8 @@
 import { createRequire } from 'module';
 
-const { version: appVersion } = createRequire(import.meta.url)('./package.json');
+const require = createRequire(import.meta.url);
+const { version: appVersion } = require('./package.json');
+const { version: nextVersion } = require('next/package.json');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -10,6 +12,7 @@ const nextConfig = {
     NEXT_PUBLIC_APP_VERSION: appVersion,
     NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
     NEXT_PUBLIC_GIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? '',
+    NEXT_PUBLIC_NEXT_VERSION: nextVersion,
   },
   // 고객 화면 일시 비활성화 — 분기 페이지(/)를 거치지 않고 바로 직원 화면(/pos)으로 들어간다.
   // 페이지 코드는 그대로 두었으니 다시 켤 때는 이 블록만 지우면 된다.
@@ -19,6 +22,8 @@ const nextConfig = {
     return [
       { source: '/', destination: '/pos', permanent: false },
       { source: '/display', destination: '/pos', permanent: false },
+      // 재고 탭 일시 비활성(lib/features.ts inventory: false와 같이 바꿀 것)
+      { source: '/inventory', destination: '/pos', permanent: false },
     ];
   },
 };
