@@ -7,7 +7,7 @@ import { showMsg } from '@/lib/toast'
 import { addDays, kstToday } from '@/lib/date'
 import { formatTimeRange } from '@/lib/workhours'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
-import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, formatWorkedDuration, kstHHMMOf, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
+import { ATTENDANCE_BREAK_OPTIONS, ATTENDANCE_BREAK_MAX, ATTENDANCE_BREAK_STEP, ATTENDANCE_LOG_DAYS as LOG_DAYS, type AttendanceBreak, formatWorkedDuration, kstHHMMOf, kstHHMMSSOf, kstSlashDateOf } from '@/lib/attendance'
 import { formatPhoneInput, isValidKoreanPhone } from '@/lib/phone'
 import {
   clockIn, clockOut, fetchAttendanceBoard, fetchAttendanceLog, fetchMissingClockIns, recordMissedAttendance, voidAttendance,
@@ -22,7 +22,11 @@ const LOG_REFRESH_EVERY = 10
 // 퇴근 결과 팝업은 다음 사람이 바로 쓸 수 있게 저절로 닫힌다
 const RESULT_AUTO_CLOSE_MS = 8 * 1000
 
-const breakLabel = (m: number) => (m === 0 ? '없음' : m === 60 ? '1시간' : `${m}분`)
+const breakLabel = (m: number) => {
+  if (m === 0) return '없음'
+  const h = Math.floor(m / 60), r = m % 60
+  return h === 0 ? `${r}분` : r === 0 ? `${h}시간` : `${h}시간 ${r}분`
+}
 
 type Phase = 'before' | 'working' | 'done'
 const phaseOf = (item: AttendanceBoardItem): Phase =>
@@ -245,6 +249,8 @@ function PunchDialog({ item, onClose, onDone }: {
   const isOut = phaseOf(item) === 'working'
   const now = useNow()
   const [brk, setBrk] = useState<AttendanceBreak | null>(null)
+  // '직접 입력' — 빠른 선택(없음·30분·1시간) 밖의 휴게(예: 1시간 30분)를 10분 단위로 맞춘다
+  const [customBreak, setCustomBreak] = useState(false)
   const [digits, setDigits] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -297,20 +303,48 @@ function PunchDialog({ item, onClose, onDone }: {
         {isOut && (
           <div className="mt-4">
             <p className="m-0 mb-2 text-[15px] font-semibold text-ink">쉬는시간이 있었나요?</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {ATTENDANCE_BREAK_OPTIONS.map(m => (
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setBrk(m)}
+                  onClick={() => { setCustomBreak(false); setBrk(m) }}
                   className={`py-3 rounded-xl border-2 text-[16px] font-bold cursor-pointer transition-colors ${
-                    brk === m ? 'border-primary-700 bg-primary-700 text-white' : 'border-hairline bg-canvas text-ink'
+                    !customBreak && brk === m ? 'border-primary-700 bg-primary-700 text-white' : 'border-hairline bg-canvas text-ink'
                   }`}
                 >
                   {breakLabel(m)}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => { setCustomBreak(true); setBrk(b => (b != null && !(ATTENDANCE_BREAK_OPTIONS as readonly number[]).includes(b) ? b : 90)) }}
+                className={`py-3 rounded-xl border-2 text-[15px] font-bold cursor-pointer transition-colors ${
+                  customBreak ? 'border-primary-700 bg-primary-700 text-white' : 'border-hairline bg-canvas text-ink'
+                }`}
+              >
+                직접 입력
+              </button>
             </div>
+            {customBreak && (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border-2 border-primary-200 bg-primary-50 px-2 py-2">
+                <button
+                  type="button"
+                  onClick={() => setBrk(b => Math.max(0, (b ?? 0) - ATTENDANCE_BREAK_STEP))}
+                  disabled={(brk ?? 0) <= 0}
+                  aria-label="휴게 10분 줄이기"
+                  className="w-16 py-2.5 rounded-lg border border-hairline bg-canvas text-[18px] font-bold text-ink cursor-pointer disabled:opacity-40"
+                >−10</button>
+                <span className="text-[22px] font-extrabold text-primary-700 tabular-nums">{breakLabel(brk ?? 0)}</span>
+                <button
+                  type="button"
+                  onClick={() => setBrk(b => Math.min(ATTENDANCE_BREAK_MAX, (b ?? 0) + ATTENDANCE_BREAK_STEP))}
+                  disabled={(brk ?? 0) >= ATTENDANCE_BREAK_MAX}
+                  aria-label="휴게 10분 늘리기"
+                  className="w-16 py-2.5 rounded-lg border border-hairline bg-canvas text-[18px] font-bold text-ink cursor-pointer disabled:opacity-40"
+                >+10</button>
+              </div>
+            )}
           </div>
         )}
         <div className="mt-4">

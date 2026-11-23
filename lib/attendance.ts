@@ -12,12 +12,16 @@ export const ATTENDANCE_LAUNCH_DATE = '2026-10-14'
 /** 관리자 출근부 화면의 최근 기록 범위(일) */
 export const ATTENDANCE_LOG_DAYS = 7
 
-/** 퇴근 시 고를 수 있는 휴게(분) — 없음 / 30분 / 1시간 */
+/** 퇴근 화면의 빠른 선택 휴게(분) — 없음 / 30분 / 1시간. 그 밖의 값은 '직접 입력'(10분 단위) */
 export const ATTENDANCE_BREAK_OPTIONS = [0, 30, 60] as const
-export type AttendanceBreak = (typeof ATTENDANCE_BREAK_OPTIONS)[number]
+/** 직접 입력 휴게 범위 — 0~4시간, 10분 단위(키오스크에서 −10/+10 버튼으로 맞춘다) */
+export const ATTENDANCE_BREAK_MAX = 240
+export const ATTENDANCE_BREAK_STEP = 10
+export type AttendanceBreak = number
 
+/** 저장할 수 있는 휴게 — 빠른 선택(0·30·60) 또는 직접 입력(0~240분, 10분 단위) */
 export const isAttendanceBreak = (v: unknown): v is AttendanceBreak =>
-  ATTENDANCE_BREAK_OPTIONS.includes(v as AttendanceBreak)
+  typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= ATTENDANCE_BREAK_MAX && v % ATTENDANCE_BREAK_STEP === 0
 
 /**
  * 출근 후 이 시간 안에만 퇴근할 수 있다.
