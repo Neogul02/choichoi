@@ -1,5 +1,6 @@
 'use client'
 
+import { hardNavigate } from '@/lib/hardNavigate'
 import { kstToday } from '@/lib/date'
 import { useEffect, useRef, useState } from 'react'
 import { formatBankAccountInput, isValidBankAccount, normalizeBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
@@ -187,14 +188,14 @@ export default function PasswordGate({ children, initial }: { children: React.Re
     setIsAuthed(true)
 
     if (syncedRole === 'kiosk') {
-      if (!window.location.pathname.startsWith('/attendance')) window.location.href = '/attendance'
+      if (!window.location.pathname.startsWith('/attendance')) hardNavigate('/attendance')
       return
     }
 
     // 주방은 POS를 쓰지 않으므로 바로 내 근무 일정으로 보낸다.
     // 이미 /schedule에 있으면 그대로 두어 불필요한 새로고침을 막는다.
     if (isKitchen && !window.location.pathname.startsWith('/schedule')) {
-      window.location.href = '/schedule'
+      hardNavigate('/schedule')
     }
   }
 
