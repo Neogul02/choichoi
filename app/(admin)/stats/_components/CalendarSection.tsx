@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { formatPrice } from '@/lib/utils';
 import { getDayTierSwatch } from '../_lib/tierSwatch';
 import { makePopupColorOf, UNASSIGNED_POPUP_COLOR } from '../_lib/popupColor';
@@ -11,7 +10,6 @@ import DayDetailModal from './DayDetailModal';
 import SectionHeader from './SectionHeader';
 import { DAY_NAMES } from '@/lib/staffing';
 
-const PopupManualEntryModal = dynamic(() => import('./PopupManualEntryModal'), { ssr: false });
 
 const MATERIAL_COST_KEY = 'choichoi_material_cost';
 const OTHER_COST_KEY = 'choichoi_other_cost';
@@ -47,8 +45,8 @@ interface Props {
 
 export default function CalendarSection({ calendarSales, popupEvents, calendarMonth, isLoading, todayStr, onMonthChange, saveDay, removeDay, onPopupSaved }: Props) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  // 날짜 창에서 고른 팝업 — 그 팝업·그 날짜로 팝업 입력창(매출·주문·메뉴)을 연다
-  const [editing, setEditing] = useState<{ popup: PopupEvent; date: string } | null>(null);
+  // 정산 계산기는 가끔 쓰므로 접어 둔다
+  const [showSettlement, setShowSettlement] = useState(false);
   // ?? {}가 매 렌더 새 객체를 만들어 아래 useMemo 의존성이 매번 바뀌는 것을 막는다
   const manualByDate: Record<string, ManualSalesEntry> = useMemo(
     () => calendarSales.manualByDate ?? {},
@@ -128,7 +126,7 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
 
   return (
     <>
-    <div className="bg-canvas-soft rounded-xl p-4 mb-4 md:mb-5 border border-hairline">
+    <div className="min-w-0 bg-canvas-soft rounded-xl p-4 border border-hairline">
       <SectionHeader
         title="날짜별 매출 프리뷰"
         right={
@@ -277,10 +275,20 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
         </div>
       )}
 
+      {!showSettlement ? (
+        <button
+          type="button"
+          onClick={() => setShowSettlement(true)}
+          className="mt-4 w-full flex items-center justify-between rounded-xl border border-[#dce8e0] bg-canvas px-4 py-2.5 text-[13px] font-bold text-primary-700 cursor-pointer hover:bg-primary-50"
+        >
+          {monthYearLabel} 예상 정산 계산기 <span className="text-[12px] font-semibold">펼치기 ▾</span>
+        </button>
+      ) : (
       <div className="mt-4 bg-canvas border border-[#dce8e0] rounded-xl overflow-hidden">
-        <div className="bg-primary-700 px-4 py-3">
+        <button type="button" onClick={() => setShowSettlement(false)} className="w-full flex items-center justify-between bg-primary-700 px-4 py-3 border-none cursor-pointer text-left">
           <h4 className="m-0 text-[14px] font-bold text-white">{monthYearLabel} 예상 정산 계산기</h4>
-        </div>
+          <span className="text-[12px] font-semibold text-white/80">접기 ▴</span>
+        </button>
         <div className="px-4 py-1">
           <div className="flex items-center justify-between py-3 border-b border-hairline">
             <span className="text-sm text-ink-muted">최종 월매출</span>
@@ -326,6 +334,7 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
           </div>
         </div>
       </div>
+      )}
     </div>
 
       {selectedDate && (
@@ -338,18 +347,7 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
           removeDay={removeDay}
           popups={popupEvents.filter((p) => p.start_date <= selectedDate && selectedDate <= p.end_date)}
           popupSales={calendarSales.popupByDate?.[selectedDate] ?? []}
-          onEditPopup={(popup) => { setEditing({ popup, date: selectedDate }); setSelectedDate(null); }}
-        />
-      )}
-      {editing && (
-        <PopupManualEntryModal
-          popupId={editing.popup.id}
-          popupName={editing.popup.name}
-          startDate={editing.popup.start_date}
-          endDate={editing.popup.end_date}
-          initialDate={editing.date}
-          onClose={() => setEditing(null)}
-          onSaved={() => { setEditing(null); onPopupSaved(); }}
+          onPopupChanged={onPopupSaved}
         />
       )}
     </>

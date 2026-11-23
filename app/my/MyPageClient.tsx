@@ -1,5 +1,6 @@
 'use client'
 
+import { hardNavigate } from '@/lib/hardNavigate'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { formatBankAccountInput, normalizeBankAccount, isValidBankAccount, BANK_ACCOUNT_MAX_DIGITS, BANK_ACCOUNT_RULE_MESSAGE } from '@/lib/bank'
 import { toast } from 'sonner'
@@ -833,7 +834,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                   <button type='button' disabled={deleteConfirm !== '탈퇴합니다' || isDeletePending}
                     onClick={() => startDeleteTransition(async () => {
                       const res = await deleteMyAccount()
-                      if (res.success) { toast.success('탈퇴 처리됐습니다.'); window.location.href = '/' }
+                      if (res.success) { toast.success('탈퇴 처리됐습니다.'); hardNavigate('/') }
                       else toast.error(res.error ?? '탈퇴 실패')
                     })}
                     className='flex-1 border-none rounded-xl px-3 py-2.5 text-[14px] font-bold bg-rose-500 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'>

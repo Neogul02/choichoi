@@ -25,7 +25,8 @@ function applyMenuManualOverrides(computed: MenuSalesItem[], manualEntries: Menu
 }
 
 // initialPopupEvents: 서버 컴포넌트가 프리페치한 목록 — 있으면 마운트 직후 재조회를 건너뛴다
-export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
+// enabled: 팝업 분석 섹션을 펼쳤을 때만 7개 조회를 돌린다(접혀 있으면 팝업 목록만 쓴다)
+export function usePopupStats(initialPopupEvents?: PopupEvent[] | null, enabled = true) {
   const [popupEvents, setPopupEvents] = useState<PopupEvent[]>(initialPopupEvents ?? []);
   const [selectedPopupId, setSelectedPopupId] = useState<number | null>(null);
   const [popupMenuBreakdown, setPopupMenuBreakdown] = useState<MenuSalesItem[]>([]);
@@ -56,7 +57,7 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
     let isCurrent = true;
 
     const doFetch = async () => {
-      if (!selectedPopupId) return;
+      if (!enabled || !selectedPopupId) return;
       const popup = popupEvents.find((p) => p.id === selectedPopupId);
       if (!popup) return;
       setIsLoading(true);
@@ -93,7 +94,7 @@ export function usePopupStats(initialPopupEvents?: PopupEvent[] | null) {
 
     doFetch();
     return () => { isCurrent = false; };
-  }, [selectedPopupId, popupEvents, refreshKey]);
+  }, [selectedPopupId, popupEvents, refreshKey, enabled]);
 
   const refreshPopupStats = useCallback(() => setRefreshKey((k) => k + 1), []);
 

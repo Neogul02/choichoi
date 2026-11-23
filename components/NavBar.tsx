@@ -1,5 +1,6 @@
 'use client';
 
+import { hardNavigate } from '@/lib/hardNavigate';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -151,7 +152,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
     try {
       createSupabaseBrowserClient().auth.signOut().catch(() => {});
     } catch { /* ignore */ }
-    window.location.href = '/';
+    hardNavigate('/');
   };
 
   return (

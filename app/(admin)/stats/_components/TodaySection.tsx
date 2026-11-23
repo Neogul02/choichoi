@@ -3,7 +3,10 @@
 import dynamic from 'next/dynamic';
 import { formatPrice } from '@/lib/utils';
 import SectionHeader from './SectionHeader';
+import { useState } from 'react';
 import { useToday, type TodayScope } from '../_hooks/useToday';
+import SalesDelta from '@/components/SalesDelta';
+import PastPopupCompare from '@/components/PastPopupCompare';
 import type { TodayPopupSales } from '@/types/api';
 
 // POS 배틀 칸과 같은 곡선을 쓴다 — recharts는 무거우므로 지연 로드한다
@@ -18,24 +21,6 @@ interface Props {
   initialPopups: TodayPopupSales[] | null;
 }
 
-function Delta({ label, now, before }: { label: string; now: number; before: number | null }) {
-  if (before == null || before === 0) {
-    return <span className="text-ink-faint">{label} —</span>;
-  }
-  const diff = now - before;
-  const pct = Math.round((diff / before) * 100);
-  const up = diff >= 0;
-  return (
-    <span className="whitespace-nowrap">
-      <span className="text-ink-faint">{label} </span>
-      <span className={up ? 'font-bold text-emerald-600' : 'font-bold text-rose-500'}>
-        {up ? '▲' : '▼'} {Math.abs(pct)}%
-      </span>
-      <span className="ml-1 text-ink-faint tabular-nums">(₩{formatPrice(before)})</span>
-    </span>
-  );
-}
-
 /**
  * 오늘 하루를 팝업별로 들여다보는 섹션.
  * 여러 팝업이 동시에 도는 날, 기존 화면은 "오늘=전체 합산" 아니면 "팝업=전체 기간"뿐이라
@@ -44,10 +29,11 @@ function Delta({ label, now, before }: { label: string; now: number; before: num
 export default function TodaySection({ initialPopups }: Props) {
   const { popups, selected, scope, setScope, breakdown, comparison, totals, todayUptoNow, yesterdayCurve, isLoading } =
     useToday(initialPopups);
+  const [showAllMenu, setShowAllMenu] = useState(false);
 
   if (popups.length === 0) {
     return (
-      <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+      <div className="mt-4">
         <SectionHeader title="오늘 현황" />
         <p className="m-0 py-6 text-center text-[13px] text-ink-faint">아직 오늘 매출이 없습니다.</p>
       </div>
@@ -59,9 +45,18 @@ export default function TodaySection({ initialPopups }: Props) {
     ...popups.map(p => ({ key: p.popupId as TodayScope, label: p.popupName })),
   ];
   const maxQty = Math.max(1, ...breakdown.map(b => b.totalQuantity));
+  const sortedMenu = [...breakdown].sort((a, b) => b.totalQuantity - a.totalQuantity);
+  const shownMenu = showAllMenu ? sortedMenu : sortedMenu.slice(0, 3);
+  // '전체'일 때 매출은 위 오늘 매출 카드와 같은 숫자라 타일에서 뺀다 — 같은 숫자가 두 번 보이지 않게
+  const kpis = [
+    ...(scope === 'all' ? [] : [{ label: '매출', value: `₩${formatPrice(totals.revenue)}`, accent: true }]),
+    { label: '주문', value: `${totals.orders.toLocaleString('ko-KR')}건`, accent: false },
+    { label: '객단가', value: `₩${formatPrice(totals.avgOrder)}`, accent: false },
+    { label: '판매 수량', value: `${totals.quantity.toLocaleString('ko-KR')}개`, accent: false },
+  ];
 
   return (
-    <div className="bg-canvas rounded-xl p-4 md:p-5 shadow-level-1 border border-hairline">
+    <div className="mt-4">
       <SectionHeader
         title="오늘 현황"
         right={<span className="text-[11px] text-ink-faint">POS 결제 기준</span>}
@@ -87,13 +82,8 @@ export default function TodaySection({ initialPopups }: Props) {
       )}
 
       {/* KPI — 매출·주문·객단가·판매 수량 */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        {[
-          { label: '매출', value: `₩${formatPrice(totals.revenue)}`, accent: true },
-          { label: '주문', value: `${totals.orders.toLocaleString('ko-KR')}건` },
-          { label: '객단가', value: `₩${formatPrice(totals.avgOrder)}` },
-          { label: '판매 수량', value: `${totals.quantity.toLocaleString('ko-KR')}개` },
-        ].map(k => (
+      <div className={`grid gap-2 ${kpis.length === 3 ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`}>
+        {kpis.map(k => (
           <div key={k.label} className="rounded-xl border border-hairline bg-canvas-soft px-3 py-2.5 text-center">
             <div className="mb-0.5 text-[11px] font-medium text-ink-muted">{k.label}</div>
             <div className={`text-[16px] font-extrabold tabular-nums ${k.accent ? 'text-primary-700' : 'text-ink-secondary'}`}>
@@ -104,9 +94,11 @@ export default function TodaySection({ initialPopups }: Props) {
       </div>
 
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
-        <Delta label="어제 같은 시각" now={todayUptoNow} before={comparison.yesterday} />
-        <Delta label="지난주 같은 시각" now={todayUptoNow} before={comparison.lastWeek} />
+        <SalesDelta label="어제 같은 시각" now={todayUptoNow} before={comparison.yesterday} />
+        <SalesDelta label="지난주 같은 시각" now={todayUptoNow} before={comparison.lastWeek} />
       </div>
+      {/* 팝업 하나를 고르면 같은 매장 지난 회차의 같은 운영 일차와도 맞댄다 */}
+      {scope !== 'all' && <PastPopupCompare currentPopupId={scope} todayUptoNow={todayUptoNow} />}
 
       {/* 시간대 흐름 — 전체면 팝업끼리 겹쳐 비교, 개별이면 한 줄. 어제 같은 범위를 점선으로 뒤에 깐다 */}
       <div className="mt-3">
@@ -149,12 +141,10 @@ export default function TodaySection({ initialPopups }: Props) {
           <p className="m-0 py-4 text-center text-[12px] text-ink-faint">판매된 품목이 없습니다.</p>
         ) : (
           <div className="overflow-hidden rounded-lg border border-hairline">
-            {[...breakdown]
-              .sort((a, b) => b.totalQuantity - a.totalQuantity)
-              .map((item, i) => (
+            {shownMenu.map((item, i) => (
                 <div
                   key={item.id}
-                  className={`relative flex items-center gap-2 px-3 py-2 ${i !== breakdown.length - 1 ? 'border-b border-hairline' : ''}`}
+                  className={`relative flex items-center gap-2 px-3 py-2 ${i !== shownMenu.length - 1 ? 'border-b border-hairline' : ''}`}
                 >
                   {/* 수량 비중을 옅은 배경 막대로 — 숫자를 읽기 전에 분포가 먼저 보인다 */}
                   <div
@@ -176,6 +166,15 @@ export default function TodaySection({ initialPopups }: Props) {
                 </div>
               ))}
           </div>
+        )}
+        {sortedMenu.length > 3 && (
+          <button
+            type="button"
+            onClick={() => setShowAllMenu(v => !v)}
+            className="mt-1.5 w-full rounded-lg border border-hairline bg-canvas-soft py-1.5 text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb]"
+          >
+            {showAllMenu ? '접기' : `전체 ${sortedMenu.length}종 보기`}
+          </button>
         )}
       </div>
     </div>

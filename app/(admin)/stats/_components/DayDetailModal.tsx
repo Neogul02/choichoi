@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchOrdersByDate } from '@/app/actions/stats';
 import { formatPrice } from '@/lib/utils';
@@ -9,6 +10,12 @@ import { useModalKeyboard } from '@/lib/useModalKeyboard';
 import type { DayPopupSales, ManualSalesEntry, OrderRecordWithItems } from '@/types/api';
 import type { PopupEvent } from '@/types/database';
 import { DAY_NAMES } from '@/lib/staffing';
+
+// 팝업 탭(차트 포함)은 recharts가 무거워 탭을 열 때 불러온다
+const PopupDayPanel = dynamic(() => import('./PopupDayPanel'), {
+  ssr: false,
+  loading: () => <div className="h-60 rounded-lg bg-canvas-soft animate-pulse" />,
+});
 
 interface Props {
   date: string;
@@ -21,8 +28,12 @@ interface Props {
   popups: PopupEvent[];
   /** 그날 팝업별 매출(팝업 정정 반영) — 달력 popupByDate */
   popupSales: DayPopupSales[];
-  onEditPopup: (popup: PopupEvent) => void;
+  /** 팝업 탭에서 저장하면 달력·팝업 통계를 다시 읽는다(창은 그대로) */
+  onPopupChanged: () => void;
 }
+
+/** 'all' = 날짜 전체(모든 팝업 합산 정정·POS 주문) 탭 */
+type DayTab = number | 'all';
 
 function formatDateLabel(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -30,8 +41,20 @@ function formatDateLabel(dateStr: string) {
   return `${m}월 ${d}일 (${DAY_NAMES[day]})`;
 }
 
-export default function DayDetailModal({ date, manualEntry, onSaved, onClose, saveDay, removeDay, popups, popupSales, onEditPopup }: Props) {
+/**
+ * 하루 상세 창 — 달력 날짜를 누르면 뜬다. 그날 팝업별 탭에서 매출·주문·시간대·메뉴를 보고 바로 고치고,
+ * '날짜 전체' 탭에서 모든 팝업을 합친 하루 정정과 POS 주문 내역을 본다.
+ * (예전엔 날짜 창 → 팝업 입력창 → 통계탭 '날짜별 상세'를 오가야 했다)
+ */
+export default function DayDetailModal({ date, manualEntry, onSaved, onClose, saveDay, removeDay, popups, popupSales, onPopupChanged }: Props) {
   useBodyScrollLock();
+  // 기본 탭: 그날 매출이 가장 큰 팝업 → 기간에 걸친 첫 팝업 → 날짜 전체
+  const [tab, setTab] = useState<DayTab>(() => {
+    const top = [...popupSales].filter(x => x.popupId != null && popups.some(p => p.id === x.popupId)).sort((a, b) => b.revenue - a.revenue)[0];
+    return (top?.popupId as number | undefined) ?? popups[0]?.id ?? 'all';
+  });
+  const dayTotal = manualEntry?.total_revenue ?? popupSales.reduce((s, x) => s + x.revenue, 0);
+  const dayOrders = manualEntry?.total_orders ?? popupSales.reduce((s, x) => s + x.orders, 0);
   const [orders, setOrders] = useState<OrderRecordWithItems[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [revenue, setRevenue] = useState(manualEntry?.total_revenue ?? 0);
@@ -44,12 +67,16 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
 
   const posRevenue = orders.reduce((s, o) => s + Number(o.total_price), 0);
 
+  // 그날 주문 전체는 '날짜 전체' 탭을 열 때만 받는다
+  const [ordersRequested, setOrdersRequested] = useState(false);
+  useEffect(() => { if (tab === 'all') setOrdersRequested(true); }, [tab]);
   useEffect(() => {
+    if (!ordersRequested) return;
     fetchOrdersByDate(date).then((res) => {
       if (res.success && res.data) setOrders(res.data);
       setLoadingOrders(false);
     });
-  }, [date]);
+  }, [date, ordersRequested]);
 
   useModalKeyboard({
     active: true,
@@ -103,59 +130,67 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
         transition={{ duration: 0.15 }}
         className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
         style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
+        {/* 바깥 클릭으로 닫지 않는다 — 입력 중인 정정값이 날아가지 않게(닫기 버튼·Esc) */}
         <motion.div
           key="day-modal-panel"
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 40, opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          className="bg-canvas w-full sm:max-w-[420px] rounded-t-2xl sm:rounded-xl shadow-level-2 border border-hairline overflow-hidden max-h-[90dvh] flex flex-col pb-[env(safe-area-inset-bottom)] sm:pb-0"
+          className="bg-canvas w-full sm:max-w-[520px] rounded-t-2xl sm:rounded-xl shadow-level-2 border border-hairline overflow-hidden max-h-[90dvh] flex flex-col pb-[env(safe-area-inset-bottom)] sm:pb-0"
           ref={panelRef}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-hairline shrink-0">
             <div>
-              <p className="text-[11px] text-ink-faint font-medium mb-0.5">날짜별 매출</p>
-              <h3 className="m-0 text-[17px] font-bold text-ink">{formatDateLabel(date)}</h3>
+              <p className="text-[11px] text-ink-faint font-medium mb-0.5">하루 상세</p>
+              <h3 className="m-0 text-[17px] font-bold text-ink">
+                {formatDateLabel(date)}
+                {dayTotal > 0 && <span className="ml-2 text-[13px] font-semibold text-ink-muted tabular-nums">₩{formatPrice(dayTotal)} · {dayOrders.toLocaleString('ko-KR')}건</span>}
+              </h3>
             </div>
             <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-canvas-soft text-ink-faint transition-colors">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
           </div>
 
+          {/* 탭 — 그날 운영한 팝업마다 하나 + 날짜 전체 */}
+          <div className="flex gap-1.5 overflow-x-auto px-4 pt-3 shrink-0 [scrollbar-width:none]">
+            {popups.map(p => {
+              const sale = popupSales.find(x => x.popupId === p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setTab(p.id)}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-bold cursor-pointer transition ${
+                    tab === p.id ? 'border-primary-700 bg-primary-700 text-white' : 'border-hairline bg-canvas-soft text-ink-muted hover:bg-[#ececeb]'
+                  }`}
+                >
+                  {p.name}
+                  {sale && sale.revenue > 0 && <span className="ml-1 font-semibold opacity-80 tabular-nums">{Math.round(sale.revenue / 10000).toLocaleString('ko-KR')}만</span>}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setTab('all')}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-bold cursor-pointer transition ${
+                tab === 'all' ? 'border-ink bg-ink text-white' : 'border-hairline bg-canvas text-ink-muted hover:bg-canvas-soft'
+              }`}
+            >
+              날짜 전체
+            </button>
+          </div>
+
+          {tab !== 'all' ? (
+            <div className="overflow-y-auto flex-1 px-4 py-4">
+              <PopupDayPanel key={tab} popupId={tab} date={date} onChanged={onPopupChanged} />
+            </div>
+          ) : (
           <form onSubmit={e => { e.preventDefault(); handleSave(); }} className="contents">
           <div className="overflow-y-auto flex-1 px-4 py-4 flex flex-col gap-4">
-            {/* 팝업별 — 같은 날 팝업이 둘 이상이면 아래 날짜 전체 입력으로는 한 팝업만 고칠 수 없다 */}
-            {popups.length > 0 && (
-              <section>
-                <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide mb-2">팝업별 매출</p>
-                <div className="bg-canvas-soft rounded-lg border border-hairline overflow-hidden">
-                  {popups.map((p) => {
-                    const sale = popupSales.find((s) => s.popupId === p.id);
-                    return (
-                      <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-hairline last:border-0">
-                        <div className="min-w-0">
-                          <p className="m-0 text-[13px] font-semibold text-ink truncate">{p.name}</p>
-                          <p className="m-0 text-[11px] text-ink-faint">
-                            {sale ? `₩${formatPrice(sale.revenue)} · ${sale.orders.toLocaleString('ko-KR')}건` : '매출 없음'}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onEditPopup(p)}
-                          className="shrink-0 px-2.5 py-1.5 rounded-lg border border-hairline bg-canvas text-[12px] font-semibold text-primary-700 hover:bg-canvas-soft transition-colors cursor-pointer"
-                        >
-                          매출·메뉴 수정
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
             {/* POS 실매출 */}
             <section>
               <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide mb-2">POS 실매출</p>
@@ -190,7 +225,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
               </div>
               {popups.length > 1 && (
                 <p className="m-0 mb-2 text-[11px] text-ink-faint leading-snug">
-                  이 값은 그날 모든 팝업을 합친 하루 매출로 달력·누적 합계를 덮어씁니다. 한 팝업만 고치려면 위 팝업별 「매출·메뉴 수정」을 쓰세요.
+                  이 값은 그날 모든 팝업을 합친 하루 매출로 달력·누적 합계를 덮어씁니다. 한 팝업만 고치려면 위 팝업 탭에서 고치세요.
                 </p>
               )}
               <div className="flex flex-col gap-2">
@@ -270,6 +305,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
             </button>
           </div>
           </form>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
