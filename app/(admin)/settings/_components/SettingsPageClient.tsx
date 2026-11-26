@@ -17,7 +17,7 @@ type ActiveTab = 'menu' | 'popups' | 'users' | 'devtools';
 
 // 탭 순서 = 쓰는 빈도 순. 설명은 "무엇을 하는 곳인지"를 한 줄로만 말한다.
 const TABS: { id: ActiveTab; label: string; desc: string }[] = [
-  { id: 'menu', label: '메뉴 관리', desc: 'POS에 보이는 메뉴와 순서, 팝업별 판매 여부를 관리합니다 — 메뉴 아래 팝업 이름을 눌러 그 팝업에서 켜고 끕니다' },
+  { id: 'menu', label: '메뉴 관리', desc: 'POS에 보이는 메뉴와 순서, 팝업별 판매 여부를 관리합니다 — 목록 위에서 팝업을 고르고 메뉴마다 판매 스위치로 켜고 끕니다' },
   { id: 'popups', label: '팝업 관리', desc: '행사 기간과 활성 상태를 관리합니다' },
   { id: 'users', label: '유저 관리', desc: '계정 권한·연락처를 관리합니다' },
   { id: 'devtools', label: '개발자 도구', desc: '배포 환경, 서버 액션, 데이터베이스 구조를 확인합니다' },
