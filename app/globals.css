@@ -34,6 +34,8 @@
 }
 
 :root {
+  /* 다크모드 미지원 — 입력칸·스크롤바 같은 기본 컨트롤도, 브라우저 자동 어둡게도 밝게 고정 (layout.tsx viewport.colorScheme과 짝) */
+  color-scheme: only light;
   font-family: "Pretendard Variable", "Pretendard", "Noto Sans KR", system-ui, sans-serif;
   color: #161616;
   background: #f6f5f4;

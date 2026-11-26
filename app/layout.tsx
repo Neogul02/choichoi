@@ -25,6 +25,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: '#084431',
+  // 다크모드 미지원 — 기기가 다크모드여도(크롬·삼성 인터넷의 자동 어둡게 포함) 항상 밝은 화면으로 그린다.
+  // POS 색 배지·금액이 강제로 반전돼 안 보이던 문제(2026-11-26). globals.css의 color-scheme과 짝.
+  colorScheme: 'only light',
 };
 
 // 로그인 게이트의 첫 렌더를 서버에서 정한다(password-gate.tsx GateInitial 참고).
