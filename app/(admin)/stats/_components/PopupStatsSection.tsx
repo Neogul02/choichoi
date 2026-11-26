@@ -20,6 +20,7 @@ import { DEFAULT_REPORT_CHARTS, isReportChartAvailable } from '@/components/Popu
 import type { PopupReportData, ReportSection } from '@/components/PopupReportDocument';
 
 const PopupManualEntryModal = dynamic(() => import('./PopupManualEntryModal'), { ssr: false });
+const PopupDaySheet = dynamic(() => import('./PopupDaySheet'), { ssr: false });
 const SalesSheetPasteModal = dynamic(() => import('./SalesSheetPasteModal'), { ssr: false });
 const PopupReportModal = dynamic(() => import('./PopupReportModal'), { ssr: false });
 
@@ -103,6 +104,8 @@ export default function PopupStatsSection({
   const [metric, setMetric] = useState<Metric>('revenue');
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showSheetPaste, setShowSheetPaste] = useState(false);
+  // 일별 매출 막대를 눌러 연 하루 상세 날짜
+  const [detailDate, setDetailDate] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
 
   const popupTotalRevenue = useMemo(() => popupDailySales.reduce((s, d) => s + d.revenue, 0), [popupDailySales]);
@@ -372,7 +375,12 @@ export default function PopupStatsSection({
                           {derived.avgDailyRevenue > 0 && (
                             <ReferenceLine y={derived.avgDailyRevenue} stroke={CHART_ACCENT_GOLD} strokeDasharray="4 4" />
                           )}
-                          <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                          <Bar
+                            dataKey="revenue"
+                            radius={[4, 4, 0, 0]}
+                            cursor="pointer"
+                            onClick={(bar: { payload?: { date?: string } }) => { if (bar?.payload?.date) setDetailDate(bar.payload.date); }}
+                          >
                             {dailyChartData.map((d) => (
                               <Cell key={d.dateLabel} fill={weekendAccentColor(d.day, CHART_ACCENT_PRIMARY_SOFT)} />
                             ))}
@@ -383,9 +391,8 @@ export default function PopupStatsSection({
                         </BarChart>
                       </ResponsiveContainer>
                       <p className="text-[10px] text-ink-faint mt-1 m-0">
-                        ※ 파란 막대는 토요일, 빨간 막대는 일요일
+                        ※ 막대를 누르면 그날 시간대·메뉴 상세 · 파란 막대는 토요일, 빨간 막대는 일요일
                         {derived.avgDailyRevenue > 0 && ` · 주황 점선은 평균 ${formatRevenueTick(derived.avgDailyRevenue)}`}
-                        {!showDailyLabels && ' · 막대가 많아 값은 막대를 눌러 확인'}
                       </p>
                     </ChartCard>
 
@@ -710,6 +717,18 @@ export default function PopupStatsSection({
           endDate={selectedPopup.end_date}
           onClose={() => setShowSheetPaste(false)}
           onSaved={() => { setShowSheetPaste(false); onRefresh(); }}
+        />
+      )}
+
+      {detailDate && selectedPopup && (
+        <PopupDaySheet
+          popupId={selectedPopup.id}
+          popupName={selectedPopup.name}
+          dates={dailyChartData.map((d) => d.date)}
+          date={detailDate}
+          onDateChange={setDetailDate}
+          onClose={() => setDetailDate(null)}
+          onChanged={onRefresh}
         />
       )}
 

@@ -73,9 +73,13 @@ describe('기타', () => {
     expect(payrollMonthKey('2026-10-14')).toBe('month:2026-9')
     expect(payrollMonthKey('2026-01-01')).toBe('month:2026-0')
   })
-  it('휴게 선택지는 0·30·60만', () => {
+  it('휴게는 0~240분, 10분 단위(직접 입력 포함)', () => {
     expect(isAttendanceBreak(30)).toBe(true)
+    expect(isAttendanceBreak(90)).toBe(true)
+    expect(isAttendanceBreak(240)).toBe(true)
     expect(isAttendanceBreak(45)).toBe(false)
+    expect(isAttendanceBreak(250)).toBe(false)
+    expect(isAttendanceBreak(-10)).toBe(false)
     expect(isAttendanceBreak('60')).toBe(false)
   })
 })

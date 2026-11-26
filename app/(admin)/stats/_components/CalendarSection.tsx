@@ -70,6 +70,21 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
     return Object.keys(manualByDate).some((d) => d.startsWith(prefix));
   }, [manualByDate, calendarMonth]);
 
+  // 이 달 팝업 합계 — 정산 예상은 수수료를 정한 팝업만 더한다(미설정은 개수로 알린다)
+  const monthTotals = useMemo(() => {
+    let revenue = 0, orders = 0, settlement = 0, noFee = 0;
+    for (const p of monthPopups) {
+      const t = popupTotals.get(p.id);
+      if (!t) continue;
+      revenue += t.revenue;
+      orders += t.orders;
+      const fee = feePercentOf(p);
+      if (fee == null) noFee += 1;
+      else settlement += afterFee(t.revenue, fee);
+    }
+    return { revenue, orders, settlement, noFee, count: monthPopups.length };
+  }, [monthPopups, popupTotals]);
+
   // 미지정 몫은 팝업 목록에 없지만 매출이 있으면 범례에 꼭 띄운다 — 조용히 사라지면 합이 안 맞는 이유를 알 수 없다
   const unassigned = popupTotals.get(null) ?? null;
 
@@ -225,6 +240,24 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
               <span className="shrink-0 text-right tabular-nums whitespace-nowrap">
                 <span className="block text-[12px] font-extrabold text-ink-muted">₩{formatPrice(unassigned.revenue)}</span>
                 <span className="block text-[10px] text-ink-faint">{unassigned.orders.toLocaleString('ko-KR')}건</span>
+              </span>
+            </div>
+          )}
+          {/* 합계 — 이 달 팝업 매출·건수와 정산 예상(매출 − 팝업별 수수료) 총합 */}
+          {monthPopups.length > 1 && (
+            <div className="flex items-center gap-2 px-3 py-2.5 border-t-2 border-hairline bg-primary-50/60">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-extrabold text-ink">합계</span>
+                <span className="block text-[10px] text-ink-faint">
+                  팝업 {monthTotals.count}곳
+                  {monthTotals.noFee > 0 && <> · 수수료 미설정 {monthTotals.noFee}곳은 정산에서 빠짐</>}
+                </span>
+              </span>
+              <span className="shrink-0 text-right tabular-nums whitespace-nowrap">
+                <span className="block text-[13px] font-extrabold text-primary-700">₩{formatPrice(monthTotals.revenue)}</span>
+                <span className="block text-[10px] text-ink-faint">
+                  {monthTotals.orders.toLocaleString('ko-KR')}건 · 정산 <b className="font-extrabold text-ink">₩{formatPrice(monthTotals.settlement)}</b>
+                </span>
               </span>
             </div>
           )}
