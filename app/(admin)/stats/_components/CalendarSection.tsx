@@ -164,8 +164,9 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
                   {isManual && <span className="w-1.5 h-1.5 rounded-full bg-gold shrink-0 mt-0.5" title="수동 정정" />}
                 </div>
                 <div
-                  className="mt-1.5 text-[10px] font-semibold leading-tight tabular-nums whitespace-nowrap overflow-hidden text-ellipsis"
-                  style={{ color: swatch ? swatch.text : '#a39e98' }}
+                  className="mt-1.5 text-[11px] font-semibold leading-tight tabular-nums whitespace-nowrap overflow-hidden text-ellipsis"
+                  style={{ color: swatch ? swatch.text : 'var(--color-ink-faint)' }}
+                  title={effectiveRevenue > 0 ? `₩${effectiveRevenue.toLocaleString('ko-KR')}` : undefined}
                 >
                   {formatDayRevenue(effectiveRevenue)}
                 </div>

@@ -74,7 +74,7 @@ export default function ConfirmDialog({
             className="bg-canvas w-full max-w-[320px] rounded-xl shadow-level-2 border border-hairline p-5"
           >
             <h3 id="confirm-dialog-title" className="m-0 mb-1.5 text-[16px] font-bold text-ink">{title}</h3>
-            {description && <p className="m-0 mb-5 text-[13px] text-ink-muted">{description}</p>}
+            {description && <p className="m-0 mb-5 text-[13px] text-ink-muted whitespace-pre-line">{description}</p>}
             <div className={`flex gap-2 ${!description ? 'mt-5' : ''}`}>
               <button
                 onClick={onClose}

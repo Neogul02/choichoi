@@ -276,6 +276,8 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
       .map(d => ({ row: r, ...d }))
   })
   const [applyingDefaults, setApplyingDefaults] = useState(false)
+  // 돈이 움직이는 일괄 작업은 확인 창을 한 번 거친다
+  const [defaultsConfirmOpen, setDefaultsConfirmOpen] = useState(false)
   // 세무사에게 보내는 월별 4대보험 자료 — 역할 탭과 무관하게 그 달 일한 모든 사람(주방·캐셔 합산)
   const [exportingInsurance, setExportingInsurance] = useState<'excel' | 'pdf' | null>(null)
   const [exportTarget, setExportTarget] = useState<{ kind: 'excel' | 'pdf'; rows: InsuranceReportRow[]; y: number; m: number } | null>(null)
@@ -470,10 +472,10 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           )}
           {pendingDefaults.length > 0 && (
             <button
-              onClick={applyDefaults}
+              onClick={() => setDefaultsConfirmOpen(true)}
               disabled={applyingDefaults}
               title={pendingDefaults.map(p => `${p.row.name}: ${p.label} ${p.amount.toLocaleString('ko-KR')}원`).join('\n')}
-              className="shrink-0 px-3 py-1.5 rounded-xl bg-primary-50 border border-primary-700/30 text-[12px] font-bold text-primary-700 cursor-pointer hover:bg-primary-100 transition disabled:opacity-50"
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-primary-700 border-none text-[12px] font-bold text-white cursor-pointer hover:bg-primary-800 transition disabled:opacity-50"
             >
               {applyingDefaults ? '적용 중…' : `기본 공제 일괄 적용 (${pendingDefaults.length}건)`}
             </button>
@@ -649,6 +651,16 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={defaultsConfirmOpen}
+        title={`기본 공제 ${pendingDefaults.length}건을 적용할까요?`}
+        description={pendingDefaults.slice(0, 8).map(p => `${p.row.name} · ${p.label} ${p.amount.toLocaleString('ko-KR')}원`).join('\n') + (pendingDefaults.length > 8 ? `\n외 ${pendingDefaults.length - 8}건` : '')}
+        confirmLabel="적용"
+        busy={applyingDefaults}
+        onConfirm={async () => { await applyDefaults(); setDefaultsConfirmOpen(false) }}
+        onClose={() => setDefaultsConfirmOpen(false)}
+      />
 
       {/* 지급 완료 체크 시 퇴사 전환 확인 팝업 — 취소해도 지급 완료 표시는 유지 */}
       <ConfirmDialog
