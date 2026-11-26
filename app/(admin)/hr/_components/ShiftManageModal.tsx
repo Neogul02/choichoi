@@ -214,7 +214,6 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div ref={panelRef} className="bg-canvas w-full max-w-[420px] max-h-[85vh] overflow-y-auto rounded-xl shadow-level-2 border border-hairline p-5 [scrollbar-width:thin]">
         <div className="flex items-center justify-between mb-1">

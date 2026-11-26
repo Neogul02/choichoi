@@ -206,7 +206,6 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
         transition={{ duration: 0.15 }}
         className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
         style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <motion.div
           key="popup-manual-entry-panel"
