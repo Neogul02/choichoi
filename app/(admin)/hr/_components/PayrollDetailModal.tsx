@@ -12,6 +12,7 @@ import WelfareReportPanel from './WelfareReportPanel'
 import CopyText from '@/components/CopyText'
 import { showMsg } from '@/lib/toast'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { buildPayrollCopyText, deductionSummary, formatPercent } from '@/lib/payrollCopyText'
 import { useModalKeyboard } from '@/lib/useModalKeyboard'
 import { formatPhoneNumber } from '@/lib/utils'
 import { minutesToHours, formatTimeRange } from '@/lib/workhours'
@@ -217,38 +218,24 @@ export default function PayrollDetailModal({
     await removeAdjustmentPreset(id)
   }
 
+  // 직원에게 보내는 문구 — 지급액 → 기본급 → 공제(합계·기본급 대비 %) → 근무 일자 (lib/payrollCopyText)
+  const shareText = buildPayrollCopyText({
+    name,
+    periodLabel,
+    days: (details ?? []).map(d => ({ date: d.date, timeRange: formatTimeRange(d.startTime, d.endTime), hours: d.hours, breakMinutes: d.breakMinutes })),
+    totalHours,
+    breakHours: minToH(breakSum),
+    rateText: hourlyRate != null ? formatAppliedRates(paySegments, hourlyRate) : null,
+    basePay,
+    adjustments,
+    finalPay,
+    insuranceNote: pension?.status === 'eligible'
+      ? `국민연금·건강보험 가입 대상 (${pension.reasons.join(', ')})`
+      : pension?.status === 'first-month' ? '국민연금·건강보험: 첫 달이라 이번 달은 제외' : null,
+  })
+  const deductInfo = deductionSummary(basePay, adjustments)
   const handleShare = () => {
-    const lines: string[] = [
-      `📋 ${name} 님 ${periodLabel} 급여 내역`,
-      '',
-      `총 근무: ${details?.length ?? 0}일 / ${totalHours}h`,
-    ]
-    if (hourlyRate != null) lines.push(`시급: ${formatAppliedRates(paySegments, hourlyRate)}`)
-    if (basePay != null) lines.push(`기본급: ${basePay.toLocaleString('ko-KR')}원`)
-    if (pension && pension.status !== 'none') {
-      lines.push(pension.status === 'eligible'
-        ? `국민연금·건강보험: 가입 대상 (${pension.reasons.join(', ')})`
-        : '국민연금·건강보험: 이번 달은 첫 달이라 제외 (다음 달도 근무하면 가입 대상)')
-    }
-    if (adjustments.length > 0) {
-      lines.push('', '[ 조정 내역 ]')
-      for (const a of adjustments) {
-        lines.push(`${a.label}: ${a.amount >= 0 ? '+' : ''}${a.amount.toLocaleString('ko-KR')}원`)
-      }
-    }
-    if (finalPay != null) lines.push('', `✅ 최종 지급액: ${finalPay.toLocaleString('ko-KR')}원`)
-    if (formulaLines.length > 0) {
-      lines.push('', '[ 계산식 ]', ...formulaLines)
-    }
-    if (details && details.length > 0) {
-      lines.push('', '[ 근무 상세 ]')
-      for (const d of details) {
-        // 직원에게 보내는 문구라 간략하게 — 개별 조정 여부 같은 관리용 표기는 화면에만 둔다
-        const breakNote = d.breakMinutes > 0 ? ` (휴게 ${minToH(d.breakMinutes)}h)` : ' (휴게 없음)'
-        lines.push(`${d.date} ${d.shiftName} ${formatTimeRange(d.startTime, d.endTime)} = ${d.hours}h${breakNote}`)
-      }
-    }
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    navigator.clipboard.writeText(shareText).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     })
@@ -593,10 +580,13 @@ export default function PayrollDetailModal({
               <div className="flex justify-between items-center px-3 py-3 bg-canvas-soft">
                 <div>
                   <span className="text-[13px] font-bold text-ink">최종 지급액</span>
-                  {adjustments.length > 0 && adjustTotal !== 0 && (
-                    <span className={`ml-2 text-[11px] font-semibold ${adjustTotal >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                      ({adjustTotal >= 0 ? '+' : ''}{adjustTotal.toLocaleString('ko-KR')}원 조정)
+                  {deductInfo.deductTotal > 0 && (
+                    <span className="block text-[12px] font-semibold text-rose-600 tabular-nums">
+                      공제 −{deductInfo.deductTotal.toLocaleString('ko-KR')}원{deductInfo.deductPct != null && ` · 기본급의 ${formatPercent(deductInfo.deductPct)}%`}
                     </span>
+                  )}
+                  {deductInfo.addTotal > 0 && (
+                    <span className="block text-[12px] font-semibold text-emerald-600 tabular-nums">추가 +{deductInfo.addTotal.toLocaleString('ko-KR')}원</span>
                   )}
                 </div>
                 <span className="text-[18px] font-extrabold text-primary-700">
@@ -608,32 +598,42 @@ export default function PayrollDetailModal({
             </div>
           </div>
 
-          {/* 계산식 */}
-          {formulaLines.length > 0 && (
+          {/* 보낼 문구 — 복사하기 전에 그대로 보여 준다 */}
+          {details && details.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="m-0 text-[11px] font-bold text-ink-muted uppercase tracking-wide">계산식</h4>
-                <button
-                  onClick={() => copyText('formula', formulaText)}
-                  className="px-2 py-0.5 rounded-md border border-hairline bg-canvas-soft text-[10px] font-semibold text-ink-muted cursor-pointer hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition"
-                >
-                  {copiedKey === 'formula' ? '복사됨!' : '계산식 복사'}
-                </button>
+              <h4 className="m-0 mb-2 text-[11px] font-bold text-ink-muted tracking-wide">직원에게 보낼 문구</h4>
+              <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 text-[12px] text-ink leading-relaxed whitespace-pre-wrap break-words select-text max-h-[260px] overflow-y-auto [scrollbar-width:thin]">
+                {shareText}
               </div>
-              <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words select-text">
-                {formulaText}
-              </div>
-              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 근무 배정에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
             </div>
           )}
 
-          {/* 공유 버튼 */}
           <button
             onClick={handleShare}
-            className="w-full py-3 rounded-xl border-none bg-amber-500 text-white text-[13px] font-bold cursor-pointer hover:bg-amber-600 active:bg-amber-700 transition"
+            className="w-full py-3 rounded-xl border-none bg-primary-700 text-white text-[14px] font-bold cursor-pointer hover:bg-primary-800 active:scale-[0.99] transition"
           >
-            {copied ? '✓ 클립보드에 복사됨!' : '📋 급여 내역 복사 (카카오 / 문자 공유)'}
+            {copied ? '✓ 복사됨 — 카톡·문자에 붙여 넣으세요' : '📋 급여 내역 복사'}
           </button>
+
+          {/* 계산식 — 관리자 확인용, 접어 둔다 */}
+          {formulaLines.length > 0 && (
+            <details className="group">
+              <summary className="flex items-center justify-between cursor-pointer list-none text-[12px] font-bold text-ink-muted">
+                <span>계산식 보기 <span className="inline-block transition-transform group-open:rotate-90">›</span></span>
+                <button
+                  type="button"
+                  onClick={e => { e.preventDefault(); copyText('formula', formulaText) }}
+                  className="px-2 py-0.5 rounded-md border border-hairline bg-canvas-soft text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition"
+                >
+                  {copiedKey === 'formula' ? '복사됨!' : '계산식 복사'}
+                </button>
+              </summary>
+              <div className="mt-2 rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words select-text">
+                {formulaText}
+              </div>
+              <p className="m-0 mt-1.5 text-[11px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 근무 배정에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
+            </details>
+          )}
         </div>
         </div>{/* 좌측 컬럼 끝 */}
 
