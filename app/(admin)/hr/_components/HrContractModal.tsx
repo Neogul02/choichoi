@@ -20,7 +20,7 @@ import { COMPANY_RATE_SCHEDULE, companyStandardRate, minimumRateWithHoliday, min
 const PDFPreviewPanel = dynamic(() => import('@/components/PDFPreviewPanel'), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-full text-ink-muted text-sm">미리보기 로딩 중...</div>
+    <div className="flex items-center justify-center h-full text-ink-muted text-sm">미리보기 로딩 중…</div>
   ),
 })
 
@@ -357,7 +357,7 @@ export default function HrContractModal({ staff, onClose, onComplete }: Props) {
                 disabled={saving}
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-[12px] font-bold border-none cursor-pointer hover:bg-emerald-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {saving ? '저장 중...' : '✓ 작성완료'}
+                {saving ? '저장 중…' : '✓ 작성완료'}
               </button>
             )}
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-canvas border border-hairline text-[12px] font-semibold text-ink-secondary cursor-pointer hover:bg-canvas-soft transition">닫기</button>

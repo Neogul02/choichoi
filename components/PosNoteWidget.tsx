@@ -516,7 +516,7 @@ function NoteEditor({ note, colors, textareaRef, author, rows, className, onFocu
         onScroll={syncScroll}
         onFocus={() => onFocusChange(true)}
         onBlur={() => { note.onBlur(); onFocusChange(false); }}
-        placeholder={note.loading ? '불러오는 중...' : PLACEHOLDER}
+        placeholder={note.loading ? '불러오는 중…' : PLACEHOLDER}
         disabled={note.loading}
         maxLength={MAX_CHARS}
         rows={rows}

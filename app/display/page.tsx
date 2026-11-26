@@ -31,11 +31,11 @@ function fireConfetti() {
 
 function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
   return (
-    <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex items-center gap-1 bg-canvas-soft rounded-xl p-1 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <button
         onClick={() => setMode('view')}
         className={`shrink-0 whitespace-nowrap px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
-          mode === 'view' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
+          mode === 'view' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-ink-muted'
         }`}
       >
         프론트
@@ -43,7 +43,7 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
       <button
         onClick={() => setMode('menu')}
         className={`shrink-0 whitespace-nowrap px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
-          mode === 'menu' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
+          mode === 'menu' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-ink-muted'
         }`}
       >
         메뉴판
@@ -51,7 +51,7 @@ function ModeToggle({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void 
       <button
         onClick={() => setMode('screen')}
         className={`shrink-0 whitespace-nowrap px-5 py-2 rounded-lg text-base font-bold transition-all duration-200 cursor-pointer border-none ${
-          mode === 'screen' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
+          mode === 'screen' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-ink-muted'
         }`}
       >
         스크린
@@ -80,7 +80,7 @@ function PopupSelectScreen() {
       </div>
       <div className="flex flex-col gap-3 w-full max-w-sm">
         {loading && (
-          <div className="text-center text-ink-faint text-sm py-8">불러오는 중...</div>
+          <div className="text-center text-ink-faint text-sm py-8">불러오는 중…</div>
         )}
         {!loading && popupEvents.length === 0 && (
           <div className="text-center text-ink-faint text-sm py-8">등록된 팝업이 없습니다</div>
@@ -256,7 +256,7 @@ function DisplayContent({ popupId }: { popupId: string }) {
         aria-label={navExpanded ? '헤더 접기' : '헤더 펼치기'}
         className={`fixed top-2 right-2 z-30 flex items-center justify-center w-9 h-9 rounded-full border-none cursor-pointer transition-all duration-200 ${
           navExpanded
-            ? 'bg-canvas-soft text-ink-faint opacity-100 hover:bg-hairline hover:text-[#555]'
+            ? 'bg-canvas-soft text-ink-faint opacity-100 hover:bg-hairline hover:text-ink-muted'
             : 'bg-black/10 text-ink-faint opacity-35 hover:opacity-80'
         }`}
       >
@@ -291,7 +291,7 @@ function DisplayContent({ popupId }: { popupId: string }) {
 
       {connectionStatus === 'error' && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-rose-600 text-white text-sm font-bold shadow-lg">
-          연결 끊김 — 재연결 중...
+          연결 끊김 — 재연결 중…
         </div>
       )}
     </div>

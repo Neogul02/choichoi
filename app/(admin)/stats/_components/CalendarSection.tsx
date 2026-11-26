@@ -96,15 +96,15 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
         title="날짜별 매출 프리뷰"
         right={
           <div className="flex items-center gap-1.5">
-            <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(-1)}>‹</button>
+            <button className="w-8 h-8 rounded-lg bg-canvas border border-hairline-strong flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(-1)}>‹</button>
             <strong className="min-w-[104px] text-center text-[13px] font-bold text-ink-secondary">{monthYearLabel}</strong>
-            <button className="w-8 h-8 rounded-lg bg-canvas border border-[#d8d8d8] flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(1)}>›</button>
+            <button className="w-8 h-8 rounded-lg bg-canvas border border-hairline-strong flex items-center justify-center cursor-pointer text-ink-secondary hover:bg-canvas-soft text-lg leading-none font-bold" onClick={() => onMonthChange(1)}>›</button>
           </div>
         }
       />
 
       <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="bg-canvas border border-[#e4e4e4] rounded-xl px-3 py-2.5 text-center">
+        <div className="bg-canvas border border-hairline rounded-xl px-3 py-2.5 text-center">
           <div className="text-[11px] text-ink-muted font-medium mb-0.5">월 주문</div>
           <div className="text-[17px] font-extrabold text-ink-secondary">{calendarSales.totalOrders}<span className="text-[13px] font-semibold ml-0.5">건</span></div>
         </div>
@@ -161,7 +161,7 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
                   <span className={`text-[11px] font-extrabold leading-none ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : isToday ? 'text-primary-700' : 'text-ink-secondary'}`}>
                     {day}{isToday && <span className="ml-0.5 text-primary-700">•</span>}
                   </span>
-                  {isManual && <span className="w-1.5 h-1.5 rounded-full bg-[#b8842f] shrink-0 mt-0.5" title="수동 정정" />}
+                  {isManual && <span className="w-1.5 h-1.5 rounded-full bg-gold shrink-0 mt-0.5" title="수동 정정" />}
                 </div>
                 <div
                   className="mt-1.5 text-[10px] font-semibold leading-tight tabular-nums whitespace-nowrap overflow-hidden text-ellipsis"
@@ -263,7 +263,7 @@ export default function CalendarSection({ calendarSales, popupEvents, calendarMo
           )}
           {hasManualInMonth && (
             <p className="m-0 border-t border-hairline bg-canvas-soft px-3 py-2 text-[10px] leading-relaxed text-ink-muted">
-              수동 정정(<span className="mx-0.5 inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-[#b8842f]" />)한 날은
+              수동 정정(<span className="mx-0.5 inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-gold" />)한 날은
               달력 칸 금액이 수동값으로 대체됩니다. 수동 입력은 날짜 단위라 팝업으로 나눌 수 없어, 위 팝업별 금액과 월 매출이 다를 수 있습니다.
             </p>
           )}

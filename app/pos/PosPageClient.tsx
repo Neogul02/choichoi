@@ -106,7 +106,7 @@ const MenuCard = memo(function MenuCard({
       </div>
       <div className="flex items-center gap-2">
         <button
-          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-canvas-strong hover:border-ink-faint active:scale-95 leading-none"
           onClick={(e) => {
             e.stopPropagation()
             onDecrease(item.id)
@@ -129,7 +129,7 @@ const MenuCard = memo(function MenuCard({
           {count}개
         </motion.strong>
         <button
-          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-canvas-strong hover:border-ink-faint active:scale-95 leading-none"
           onClick={(e) => {
             e.stopPropagation()
             onIncrease(item.id)
@@ -684,7 +684,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
             {orderedItems.length === 0 ? (
               <p className="m-0 text-ink-faint text-sm">
                 {checkoutMutation.isPending
-                  ? '결제 처리 중...'
+                  ? '결제 처리 중…'
                   : '선택한 메뉴가 없습니다.'}
               </p>
             ) : (
@@ -725,7 +725,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
               최근 주문
             </h2>
             {recentOrdersQuery.isLoading ? (
-              <p className="m-0 text-ink-faint text-sm">불러오는 중...</p>
+              <p className="m-0 text-ink-faint text-sm">불러오는 중…</p>
             ) : recentOrdersQuery.isError ? (
               <p className="m-0 text-rose-500 text-sm">
                 불러오지 못했습니다. 다시 시도해주세요.{' '}
@@ -803,7 +803,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                     {totalCount}개
                   </span>
                   <span className="text-base">
-                    {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
+                    {checkoutMutation.isPending ? '처리 중…' : '결제하기'}
                   </span>
                 </span>
                 <span key={totalPrice} className="text-lg font-black tabular-nums">

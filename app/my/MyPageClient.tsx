@@ -633,7 +633,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                 <div className='flex gap-2 pt-1'>
                   <button type='button' onClick={handleSaveProfile} disabled={isEditPending}
                     className='flex-1 border-none rounded-xl px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed'>
-                    {isEditPending ? '저장 중...' : '저장'}
+                    {isEditPending ? '저장 중…' : '저장'}
                   </button>
                   <button type='button' onClick={() => setIsEditing(false)} disabled={isEditPending}
                     className='flex-1 border border-hairline rounded-xl px-3 py-2.5 text-[14px] text-ink-muted hover:bg-canvas-soft transition-colors bg-transparent cursor-pointer disabled:opacity-60'>
@@ -694,7 +694,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                         </div>
                         <button type='button' onClick={handleSaveResidentId} disabled={isResidentPending}
                           className='w-full border-none rounded-xl px-3 py-2 text-[13px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed'>
-                          {isResidentPending ? '등록 중...' : '등록'}
+                          {isResidentPending ? '등록 중…' : '등록'}
                         </button>
                       </div>
                     )}
@@ -795,7 +795,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                       else toast.error(res.error ?? '변경 실패')
                     })}
                     className='flex-1 border-none rounded-xl px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60'>
-                    {isPwPending ? '변경 중...' : '저장'}
+                    {isPwPending ? '변경 중…' : '저장'}
                   </button>
                   <button type='button' onClick={() => { setIsPwOpen(false); setCurrentPw(''); setNewPw(''); setNewPwConfirm('') }}
                     className='flex-1 border border-hairline rounded-xl px-3 py-2.5 text-[14px] text-ink-muted hover:bg-canvas-soft transition-colors bg-transparent cursor-pointer'>
@@ -838,7 +838,7 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
                       else toast.error(res.error ?? '탈퇴 실패')
                     })}
                     className='flex-1 border-none rounded-xl px-3 py-2.5 text-[14px] font-bold bg-rose-500 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'>
-                    {isDeletePending ? '처리 중...' : '탈퇴하기'}
+                    {isDeletePending ? '처리 중…' : '탈퇴하기'}
                   </button>
                 </div>
               </div>

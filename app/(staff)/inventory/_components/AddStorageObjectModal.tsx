@@ -97,7 +97,7 @@ export default function AddStorageObjectModal({ open, onClose, onSuccess }: Prop
                       type="button"
                       onClick={() => setIcon(opt.value)}
                       className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-[11px] font-bold cursor-pointer border-none transition ${
-                        icon === opt.value ? 'bg-primary-700 text-white' : 'bg-[#f5f6f7] text-ink-muted hover:bg-primary-50'
+                        icon === opt.value ? 'bg-primary-700 text-white' : 'bg-canvas-soft text-ink-muted hover:bg-primary-50'
                       }`}
                     >
                       <span className="text-lg leading-none">{opt.emoji}</span>

@@ -58,7 +58,7 @@ export default function PopupDayPanel({ popupId, date, onChanged }: {
     return rows;
   }, [detail, menuItems]);
 
-  if (loading) return <p className="m-0 py-8 text-center text-sm text-ink-faint">불러오는 중...</p>;
+  if (loading) return <p className="m-0 py-8 text-center text-sm text-ink-faint">불러오는 중…</p>;
   if (!detail) return <p className="m-0 py-8 text-center text-sm text-ink-faint">불러오지 못했습니다.</p>;
 
   const avg = detail.orders > 0 ? Math.round(detail.revenue / detail.orders) : 0;
@@ -218,7 +218,7 @@ export default function PopupDayPanel({ popupId, date, onChanged }: {
         disabled={saving || (!dirtyTotals && !dirtyMenu)}
         className="w-full py-2.5 rounded-lg border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition-colors disabled:opacity-50 disabled:cursor-default"
       >
-        {saving ? '저장 중...' : dirtyTotals || dirtyMenu ? '저장' : '바꾼 값 없음'}
+        {saving ? '저장 중…' : dirtyTotals || dirtyMenu ? '저장' : '바꾼 값 없음'}
       </button>
     </div>
   );

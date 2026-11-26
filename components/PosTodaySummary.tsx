@@ -147,7 +147,7 @@ export default function PosTodaySummary({ rows, currentPopupId, totalRevenue, to
               <p className="m-0 text-[10px] font-bold text-ink-muted">시간대별 누적</p>
               {compare?.yesterdayHourly && (
                 <span className="flex items-center gap-1 text-[10px] text-ink-faint whitespace-nowrap">
-                  <span className="inline-block h-0 w-3 border-t-2 border-dashed border-[#b4b0aa]" />
+                  <span className="inline-block h-0 w-3 border-t-2 border-dashed border-hairline-strong" />
                   어제
                 </span>
               )}

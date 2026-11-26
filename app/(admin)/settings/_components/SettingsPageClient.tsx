@@ -298,7 +298,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                     <ColorPicker value={addForm.color} onChange={color => setAddForm(p => ({ ...p, color }))} />
                     <button type="submit" disabled={isAdding}
                       className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
-                      {isAdding ? '추가 중...' : '추가'}
+                      {isAdding ? '추가 중…' : '추가'}
                     </button>
                   </div>
                 </form>
@@ -373,7 +373,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                                 </button>
                                 <button type="submit" disabled={isSaving}
                                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border-none bg-primary-700 text-white hover:bg-primary-800 cursor-pointer disabled:opacity-50 transition-colors">
-                                  {isSaving ? '저장 중...' : '저장'}
+                                  {isSaving ? '저장 중…' : '저장'}
                                 </button>
                               </div>
                             </div>

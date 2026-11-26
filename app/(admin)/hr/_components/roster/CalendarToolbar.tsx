@@ -69,7 +69,7 @@ export default function CalendarToolbar({
           <>
             <button
               aria-label={viewMode === 'week' ? '이전 주' : '이전 달'}
-              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
+              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-canvas-strong transition text-sm"
               onClick={() => viewMode === 'week'
                 ? moveWeek(-7)
                 : setCursor(c => c && (c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 }))}
@@ -83,7 +83,7 @@ export default function CalendarToolbar({
             </h3>
             <button
               aria-label={viewMode === 'week' ? '다음 주' : '다음 달'}
-              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-sm"
+              className="w-11 h-11 md:w-7 md:h-7 rounded-lg bg-canvas-soft border-none cursor-pointer font-bold text-ink-muted hover:bg-canvas-strong transition text-sm"
               onClick={() => viewMode === 'week'
                 ? moveWeek(7)
                 : setCursor(c => c && (c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 }))}
@@ -95,7 +95,7 @@ export default function CalendarToolbar({
         {viewMode === 'week' && (
           <button
             onClick={() => { if (todayStr) { setWeekStart(getWeekStart(todayStr)); syncCursorToDate(todayStr); } }}
-            className="px-2.5 py-2 md:px-2 md:py-1 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition"
+            className="px-2.5 py-2 md:px-2 md:py-1 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition"
           >
             이번 주
           </button>
@@ -147,7 +147,7 @@ export default function CalendarToolbar({
               onClick={onCopyWeekText}
               disabled={isLoading}
               title="이번 주 근무 안내 텍스트 복사"
-              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               주간 복사
             </button>
@@ -165,7 +165,7 @@ export default function CalendarToolbar({
           onClick={onShowBulkEdit}
           disabled={isLoading || disableUnitActions}
           title={unitActionTitle}
-          className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           일괄 편집
         </button>
@@ -173,7 +173,7 @@ export default function CalendarToolbar({
           onClick={onShowShiftManage}
           disabled={disableUnitActions}
           title={unitActionTitle}
-          className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-2 md:px-2.5 md:py-1.5 rounded-lg bg-canvas-soft border-none text-[11px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           ⚙ 파트 관리
         </button>

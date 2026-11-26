@@ -286,7 +286,7 @@ export default function PayrollDetailModal({
               {phone && (
                 <button
                   onClick={() => copyText('phone', formatPhoneNumber(phone))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-canvas-strong transition text-[12px] text-ink cursor-pointer"
                 >
                   <span className="text-ink-muted text-[10px] font-semibold">전화</span>
                   <span className="font-semibold">{formatPhoneNumber(phone)}</span>
@@ -296,7 +296,7 @@ export default function PayrollDetailModal({
               {bankName && bankAccount && (
                 <button
                   onClick={() => copyText('bank', bankAccount)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-canvas-strong transition text-[12px] text-ink cursor-pointer"
                 >
                   <span className="text-ink-muted text-[10px] font-semibold">{bankName}</span>
                   <span className="font-semibold">{bankAccount}</span>
@@ -306,7 +306,7 @@ export default function PayrollDetailModal({
               {!bankName && bankAccount && (
                 <button
                   onClick={() => copyText('bank', bankAccount)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-canvas-strong transition text-[12px] text-ink cursor-pointer"
                 >
                   <span className="text-ink-muted text-[10px] font-semibold">계좌</span>
                   <span className="font-semibold">{bankAccount}</span>
@@ -344,7 +344,7 @@ export default function PayrollDetailModal({
           <div>
             <h4 className="m-0 mb-2 text-[11px] font-bold text-ink-muted uppercase tracking-wide">근무 상세</h4>
             {details === null ? (
-              <p className="text-[12px] text-ink-faint m-0">불러오는 중...</p>
+              <p className="text-[12px] text-ink-faint m-0">불러오는 중…</p>
             ) : details.length === 0 ? (
               <p className="text-[12px] text-ink-faint m-0">이번 달 근무 기록이 없습니다.</p>
             ) : (
@@ -439,7 +439,7 @@ export default function PayrollDetailModal({
                 </span>
                 <span className="text-[13px] font-bold text-ink">
                   {details == null
-                    ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중...</span>
+                    ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중…</span>
                     : basePay != null
                       ? <CopyText value={basePay.toLocaleString('ko-KR')} label="기본급" toastValue={`${basePay.toLocaleString('ko-KR')}원`}>{basePay.toLocaleString('ko-KR')}원</CopyText>
                       : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}

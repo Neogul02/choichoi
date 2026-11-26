@@ -140,7 +140,7 @@ export default function StaffCalendarModal({ staffId, name, onClose }: Props) {
           </div>
 
           {details === null ? (
-            <div className="flex items-center justify-center py-12 text-[13px] text-ink-muted">불러오는 중...</div>
+            <div className="flex items-center justify-center py-12 text-[13px] text-ink-muted">불러오는 중…</div>
           ) : (
             <>
               <CalendarGrid year={cursor.y} month={cursor.m} details={details} />

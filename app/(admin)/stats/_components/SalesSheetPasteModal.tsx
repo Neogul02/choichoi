@@ -172,7 +172,7 @@ export default function SalesSheetPasteModal({ popupId, popupName, startDate, en
               disabled={saving || current == null || toSave.length === 0}
               className="flex-1 py-2.5 rounded-lg border-none bg-primary-700 text-white text-[13px] font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 cursor-pointer"
             >
-              {saving ? '저장 중...' : toSave.length > 0 ? `${toSave.length}일 반영` : '바뀐 날 없음'}
+              {saving ? '저장 중…' : toSave.length > 0 ? `${toSave.length}일 반영` : '바뀐 날 없음'}
             </button>
           </div>
         </motion.div>

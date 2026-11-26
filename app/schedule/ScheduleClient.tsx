@@ -129,7 +129,7 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
   const totalHours = minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0))
 
   if (!loaded || !cursor) {
-    return <Shell><p className="text-ink-faint text-sm text-center py-10">불러오는 중...</p></Shell>
+    return <Shell><p className="text-ink-faint text-sm text-center py-10">불러오는 중…</p></Shell>
   }
 
   if (!viewingId) {
@@ -178,13 +178,13 @@ export default function ScheduleClient({ initial, staffPicker }: { initial: Init
         <div className="flex items-center justify-between mb-1">
           <h2 className="m-0 text-title text-ink">{cursor.y}년 {cursor.m + 1}월</h2>
           <div className="flex items-center gap-1.5">
-            <button onClick={prevMonth} aria-label="이전 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">‹</button>
-            <button onClick={goToday} className="px-3 h-9 rounded-xl bg-canvas-soft border border-hairline text-caption font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition">이번달</button>
-            <button onClick={nextMonth} aria-label="다음 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-[#ececeb] transition text-base flex items-center justify-center">›</button>
+            <button onClick={prevMonth} aria-label="이전 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-canvas-strong transition text-base flex items-center justify-center">‹</button>
+            <button onClick={goToday} className="px-3 h-9 rounded-xl bg-canvas-soft border border-hairline text-caption font-semibold text-ink-muted cursor-pointer hover:bg-canvas-strong transition">이번달</button>
+            <button onClick={nextMonth} aria-label="다음 달" className="w-9 h-9 rounded-xl bg-canvas-soft border border-hairline cursor-pointer font-bold text-ink-muted hover:bg-canvas-strong transition text-base flex items-center justify-center">›</button>
           </div>
         </div>
         <p className="m-0 mb-3 text-caption text-ink-muted">
-          {isLoading ? '불러오는 중...' : totalDays === 0 ? '이달 배정된 근무가 없습니다' : (
+          {isLoading ? '불러오는 중…' : totalDays === 0 ? '이달 배정된 근무가 없습니다' : (
             <>근무 <span className="font-bold text-primary-700">{totalDays}일</span> · 총 <span className="font-bold text-primary-700">{totalHours}시간</span></>
           )}
         </p>
@@ -320,7 +320,7 @@ function PayEstimateCard({ month, details, payInfo, isLoading }: {
         {paid && <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white/15">지급 완료</span>}
       </div>
       {isLoading ? (
-        <p className="m-0 mt-2 text-[15px] opacity-70">불러오는 중...</p>
+        <p className="m-0 mt-2 text-[15px] opacity-70">불러오는 중…</p>
       ) : estimate == null ? (
         <>
           <p className="m-0 mt-2 text-title">시급이 등록되지 않았어요</p>

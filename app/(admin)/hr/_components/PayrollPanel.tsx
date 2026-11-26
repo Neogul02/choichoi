@@ -381,14 +381,14 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           <div className="flex items-center gap-1.5">
             <button
               onClick={prevMonth}
-              className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-[#ececeb] text-base cursor-pointer flex items-center justify-center transition"
+              className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-canvas-strong text-base cursor-pointer flex items-center justify-center transition"
             >‹</button>
             <span className="text-[13px] font-bold text-ink min-w-[90px] text-center">
               {cursor ? `${cursor.y}년 ${cursor.m + 1}월` : '—'}
             </span>
             <button
               onClick={nextMonth}
-              className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-[#ececeb] text-base cursor-pointer flex items-center justify-center transition"
+              className="w-7 h-7 rounded-lg bg-canvas border border-hairline text-ink-muted hover:bg-canvas-strong text-base cursor-pointer flex items-center justify-center transition"
             >›</button>
           </div>
         ) : (
@@ -437,14 +437,14 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
             onClick={handleCopyTable}
             disabled={rows.length === 0}
             title="표 전체를 탭 구분 텍스트로 복사 — 엑셀/구글시트에 그대로 붙여넣기"
-            className="px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             표 복사
           </button>
           <button
             onClick={handleExportCsv}
             disabled={rows.length === 0}
-            className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             CSV
           </button>
@@ -454,7 +454,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                 onClick={() => handleExportInsurance('excel')}
                 disabled={exportingInsurance != null || cursor == null}
                 title="세무사 전달용 — 그 달 일한 모든 직원(주방·캐셔)의 1~31일 근무 표시, 근로일수·시간·보수, 국민연금·건강보험 가입 대상 명단(주민번호 포함)"
-                className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exportingInsurance === 'excel' ? '불러오는 중…' : '4대보험 자료(엑셀)'}
               </button>
@@ -462,7 +462,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
                 onClick={() => handleExportInsurance('pdf')}
                 disabled={exportingInsurance != null || cursor == null}
                 title="고용·산재 근로내용 확인신고서(일용근로자용) 서식 그대로 — 한 장에 4명, 그 달 일한 모든 직원(주민번호 포함)"
-                className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-canvas border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exportingInsurance === 'pdf' ? '불러오는 중…' : '근로내용 확인신고서(PDF)'}
               </button>
@@ -510,7 +510,7 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
 
       {/* 본문 */}
       {isLoading ? (
-        <p className="text-ink-faint text-sm p-6 text-center m-0">불러오는 중...</p>
+        <p className="text-ink-faint text-sm p-6 text-center m-0">불러오는 중…</p>
       ) : rows.length === 0 ? (
         <p className="text-ink-faint text-sm p-6 text-center m-0">
           {search.trim()

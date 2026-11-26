@@ -143,7 +143,7 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
               <th className={th}>주민등록번호<br />(외국인등록번호)</th>
               <td className={td} colSpan={3}>
                 {residentLoading ? (
-                  <span className="text-ink-faint">불러오는 중...</span>
+                  <span className="text-ink-faint">불러오는 중…</span>
                 ) : residentId ? (
                   <span className="font-semibold tracking-wide">
                     <CopyText value={formatResidentId(residentId)} label="주민등록번호">{formatResidentId(residentId)}</CopyText>

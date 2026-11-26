@@ -157,7 +157,7 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
           <div>
             <label className="block text-[11px] font-bold text-ink-muted uppercase tracking-wide mb-1.5">파트</label>
             {shifts.length === 0 ? (
-              <p className="text-[12px] text-ink-faint">파트를 불러오는 중...</p>
+              <p className="text-[12px] text-ink-faint">파트를 불러오는 중…</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {shifts.map(s => (
@@ -296,7 +296,7 @@ export default function StaffAssignModal({ staff, popups, onClose, onAssigned }:
               disabled={previewDates.length === 0 || isSubmitting}
               className="flex-1 py-2.5 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? '배정 중...' : `${previewDates.length}일 배정하기`}
+              {isSubmitting ? '배정 중…' : `${previewDates.length}일 배정하기`}
             </button>
             <button
               type="button"

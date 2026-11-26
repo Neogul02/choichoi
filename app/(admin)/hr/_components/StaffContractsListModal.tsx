@@ -78,7 +78,7 @@ export default function StaffContractsListModal({ staffId, name, onClose, onChan
 
         <div className="p-4">
           {contracts === null ? (
-            <div className="flex items-center justify-center py-12 text-[13px] text-ink-muted">불러오는 중...</div>
+            <div className="flex items-center justify-center py-12 text-[13px] text-ink-muted">불러오는 중…</div>
           ) : contracts.length === 0 ? (
             <p className="text-center text-[12px] text-ink-faint py-8">작성된 근로계약서가 없습니다.</p>
           ) : (

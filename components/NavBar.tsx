@@ -288,7 +288,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
             aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
             className="flex items-center justify-center w-11 h-11 shrink-0 group cursor-pointer bg-transparent border-none"
           >
-            <span className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline group-hover:bg-[#d0d0d0] transition-colors">
+            <span className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline group-hover:bg-hairline-strong transition-colors">
               <motion.svg
                 animate={{ rotate: collapsed ? 180 : 0 }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}

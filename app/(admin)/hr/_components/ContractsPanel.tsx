@@ -122,7 +122,7 @@ export default function ContractsPanel({ staffList, popups, refreshSignal, onWri
 
       <div className="p-3">
         {contracts === null ? (
-          <p className="text-ink-faint text-sm p-4 text-center m-0">불러오는 중...</p>
+          <p className="text-ink-faint text-sm p-4 text-center m-0">불러오는 중…</p>
         ) : visibleContracts.length === 0 && (!showMissing || missingStaff.length === 0) ? (
           <p className="text-ink-faint text-sm p-6 text-center m-0">표시할 계약서가 없습니다.</p>
         ) : (

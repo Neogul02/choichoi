@@ -10,11 +10,11 @@ const COLOR_PRESETS = ['#1a1a1a', '#084431', '#e11d48', '#b45309', '#1d4ed8'];
 
 function NoticeToggle({ noticeType, setNoticeType }: { noticeType: ScreenNotice; setNoticeType: (t: ScreenNotice) => void }) {
   return (
-    <div className="flex items-center gap-1 bg-[#f0f0f0] rounded-xl p-1">
+    <div className="flex items-center gap-1 bg-canvas-soft rounded-xl p-1">
       <button
         onClick={() => setNoticeType('away')}
         className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer border-none ${
-          noticeType === 'away' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
+          noticeType === 'away' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-ink-muted'
         }`}
       >
         부재중
@@ -22,7 +22,7 @@ function NoticeToggle({ noticeType, setNoticeType }: { noticeType: ScreenNotice;
       <button
         onClick={() => setNoticeType('soldout')}
         className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer border-none ${
-          noticeType === 'soldout' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-[#555]'
+          noticeType === 'soldout' ? 'bg-white text-ink shadow-sm' : 'bg-transparent text-ink-faint hover:text-ink-muted'
         }`}
       >
         품절안내문
@@ -73,7 +73,7 @@ export default function ScreenMode() {
         />
         <button
           onClick={startEditing}
-          className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-hairline hover:text-[#555] transition-all duration-200 border-none cursor-pointer"
+          className="flex items-center justify-center w-8 h-8 rounded-lg bg-canvas-soft text-ink-faint hover:bg-hairline hover:text-ink-muted transition-all duration-200 border-none cursor-pointer"
           title="문구 수정"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -98,16 +98,16 @@ export default function ScreenMode() {
                 value={draft.title}
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
                 placeholder="제목"
-                className="w-full px-4 py-3 rounded-xl border border-[#e0e0e0] text-xl font-bold text-ink outline-none focus:border-primary-700"
+                className="w-full px-4 py-3 rounded-xl border border-hairline text-xl font-bold text-ink outline-none focus:border-primary-700"
               />
               <input
                 value={draft.subtitle}
                 onChange={(e) => setDraft((d) => ({ ...d, subtitle: e.target.value }))}
                 placeholder="부제목"
-                className="w-full px-4 py-3 rounded-xl border border-[#e0e0e0] text-base text-[#555] outline-none focus:border-primary-700"
+                className="w-full px-4 py-3 rounded-xl border border-hairline text-base text-ink-muted outline-none focus:border-primary-700"
               />
               <div className="flex items-center gap-2.5 px-1">
-                <span className="text-sm font-bold text-[#555] mr-0.5">문구 색상</span>
+                <span className="text-sm font-bold text-ink-muted mr-0.5">문구 색상</span>
                 {COLOR_PRESETS.map((c) => (
                   <button
                     key={c}
@@ -123,7 +123,7 @@ export default function ScreenMode() {
               <div className="flex gap-2 mt-1">
                 <button
                   onClick={() => setEditing(false)}
-                  className="flex-1 py-3 rounded-xl bg-[#f0f0f0] text-[#555] text-base font-bold border-none cursor-pointer hover:bg-[#e5e5e5] transition-all"
+                  className="flex-1 py-3 rounded-xl bg-canvas-soft text-ink-muted text-base font-bold border-none cursor-pointer hover:bg-canvas-strong transition-all"
                 >
                   취소
                 </button>

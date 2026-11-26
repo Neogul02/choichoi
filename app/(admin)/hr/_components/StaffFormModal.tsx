@@ -243,7 +243,7 @@ export default function StaffFormModal({
             {staffRole === 'cashier' && popupId === null ? (
               <p className="m-0 text-[12px] text-ink-faint">팝업을 먼저 선택하면 파트를 고를 수 있습니다.</p>
             ) : unitShifts === null ? (
-              <p className="m-0 text-[12px] text-ink-faint">파트 불러오는 중...</p>
+              <p className="m-0 text-[12px] text-ink-faint">파트 불러오는 중…</p>
             ) : (
               <div className="flex gap-1.5 flex-wrap">
                 {unitShifts.map(s => (
@@ -368,7 +368,7 @@ export default function StaffFormModal({
                 <label className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg border cursor-pointer transition ${
                   isUploadingCert ? 'opacity-50 cursor-not-allowed bg-canvas-soft border-hairline text-ink-muted' : 'bg-canvas border-hairline text-ink-muted hover:bg-canvas-soft'
                 }`}>
-                  {isUploadingCert ? '업로드 중...' : certPath ? '재업로드' : '파일 업로드'}
+                  {isUploadingCert ? '업로드 중…' : certPath ? '재업로드' : '파일 업로드'}
                   <input ref={certInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleCertUpload} disabled={isUploadingCert} />
                 </label>
               </div>
@@ -413,12 +413,12 @@ export default function StaffFormModal({
               </button>
             )}
             <button type="button" onClick={onClose} disabled={isSaving}
-              className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition disabled:opacity-60">
+              className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-canvas-strong transition disabled:opacity-60">
               취소
             </button>
             <button type="submit" disabled={isSaving || !name.trim()}
               className="flex-1 py-2.5 rounded-lg border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60 disabled:cursor-not-allowed">
-              {isSaving ? '저장 중...' : staff ? '저장' : '등록'}
+              {isSaving ? '저장 중…' : staff ? '저장' : '등록'}
             </button>
           </div>
         </form>

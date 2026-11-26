@@ -62,7 +62,7 @@ function MenuTooltip({ active, payload }: MenuTooltipProps) {
 
 function StatTile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
-    <div className="bg-canvas rounded-xl p-2.5 md:p-3 border border-[#e4e4e4] text-center min-w-0">
+    <div className="bg-canvas rounded-xl p-2.5 md:p-3 border border-hairline text-center min-w-0">
       <div className="text-[11px] text-ink-muted font-medium mb-0.5 break-keep">{label}</div>
       {/* 금액은 절대 쪼개지지 않게 — 좁은 칸에서는 글자 크기를 줄여 한 줄로 유지 */}
       <div className={`text-[12px] md:text-[13px] font-extrabold tabular-nums whitespace-nowrap overflow-hidden text-ellipsis ${accent ? 'text-primary-700' : 'text-ink-secondary'}`}>{value}</div>
@@ -73,7 +73,7 @@ function StatTile({ label, value, sub, accent }: { label: string; value: string;
 
 function ChartCard({ title, children, right, className = '' }: { title: string; children: React.ReactNode; right?: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-canvas rounded-xl p-3 border border-[#e4e4e4] min-w-0 ${className}`}>
+    <div className={`bg-canvas rounded-xl p-3 border border-hairline min-w-0 ${className}`}>
       <div className="flex items-center justify-between gap-2 mb-3">
         <h4 className="m-0 text-sm font-bold text-ink-secondary min-w-0 break-keep">{title}</h4>
         {right && <div className="shrink-0">{right}</div>}
@@ -272,11 +272,11 @@ export default function PopupStatsSection({
 
           {selectedPopup && period && (
             isLoading ? (
-              <p className="text-ink-faint text-sm text-center py-6">데이터를 불러오는 중...</p>
+              <p className="text-ink-faint text-sm text-center py-6">데이터를 불러오는 중…</p>
             ) : (
               <>
                 {/* 운영 기간 진행률 */}
-                <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4] mb-3">
+                <div className="bg-canvas rounded-xl p-3 border border-hairline mb-3">
                   <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <h4 className="m-0 text-sm font-bold text-ink-secondary whitespace-nowrap">운영 진행률</h4>
@@ -284,7 +284,7 @@ export default function PopupStatsSection({
                         period.status === '진행중'
                           ? 'bg-primary-700/10 text-primary-700 border-primary-700/30'
                           : period.status === '종료'
-                            ? 'bg-[#f5f6f7] text-ink-muted border-hairline'
+                            ? 'bg-canvas-soft text-ink-muted border-hairline'
                             : 'bg-sky-50 text-sky-600 border-sky-200'
                       }`}>
                         {period.status}
@@ -548,7 +548,7 @@ export default function PopupStatsSection({
                           <button
                             key={m}
                             onClick={() => setMetric(m)}
-                            className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition-all ${metric === m ? 'bg-primary-700 text-white border-primary-700' : 'bg-[#f5f6f7] text-ink-muted border-hairline hover:bg-canvas-soft'}`}
+                            className={`shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold border cursor-pointer transition-all ${metric === m ? 'bg-primary-700 text-white border-primary-700' : 'bg-canvas-soft text-ink-muted border-hairline hover:bg-canvas-soft'}`}
                           >
                             {m === 'revenue' ? '매출' : '주문수'}
                           </button>
@@ -662,12 +662,12 @@ export default function PopupStatsSection({
                   </ChartCard>
                 )}
 
-                <div className="bg-canvas rounded-xl p-3 border border-[#e4e4e4]">
+                <div className="bg-canvas rounded-xl p-3 border border-hairline">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <h4 className="m-0 text-sm font-bold text-ink-secondary whitespace-nowrap">메뉴별 판매</h4>
                     <button
                       onClick={() => setShowManualEntry(true)}
-                      className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer"
+                      className="shrink-0 whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] font-semibold bg-canvas-soft text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer"
                     >
                       수기 입력
                     </button>

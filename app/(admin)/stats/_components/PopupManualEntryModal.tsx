@@ -246,7 +246,7 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
             <section>
               <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide mb-2">{selectedDate} 메뉴별 판매 수량</p>
               {loadingMenu || loadingDay ? (
-                <p className="text-sm text-ink-faint py-4 text-center">불러오는 중...</p>
+                <p className="text-sm text-ink-faint py-4 text-center">불러오는 중…</p>
               ) : menuItems.length === 0 ? (
                 <p className="text-sm text-ink-faint py-4 text-center">등록된 메뉴가 없습니다.</p>
               ) : (
@@ -387,7 +387,7 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
             <section>
               <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide mb-2">상품별 매출 <span className="normal-case text-ink-faint">— 팝업 전체 기간 기준</span></p>
               {loadingMenu ? (
-                <p className="text-sm text-ink-faint py-4 text-center">불러오는 중...</p>
+                <p className="text-sm text-ink-faint py-4 text-center">불러오는 중…</p>
               ) : menuItems.length === 0 ? (
                 <p className="text-sm text-ink-faint py-4 text-center">등록된 메뉴가 없습니다.</p>
               ) : (
@@ -435,7 +435,7 @@ export default function PopupManualEntryModal({ popupId, popupName, startDate, e
               disabled={saving || loadingMenu || loadingDay}
               className="flex-1 py-2.5 rounded-lg bg-primary-700 text-white text-[13px] font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 cursor-pointer"
             >
-              {saving ? '저장 중...' : '저장'}
+              {saving ? '저장 중…' : '저장'}
             </button>
           </div>
           </form>

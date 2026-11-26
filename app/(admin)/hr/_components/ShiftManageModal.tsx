@@ -204,7 +204,7 @@ export default function ShiftManageModal({ unit, unitLabel, shifts, onShiftsChan
           type="submit" disabled={isBusy || !form.name.trim()}
           className="flex-1 py-1.5 rounded-lg border-none bg-primary-700 text-white text-[12px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60"
         >
-          {isBusy ? '저장 중...' : '저장'}
+          {isBusy ? '저장 중…' : '저장'}
         </button>
       </div>
     </form>

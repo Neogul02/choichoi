@@ -313,9 +313,9 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       onClick={handleSyncPopupSchedule}
                       disabled={isSyncingPopup}
                       title="이 팝업 기간에 근무표상 배정된 근무자를 자동으로 불러옵니다"
-                      className="px-3 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSyncingPopup ? '동기화 중...' : '근무표 기준 동기화'}
+                      {isSyncingPopup ? '동기화 중…' : '근무표 기준 동기화'}
                     </button>
                   </>
                 )}

@@ -255,7 +255,7 @@ export default function PopupReportModal({ data, onClose }: Props) {
                             key={type}
                             type="button"
                             onClick={() => addChart(type)}
-                            className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#f5f6f7] text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer transition"
+                            className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-canvas-soft text-ink-muted border border-hairline hover:bg-canvas-soft cursor-pointer transition"
                           >
                             + {REPORT_CHART_LABELS[type]}
                           </button>
@@ -284,7 +284,7 @@ export default function PopupReportModal({ data, onClose }: Props) {
               ) : !displayUrl ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2">
                   <div className="w-6 h-6 border-2 border-primary-700 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-ink-muted text-sm">보고서 생성 중...</span>
+                  <span className="text-ink-muted text-sm">보고서 생성 중…</span>
                 </div>
               ) : (
                 <iframe src={displayUrl} className="w-full h-full border-none" title="매출 분석 보고서 미리보기" />
@@ -292,7 +292,7 @@ export default function PopupReportModal({ data, onClose }: Props) {
               {instance.loading && displayUrl && (
                 <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-canvas/90 border border-hairline rounded-full px-2.5 py-1 shadow text-[10px] text-ink-muted">
                   <div className="w-3 h-3 border border-primary-700 border-t-transparent rounded-full animate-spin" />
-                  갱신 중...
+                  갱신 중…
                 </div>
               )}
             </div>

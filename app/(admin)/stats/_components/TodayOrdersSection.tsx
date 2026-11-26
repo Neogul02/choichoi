@@ -41,7 +41,7 @@ export default function TodayOrdersSection({ open, onToggle, orders, todayRevenu
       <button
         type="button"
         onClick={onToggle}
-        className="mt-4 w-full flex items-center justify-between rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 text-[12px] font-bold text-ink-secondary cursor-pointer hover:bg-[#ececeb]"
+        className="mt-4 w-full flex items-center justify-between rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 text-[12px] font-bold text-ink-secondary cursor-pointer hover:bg-canvas-strong"
       >
         오늘 주문 목록 <span className="text-ink-faint font-semibold">펼치기 ▾</span>
       </button>

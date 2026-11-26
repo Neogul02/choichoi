@@ -151,7 +151,7 @@ export default function DayPanel({
             disabled={copying}
             className="px-2.5 py-1 rounded-lg bg-canvas-soft border border-hairline text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition disabled:opacity-50"
           >
-            {copying ? '복사 중...' : '복사'}
+            {copying ? '복사 중…' : '복사'}
           </button>
           <button onClick={onClose} aria-label="날짜 상세 닫기" className="bg-transparent border-none text-ink-faint text-lg cursor-pointer leading-none hover:text-ink transition">×</button>
         </div>
