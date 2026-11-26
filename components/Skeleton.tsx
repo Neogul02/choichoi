@@ -1,4 +1,4 @@
-// 로딩 중 콘텐츠 자리를 잡아주는 스켈레톤 — 텍스트 "불러오는 중..." 대신 레이아웃 점프를 줄인다
+// 로딩 중 콘텐츠 자리를 잡아주는 스켈레톤 — 텍스트 "불러오는 중…" 대신 레이아웃 점프를 줄인다
 
 export function Skeleton({ className = '' }: { className?: string }) {
   return <div aria-hidden="true" className={`animate-pulse rounded-lg bg-canvas-soft ${className}`} />;

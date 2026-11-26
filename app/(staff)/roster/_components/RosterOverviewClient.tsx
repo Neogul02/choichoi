@@ -129,7 +129,7 @@ export default function RosterOverviewClient({ today, initialWeekStart, initialO
           <span className="ml-2 text-[15px] font-extrabold text-ink whitespace-nowrap">
             <span className="text-ink-faint font-semibold text-[13px]">{weekStart.slice(0, 4)}년</span> {fmtMD(weekStart)} ~ {fmtMD(weekEnd)}
           </span>
-          {isLoading && <span className="text-[12px] text-ink-faint">불러오는 중...</span>}
+          {isLoading && <span className="text-[12px] text-ink-faint">불러오는 중…</span>}
         </div>
 
         {/* 모바일 전용 날짜 선택 칩 — 매트릭스는 가로 스크롤이 필요해 폰에서는 요일 탭이 더 빠르다 */}
@@ -244,7 +244,7 @@ function DayDetailCard({ overview, dateStr, today, closedDays }: {
           disabled={copying}
           className="px-2.5 py-1 rounded-lg bg-canvas-soft border border-hairline text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700 transition disabled:opacity-50"
         >
-          {copying ? '복사 중...' : '복사'}
+          {copying ? '복사 중…' : '복사'}
         </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

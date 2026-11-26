@@ -17,7 +17,7 @@ type ActiveTab = 'menu' | 'popups' | 'users' | 'devtools';
 
 // 탭 순서 = 쓰는 빈도 순. 설명은 "무엇을 하는 곳인지"를 한 줄로만 말한다.
 const TABS: { id: ActiveTab; label: string; desc: string }[] = [
-  { id: 'menu', label: '메뉴 관리', desc: 'POS에 보이는 메뉴와 순서, 팝업별 판매 여부를 관리합니다 — 메뉴 아래 팝업 이름을 눌러 그 팝업에서 켜고 끕니다' },
+  { id: 'menu', label: '메뉴 관리', desc: 'POS에 보이는 메뉴와 순서, 팝업별 판매 여부를 관리합니다 — 목록 위에서 팝업을 고르고 메뉴마다 판매 스위치로 켜고 끕니다' },
   { id: 'popups', label: '팝업 관리', desc: '행사 기간과 활성 상태를 관리합니다' },
   { id: 'users', label: '유저 관리', desc: '계정 권한·연락처를 관리합니다' },
   { id: 'devtools', label: '개발자 도구', desc: '배포 환경, 서버 액션, 데이터베이스 구조를 확인합니다' },
@@ -92,6 +92,9 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
   const [sellPopups, setSellPopups] = useState<PopupEvent[]>([]);
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
+  // 팝업 하나를 골라 그 팝업 기준으로 판매 스위치 한 열만 보여준다(메뉴마다 팝업 칩 여러 개를 붙이던 방식 대체)
+  const [sellPopupId, setSellPopupId] = useState<number | null>(null);
+  const sellPopup = sellPopups.find(p => p.id === sellPopupId) ?? sellPopups[0] ?? null;
   useEffect(() => {
     const today = kstToday();
     Promise.all([fetchPopupEvents(), fetchPopupMenuHidden()]).then(([pRes, hRes]) => {
@@ -298,7 +301,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                     <ColorPicker value={addForm.color} onChange={color => setAddForm(p => ({ ...p, color }))} />
                     <button type="submit" disabled={isAdding}
                       className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
-                      {isAdding ? '추가 중...' : '추가'}
+                      {isAdding ? '추가 중…' : '추가'}
                     </button>
                   </div>
                 </form>
@@ -309,6 +312,24 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                 메뉴 목록
                 <span className="ml-1.5 text-[12px] font-semibold text-ink-faint tabular-nums">{activeMenuItems.length}</span>
               </h3>
+              {sellPopups.length > 0 && (
+                <div className="mb-2.5 flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-canvas-soft px-3 py-2">
+                  <label htmlFor="sell-popup" className="text-[12px] font-semibold text-ink-muted">팝업별 판매</label>
+                  <select
+                    id="sell-popup"
+                    value={sellPopup?.id ?? ''}
+                    onChange={e => setSellPopupId(Number(e.target.value))}
+                    className="px-2.5 py-1.5 rounded-lg border border-hairline bg-canvas text-[13px] font-semibold text-ink cursor-pointer focus-visible:outline-2 focus-visible:outline-primary-700"
+                  >
+                    {sellPopups.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  {sellPopup && (
+                    <span className="text-[12px] text-ink-faint tabular-nums">
+                      {activeMenuItems.filter(m => !hiddenKeys.has(`${sellPopup.id}|${m.id}`)).length}개 판매 · 끈 메뉴는 이 팝업 POS에 안 보여요
+                    </span>
+                  )}
+                </div>
+              )}
               {isLoading ? <p className="text-ink-muted text-sm">불러오는 중…</p> : (
                 <ul className="m-0 p-0 list-none space-y-1.5">
                   {activeMenuItems.map(item => {
@@ -373,7 +394,7 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                                 </button>
                                 <button type="submit" disabled={isSaving}
                                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border-none bg-primary-700 text-white hover:bg-primary-800 cursor-pointer disabled:opacity-50 transition-colors">
-                                  {isSaving ? '저장 중...' : '저장'}
+                                  {isSaving ? '저장 중…' : '저장'}
                                 </button>
                               </div>
                             </div>
@@ -397,32 +418,27 @@ export default function SettingsPageClient({ initialMenuItems }: { initialMenuIt
                                 <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600">할인</span>
                               )}
                               <span className="ml-2 text-xs text-ink-muted">₩{item.price.toLocaleString('ko-KR')}</span>
-                              {sellPopups.length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {sellPopups.map(p => {
-                                    const key = `${p.id}|${item.id}`;
-                                    const selling = !hiddenKeys.has(key);
-                                    return (
-                                      <button
-                                        key={p.id}
-                                        type="button"
-                                        onClick={() => togglePopupSelling(p.id, item.id)}
-                                        disabled={togglingKey === key}
-                                        aria-pressed={selling}
-                                        title={selling ? `${p.name}에서 판매 중 — 누르면 이 팝업 POS에서 숨김` : `${p.name}에서 판매 안 함 — 누르면 다시 판매`}
-                                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer transition-colors disabled:opacity-50 ${
-                                          selling
-                                            ? 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
-                                            : 'bg-canvas text-ink-faint border-hairline line-through hover:bg-canvas-soft'
-                                        }`}
-                                      >
-                                        {p.name}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
                             </div>
+                            {sellPopup && (() => {
+                              const key = `${sellPopup.id}|${item.id}`;
+                              const selling = !hiddenKeys.has(key);
+                              return (
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={selling}
+                                  aria-label={`${sellPopup.name}에서 ${item.name} 판매`}
+                                  onClick={() => togglePopupSelling(sellPopup.id, item.id)}
+                                  disabled={togglingKey === key}
+                                  className="shrink-0 flex items-center gap-1.5 bg-transparent border-none cursor-pointer disabled:opacity-50 p-1"
+                                >
+                                  <span className={`text-[12px] font-semibold ${selling ? 'text-primary-700' : 'text-ink-faint'}`}>{selling ? '판매' : '안 팖'}</span>
+                                  <span className={`relative w-9 h-5 rounded-full transition-colors ${selling ? 'bg-primary-700' : 'bg-hairline-strong'}`}>
+                                    <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-canvas shadow transition-all ${selling ? 'left-[18px]' : 'left-0.5'}`} />
+                                  </span>
+                                </button>
+                              );
+                            })()}
                             <div className="flex gap-1.5 shrink-0">
                               <button onClick={() => startEdit(item)}
                                 className="px-2.5 py-1 rounded-md text-xs font-semibold border-none bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer transition-colors">

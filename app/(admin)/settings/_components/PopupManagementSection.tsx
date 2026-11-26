@@ -195,7 +195,7 @@ export default function PopupManagementSection() {
           <div className="flex justify-end mt-3">
             <button type="submit" disabled={isAdding}
               className="px-4 py-2 rounded-lg border-none font-semibold text-sm bg-primary-700 text-white cursor-pointer disabled:opacity-60 hover:bg-primary-800 transition-colors">
-              {isAdding ? '추가 중...' : '추가'}
+              {isAdding ? '추가 중…' : '추가'}
             </button>
           </div>
         </form>
@@ -207,7 +207,7 @@ export default function PopupManagementSection() {
         <span className="ml-1.5 text-[12px] font-semibold text-ink-faint tabular-nums">{events.length}</span>
       </h3>
       <p className="mt-0 mb-3 text-xs text-ink-muted">
-        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 스케줄·일정표에서 숨겨집니다.
+        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 근무 배정·전체 근무표에서 숨겨집니다.
       </p>
       {isLoading ? <p className="text-ink-muted text-sm">불러오는 중…</p> : events.length === 0 ? (
         <p className="text-ink-faint text-sm">등록된 팝업이 없습니다.</p>
@@ -232,7 +232,7 @@ export default function PopupManagementSection() {
                       </button>
                       <button type="submit" disabled={isSaving}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold border-none bg-primary-700 text-white hover:bg-primary-800 cursor-pointer disabled:opacity-50 transition-colors">
-                        {isSaving ? '저장 중...' : '저장'}
+                        {isSaving ? '저장 중…' : '저장'}
                       </button>
                     </div>
                   </form>

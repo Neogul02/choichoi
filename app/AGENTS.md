@@ -10,7 +10,6 @@ Next.js 16 App Router. 모든 데이터 접근은 **Server Actions**(`app/action
 | `/` | `page.tsx` | **없음** — 화면 선택 랜딩. `PasswordGate`가 경로로 면제한다 |
 | `/display` | `display/page.tsx` | **없음** — 고객용 미러링(결제 기능 없음). 같이 면제된다 |
 | `/pos` | `pos/page.tsx` | 루트 `PasswordGate` |
-| `/orders` | `orders/page.tsx` | 루트 `PasswordGate` |
 | `/my` | `my/` | 루트 `PasswordGate` (본인 데이터) |
 | `/schedule` | `schedule/` | 루트 `PasswordGate` (본인 근무 일정) |
 | `/inventory` | `(staff)/inventory/` | `(staff)/layout.tsx` — 로그인만 |

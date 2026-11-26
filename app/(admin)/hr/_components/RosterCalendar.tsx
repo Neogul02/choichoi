@@ -322,7 +322,7 @@ export default function RosterCalendar({ staffList, popups, allPopups, roleFilte
     setDropTarget({ dateStr, staffId, x, y });
   }, [visibleShifts, handleAdd, getClosedLabel]);
 
-  if (!cursor) return <p className="text-ink-faint text-sm">불러오는 중...</p>;
+  if (!cursor) return <p className="text-ink-faint text-sm">불러오는 중…</p>;
 
   const unitLabel = unit.staffRole === 'kitchen'
     ? ROLE_LABELS.kitchen

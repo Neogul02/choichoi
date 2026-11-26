@@ -42,10 +42,10 @@ function renderVendor(vendor: string) {
 }
 
 const STATUS_STYLES: Record<IngredientStatus, { chip: string; border: string; bg: string }> = {
-  out:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-[#e8e8e8]',   bg: 'bg-canvas' },
+  out:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-hairline',   bg: 'bg-canvas' },
   low:  { chip: 'bg-rose-100 text-rose-600',        border: 'border-rose-200',    bg: 'bg-canvas' },
   warn: { chip: 'bg-amber-100 text-amber-600',      border: 'border-amber-200',   bg: 'bg-canvas' },
-  ok:   { chip: 'bg-emerald-100 text-emerald-600',  border: 'border-[#e8e8e8]',   bg: 'bg-canvas' },
+  ok:   { chip: 'bg-emerald-100 text-emerald-600',  border: 'border-hairline',   bg: 'bg-canvas' },
 };
 
 const STATUS_LABELS: Record<IngredientStatus, string> = {

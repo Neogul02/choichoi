@@ -14,15 +14,14 @@
 |------|------|
 | **POS** | 터치·키보드 친화적 캐셔 결제 화면, 팝업별 판매 메뉴만 표시, 티어별 매출 배너·컨페티, '오늘 현황'(메뉴별 판매·누적 곡선·어제/지난주·같은 매장 지난 회차의 같은 운영 일차와 같은 시각(분 단위) 대비), 운영 기간이 끝난 팝업으로 결제 중이면 경고, 같은 날 운영하는 팝업 간 매출 배틀, 여러 기기가 동시에 편집하는 공유 메모 |
 | **고객 디스플레이** | 결제 없이 WebSocket으로만 중계되는 실시간 장바구니 미러링 화면 |
-| **주문 현황** | 결제 완료 주문 조회·준비 상태 토글 |
 | **재고관리(Inventory)** | 식재료 미개봉/개봉 잔량 이중 단위 추적, 입고 이력, 선반·냉장고를 끌어다 배치하는 비주얼 보관함 — *현재 일시 비활성(`lib/features.ts`)* |
 | **인사관리(HRM)** | 근무자 후보/재직/퇴사 상태 관리, 팝업·파트별 로스터 배정(낙관적 업데이트 그리드, 지난주 복사, 자동 채우기), 팝업 휴무일(백화점 정기휴점)은 일괄 배정에서 제외, 다매장 근무자는 팝업 간 N:M 배정 테이블로 이력 추적. 팝업 기간을 수정하면 기본 파트 기간도 따라간다 |
 | **출근부(키오스크)** | 주방 아이패드에 전용 `kiosk` 역할로 상시 로그인 — 전화번호로 출근·퇴근, 퇴근 시 그날 배정이 실측 시간으로 바뀐다(계획값은 따로 보관). 근무표엔 있는데 출근을 안 찍은 날은 급여정산에 표시하고 매일 아침 Discord로 알린다 |
 | **급여(Payroll)** | 단일 근무시간 모듈로 유급시간 계산(휴게 규칙·자정 넘김), 월별(주방)·팝업별(캐셔) 정산, 조정 항목·지급 완료 저장, 바로 공제(3.3% 원천징수·고용보험 0.9%·국민연금 4.75%·건강보험 3.595%+장기요양), 직원별 기본 공제 일괄 적용, 월별 국민연금·건강보험 가입 대상 판정, 카톡으로 보내는 급여 내역 문구. 시급은 근무일 기준으로 적용 — 2027-01-01 근무분부터 회사 기준 13,000원(최저임금 10,700원 × 주휴 1.2 이상) 하한, 12~1월에 걸친 구간은 날짜별로 나눠 계산 |
 | **근로 자료 내보내기** | 월별 버튼 하나로 세무사 전달용 엑셀(1~31일 근무 표시·근로일수·시간·보수, 주민번호·입사일이 담긴 4대보험 가입 대상 명단)과 고용·산재 *근로내용 확인신고서(일용근로자용)* 서식 PDF(한 장 4명) |
-| **근무자 스케줄** | 근무자가 자기 달력과 '이달 예상 급여'를 본다 — 관리자 급여정산 상세와 같은 식(기본급·조정 항목·3.3% 미리보기·4대보험 공제·지급 완료·날짜별 근무 상세) |
+| **내 근무** | 근무자가 자기 달력과 '이달 예상 급여'를 본다 — 관리자 급여정산 상세와 같은 식(기본급·조정 항목·3.3% 미리보기·4대보험 공제·지급 완료·날짜별 근무 상세) |
 | **근로계약서 전자서명** | 표준근로계약서 PDF를 서버에서 실시간 생성·미리보기, 근무자가 앱에서 직접 서명. 주휴수당 포함 시급 내역(기본시급+주휴수당) 표기, 최저임금 미달 저장 차단, 계약기간 중 시급 인상(2027) 자동 표기, 날짜별 휴게를 스케줄 값으로 |
-| **일정표** | 매니저용 주방·매장 통합 근무표 읽기 전용 조회 + 날짜별 메모 |
+| **전체 근무표** | 매니저용 주방·매장 통합 근무표 읽기 전용 조회 + 날짜별 메모 |
 | **매출 통계** | 한 화면 구성 — ① 오늘(매출 카드·팝업별 곡선·어제/지난주/지난 팝업 비교·판매 품목, 주문 목록은 펼칠 때만 조회) ② 월간 달력: 날짜를 누르면 팝업별 탭의 하루 상세 창에서 매출·주문·시간대·메뉴를 보고 바로 정정 ③ 팝업 분석(펼칠 때만 조회, 엑셀 정산표 붙여넣기·보고서 PDF) ④ 누적 총매출(보일 때 조회). 팝업별 고정 수수료율로 정산 예상(매출 − 수수료), 화면 어디서나 여는 계산기 버블(정산·공제) |
 | **설정** | 메뉴 CRUD·팝업별 판매 메뉴 켜기/끄기, 팝업 기간·휴무일·수수료율, 사용자·권한, 개발자 도구(배포 버전·꺼 둔 기능·서버 액션 점검·DB 스키마) |
 | **알림** | Discord 웹훅 — 계약 서명·로그인·주문/메뉴/권한 이벤트·서버 액션 오류, 매일 09:00(KST) 출근 누락 알림(Vercel Cron) |
@@ -33,8 +32,7 @@
 
 <table>
   <tr>
-    <td align="center"><b>POS 캐셔 화면</b><br/><img src="public/screenshots/pos.png" alt="POS" width="100%"/></td>
-    <td align="center"><b>주문 현황</b><br/><img src="public/screenshots/orders.png" alt="주문현황" width="100%"/></td>
+    <td align="center" colspan="2"><b>POS 캐셔 화면</b><br/><img src="public/screenshots/pos.png" alt="POS" width="100%"/></td>
   </tr>
   <tr>
     <td align="center"><b>매출 통계 — 오늘 vs 어제·지난주</b><br/><img src="public/screenshots/stats_1.png" alt="통계 오늘" width="100%"/></td>
@@ -49,7 +47,7 @@
     <td align="center"><b>출근부(키오스크)</b><br/><img src="public/screenshots/attendance.png" alt="출근부" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>근무자 스케줄 — 이달 예상 급여</b><br/><img src="public/screenshots/worker_schedule.png" alt="근무자 스케줄" width="100%"/></td>
+    <td align="center"><b>내 근무 — 이달 예상 급여</b><br/><img src="public/screenshots/worker_schedule.png" alt="근무자 스케줄" width="100%"/></td>
     <td align="center"><b>재고 — 비주얼 보관함</b><br/><img src="public/screenshots/inventory.png" alt="재고" width="100%"/></td>
   </tr>
   <tr>
@@ -100,7 +98,7 @@ app/actions/
 ├── staff.ts            # 근무자 후보/재직 프로필 관리
 ├── staffPopups.ts       # 근무자↔팝업 다대다 배정
 ├── roster.ts              # 파트 정의·날짜별 배정·티어 랭킹
-├── roster-view.ts          # 매니저용 통합 일정표 읽기 전용 조회
+├── roster-view.ts          # 매니저용 전체 근무표 읽기 전용 조회
 ├── payroll.ts                # 급여 정산·공제·국민연금/건강보험 판정·근로 자료
 ├── attendance.ts              # 주방 출근부(출근·퇴근, 출근 누락)
 ├── storage.ts                  # 재고 비주얼 보관함
@@ -222,7 +220,7 @@ lib/supabase.ts          ← ANON_KEY, 클라이언트 실시간 채널 전용 �
 | 역할 | 설명 | 접근 경로 |
 |------|------|-----------|
 | **손님** (Guest) | 주문하는 고객 | `/display` |
-| **직원** (user) | 캐셔·주방 근무자 | `/pos`, `/orders`, `/my`, `/schedule`, `/inventory`(조회만) |
+| **직원** (user) | 캐셔·주방 근무자 | `/pos`, `/my`, `/schedule`, `/inventory`(조회만) |
 | **매니저** (manager) | 현장 관리자 | 위 전체 + `/inventory`(편집), `/roster` |
 | **키오스크** (kiosk) | 주방 아이패드 출근부 계정 | `/attendance`만 |
 | **관리자** (admin) | 운영 총괄 | 전체 라우트 + `/stats`, `/hr`, `/settings`, `/attendance` |
@@ -242,9 +240,8 @@ app/
 ├── actions/                     # Server Actions — 도메인별 파일로 분리 (위 ADR 참고)
 ├── pos/                          # 캐셔 POS 메인
 ├── display/                       # 고객 디스플레이 (보기/주문 모드, 인증 불필요)
-├── orders/                         # 주문 현황
 ├── my/                              # 내 정보 — 프로필 수정, 주문 통계, 계약서 확인·서명
-├── schedule/                         # 근로자용 근무 스케줄 + 이달 예상 급여
+├── schedule/                         # 내 근무 — 근무자 달력 + 이달 예상 급여
 ├── attendance/                        # 주방 출근부 (kiosk·admin)
 ├── api/cron/attendance-alerts/        # 매일 출근 누락 알림 (Vercel Cron, CRON_SECRET)
 ├── (admin)/                             # proxy.ts + layout.tsx 보호 (admin 전용)
@@ -255,7 +252,7 @@ app/
 │                                             근로계약서 작성·서명·목록
 └── (staff)/                               # proxy.ts + layout.tsx 보호 (admin·manager)
     ├── inventory/                          # 재고 (식재료·입출고 로그)
-    └── roster/                              # 일정표 — 전체 근무표 읽기 전용 + 날짜별 메모
+    └── roster/                              # 전체 근무표 — 읽기 전용 + 날짜별 메모
 
 components/
 ├── NavBar.tsx                   # 네비게이션 — 역할 등급별 링크 노출
@@ -326,7 +323,7 @@ Supabase(PostgreSQL) 기준 31개 테이블.
 | `contracts` | `id`, `worker_id`(FK→`staff_profiles.id`), `popup_id`, `hourly_rate`, `pdf_url`, `contract_data`(jsonb), `worker_signed_at` | 근로계약서, PDF는 Storage 비공개 버킷 |
 | `attendance_records` | `assignment_id`, `staff_id`, `work_date`, `clock_in_at`, `clock_out_at`, `planned_*`, `status` | 출근부 기록 — 배정을 실측으로 덮어쓴 뒤에도 계획값을 남긴다 |
 | `payroll_payments` / `payroll_adjustments` / `payroll_adjustment_presets` | `period_key`(`month:Y-M` / `popup:id`), `staff_id`, `label`, `amount` | 지급 완료·공제/수당 조정 항목·자주 쓰는 항목 |
-| `roster_memos` | `memo_date`, `content`, `author_name` | 일정표 날짜별 메모 |
+| `roster_memos` | `memo_date`, `content`, `author_name` | 전체 근무표 날짜별 메모 |
 
 ### 운영
 

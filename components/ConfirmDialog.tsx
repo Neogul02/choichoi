@@ -74,12 +74,12 @@ export default function ConfirmDialog({
             className="bg-canvas w-full max-w-[320px] rounded-xl shadow-level-2 border border-hairline p-5"
           >
             <h3 id="confirm-dialog-title" className="m-0 mb-1.5 text-[16px] font-bold text-ink">{title}</h3>
-            {description && <p className="m-0 mb-5 text-[13px] text-ink-muted">{description}</p>}
+            {description && <p className="m-0 mb-5 text-[13px] text-ink-muted whitespace-pre-line">{description}</p>}
             <div className={`flex gap-2 ${!description ? 'mt-5' : ''}`}>
               <button
                 onClick={onClose}
                 disabled={busy}
-                className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-[#ececec] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 rounded-lg border border-hairline bg-canvas-soft text-ink-secondary text-[13px] font-semibold cursor-pointer hover:bg-canvas-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {cancelLabel}
               </button>

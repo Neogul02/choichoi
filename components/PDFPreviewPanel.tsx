@@ -96,7 +96,7 @@ function PDFRenderer({ document, title }: { document: ReactElement; title: strin
     return (
       <div className='flex flex-col items-center justify-center h-full gap-2'>
         <div className='w-6 h-6 border-2 border-primary-700 border-t-transparent rounded-full animate-spin' />
-        <span className='text-ink-muted text-sm'>PDF 렌더링 중...</span>
+        <span className='text-ink-muted text-sm'>PDF 렌더링 중…</span>
       </div>
     )
   }
@@ -115,7 +115,7 @@ function PDFRenderer({ document, title }: { document: ReactElement; title: strin
       {instance.loading && (
         <div className='absolute top-2 right-2 flex items-center gap-1.5 bg-canvas/90 border border-hairline rounded-full px-2.5 py-1 shadow text-[10px] text-ink-muted'>
           <div className='w-3 h-3 border border-primary-700 border-t-transparent rounded-full animate-spin' />
-          갱신 중...
+          갱신 중…
         </div>
       )}
       {instance.error && (
@@ -135,7 +135,7 @@ export function PdfPreview({ document, title }: { document: ReactElement; title:
   if (!isMounted) {
     return (
       <div className='flex items-center justify-center h-full text-ink-muted text-sm'>
-        미리보기 준비 중...
+        미리보기 준비 중…
       </div>
     )
   }

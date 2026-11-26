@@ -14,15 +14,14 @@ It covers the full back-office workload a pop-up store operation needs in one sy
 |--------|-------------|
 | **POS** | Touch/keyboard-friendly cashier checkout showing only the menus each pop-up sells, tier-based revenue banners and confetti, a "today" panel (per-menu sales, cumulative curve, vs. yesterday / same weekday last week / the same run-day of the store's previous pop-up, all at the same minute), a warning when checking out under a pop-up that has already ended, a live sales battle between pop-ups running the same day, and a shared co-edited note |
 | **Customer display** | Real-time cart mirroring screen relayed purely over WebSocket, no checkout capability |
-| **Order status** | View completed orders, toggle preparation status |
 | **Inventory** | Dual-unit tracking of sealed/opened ingredient remainders, restock history, a visual storage board (drag-and-drop shelves/fridges) — *temporarily disabled (`lib/features.ts`)* |
 | **HR management (HRM)** | Candidate/active/retired worker status, per-popup/per-part roster assignment (optimistic-update grid, last-week copy, auto-fill), per-popup closed days (department-store holidays) excluded from bulk assignment; workers active at multiple stores are tracked via an N:M popup-assignment history table. A pop-up's default shift follows its period when the dates are edited |
 | **Attendance kiosk** | A kitchen iPad logged in with a dedicated `kiosk` role: clock-in/out by phone number; clock-out overwrites that day's roster assignment with the actual times (planned times kept for audit). Days with a roster entry but no clock-in are flagged in payroll and sent to Discord every morning |
 | **Payroll** | Paid hours from a single work-hour module (break rules, overnight shifts), monthly (kitchen) or per-pop-up (cashier) settlement, saved adjustments and paid checkmarks, quick deductions (3.3% withholding, employment insurance 0.9%, national pension 4.75%, health insurance 3.595% + long-term care), per-worker default deductions with bulk apply, national pension/health insurance eligibility per month, KakaoTalk-ready pay slip text. Hourly rates apply by work date — from 2027-01-01 a company floor of ₩13,000 (above minimum wage ₩10,700 × 1.2 weekly-holiday factor), and periods spanning Dec–Jan are split by date |
 | **Labor reports** | One click per month: an Excel file for the tax accountant (1–31 day grid, days/hours/pay, eligible-for-insurance list with national ID and start date) and the official *근로내용 확인신고서 (daily workers)* form rendered as PDF, 4 workers per page |
-| **Worker schedule** | Workers see their monthly calendar and an estimated pay card that mirrors the admin payroll detail (base pay, adjustments, optional 3.3% preview, insurance deductions, paid status, per-day breakdown) |
+| **My shifts** (내 근무) | Workers see their monthly calendar and an estimated pay card that mirrors the admin payroll detail (base pay, adjustments, optional 3.3% preview, insurance deductions, paid status, per-day breakdown) |
 | **E-signed employment contracts** | Standard employment contract PDF generated and previewed server-side in real time, signed by workers directly in the app. States the weekly-holiday-inclusive wage breakdown, blocks saving below minimum wage, notes a mid-contract rate change (2027), and uses each day's scheduled break |
-| **Schedule** | Read-only unified kitchen/store roster view for managers, plus per-date memos |
+| **Full roster** (전체 근무표) | Read-only unified kitchen/store roster view for managers, plus per-date memos |
 | **Sales analytics** | One screen: ① today (revenue card, per-pop-up curves, yesterday / last week / previous pop-up comparison, item ranking; the order list loads only when expanded) ② monthly calendar — tap a date for a per-pop-up day sheet to view and correct revenue, orders, hours and menu quantities in place ③ pop-up analysis (loads when expanded; paste an Excel sales sheet, report PDF) ④ lifetime total (loads when scrolled into view). Per-pop-up fixed fee rates give an expected settlement (revenue − fee), and a floating calculator bubble (settlement / deductions) opens from anywhere |
 | **Settings** | Menu CRUD and per-pop-up menu on/off, pop-up periods / closed days / fee rates, users and roles, developer tools (deployed version, disabled features, server-action checks, DB schema) |
 | **Notifications** | Discord webhooks for contract signing, logins, order/menu/role events, server-action failures, and a daily 09:00 KST missing-clock-in digest (Vercel Cron) |
@@ -33,8 +32,7 @@ It covers the full back-office workload a pop-up store operation needs in one sy
 
 <table>
   <tr>
-    <td align="center"><b>POS checkout screen</b><br/><img src="public/screenshots/pos.png" alt="POS" width="100%"/></td>
-    <td align="center"><b>Order status</b><br/><img src="public/screenshots/orders.png" alt="Order status" width="100%"/></td>
+    <td align="center" colspan="2"><b>POS checkout screen</b><br/><img src="public/screenshots/pos.png" alt="POS" width="100%"/></td>
   </tr>
   <tr>
     <td align="center"><b>Sales analytics — today vs. yesterday / last week</b><br/><img src="public/screenshots/stats_1.png" alt="Stats today" width="100%"/></td>
@@ -49,7 +47,7 @@ It covers the full back-office workload a pop-up store operation needs in one sy
     <td align="center"><b>Attendance kiosk</b><br/><img src="public/screenshots/attendance.png" alt="Attendance" width="100%"/></td>
   </tr>
   <tr>
-    <td align="center"><b>Worker schedule — estimated pay</b><br/><img src="public/screenshots/worker_schedule.png" alt="Worker schedule" width="100%"/></td>
+    <td align="center"><b>My shifts — estimated pay</b><br/><img src="public/screenshots/worker_schedule.png" alt="Worker schedule" width="100%"/></td>
     <td align="center"><b>Inventory — visual storage board</b><br/><img src="public/screenshots/inventory.png" alt="Inventory" width="100%"/></td>
   </tr>
   <tr>
@@ -227,7 +225,7 @@ lib/supabase.ts          ← ANON_KEY, dedicated singleton for client realtime c
 | Role | Description | Accessible routes |
 |------|-------------|-------------------|
 | **Guest** | Ordering customer | `/display` |
-| **Staff** (user) | Cashier / kitchen worker | `/pos`, `/orders`, `/my`, `/schedule`, `/inventory` (read-only) |
+| **Staff** (user) | Cashier / kitchen worker | `/pos`, `/my`, `/schedule`, `/inventory` (read-only) |
 | **Manager** | On-site manager | All of the above + `/inventory` (edit), `/roster` |
 | **Kiosk** | Kitchen iPad account for clocking in/out | `/attendance` only |
 | **Admin** | Overall operations lead | All routes + `/stats`, `/hr`, `/settings`, `/attendance` |
@@ -247,7 +245,6 @@ app/
 ├── actions/                     # Server Actions — split by domain (see ADRs above)
 ├── pos/                          # Cashier POS main screen
 ├── display/                       # Customer display (view/order modes, no auth required)
-├── orders/                         # Order status
 ├── my/                              # My info — edit profile, order stats, view/sign contracts
 ├── schedule/                         # Worker-facing schedule + estimated pay
 ├── attendance/                        # Kitchen attendance kiosk (kiosk / admin)

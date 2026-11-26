@@ -41,7 +41,7 @@ export default function ViewMode({ cartItems, cartTotalPrice, connecting }: Prop
           >
             {connecting ? (
               <>
-                <h2 className="text-5xl font-black text-ink mb-3 m-0">연결 중...</h2>
+                <h2 className="text-5xl font-black text-ink mb-3 m-0">연결 중…</h2>
                 <p className="text-ink-faint text-2xl m-0">잠시만 기다려주세요</p>
               </>
             ) : (
@@ -61,10 +61,10 @@ export default function ViewMode({ cartItems, cartTotalPrice, connecting }: Prop
             className="w-full max-w-lg"
           >
             <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] overflow-hidden mb-4">
-              <div className="px-6 py-4 border-b border-[#f0f0f0]">
+              <div className="px-6 py-4 border-b border-hairline">
                 <h3 className="text-base font-bold text-ink-muted tracking-wide uppercase m-0">주문 내역</h3>
               </div>
-              <ul className="m-0 p-0 list-none divide-y divide-[#f5f5f5]">
+              <ul className="m-0 p-0 list-none divide-y divide-canvas-soft">
                 <AnimatePresence initial={false}>
                   {cartItems.map((item) => (
                     <motion.li

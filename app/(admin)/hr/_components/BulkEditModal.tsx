@@ -248,7 +248,6 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         ref={panelRef}
@@ -428,7 +427,7 @@ export default function BulkEditModal({ context, range, onApplied, onUndoable, o
                 mode === 'clear' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-primary-700 hover:bg-primary-800'
               }`}
             >
-              {isBusy ? '적용 중...' : mode === 'move' ? '이동' : mode === 'swap' ? '교환' : '해제'}
+              {isBusy ? '적용 중…' : mode === 'move' ? '이동' : mode === 'swap' ? '교환' : '해제'}
             </button>
           </div>
         </form>

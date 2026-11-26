@@ -385,7 +385,7 @@ function TextButton({ onClick, disabled, children }: { onClick: () => void; disa
     <button
       onClick={onClick}
       disabled={disabled}
-      className="px-2.5 py-1 rounded-lg border border-hairline bg-canvas text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      className="px-2.5 py-1 rounded-lg border border-hairline bg-canvas text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-canvas-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {children}
     </button>

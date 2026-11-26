@@ -202,7 +202,7 @@ export default function WorkerSignModal({ contract, workerName, workerPhone, onC
               disabled={isSubmitting || !workerAddress.trim() || !signatureBase64}
               className="w-full py-2.5 rounded-xl border-none text-[13px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
             >
-              {isSubmitting ? '처리 중...' : '서명 완료'}
+              {isSubmitting ? '처리 중…' : '서명 완료'}
             </button>
           </form>
         </div>

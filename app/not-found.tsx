@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#f5f6f7]">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas-soft">
       <h1 className="m-0 text-5xl font-black text-ink">404</h1>
       <p className="m-0 text-ink-muted text-base">페이지를 찾을 수 없습니다.</p>
       <div className="flex gap-2 mt-2">

@@ -141,7 +141,7 @@ export default function IngredientManageModal({ ingredient, onClose, onSuccess }
           </div>
 
           {/* 탭 */}
-          <div className="flex mx-5 mb-4 bg-[#f5f6f7] rounded-xl p-1 gap-1">
+          <div className="flex mx-5 mb-4 bg-canvas-soft rounded-xl p-1 gap-1">
             {(['adjust', 'settings'] as Tab[]).map((t) => (
               <button
                 key={t}

@@ -22,7 +22,7 @@ export default function FilterBar({ sort, onSortChange, search, onSearchChange }
           onClick={() => onSortChange(o.value)}
           className={`shrink-0 whitespace-nowrap text-[11px] font-bold px-2.5 py-1.5 rounded-lg border-none cursor-pointer transition ${
             sort === o.value
-              ? 'bg-[#161616] text-white'
+              ? 'bg-ink text-white'
               : 'bg-canvas text-ink-muted border border-hairline hover:text-ink'
           }`}
         >

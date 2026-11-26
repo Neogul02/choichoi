@@ -11,7 +11,7 @@ interface Props {
 /** 파괴적 작업 직후 하단에 뜨는 되돌리기 토스트 — 표시/타이머 관리는 부모 담당 */
 export default function UndoToast({ label, onUndo, onDismiss }: Props) {
   return createPortal(
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 bg-[#161616] text-white rounded-xl px-4 py-2.5 shadow-level-2">
+    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 bg-ink text-white rounded-xl px-4 py-2.5 shadow-level-2">
       <span className="text-[12px] font-semibold">{label}</span>
       <button
         onClick={onUndo}

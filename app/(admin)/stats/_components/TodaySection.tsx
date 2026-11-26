@@ -72,7 +72,7 @@ export default function TodaySection({ initialPopups }: Props) {
               className={`cursor-pointer rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${
                 scope === c.key
                   ? 'border-primary-700 bg-primary-700 text-white'
-                  : 'border-hairline bg-canvas-soft text-ink-muted hover:bg-[#ececeb]'
+                  : 'border-hairline bg-canvas-soft text-ink-muted hover:bg-canvas-strong'
               }`}
             >
               {c.label}
@@ -108,7 +108,7 @@ export default function TodaySection({ initialPopups }: Props) {
             <span className="flex items-center gap-1 text-[10px] text-ink-faint whitespace-nowrap">
               {yesterdayCurve.hasData ? (
                 <>
-                  <span className="inline-block h-0 w-3 border-t-2 border-dashed border-[#b4b0aa]" />
+                  <span className="inline-block h-0 w-3 border-t-2 border-dashed border-hairline-strong" />
                   어제 같은 시각 <span className="font-bold tabular-nums">₩{formatPrice(yesterdayCurve.uptoNow)}</span>
                 </>
               ) : (
@@ -171,7 +171,7 @@ export default function TodaySection({ initialPopups }: Props) {
           <button
             type="button"
             onClick={() => setShowAllMenu(v => !v)}
-            className="mt-1.5 w-full rounded-lg border border-hairline bg-canvas-soft py-1.5 text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-[#ececeb]"
+            className="mt-1.5 w-full rounded-lg border border-hairline bg-canvas-soft py-1.5 text-[11px] font-semibold text-ink-muted cursor-pointer hover:bg-canvas-strong"
           >
             {showAllMenu ? '접기' : `전체 ${sortedMenu.length}종 보기`}
           </button>

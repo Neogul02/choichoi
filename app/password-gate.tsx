@@ -23,7 +23,7 @@ type View = 'login' | 'signup' | 'admin-code'
 
 /**
  * 서버(루트 레이아웃)가 세션 쿠키·근무지 쿠키로 미리 판정한 초기 상태.
- * 예전엔 항상 checked=false로 시작해 서버 HTML이 늘 "로그인 확인 중..." 화면이었고, 서버가 데이터를 미리 받아
+ * 예전엔 항상 checked=false로 시작해 서버 HTML이 늘 "로그인 확인 중…" 화면이었고, 서버가 데이터를 미리 받아
  * 만든 페이지는 JS 로드·하이드레이션·세션 확인이 끝날 때까지 보이지 않았다.
  * - checked=true, authed=true  → 첫 렌더부터 페이지를 그린다
  * - checked=true, authed=false → 첫 렌더부터 로그인 폼
@@ -143,7 +143,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
   }, [])
 
   if (pathname === '/display' || pathname === '/') return <>{children}</>
-  if (!checked) return <LoadingScreen label="로그인 확인 중..." />
+  if (!checked) return <LoadingScreen label="로그인 확인 중…" />
 
   const inputClass =
     'w-full border border-hairline rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-primary-700 focus:ring-2 focus:ring-primary-700/15 mb-3 bg-canvas'
@@ -425,7 +425,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
 
   if (!isAuthed) {
     return (
-      <div className='min-h-screen bg-[#f5f6f7] flex items-center justify-center p-4'>
+      <div className='min-h-screen bg-canvas-soft flex items-center justify-center p-4'>
         <div className='w-full max-w-[360px]'>
           <div className='text-center mb-5'>
             <h1 className='text-2xl font-black text-ink m-0 mb-1'>ChoiChoi 직원</h1>
@@ -456,7 +456,7 @@ export default function PasswordGate({ children, initial }: { children: React.Re
               {error && <div className='text-rose-600 text-[13px] mt-2'>{error}</div>}
               <button type='submit' disabled={isSubmitting}
                 className='w-full mt-3 py-3 rounded-xl border-none bg-primary-700 text-white text-[15px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-60'>
-                {isSubmitting ? '확인 중...' : '확인'}
+                {isSubmitting ? '확인 중…' : '확인'}
               </button>
               <button type='button' onClick={onAdminCodeCancel} disabled={isSubmitting}
                 className='w-full mt-2 py-2.5 rounded-xl border border-hairline bg-transparent text-ink-muted text-[13px] cursor-pointer hover:bg-canvas-soft transition disabled:opacity-60'>
@@ -478,10 +478,10 @@ export default function PasswordGate({ children, initial }: { children: React.Re
                 placeholder='이메일 또는 이름' autoComplete='email' autoFocus />
               <input ref={loginPasswordRef} type='password' className={inputClass} value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)} placeholder='비밀번호' autoComplete='current-password' />
-              {error && <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>}
+              {error && <div className='text-red-700 text-[13px] mb-3'>{error}</div>}
               <button type='submit' disabled={isSubmitting}
                 className='w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mb-3'>
-                {isSubmitting ? '로그인 중...' : '로그인'}
+                {isSubmitting ? '로그인 중…' : '로그인'}
               </button>
               <p className='m-0 text-center text-[13px] text-ink-muted'>
                 처음이라면?{' '}
@@ -577,10 +577,10 @@ export default function PasswordGate({ children, initial }: { children: React.Re
                   onChange={(e) => setSignupHealthCert(e.target.files?.[0] ?? null)} />
               </div>
 
-              {error && <div className='text-[#b42318] text-[13px] mb-3'>{error}</div>}
+              {error && <div className='text-red-700 text-[13px] mb-3'>{error}</div>}
               <button type='submit' disabled={isSubmitting}
                 className='w-full border-none rounded-lg px-3 py-2.5 text-[14px] font-bold bg-primary-700 text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mb-3'>
-                {isSubmitting ? '가입 중...' : '회원가입'}
+                {isSubmitting ? '가입 중…' : '회원가입'}
               </button>
               <button type='button' onClick={() => { setError(''); setView('login') }}
                 className='w-full text-center text-[13px] text-ink-muted hover:text-primary-700 transition-colors bg-transparent border-none cursor-pointer'>

@@ -25,7 +25,7 @@ export default function CheckoutOverlay({ displayState, checkoutItems, checkoutT
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="absolute inset-0 z-20 bg-[#f5f6f7] flex items-center justify-center p-8"
+            className="absolute inset-0 z-20 bg-canvas-soft flex items-center justify-center p-8"
           >
             {displayState === 'checkout' ? (
               <motion.div
@@ -43,17 +43,17 @@ export default function CheckoutOverlay({ displayState, checkoutItems, checkoutT
                     <span className="w-2 h-2 rounded-full bg-white/60 animate-pulse" />
                     <h3 className="text-base font-bold text-white/90 tracking-wide uppercase m-0">결제 완료</h3>
                   </div>
-                  <ul className="m-0 p-0 list-none divide-y divide-[#f5f5f5]">
+                  <ul className="m-0 p-0 list-none divide-y divide-canvas-soft">
                     {checkoutItems.map((item) => (
                       <li key={item.id} className="flex items-center justify-between px-6 py-4">
                         <div className="flex items-center gap-3">
                           {item.color && (
                             <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                           )}
-                          <span className="text-[22px] font-semibold text-[#1a1a1a]">{item.name}</span>
-                          <span className="text-base font-bold text-[#bbb]">× {item.count}</span>
+                          <span className="text-[22px] font-semibold text-ink">{item.name}</span>
+                          <span className="text-base font-bold text-ink-faint">× {item.count}</span>
                         </div>
-                        <span className="text-[22px] font-bold text-[#333]">
+                        <span className="text-[22px] font-bold text-ink-secondary">
                           {formatPrice(item.price * item.count)}원
                         </span>
                       </li>

@@ -133,6 +133,8 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
 
   // 우측 패널 탭
   const [rightTab, setRightTab] = useState<RightTab>('roster');
+  // lg 미만(폰·아이패드 세로): 직원 목록과 오른쪽 탭을 위쪽 탭 하나로 바꿔 가며 본다 — 목록이 위에 쌓여 탭까지 한참 내려가던 문제
+  const [mobilePane, setMobilePane] = useState<'staff' | 'right'>('right');
 
   // 드래그 리사이저
   const [leftWidth, setLeftWidth] = useState(500);
@@ -294,9 +296,26 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
     <>
       <NavBar />
       <main className="min-h-screen p-3 md:p-5">
+        {/* lg 미만 위쪽 탭: 직원 · 근무 배정 · 급여 정산 · 계약서 */}
+        <div className="lg:hidden mb-3 flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1">
+          {([['staff', '직원'], ['roster', '근무 배정'], ['payroll', '급여 정산'], ['contracts', '계약서']] as ['staff' | RightTab, string][]).map(([key, label]) => {
+            const on = key === 'staff' ? mobilePane === 'staff' : mobilePane === 'right' && rightTab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => { if (key === 'staff') setMobilePane('staff'); else { setMobilePane('right'); setRightTab(key); } }}
+                className={`flex-1 px-2 py-2.5 text-[13px] font-bold border-none cursor-pointer transition whitespace-nowrap ${on ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <div ref={containerRef} className="flex flex-col lg:flex-row items-stretch lg:items-start select-none gap-4 lg:gap-0">
-          {/* 좌측: 직원 목록 — lg 미만에서는 전체 폭 세로 스택 */}
-          <div className="flex flex-col shrink-0 min-w-0 w-full lg:w-[var(--left-w)]" style={{ '--left-w': `${leftWidth}px` } as React.CSSProperties}>
+          {/* 좌측: 직원 목록 — lg 미만에서는 위쪽 '직원' 탭일 때만 */}
+          <div className={`${mobilePane === 'staff' ? 'flex' : 'hidden'} lg:flex flex-col shrink-0 min-w-0 w-full lg:w-[var(--left-w)]`} style={{ '--left-w': `${leftWidth}px` } as React.CSSProperties}>
             {/* 팝업 필터 + 기존 근무자 추가 + 근무표 동기화 */}
             {initialPopups.length > 0 && (
               <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -313,9 +332,9 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
                       onClick={handleSyncPopupSchedule}
                       disabled={isSyncingPopup}
                       title="이 팝업 기간에 근무표상 배정된 근무자를 자동으로 불러옵니다"
-                      className="px-3 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-[#ececeb] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 rounded-xl bg-canvas-soft border border-hairline text-[12px] font-bold text-ink-muted cursor-pointer hover:bg-canvas-strong transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSyncingPopup ? '동기화 중...' : '근무표 기준 동기화'}
+                      {isSyncingPopup ? '동기화 중…' : '근무표 기준 동기화'}
                     </button>
                   </>
                 )}
@@ -475,11 +494,11 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
           </div>
 
           {/* 우측: 탭 + 패널 */}
-          <div className="flex-1 min-w-0 w-full lg:min-w-[300px] flex flex-col gap-3">
-            {/* 우측 탭 */}
-            <div className="flex flex-wrap items-center gap-2">
+          <div className={`${mobilePane === 'right' ? 'flex' : 'hidden'} lg:flex flex-1 min-w-0 w-full lg:min-w-[300px] flex-col gap-3`}>
+            {/* 우측 탭 — lg 미만은 위쪽 탭이 대신한다 */}
+            <div className="hidden lg:flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 w-fit">
-                {([['roster', '스케줄 달력'], ['payroll', '급여 정산'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
+                {([['roster', '근무 배정'], ['payroll', '급여 정산'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
                   <button
                     key={tab}
                     onClick={() => setRightTab(tab)}

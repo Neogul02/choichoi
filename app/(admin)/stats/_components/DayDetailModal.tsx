@@ -165,7 +165,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
                   type="button"
                   onClick={() => setTab(p.id)}
                   className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-bold cursor-pointer transition ${
-                    tab === p.id ? 'border-primary-700 bg-primary-700 text-white' : 'border-hairline bg-canvas-soft text-ink-muted hover:bg-[#ececeb]'
+                    tab === p.id ? 'border-primary-700 bg-primary-700 text-white' : 'border-hairline bg-canvas-soft text-ink-muted hover:bg-canvas-strong'
                   }`}
                 >
                   {p.name}
@@ -195,7 +195,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
             <section>
               <p className="text-[11px] text-ink-faint font-semibold uppercase tracking-wide mb-2">POS 실매출</p>
               {loadingOrders ? (
-                <p className="text-sm text-ink-faint py-3 text-center">불러오는 중...</p>
+                <p className="text-sm text-ink-faint py-3 text-center">불러오는 중…</p>
               ) : orders.length === 0 ? (
                 <p className="text-sm text-ink-faint py-3 text-center">이 날짜에 주문 내역이 없습니다.</p>
               ) : (
@@ -286,7 +286,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
                 disabled={deleting}
                 className="px-3 py-2.5 rounded-lg border border-hairline text-[13px] font-semibold text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50 cursor-pointer"
               >
-                {deleting ? '삭제 중...' : '삭제'}
+                {deleting ? '삭제 중…' : '삭제'}
               </button>
             )}
             <button
@@ -301,7 +301,7 @@ export default function DayDetailModal({ date, manualEntry, onSaved, onClose, sa
               disabled={saving || loadingOrders}
               className="flex-1 py-2.5 rounded-lg bg-primary-700 text-white text-[13px] font-bold hover:bg-primary-800 transition-colors disabled:opacity-60 cursor-pointer"
             >
-              {saving ? '저장 중...' : '저장'}
+              {saving ? '저장 중…' : '저장'}
             </button>
           </div>
           </form>

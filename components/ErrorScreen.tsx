@@ -41,7 +41,7 @@ export default function ErrorScreen({ error, reset, title = '오류가 발생했
   }, []);
 
   return (
-    <div className="min-h-dvh bg-[#f5f6f7] flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-canvas-soft flex items-center justify-center p-4">
       <div className="text-center max-w-[360px]">
         <h2 className="text-xl font-extrabold text-ink m-0 mb-2">{offline ? '네트워크 연결 없음' : title}</h2>
         <p className="text-sm text-ink-muted m-0 mb-4">

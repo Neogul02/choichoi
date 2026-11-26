@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#f5f6f7] flex flex-col items-center justify-center p-8">
+    <div className="min-h-screen bg-canvas-soft flex flex-col items-center justify-center p-8">
       <div className="text-center mb-12">
         <h1 className="text-4xl font-black text-ink mb-2 m-0">CHOICHOI</h1>
         <p className="text-ink-faint text-base m-0">이용할 화면을 선택해주세요</p>

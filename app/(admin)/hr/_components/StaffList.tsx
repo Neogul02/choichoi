@@ -182,7 +182,7 @@ function StaffActions({ staff, contractDone, touch, onContract, onContractsList,
       <button
         onClick={onCalendar}
         title="근무 캘린더"
-        className={`${btnBase} bg-canvas-soft text-ink-muted border-hairline hover:bg-[#ececeb]`}
+        className={`${btnBase} bg-canvas-soft text-ink-muted border-hairline hover:bg-canvas-strong`}
       >
         달력
       </button>
@@ -210,7 +210,7 @@ function StaffActions({ staff, contractDone, touch, onContract, onContractsList,
         <button
           onClick={onContractsList}
           title="근로계약서 목록"
-          className={`${btnBase} bg-canvas-soft text-ink-muted border-hairline hover:bg-[#ececeb]`}
+          className={`${btnBase} bg-canvas-soft text-ink-muted border-hairline hover:bg-canvas-strong`}
         >
           목록
         </button>

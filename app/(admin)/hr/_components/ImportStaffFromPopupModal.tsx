@@ -77,7 +77,6 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
         ref={panelRef}
@@ -115,7 +114,7 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
 
         <div className="flex-1 overflow-y-auto px-5 py-3">
           {candidates === null ? (
-            <p className="text-[12px] text-ink-faint text-center py-6 m-0">불러오는 중...</p>
+            <p className="text-[12px] text-ink-faint text-center py-6 m-0">불러오는 중…</p>
           ) : filtered.length === 0 ? (
             <p className="text-[12px] text-ink-faint text-center py-6 m-0">
               {search.trim() ? '검색 결과가 없습니다.' : '추가할 수 있는 근무자가 없습니다.'}
@@ -158,7 +157,7 @@ export default function ImportStaffFromPopupModal({ popupId, popupName, staffPop
             disabled={selected.size === 0 || isSubmitting}
             className="flex-1 py-2.5 rounded-xl border-none bg-primary-700 text-white text-[13px] font-bold cursor-pointer hover:bg-primary-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? '불러오는 중...' : selected.size > 0 ? `${selected.size}명 불러오기` : '불러올 인원 선택'}
+            {isSubmitting ? '불러오는 중…' : selected.size > 0 ? `${selected.size}명 불러오기` : '불러올 인원 선택'}
           </button>
           <button
             type="button"

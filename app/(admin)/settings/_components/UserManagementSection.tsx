@@ -145,7 +145,7 @@ export default function UserManagementSection() {
     }
   }
 
-  if (isLoading) return <p className="text-ink-muted text-sm">불러오는 중...</p>
+  if (isLoading) return <p className="text-ink-muted text-sm">불러오는 중…</p>
   if (users.length === 0) return <p className="text-ink-muted text-sm">등록된 직원이 없습니다.</p>
 
   return (

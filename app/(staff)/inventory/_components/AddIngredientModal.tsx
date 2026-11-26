@@ -142,7 +142,7 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                       setBaseUnit(BASE_UNIT_PRESETS[t][0]);
                     }}
                       className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer border-none transition ${
-                        unitType === t ? 'bg-primary-700 text-white' : 'bg-[#f5f6f7] text-ink-muted hover:bg-primary-50'
+                        unitType === t ? 'bg-primary-700 text-white' : 'bg-canvas-soft text-ink-muted hover:bg-primary-50'
                       }`}
                     >{t === 'count' ? '개수 (장/개)' : '중량 (g/kg)'}</button>
                   ))}
@@ -154,8 +154,8 @@ export default function AddIngredientModal({ open, onClose, onSuccess }: Props) 
                       onClick={() => setBaseUnit(u)}
                       className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border-none cursor-pointer transition ${
                         baseUnit === u
-                          ? 'bg-[#161616] text-white'
-                          : 'bg-[#f5f6f7] text-ink-muted hover:bg-[#e8e8e8]'
+                          ? 'bg-ink text-white'
+                          : 'bg-canvas-soft text-ink-muted hover:bg-canvas-strong'
                       }`}
                     >{u}</button>
                   ))}

@@ -26,12 +26,12 @@ const PROFILE_SYNCED_KEY = 'choichoi_profile_synced';
 const ALL_NAV_LINKS = [
   { href: '/pos', label: 'POS', minRole: 'user' },
   { href: '/stats', label: '통계', minRole: 'admin' },
-  { href: '/roster', label: '일정표', minRole: 'manager' },
+  { href: '/roster', label: '전체 근무표', minRole: 'manager' },
   { href: '/hr', label: '인사', minRole: 'admin' },
   { href: '/attendance', label: '출근부', minRole: 'admin' },
   // 재고 탭은 일시 비활성(lib/features) — 다시 켜면 메뉴에 돌아온다
   ...(FEATURES.inventory ? [{ href: '/inventory', label: '재고', minRole: 'user' } as const] : []),
-  { href: '/schedule', label: '스케줄', minRole: 'user' },
+  { href: '/schedule', label: '내 근무', minRole: 'user' },
   { href: '/my', label: 'MY', minRole: 'user' },
   { href: '/settings', label: '설정', minRole: 'admin' },
 ] as const;
@@ -177,16 +177,16 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
               transition={{ duration: 0.22, ease: 'easeInOut' }}
               className="overflow-hidden bg-canvas border-b border-hairline shadow-level-1"
             >
-              <div className="px-3 md:px-5 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
+              <div className="px-3 lg:px-5 py-2.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-0">
                 {/* 1단: 로고 + 접속자 + 모바일 전용 액션 */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Link href={visibleLinks[0]?.href ?? '/my'} className="m-0 text-xl md:text-2xl font-extrabold text-ink shrink-0 no-underline hover:opacity-70 transition-opacity">ChoiChoi</Link>
+                    <Link href={visibleLinks[0]?.href ?? '/my'} className="m-0 text-xl lg:text-2xl font-extrabold text-ink shrink-0 no-underline hover:opacity-70 transition-opacity">ChoiChoi</Link>
                     {/* 근무지 배지 — 눌러서 로그아웃 없이 바꾼다(권한은 서버가 확인) */}
                     {popupName && <PopupSwitcher popupName={popupName} />}
                     {activeCashiers.length > 0 && (
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="hidden md:inline text-[11px] text-ink-faint shrink-0">접속</span>
+                        <span className="hidden lg:inline text-[11px] text-ink-faint shrink-0">접속</span>
                         <div className="flex gap-1 flex-wrap">
                           {activeCashiers.map((u) => (
                               <span
@@ -208,7 +208,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                   </div>
 
                   {/* 모바일 전용 우측 액션 */}
-                  <div className="flex md:hidden items-center gap-1.5 shrink-0">
+                  <div className="flex lg:hidden items-center gap-1.5 shrink-0">
                     {/* PWA(홈 화면 앱)에는 브라우저 새로고침 UI가 없어 전체 리로드 버튼 제공 */}
                     <button
                       onClick={() => window.location.reload()}
@@ -237,15 +237,15 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                 </div>
 
                 {/* 2단: 네비게이션 + 데스크탑 전용 액션 */}
-                <div className="flex items-center justify-between md:justify-end gap-2 min-w-0">
-                  <nav className="min-w-0 flex-1 md:flex-initial">
-                    <ul className="flex gap-1.5 md:gap-2 m-0 p-0 list-none flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex items-center justify-between lg:justify-end gap-2 min-w-0">
+                  <nav className="min-w-0 flex-1 lg:flex-initial">
+                    <ul className="flex gap-1.5 lg:gap-2 m-0 p-0 list-none flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {visibleLinks.map(({ href, label }) => (
                         <li key={href}>
                           <Link
                             href={href}
                             aria-current={pathname === href ? 'page' : undefined}
-                            className={`block px-3 py-1.5 md:px-4 md:py-2 text-[13px] md:text-sm rounded-lg no-underline font-semibold transition-all duration-200 whitespace-nowrap ${
+                            className={`block px-3 py-1.5 lg:px-4 lg:py-2 text-[13px] lg:text-sm rounded-lg no-underline font-semibold transition-all duration-200 whitespace-nowrap ${
                               pathname === href
                                 ? 'bg-primary-700 text-white'
                                 : 'bg-canvas-soft text-ink hover:bg-primary-700 hover:text-white'
@@ -259,7 +259,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
                   </nav>
 
                   {/* 데스크탑 전용 우측 액션 */}
-                  <div className="hidden md:flex items-center gap-2">
+                  <div className="hidden lg:flex items-center gap-2">
                     <div className="w-px h-5 bg-hairline shrink-0" />
                     <button
                       onClick={() => setShowLogoutConfirm(true)}
@@ -288,7 +288,7 @@ export default function NavBar({ activeCashiers: activeCashiersProp }: { activeC
             aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
             className="flex items-center justify-center w-11 h-11 shrink-0 group cursor-pointer bg-transparent border-none"
           >
-            <span className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline group-hover:bg-[#d0d0d0] transition-colors">
+            <span className="flex items-center justify-center w-9 h-4 rounded-full bg-hairline group-hover:bg-hairline-strong transition-colors">
               <motion.svg
                 animate={{ rotate: collapsed ? 180 : 0 }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}

@@ -6,6 +6,8 @@ import SalesBanner from '@/components/SalesBanner'
 import SalesBattle from '@/components/SalesBattle'
 import PosTodaySummary from '@/components/PosTodaySummary'
 import PopupPeriodWarning from '@/components/PopupPeriodWarning'
+import { usePopupEventsAll } from '@/hooks/usePopupDayCompare'
+import { kstToday } from '@/lib/date'
 import { memo, useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -104,7 +106,7 @@ const MenuCard = memo(function MenuCard({
       </div>
       <div className="flex items-center gap-2">
         <button
-          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-canvas-strong hover:border-ink-faint active:scale-95 leading-none"
           onClick={(e) => {
             e.stopPropagation()
             onDecrease(item.id)
@@ -127,7 +129,7 @@ const MenuCard = memo(function MenuCard({
           {count}개
         </motion.strong>
         <button
-          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-[#ececeb] hover:border-ink-faint active:scale-95 leading-none"
+          className="flex items-center justify-center w-10 h-10 rounded-lg border border-hairline text-xl md:text-2xl font-semibold cursor-pointer bg-canvas-soft transition-all duration-200 hover:bg-canvas-strong hover:border-ink-faint active:scale-95 leading-none"
           onClick={(e) => {
             e.stopPropagation()
             onIncrease(item.id)
@@ -494,10 +496,26 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
     },
   })
 
+  // 운영 기간이 아닌 팝업으로 결제 중이면(빨간 경고 띠) 결제 직전에 한 번 더 묻는다.
+  // '그래도 결제'를 고르면 이 화면을 새로 띄우기 전까지는 다시 묻지 않는다(줄 선 손님 앞에서 매번 막지 않게).
+  const { data: popupEventsAll } = usePopupEventsAll(popupId !== '0')
+  const outOfPeriodPopup = useMemo(() => {
+    if (!popupEventsAll || popupId === '0') return null
+    const p = popupEventsAll.find((e) => String(e.id) === popupId)
+    const today = kstToday()
+    return p && (today < p.start_date || today > p.end_date) ? p : null
+  }, [popupEventsAll, popupId])
+  const [periodConfirmOpen, setPeriodConfirmOpen] = useState(false)
+  const periodAcceptedRef = useRef(false)
+
   const handleCheckout = () => {
     if (checkoutMutation.isPending) return
     if (totalPrice <= 0) {
       toast.warning(totalPrice < 0 ? '할인 금액이 주문 금액보다 큽니다' : '주문하신 항목이 없습니다')
+      return
+    }
+    if (outOfPeriodPopup && !periodAcceptedRef.current) {
+      setPeriodConfirmOpen(true)
       return
     }
     const items = menuItems
@@ -666,7 +684,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
             {orderedItems.length === 0 ? (
               <p className="m-0 text-ink-faint text-sm">
                 {checkoutMutation.isPending
-                  ? '결제 처리 중...'
+                  ? '결제 처리 중…'
                   : '선택한 메뉴가 없습니다.'}
               </p>
             ) : (
@@ -696,13 +714,6 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
               </ul>
             )}
 
-            <button
-              className="hidden md:block w-full p-3 mt-3 text-base font-bold bg-primary-700 text-white border-none rounded-xl cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-ink-faint disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-ink-faint disabled:hover:translate-y-0"
-              onClick={handleCheckout}
-              disabled={checkoutMutation.isPending || orderedItems.length === 0}
-            >
-              {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
-            </button>
           </section>
 
           {/* 최근 주문 */}
@@ -714,7 +725,7 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
               최근 주문
             </h2>
             {recentOrdersQuery.isLoading ? (
-              <p className="m-0 text-ink-faint text-sm">불러오는 중...</p>
+              <p className="m-0 text-ink-faint text-sm">불러오는 중…</p>
             ) : recentOrdersQuery.isError ? (
               <p className="m-0 text-rose-500 text-sm">
                 불러오지 못했습니다. 다시 시도해주세요.{' '}
@@ -768,37 +779,39 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
           {showNote && <PosNoteWidget cashierName={cashierName} />}
 
-          {/* 모바일 전용 sticky 결제 바 */}
+          {/* 화면 아래 고정 결제 바 — 폰·아이패드(가로/세로)·노트북 모두. 메뉴가 길어도 결제 버튼이 첫 화면에 있다 */}
           {/* iOS Safari에서 position:sticky 요소는 내부 텍스트만 바뀌면 스크롤 전까지 리페인트가
               지연되는 버그가 있다(스크롤하면 정상 표시됨). translateZ(0)로 레이어를 분리해도 간헐적으로
               남아서(2026-10 재발), 바뀌는 숫자는 key로 요소 자체를 새로 만든다 — 위쪽 결제 대기 금액이
               key={totalPrice}로 매번 새 요소라 항상 즉시 보이는 것과 같은 방식이다. 텍스트 노드만 바꾸면
               WebKit이 그 레이어를 다시 그리지 않을 수 있지만, 요소 삽입은 레이아웃·페인트를 반드시 일으킨다. */}
           <div
-            className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3"
+            className="sticky bottom-0 left-0 right-0 z-30 -mx-3 md:-mx-8"
             style={{ transform: 'translateZ(0)', willChange: 'transform' }}
           >
             <div className="absolute -top-6 inset-x-0 h-6 bg-gradient-to-t from-canvas-soft to-transparent pointer-events-none" />
             {/* pb: 아이폰 홈바(safe-area)와 결제 버튼 겹침 방지 */}
-            <div className="px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft">
+            <div className="px-3 md:px-8 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft flex items-stretch gap-2">
               <button
                 type="button"
                 onClick={handleCheckout}
                 disabled={checkoutMutation.isPending || orderedItems.length === 0}
-                className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-ink-faint disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 min-w-0 px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-ink-faint disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-2.5">
                   <span key={totalCount} className="min-w-7 h-7 px-2 rounded-full bg-canvas/20 text-xs font-black flex items-center justify-center tabular-nums">
                     {totalCount}개
                   </span>
                   <span className="text-base">
-                    {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
+                    {checkoutMutation.isPending ? '처리 중…' : '결제하기'}
                   </span>
                 </span>
                 <span key={totalPrice} className="text-lg font-black tabular-nums">
                   {formatPrice(totalPrice)}원
                 </span>
               </button>
+              {/* 접힌 공유 메모 버튼이 들어오는 자리(md 이상) — 결제 버튼 옆이라 메뉴 카드를 가리지 않는다 */}
+              <div id="pos-note-slot" className="hidden md:flex shrink-0" />
             </div>
           </div>
         </div>
@@ -842,6 +855,19 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
           setResetConfirmOpen(false)
         }}
         onClose={() => setResetConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={periodConfirmOpen}
+        title={`'${outOfPeriodPopup?.name ?? ''}'(으)로 결제할까요?`}
+        description="운영 기간이 아닌 팝업이에요. 이대로 결제하면 이 팝업 매출로 저장됩니다. 위 빨간 안내에서 오늘 팝업으로 바꿀 수 있어요."
+        confirmLabel="그래도 결제"
+        danger
+        onConfirm={() => {
+          periodAcceptedRef.current = true
+          setPeriodConfirmOpen(false)
+          handleCheckout()
+        }}
+        onClose={() => setPeriodConfirmOpen(false)}
       />
     </>
   )

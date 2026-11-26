@@ -258,7 +258,6 @@ export default function PayrollDetailModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
         ref={panelRef}
@@ -287,7 +286,7 @@ export default function PayrollDetailModal({
               {phone && (
                 <button
                   onClick={() => copyText('phone', formatPhoneNumber(phone))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-canvas-strong transition text-[12px] text-ink cursor-pointer"
                 >
                   <span className="text-ink-muted text-[10px] font-semibold">전화</span>
                   <span className="font-semibold">{formatPhoneNumber(phone)}</span>
@@ -297,7 +296,7 @@ export default function PayrollDetailModal({
               {bankName && bankAccount && (
                 <button
                   onClick={() => copyText('bank', bankAccount)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-canvas-strong transition text-[12px] text-ink cursor-pointer"
                 >
                   <span className="text-ink-muted text-[10px] font-semibold">{bankName}</span>
                   <span className="font-semibold">{bankAccount}</span>
@@ -307,7 +306,7 @@ export default function PayrollDetailModal({
               {!bankName && bankAccount && (
                 <button
                   onClick={() => copyText('bank', bankAccount)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-[#ececeb] transition text-[12px] text-ink cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline bg-canvas-soft hover:bg-canvas-strong transition text-[12px] text-ink cursor-pointer"
                 >
                   <span className="text-ink-muted text-[10px] font-semibold">계좌</span>
                   <span className="font-semibold">{bankAccount}</span>
@@ -345,7 +344,7 @@ export default function PayrollDetailModal({
           <div>
             <h4 className="m-0 mb-2 text-[11px] font-bold text-ink-muted uppercase tracking-wide">근무 상세</h4>
             {details === null ? (
-              <p className="text-[12px] text-ink-faint m-0">불러오는 중...</p>
+              <p className="text-[12px] text-ink-faint m-0">불러오는 중…</p>
             ) : details.length === 0 ? (
               <p className="text-[12px] text-ink-faint m-0">이번 달 근무 기록이 없습니다.</p>
             ) : (
@@ -440,7 +439,7 @@ export default function PayrollDetailModal({
                 </span>
                 <span className="text-[13px] font-bold text-ink">
                   {details == null
-                    ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중...</span>
+                    ? <span className="text-ink-faint font-normal text-[11px]">불러오는 중…</span>
                     : basePay != null
                       ? <CopyText value={basePay.toLocaleString('ko-KR')} label="기본급" toastValue={`${basePay.toLocaleString('ko-KR')}원`}>{basePay.toLocaleString('ko-KR')}원</CopyText>
                       : <span className="text-ink-faint font-normal text-[11px]">시급 미설정</span>}
@@ -624,7 +623,7 @@ export default function PayrollDetailModal({
               <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words select-text">
                 {formulaText}
               </div>
-              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 스케줄 화면에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
+              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 근무 배정에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
             </div>
           )}
 

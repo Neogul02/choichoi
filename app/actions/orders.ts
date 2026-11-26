@@ -218,57 +218,6 @@ async function getTodaysOrderListWithItems(
   })
 }
 
-async function getPendingOrders(popupId?: string | number | null): Promise<OrderRecordWithItems[]> {
-  const { start, end } = getKSTDateBounds()
-  let query = supabaseAdmin
-    .from('orders')
-    .select(
-      'id, total_price, created_at, payment_status, cashier_name, is_prepared, order_items(menu_item_id, quantity, subtotal, menu_items(name))',
-    )
-    .gte('created_at', start)
-    .lte('created_at', end)
-    .eq('is_prepared', false)
-    .order('id', { ascending: false })
-
-  if (popupId && popupId !== '0') query = query.eq('popup_id', Number(popupId))
-
-  const { data, error } = await query
-
-  if (error) throw error
-
-  return (data ?? []).map((order) => {
-    const rawItems = (order.order_items ?? []) as unknown as Array<{
-      menu_item_id: number
-      quantity: number
-      subtotal: number
-      menu_items: { name: string } | null
-    }>
-    return {
-      id: order.id as number,
-      total_price: Number(order.total_price),
-      created_at: order.created_at as string,
-      payment_status: order.payment_status as string,
-      cashier_name: (order.cashier_name as string | null) ?? null,
-      is_prepared: false,
-      popup_name: null,
-      items: rawItems.map((item) => ({
-        menu_item_id: item.menu_item_id,
-        name: item.menu_items?.name ?? '알 수 없음',
-        quantity: item.quantity,
-        subtotal: Number(item.subtotal),
-      })),
-    }
-  })
-}
-
-async function prepareOrder(id: number): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('orders')
-    .update({ is_prepared: true })
-    .eq('id', id)
-  if (error) throw error
-}
-
 async function getOrdersByPeriod(
   startISO: string,
   endISO: string,
@@ -382,12 +331,10 @@ export async function fetchTodaysMenuSales(popupId?: string | null): Promise<Fet
   });
 }
 export async function fetchTodaysOrdersWithItems(limit?: number, popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(async () => { await requireAuth(); return getTodaysOrderListWithItems(limit, popupId); }); }
-export async function fetchPendingOrders(popupId?: string | null): Promise<FetchOrdersWithItemsResponse> { return wrap(async () => { await requireAuth(); return getPendingOrders(popupId); }); }
 // /stats(admin 전용) 시간대별 매출 화면에서만 쓰는 조회 — 다른 orders.ts 함수와 달리 여기만 admin 게이트가 필요
 export async function fetchOrdersByPeriod(startISO: string, endISO: string, popupId?: string | null): Promise<ApiResponse<Array<{ created_at: string; total_price: number }>>> {
   return wrap(async () => { await requireAdmin(); return getOrdersByPeriod(startISO, endISO, popupId); });
 }
-export async function markOrderPrepared(id: number): Promise<ApiResponse> { return wrap(async () => { await requireAuth(); return prepareOrder(id); }); }
 export async function removeOrder(id: number): Promise<ApiResponse> {
   try {
     await requireAdmin()
