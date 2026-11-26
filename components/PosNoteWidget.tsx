@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import * as Y from 'yjs';
+import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -541,6 +542,9 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
   // 처음엔 접힌 상태 — 아이패드에서 펼친 메모가 메뉴 카드(−/+ 버튼)를 덮던 문제
   const [open, setOpen] = useState(false);
   const [seenAt, setSeenAt] = useState('');
+  // POS 결제 바에 있는 자리 — 없으면(다른 화면) 오른쪽 아래에 떠 있는 버튼으로
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSlot(document.getElementById('pos-note-slot')); }, []);
   useEffect(() => {
     try {
       setOpen(localStorage.getItem(POS_NOTE_OPEN_KEY) === 'true');
@@ -622,16 +626,18 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
   if (isDesktop === null) return null;
 
   if (isDesktop && !open) {
-    // 접힌 상태: 메모 버튼만. 메뉴 카드·최근 주문을 가리지 않는다
+    // 접힌 상태: 결제 바 옆 자리(#pos-note-slot)에 메모 버튼만. 메뉴 카드·최근 주문을 가리지 않는다
     const unread = !!note.meta?.updated_at && note.meta.updated_at > seenAt && note.value.trim() !== '';
     const preview = note.value.trim().split('\n')[0] ?? '';
-    return (
+    const pill = (
       <button
         type="button"
         onClick={() => setOpenPersist(true)}
         aria-label={unread ? '공유 메모장 열기 (새 메모 있음)' : '공유 메모장 열기'}
-        style={{ position: 'fixed', bottom: FLOAT_BOTTOM, right: 16, zIndex: 40 }}
-        className="flex items-center gap-2 max-w-[260px] h-11 pl-3.5 pr-4 rounded-full border border-hairline bg-canvas shadow-[0_8px_24px_rgba(0,0,0,0.16)] cursor-pointer text-[13px] font-bold text-ink hover:bg-canvas-soft active:scale-[0.98] transition"
+        style={slot ? undefined : { position: 'fixed', bottom: FLOAT_BOTTOM, right: 16, zIndex: 40 }}
+        className={`flex items-center gap-2 max-w-[240px] pl-4 pr-4 border border-hairline bg-canvas cursor-pointer text-[14px] font-bold text-ink hover:bg-canvas-soft active:scale-[0.98] transition ${
+          slot ? 'h-full rounded-2xl' : 'h-11 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.16)]'
+        }`}
       >
         <span aria-hidden="true">📝</span>
         <span className="shrink-0">메모</span>
@@ -641,6 +647,7 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
         )}
       </button>
     );
+    return slot ? createPortal(pill, slot) : pill;
   }
 
   if (isDesktop) {

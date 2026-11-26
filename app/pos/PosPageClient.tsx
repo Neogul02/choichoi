@@ -773,12 +773,12 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
           >
             <div className="absolute -top-6 inset-x-0 h-6 bg-gradient-to-t from-canvas-soft to-transparent pointer-events-none" />
             {/* pb: 아이폰 홈바(safe-area)와 결제 버튼 겹침 방지 */}
-            <div className="px-3 md:px-8 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft">
+            <div className="px-3 md:px-8 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft flex items-stretch gap-2">
               <button
                 type="button"
                 onClick={handleCheckout}
                 disabled={checkoutMutation.isPending || orderedItems.length === 0}
-                className="w-full px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-ink-faint disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 min-w-0 px-5 py-4 rounded-2xl bg-primary-700 hover:bg-primary-800 text-white font-bold flex items-center justify-between gap-3 shadow-[0_10px_30px_rgba(8,68,49,0.4)] transition active:scale-[0.99] disabled:bg-ink-faint disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-2.5">
                   <span key={totalCount} className="min-w-7 h-7 px-2 rounded-full bg-canvas/20 text-xs font-black flex items-center justify-center tabular-nums">
@@ -792,6 +792,8 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
                   {formatPrice(totalPrice)}원
                 </span>
               </button>
+              {/* 접힌 공유 메모 버튼이 들어오는 자리(md 이상) — 결제 버튼 옆이라 메뉴 카드를 가리지 않는다 */}
+              <div id="pos-note-slot" className="hidden md:flex shrink-0" />
             </div>
           </div>
         </div>
