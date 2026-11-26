@@ -74,8 +74,8 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
   const [wageTotalInput, setWageTotalInput] = useState('')
   // 근무 데이터가 로드되면 계산값으로 채워 넣는다 — 이후엔 직접 수정 가능
   useEffect(() => { setAvgDailyHours(avgPaid > 0 ? String(avgPaid) : '') }, [avgPaid])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setPaymentBaseDays(workDaysCount > 0 ? String(workDaysCount) : '') }, [autoWorkedDays])
+  // 근무 기록에서 뽑은 날 수로 채운다 — workedDays는 다른 effect에서 늦게 채워져 여기서 읽으면 0이었다(빈칸 버그)
+  useEffect(() => { setPaymentBaseDays(autoWorkedDays.size > 0 ? String(autoWorkedDays.size) : '') }, [autoWorkedDays])
   useEffect(() => { setTotalPayInput(grossPay != null ? String(grossPay) : '') }, [grossPay])
   useEffect(() => { setWageTotalInput(grossPay != null ? String(grossPay) : '') }, [grossPay])
 
@@ -114,9 +114,11 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
   const hint = 'm-0 mt-1 text-[11px] text-ink-faint leading-snug'
   const wonFmt = (v: string) => (v ? Number(v).toLocaleString('ko-KR') : '')
   const wonParse = (raw: string) => raw.replace(/[^0-9]/g, '')
-  const grossBreakdown = basePay != null
-    ? `기본급 ${basePay.toLocaleString('ko-KR')}원${allowances.map(a => ` + ${a.label} ${a.amount.toLocaleString('ko-KR')}원`).join('')} = ${(basePay + allowanceTotal).toLocaleString('ko-KR')}원`
-    : null
+  const grossBreakdown = basePay == null
+    ? null
+    : allowances.length > 0
+      ? `기본급 ${basePay.toLocaleString('ko-KR')}원${allowances.map(a => ` + ${a.label} ${a.amount.toLocaleString('ko-KR')}원`).join('')} = ${(basePay + allowanceTotal).toLocaleString('ko-KR')}원`
+      : '기본급 그대로'
 
   return (
     <div className="flex flex-col h-full">
