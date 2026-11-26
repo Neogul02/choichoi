@@ -696,13 +696,6 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
               </ul>
             )}
 
-            <button
-              className="hidden md:block w-full p-3 mt-3 text-base font-bold bg-primary-700 text-white border-none rounded-xl cursor-pointer transition-all duration-200 hover:bg-primary-800 hover:-translate-y-0.5 active:scale-[0.98] disabled:bg-ink-faint disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-ink-faint disabled:hover:translate-y-0"
-              onClick={handleCheckout}
-              disabled={checkoutMutation.isPending || orderedItems.length === 0}
-            >
-              {checkoutMutation.isPending ? '처리 중...' : '결제하기'}
-            </button>
           </section>
 
           {/* 최근 주문 */}
@@ -768,19 +761,19 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
 
           {showNote && <PosNoteWidget cashierName={cashierName} />}
 
-          {/* 모바일 전용 sticky 결제 바 */}
+          {/* 화면 아래 고정 결제 바 — 폰·아이패드(가로/세로)·노트북 모두. 메뉴가 길어도 결제 버튼이 첫 화면에 있다 */}
           {/* iOS Safari에서 position:sticky 요소는 내부 텍스트만 바뀌면 스크롤 전까지 리페인트가
               지연되는 버그가 있다(스크롤하면 정상 표시됨). translateZ(0)로 레이어를 분리해도 간헐적으로
               남아서(2026-10 재발), 바뀌는 숫자는 key로 요소 자체를 새로 만든다 — 위쪽 결제 대기 금액이
               key={totalPrice}로 매번 새 요소라 항상 즉시 보이는 것과 같은 방식이다. 텍스트 노드만 바꾸면
               WebKit이 그 레이어를 다시 그리지 않을 수 있지만, 요소 삽입은 레이아웃·페인트를 반드시 일으킨다. */}
           <div
-            className="md:hidden sticky bottom-0 left-0 right-0 z-30 -mx-3"
+            className="sticky bottom-0 left-0 right-0 z-30 -mx-3 md:-mx-8"
             style={{ transform: 'translateZ(0)', willChange: 'transform' }}
           >
             <div className="absolute -top-6 inset-x-0 h-6 bg-gradient-to-t from-canvas-soft to-transparent pointer-events-none" />
             {/* pb: 아이폰 홈바(safe-area)와 결제 버튼 겹침 방지 */}
-            <div className="px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft">
+            <div className="px-3 md:px-8 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-canvas-soft">
               <button
                 type="button"
                 onClick={handleCheckout}

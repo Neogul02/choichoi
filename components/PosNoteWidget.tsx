@@ -13,6 +13,11 @@ import {
 
 const POS_NOTE_POS_KEY = 'choichoi_pos_note_pos';
 const POS_NOTE_SIZE_KEY = 'choichoi_pos_note_size';
+// 펼침 여부(기기별 기억) · 마지막으로 펼쳐 본 메모 시각 — 접혀 있는 동안 새 글이 오면 점으로 알린다
+const POS_NOTE_OPEN_KEY = 'choichoi_pos_note_open';
+const POS_NOTE_SEEN_KEY = 'choichoi_pos_note_seen';
+// 화면 아래 고정 결제 바(약 80px) 위에 뜨도록 — 메모가 결제 버튼을 가리지 않는다
+const FLOAT_BOTTOM = 96;
 const DEFAULT_POS = { x: -16, y: -16 };
 const WIDTH_DEFAULT = 288; // 기존 w-72(18rem)와 동일한 기본 폭
 const MAX_SIZE = { width: 480, height: 640 };
@@ -533,6 +538,26 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
   );
   const { editors, notifyEditing } = useEditorPresence(cashierName);
   const panelRef = useRef<HTMLDivElement>(null);
+  // 처음엔 접힌 상태 — 아이패드에서 펼친 메모가 메뉴 카드(−/+ 버튼)를 덮던 문제
+  const [open, setOpen] = useState(false);
+  const [seenAt, setSeenAt] = useState('');
+  useEffect(() => {
+    try {
+      setOpen(localStorage.getItem(POS_NOTE_OPEN_KEY) === 'true');
+      setSeenAt(localStorage.getItem(POS_NOTE_SEEN_KEY) ?? '');
+    } catch { /* ignore */ }
+  }, []);
+  // 펼쳐 둔 동안 보는 글은 읽은 것으로 — 접은 뒤 새로 온 글만 점으로 표시
+  const updatedAt = note.meta?.updated_at ?? '';
+  useEffect(() => {
+    if (!open || !updatedAt) return;
+    setSeenAt(updatedAt);
+    try { localStorage.setItem(POS_NOTE_SEEN_KEY, updatedAt); } catch { /* ignore */ }
+  }, [open, updatedAt]);
+  const setOpenPersist = (v: boolean) => {
+    setOpen(v);
+    try { localStorage.setItem(POS_NOTE_OPEN_KEY, String(v)); } catch { /* ignore */ }
+  };
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const width = useMotionValue<number | string>(WIDTH_DEFAULT);
@@ -547,14 +572,14 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
   }, [x, y]);
 
   useLayoutEffect(() => {
-    if (!isDesktop || !panelRef.current) return;
+    if (!isDesktop || !open || !panelRef.current) return;
     // rows=5 텍스트영역 기준 자연 높이를 최초 1회 측정해 예전과 동일한 기본/최소 크기로 고정
     const naturalHeight = panelRef.current.getBoundingClientRect().height;
     const savedSize = loadSavedSize();
     minSizeRef.current = { width: WIDTH_DEFAULT, height: naturalHeight };
     width.set(clamp(savedSize?.width ?? WIDTH_DEFAULT, WIDTH_DEFAULT, MAX_SIZE.width));
     height.set(clamp(savedSize?.height ?? naturalHeight, naturalHeight, MAX_SIZE.height));
-  }, [isDesktop, width, height]);
+  }, [isDesktop, open, width, height]);
 
   function persistPos() {
     try { localStorage.setItem(POS_NOTE_POS_KEY, JSON.stringify({ x: x.get(), y: y.get() })); } catch { /* ignore */ }
@@ -596,6 +621,28 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
 
   if (isDesktop === null) return null;
 
+  if (isDesktop && !open) {
+    // 접힌 상태: 메모 버튼만. 메뉴 카드·최근 주문을 가리지 않는다
+    const unread = !!note.meta?.updated_at && note.meta.updated_at > seenAt && note.value.trim() !== '';
+    const preview = note.value.trim().split('\n')[0] ?? '';
+    return (
+      <button
+        type="button"
+        onClick={() => setOpenPersist(true)}
+        aria-label={unread ? '공유 메모장 열기 (새 메모 있음)' : '공유 메모장 열기'}
+        style={{ position: 'fixed', bottom: FLOAT_BOTTOM, right: 16, zIndex: 40 }}
+        className="flex items-center gap-2 max-w-[260px] h-11 pl-3.5 pr-4 rounded-full border border-hairline bg-canvas shadow-[0_8px_24px_rgba(0,0,0,0.16)] cursor-pointer text-[13px] font-bold text-ink hover:bg-canvas-soft active:scale-[0.98] transition"
+      >
+        <span aria-hidden="true">📝</span>
+        <span className="shrink-0">메모</span>
+        {preview && <span className="min-w-0 truncate font-medium text-ink-muted">{preview}</span>}
+        {(unread || editors.length > 0) && (
+          <span className={`w-2 h-2 rounded-full shrink-0 ${editors.length > 0 ? 'bg-primary-700 animate-pulse' : 'bg-rose-500'}`} />
+        )}
+      </button>
+    );
+  }
+
   if (isDesktop) {
     // 맥북: 항상 펼쳐진 채로 드래그해서 옮기거나 모서리를 드래그해 크기를 조절할 수 있는 플로팅 패널
     return (
@@ -604,13 +651,24 @@ export default function PosNoteWidget({ cashierName }: { cashierName?: string | 
         drag
         dragMomentum={false}
         onDragEnd={persistPos}
-        style={{ x, y, width, height, position: 'fixed', bottom: 16, right: 16, zIndex: 40 }}
+        style={{ x, y, width, height, position: 'fixed', bottom: FLOAT_BOTTOM, right: 16, zIndex: 40 }}
         className="select-none flex flex-col bg-canvas rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.22)] border border-hairline overflow-hidden"
       >
         <div className="flex flex-col gap-0.5 px-3.5 py-2.5 bg-canvas-soft cursor-grab active:cursor-grabbing shrink-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[12px] font-extrabold text-ink shrink-0">공유 메모장</span>
-            <MetaLine meta={note.meta} saving={note.saving} dirty={note.dirty} />
+            <span className="flex items-center gap-1.5 min-w-0">
+              <MetaLine meta={note.meta} saving={note.saving} dirty={note.dirty} />
+              <button
+                type="button"
+                onPointerDownCapture={(e) => e.stopPropagation()}
+                onClick={() => setOpenPersist(false)}
+                aria-label="공유 메모장 접기"
+                className="shrink-0 w-7 h-7 -mr-1.5 flex items-center justify-center rounded-lg border-none bg-transparent text-ink-faint cursor-pointer hover:bg-canvas"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 4l4 4 4-4" /></svg>
+              </button>
+            </span>
           </div>
           <EditingBadge names={editors} colors={colors} />
         </div>
