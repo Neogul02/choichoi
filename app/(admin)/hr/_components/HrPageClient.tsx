@@ -479,7 +479,7 @@ export default function HrPageClient({ initialStaff, initialUserProfiles, initia
             {/* 우측 탭 */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1 w-fit">
-                {([['roster', '스케줄 달력'], ['payroll', '급여 정산'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
+                {([['roster', '근무 배정'], ['payroll', '급여 정산'], ['contracts', '계약서']] as [RightTab, string][]).map(([tab, label]) => (
                   <button
                     key={tab}
                     onClick={() => setRightTab(tab)}

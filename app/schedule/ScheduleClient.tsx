@@ -261,7 +261,7 @@ function StaffPicker({ staffPicker, ownStaffId, viewingId, onPick }: {
         className="w-full border border-hairline rounded-xl px-3 py-2.5 text-[14px] font-semibold bg-canvas-soft text-ink outline-none focus:border-primary-700"
       >
         {viewingId == null && <option value="" disabled>직원을 선택하세요</option>}
-        {ownStaffId != null && <option value={ownStaffId}>내 스케줄{ownName ? ` (${ownName})` : ''}</option>}
+        {ownStaffId != null && <option value={ownStaffId}>내 근무{ownName ? ` (${ownName})` : ''}</option>}
         {kitchen.length > 0 && (
           <optgroup label="주방">
             {kitchen.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

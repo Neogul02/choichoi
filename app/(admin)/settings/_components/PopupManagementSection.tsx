@@ -207,7 +207,7 @@ export default function PopupManagementSection() {
         <span className="ml-1.5 text-[12px] font-semibold text-ink-faint tabular-nums">{events.length}</span>
       </h3>
       <p className="mt-0 mb-3 text-xs text-ink-muted">
-        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 스케줄·일정표에서 숨겨집니다.
+        비활성 팝업은 로그인·디스플레이의 팝업 선택과 인사 근무 배정·전체 근무표에서 숨겨집니다.
       </p>
       {isLoading ? <p className="text-ink-muted text-sm">불러오는 중…</p> : events.length === 0 ? (
         <p className="text-ink-faint text-sm">등록된 팝업이 없습니다.</p>

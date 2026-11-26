@@ -624,7 +624,7 @@ export default function PayrollDetailModal({
               <div className="rounded-lg border border-hairline bg-canvas-soft px-3 py-2.5 font-mono text-[11px] text-ink leading-relaxed whitespace-pre-wrap break-words select-text">
                 {formulaText}
               </div>
-              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 스케줄 화면에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
+              <p className="m-0 mt-1.5 text-[10px] text-ink-faint">※ 휴게시간은 근무 1건당 기본 1시간(근무일별로 근무 배정에서 개별 조정 가능) · 유급시간은 0.1h 단위 반올림</p>
             </div>
           )}
 

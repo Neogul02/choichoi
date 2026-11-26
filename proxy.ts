@@ -87,6 +87,5 @@ export const config = {
     '/attendance/:path*',
     // 홈 화면 앱(manifest start_url)이 /pos로 열린다 — 여기를 안 거치면 로그인해 둔 kiosk 아이패드가 POS를 띄운다
     '/pos/:path*',
-    '/orders/:path*',
   ],
 }

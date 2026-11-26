@@ -217,7 +217,7 @@ export default function StaffFormModal({
 
           {staffRole === 'cashier' && (
             <div className="flex flex-col gap-1">
-              <label className={labelCls}>팝업 <span className="text-ink-faint font-normal">(미배정이면 스케줄 달력에 안 나옴)</span></label>
+              <label className={labelCls}>팝업 <span className="text-ink-faint font-normal">(미배정이면 근무 배정에 안 나옴)</span></label>
               <select value={popupId ?? ''} onChange={e => setPopupId(e.target.value ? Number(e.target.value) : null)} className={inputCls}>
                 <option value="">미배정</option>
                 {popups.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
