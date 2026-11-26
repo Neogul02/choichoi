@@ -24,6 +24,9 @@ const nextConfig = {
       { source: '/display', destination: '/pos', permanent: false },
       // 재고 탭 일시 비활성(lib/features.ts inventory: false와 같이 바꿀 것)
       { source: '/inventory', destination: '/pos', permanent: false },
+      // 전체 근무표(/roster) 삭제(2026-11-26) — 근무표는 인사 › 근무 배정에서 본다
+      { source: '/roster/:path*', destination: '/hr', permanent: false },
+      { source: '/roster', destination: '/hr', permanent: false },
     ];
   },
 };

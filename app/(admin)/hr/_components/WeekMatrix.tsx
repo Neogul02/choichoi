@@ -12,7 +12,7 @@ interface Props {
   shifts: RosterShift[];
   staffList: StaffProfile[];
   /** 그날 운영 중인 팝업을 날짜 칸 배경에 옅은 띠로 깔기 위한 CSS 그라데이션.
-   *  생략하면 띠 없이 근무자 매트릭스만 (이미 팝업별로 나눠 보여주는 일정표 화면) */
+   *  생략하면 띠 없이 근무자 매트릭스만 */
   getDayTint?: (dateStr: string) => string | undefined;
   getAssigned: (dateStr: string, shiftId: number) => RosterAssignment[];
   getShiftLabel: (shift: RosterShift) => string;

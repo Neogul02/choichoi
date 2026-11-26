@@ -21,7 +21,6 @@
 | **근로 자료 내보내기** | 월별 버튼 하나로 세무사 전달용 엑셀(1~31일 근무 표시·근로일수·시간·보수, 주민번호·입사일이 담긴 4대보험 가입 대상 명단)과 고용·산재 *근로내용 확인신고서(일용근로자용)* 서식 PDF(한 장 4명) |
 | **내 근무** | 근무자가 자기 달력과 '이달 예상 급여'를 본다 — 관리자 급여정산 상세와 같은 식(기본급·조정 항목·3.3% 미리보기·4대보험 공제·지급 완료·날짜별 근무 상세) |
 | **근로계약서 전자서명** | 표준근로계약서 PDF를 서버에서 실시간 생성·미리보기, 근무자가 앱에서 직접 서명. 주휴수당 포함 시급 내역(기본시급+주휴수당) 표기, 최저임금 미달 저장 차단, 계약기간 중 시급 인상(2027) 자동 표기, 날짜별 휴게를 스케줄 값으로 |
-| **전체 근무표** | 매니저용 주방·매장 통합 근무표 읽기 전용 조회 + 날짜별 메모 |
 | **매출 통계** | 한 화면 구성 — ① 오늘(매출 카드·팝업별 곡선·어제/지난주/지난 팝업 비교·판매 품목, 주문 목록은 펼칠 때만 조회) ② 월간 달력: 날짜를 누르면 팝업별 탭의 하루 상세 창에서 매출·주문·시간대·메뉴를 보고 바로 정정 ③ 팝업 분석(펼칠 때만 조회, 엑셀 정산표 붙여넣기·보고서 PDF) ④ 누적 총매출(보일 때 조회). 팝업별 고정 수수료율로 정산 예상(매출 − 수수료), 화면 어디서나 여는 계산기 버블(정산·공제) |
 | **설정** | 메뉴 CRUD·팝업별 판매 메뉴 켜기/끄기, 팝업 기간·휴무일·수수료율, 사용자·권한, 개발자 도구(배포 버전·꺼 둔 기능·서버 액션 점검·DB 스키마) |
 | **알림** | Discord 웹훅 — 계약 서명·로그인·주문/메뉴/권한 이벤트·서버 액션 오류, 매일 09:00(KST) 출근 누락 알림(Vercel Cron) |
@@ -98,7 +97,6 @@ app/actions/
 ├── staff.ts            # 근무자 후보/재직 프로필 관리
 ├── staffPopups.ts       # 근무자↔팝업 다대다 배정
 ├── roster.ts              # 파트 정의·날짜별 배정·티어 랭킹
-├── roster-view.ts          # 매니저용 전체 근무표 읽기 전용 조회
 ├── payroll.ts                # 급여 정산·공제·국민연금/건강보험 판정·근로 자료
 ├── attendance.ts              # 주방 출근부(출근·퇴근, 출근 누락)
 ├── storage.ts                  # 재고 비주얼 보관함
@@ -175,7 +173,6 @@ app/actions/
 ```
 proxy.ts (Next.js 16, middleware.ts 대체 — 동시 생성 시 충돌하므로 middleware.ts는 절대 생성 금지)
   admin 전용:   /stats, /hr, /settings
-  manager 이상: /roster
   로그인 전원:  /inventory (편집은 서버 액션 안에서 막는다)
   kiosk 역할:   /attendance 밖으로 못 나간다 (admin도 열 수 있다)
   처리: supabase.auth.getClaims()로 매 요청 JWT 로컬 검증(비대칭 키, JWKS 인스턴스 내 캐시)
@@ -221,7 +218,7 @@ lib/supabase.ts          ← ANON_KEY, 클라이언트 실시간 채널 전용 �
 |------|------|-----------|
 | **손님** (Guest) | 주문하는 고객 | `/display` |
 | **직원** (user) | 캐셔·주방 근무자 | `/pos`, `/my`, `/schedule`, `/inventory`(조회만) |
-| **매니저** (manager) | 현장 관리자 | 위 전체 + `/inventory`(편집), `/roster` |
+| **매니저** (manager) | 현장 관리자 | 위 전체 + `/inventory`(편집) |
 | **키오스크** (kiosk) | 주방 아이패드 출근부 계정 | `/attendance`만 |
 | **관리자** (admin) | 운영 총괄 | 전체 라우트 + `/stats`, `/hr`, `/settings`, `/attendance` |
 
@@ -252,7 +249,6 @@ app/
 │                                             근로계약서 작성·서명·목록
 └── (staff)/                               # proxy.ts + layout.tsx 보호 (admin·manager)
     ├── inventory/                          # 재고 (식재료·입출고 로그)
-    └── roster/                              # 전체 근무표 — 읽기 전용 + 날짜별 메모
 
 components/
 ├── NavBar.tsx                   # 네비게이션 — 역할 등급별 링크 노출
@@ -323,7 +319,6 @@ Supabase(PostgreSQL) 기준 31개 테이블.
 | `contracts` | `id`, `worker_id`(FK→`staff_profiles.id`), `popup_id`, `hourly_rate`, `pdf_url`, `contract_data`(jsonb), `worker_signed_at` | 근로계약서, PDF는 Storage 비공개 버킷 |
 | `attendance_records` | `assignment_id`, `staff_id`, `work_date`, `clock_in_at`, `clock_out_at`, `planned_*`, `status` | 출근부 기록 — 배정을 실측으로 덮어쓴 뒤에도 계획값을 남긴다 |
 | `payroll_payments` / `payroll_adjustments` / `payroll_adjustment_presets` | `period_key`(`month:Y-M` / `popup:id`), `staff_id`, `label`, `amount` | 지급 완료·공제/수당 조정 항목·자주 쓰는 항목 |
-| `roster_memos` | `memo_date`, `content`, `author_name` | 전체 근무표 날짜별 메모 |
 
 ### 운영
 

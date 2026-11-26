@@ -245,14 +245,6 @@ export async function fetchRosterRange(unit: RosterUnit, fromDate: string, toDat
   })
 }
 
-/** fetchRosterRange의 매니저 허용 버전 — roster-view.ts의 일정표(읽기 전용) 화면 전용. admin·manager 둘 다 허용. */
-export async function fetchRosterRangeForOverview(unit: RosterUnit, fromDate: string, toDate: string): Promise<ApiResponse<RosterMonthData>> {
-  return wrap(async () => {
-    await requireManagerOrAdmin()
-    return fetchRosterRangeUnchecked(unit, fromDate, toDate)
-  })
-}
-
 export async function addRosterAssignment(
   unit: RosterUnit,
   workDate: string,

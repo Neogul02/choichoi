@@ -55,17 +55,9 @@ export async function proxy(request: NextRequest) {
   }
   const adminOnlyPrefixes = ['/settings', '/hr', '/stats']
   // 재고탭은 로그인한 모든 직원(user 포함)이 조회 가능 — 편집은 서버 액션 내 requireManagerOrAdmin()이 담당
-  const managerPrefixes = ['/roster']
   const isAdminOnlyPath = adminOnlyPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
-  const isManagerPath = managerPrefixes.some(p => request.nextUrl.pathname.startsWith(p))
 
   if (isAdminOnlyPath && role !== 'admin') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/pos'
-    return NextResponse.redirect(url)
-  }
-
-  if (isManagerPath && role !== 'admin' && role !== 'manager') {
     const url = request.nextUrl.clone()
     url.pathname = '/pos'
     return NextResponse.redirect(url)
@@ -80,7 +72,6 @@ export const config = {
     '/schedule/:path*',
     '/settings/:path*',
     '/inventory/:path*',
-    '/roster/:path*',
     '/hr/:path*',
     // 로그인만 필요한 개인 페이지 — 미인증 요청을 SSR 전에 걸러 서버 액션이 인증 오류로 실패하지 않게 한다
     '/my/:path*',

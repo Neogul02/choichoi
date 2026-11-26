@@ -26,7 +26,6 @@ const PROFILE_SYNCED_KEY = 'choichoi_profile_synced';
 const ALL_NAV_LINKS = [
   { href: '/pos', label: 'POS', minRole: 'user' },
   { href: '/stats', label: '통계', minRole: 'admin' },
-  { href: '/roster', label: '전체 근무표', minRole: 'manager' },
   { href: '/hr', label: '인사', minRole: 'admin' },
   { href: '/attendance', label: '출근부', minRole: 'admin' },
   // 재고 탭은 일시 비활성(lib/features) — 다시 켜면 메뉴에 돌아온다

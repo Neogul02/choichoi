@@ -29,8 +29,7 @@ Next.js 16 App Router. 모든 데이터 접근은 **Server Actions**(`app/action
 (SHA256 비밀번호 토큰 방식은 폐기됐다). 레이아웃에 상주해 **라우트 전환 시 리마운트되지 않으므로**
 `pathname`을 effect 의존성에 넣어야 한다 — 빠뜨리면 경로가 바뀌어도 게이트 상태가 갱신되지 않는다.
 
-`(staff)` 그룹 레이아웃은 **로그인 여부만** 본다. 재고탭이 `user` 역할에게도 열려야 해서
-admin|manager 검사를 `/roster`로 내렸다 — 그룹 레이아웃에 역할 검사를 다시 올리지 말 것.
+`(staff)` 그룹 레이아웃은 **로그인 여부만** 본다. 재고탭이 `user` 역할에게도 열려야 한다 — 그룹 레이아웃에 역할 검사를 다시 올리지 말 것.
 
 ## 레이아웃 게이트를 믿지 말 것
 
@@ -60,7 +59,6 @@ export async function myAction(arg: string): Promise<ApiResponse<MyType>> {
 | `_base.ts` | `wrap`, `getAuthUser`, `requireAuth/Admin/ManagerOrAdmin`, 오류 판별 |
 | `roster.ts` | 파트(roster_shifts) CRUD, 배정 추가·삭제·시간·휴게, 일괄 편집·되돌리기, 인쇄·직원 근무표 |
 | `payroll.ts` | 월별·팝업별 급여 집계, 근무일 상세, 지급 완료·조정 항목, 고용신고 주민번호 열람 |
-| `roster-view.ts` | 매니저용 읽기 전용 일정표(주방 + 팝업별 캐셔 한 번에) |
 | `staff.ts` | 근무자 프로필 CRUD, 상태 변경, 보건증 업로드 |
 | `staffPopups.ts` | 근무자 ↔ 팝업 N:M 배정, 근무 이력 기반 자동 분류 |
 | `contracts.ts` | 근로계약서 생성·서명·조회 |
