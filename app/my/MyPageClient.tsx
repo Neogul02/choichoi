@@ -95,6 +95,8 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
   const [userPicker, setUserPicker] = useState<UserProfile[] | null>(null)
   const [isSwitchingUser, setIsSwitchingUser] = useState(false)
   const isOwnView = viewingUserId == null || viewingUserId === ownUserId
+  // 한 화면에 다 있던 것을 세 탭으로 — 홈(티어·판매 통계) / 내 정보(정보·계약서) / 계정(비밀번호·탈퇴)
+  const [myTab, setMyTab] = useState<'home' | 'info' | 'account'>('home')
 
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -393,6 +395,23 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             </div>
           )}
 
+          {/* 탭 — 홈 / 내 정보 / 계정(본인만) */}
+          <div role='tablist' aria-label='MY 화면' className='flex rounded-xl overflow-hidden border border-hairline bg-canvas shadow-level-1'>
+            {([['home', '홈'], ['info', '내 정보·계약서'], ...(isOwnView ? [['account', '계정']] : [])] as ['home' | 'info' | 'account', string][]).map(([key, label]) => (
+              <button
+                key={key}
+                type='button'
+                role='tab'
+                aria-selected={myTab === key || (key === 'home' && myTab === 'account' && !isOwnView)}
+                onClick={() => setMyTab(key)}
+                className={`flex-1 px-3 py-2.5 text-[13px] font-bold border-none cursor-pointer transition whitespace-nowrap ${myTab === key || (key === 'home' && myTab === 'account' && !isOwnView) ? 'bg-primary-700 text-white' : 'bg-canvas text-ink-muted hover:bg-canvas-soft'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {(myTab === 'home' || (myTab === 'account' && !isOwnView)) && (<>
           {/* 프로필 + 근무 티어 통합 카드 — 티어 색상을 그대로 내 정보 배경으로 사용 */}
           {(() => {
             // 관리자 계정은 근무 티어 대상이 아니다 — 티어 카드 대신 별도 디자인의 관리자 카드를 보여준다
@@ -602,6 +621,9 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             </section>
           )}
 
+          </>)}
+
+          {myTab === 'info' && (<>
           {/* 내 정보 */}
           <section className='bg-canvas border border-hairline rounded-2xl p-4 shadow-level-1'>
             <div className='flex items-center justify-between mb-3'>
@@ -769,6 +791,9 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             )}
           </section>
 
+          </>)}
+
+          {myTab === 'account' && isOwnView && (<>
           {/* 비밀번호 변경 (본인 조회 시에만) */}
           {isOwnView && (
           <section className='bg-canvas border border-hairline rounded-2xl p-4 shadow-level-1'>
@@ -845,6 +870,8 @@ export default function MyPageClient({ initial }: { initial: InitialMyData | nul
             )}
           </div>
           )}
+
+          </>)}
 
           {/* 근로계약서 서명 모달 (본인 조회 시에만 상태 세팅됨) */}
           {signingContract && (
