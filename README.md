@@ -21,7 +21,6 @@ It covers the full back-office workload a pop-up store operation needs in one sy
 | **Labor reports** | One click per month: an Excel file for the tax accountant (1–31 day grid, days/hours/pay, eligible-for-insurance list with national ID and start date) and the official *근로내용 확인신고서 (daily workers)* form rendered as PDF, 4 workers per page |
 | **My shifts** (내 근무) | Workers see their monthly calendar and an estimated pay card that mirrors the admin payroll detail (base pay, adjustments, optional 3.3% preview, insurance deductions, paid status, per-day breakdown) |
 | **E-signed employment contracts** | Standard employment contract PDF generated and previewed server-side in real time, signed by workers directly in the app. States the weekly-holiday-inclusive wage breakdown, blocks saving below minimum wage, notes a mid-contract rate change (2027), and uses each day's scheduled break |
-| **Full roster** (전체 근무표) | Read-only unified kitchen/store roster view for managers, plus per-date memos |
 | **Sales analytics** | One screen: ① today (revenue card, per-pop-up curves, yesterday / last week / previous pop-up comparison, item ranking; the order list loads only when expanded) ② monthly calendar — tap a date for a per-pop-up day sheet to view and correct revenue, orders, hours and menu quantities in place ③ pop-up analysis (loads when expanded; paste an Excel sales sheet, report PDF) ④ lifetime total (loads when scrolled into view). Per-pop-up fixed fee rates give an expected settlement (revenue − fee), and a floating calculator bubble (settlement / deductions) opens from anywhere |
 | **Settings** | Menu CRUD and per-pop-up menu on/off, pop-up periods / closed days / fee rates, users and roles, developer tools (deployed version, disabled features, server-action checks, DB schema) |
 | **Notifications** | Discord webhooks for contract signing, logins, order/menu/role events, server-action failures, and a daily 09:00 KST missing-clock-in digest (Vercel Cron) |
@@ -98,7 +97,6 @@ app/actions/
 ├── staff.ts            # Candidate/active worker profile management
 ├── staffPopups.ts       # Worker ↔ popup many-to-many assignment
 ├── roster.ts              # Part definitions, per-date assignment, tier ranking
-├── roster-view.ts          # Manager-facing unified read-only schedule view
 ├── payroll.ts                # Payroll settlement, deductions, pension/health eligibility, labor reports
 ├── attendance.ts              # Kitchen attendance kiosk (clock-in/out, missing clock-ins)
 ├── storage.ts                  # Visual storage board for inventory
@@ -176,7 +174,6 @@ Channels: orders-{popupId}, cart-display-{popupId}, pos-presence-{popupId},
 proxy.ts (Next.js 16, replaces middleware.ts — creating both causes a conflict, so
           middleware.ts must never be created)
   admin only:      /stats, /hr, /settings
-  manager+:        /roster
   any logged-in:   /inventory (editing is guarded inside the Server Actions)
   kiosk role:      locked to /attendance (admins may also open it)
   Behavior: validates the JWT locally on every request via supabase.auth.getClaims()
@@ -226,7 +223,7 @@ lib/supabase.ts          ← ANON_KEY, dedicated singleton for client realtime c
 |------|-------------|-------------------|
 | **Guest** | Ordering customer | `/display` |
 | **Staff** (user) | Cashier / kitchen worker | `/pos`, `/my`, `/schedule`, `/inventory` (read-only) |
-| **Manager** | On-site manager | All of the above + `/inventory` (edit), `/roster` |
+| **Manager** | On-site manager | All of the above + `/inventory` (edit) |
 | **Kiosk** | Kitchen iPad account for clocking in/out | `/attendance` only |
 | **Admin** | Overall operations lead | All routes + `/stats`, `/hr`, `/settings`, `/attendance` |
 
@@ -257,7 +254,6 @@ app/
 │                                             contract authoring/signing/listing
 └── (staff)/                               # Protected by proxy.ts + layout.tsx (admin, manager)
     ├── inventory/                          # Inventory (ingredients, stock in/out log)
-    └── roster/                              # Schedule — read-only full roster view + per-date memos
 
 components/
 ├── NavBar.tsx                   # Navigation — links shown vary by role tier
@@ -328,7 +324,6 @@ types/
 | `contracts` | `id`, `worker_id` (FK → `staff_profiles.id`), `popup_id`, `hourly_rate`, `pdf_url`, `contract_data` (jsonb), `worker_signed_at` | Employment contract; PDF lives in a private Storage bucket |
 | `attendance_records` | `assignment_id`, `staff_id`, `work_date`, `clock_in_at`, `clock_out_at`, `planned_*`, `status` | Kiosk clock-ins; planned values kept after the assignment is overwritten |
 | `payroll_payments` / `payroll_adjustments` / `payroll_adjustment_presets` | `period_key` (`month:Y-M` / `popup:id`), `staff_id`, `label`, `amount` | Paid checkmarks, deductions/allowances, reusable presets |
-| `roster_memos` | `memo_date`, `content`, `author_name` | Per-date schedule memos |
 
 ### Operations
 
