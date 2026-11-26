@@ -6,6 +6,8 @@ import SalesBanner from '@/components/SalesBanner'
 import SalesBattle from '@/components/SalesBattle'
 import PosTodaySummary from '@/components/PosTodaySummary'
 import PopupPeriodWarning from '@/components/PopupPeriodWarning'
+import { usePopupEventsAll } from '@/hooks/usePopupDayCompare'
+import { kstToday } from '@/lib/date'
 import { memo, useCallback, useEffect, useRef, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -494,10 +496,26 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
     },
   })
 
+  // 운영 기간이 아닌 팝업으로 결제 중이면(빨간 경고 띠) 결제 직전에 한 번 더 묻는다.
+  // '그래도 결제'를 고르면 이 화면을 새로 띄우기 전까지는 다시 묻지 않는다(줄 선 손님 앞에서 매번 막지 않게).
+  const { data: popupEventsAll } = usePopupEventsAll(popupId !== '0')
+  const outOfPeriodPopup = useMemo(() => {
+    if (!popupEventsAll || popupId === '0') return null
+    const p = popupEventsAll.find((e) => String(e.id) === popupId)
+    const today = kstToday()
+    return p && (today < p.start_date || today > p.end_date) ? p : null
+  }, [popupEventsAll, popupId])
+  const [periodConfirmOpen, setPeriodConfirmOpen] = useState(false)
+  const periodAcceptedRef = useRef(false)
+
   const handleCheckout = () => {
     if (checkoutMutation.isPending) return
     if (totalPrice <= 0) {
       toast.warning(totalPrice < 0 ? '할인 금액이 주문 금액보다 큽니다' : '주문하신 항목이 없습니다')
+      return
+    }
+    if (outOfPeriodPopup && !periodAcceptedRef.current) {
+      setPeriodConfirmOpen(true)
       return
     }
     const items = menuItems
@@ -837,6 +855,19 @@ export default function PosPageClient({ initialPopupId, initialMenu, initialSale
           setResetConfirmOpen(false)
         }}
         onClose={() => setResetConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={periodConfirmOpen}
+        title={`'${outOfPeriodPopup?.name ?? ''}'(으)로 결제할까요?`}
+        description="운영 기간이 아닌 팝업이에요. 이대로 결제하면 이 팝업 매출로 저장됩니다. 위 빨간 안내에서 오늘 팝업으로 바꿀 수 있어요."
+        confirmLabel="그래도 결제"
+        danger
+        onConfirm={() => {
+          periodAcceptedRef.current = true
+          setPeriodConfirmOpen(false)
+          handleCheckout()
+        }}
+        onClose={() => setPeriodConfirmOpen(false)}
       />
     </>
   )

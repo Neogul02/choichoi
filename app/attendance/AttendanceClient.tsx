@@ -374,6 +374,12 @@ function PunchDialog({ item, onClose, onDone }: {
         <p className="m-0 mt-4 text-[12px] text-ink-faint">
           {isOut ? '퇴근은 한 번만 기록됩니다.' : '출근은 한 번만 기록됩니다.'} 잘못 눌렀다면 관리자에게 알려주세요.
         </p>
+        {/* 확인 버튼이 왜 안 눌리는지 바로 위에 알려 준다 */}
+        {!ready && !busy && (
+          <p className="m-0 mt-3 text-[13px] font-semibold text-amber-700" role="status">
+            {!isValidKoreanPhone(digits) ? '전화번호를 끝까지 입력해 주세요' : '쉬는 시간을 골라 주세요'}
+          </p>
+        )}
         <div className="flex gap-2 mt-4">
           <button
             type="button"
