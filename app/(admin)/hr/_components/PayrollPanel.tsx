@@ -257,6 +257,9 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
     })
   }, [allRows, search, sort])
 
+  // 상세 창의 ‹ › — 지금 보이는 목록(검색·정렬 반영) 순서대로 넘긴다
+  const detailIndex = detailTarget ? rows.findIndex(r => r.staffId === detailTarget.staffId) : -1
+
   const finalPayOf = (r: PayrollRow) => r.totalPay == null ? null : r.totalPay + (adjustTotals.get(r.staffId) ?? 0)
 
   // 기본 공제를 정해둔 직원 중 이번 구간에 아직 안 넣었고 지급 전인 사람 — 기본급(시간×시급) 기준으로 한 번에 넣는다
@@ -696,6 +699,9 @@ export default function PayrollPanel({ defaultRole, onRetire }: Props) {
           missingClockIns={missingByStaff.get(detailTarget.staffId) ?? []}
           pension={pension?.[detailTarget.staffId] ?? null}
           onDefaultDeductionChanged={() => queryClient.invalidateQueries({ queryKey: ['payroll-default-deductions'] })}
+          onPrev={detailIndex > 0 ? () => setDetailTarget(rows[detailIndex - 1]) : null}
+          onNext={detailIndex >= 0 && detailIndex < rows.length - 1 ? () => setDetailTarget(rows[detailIndex + 1]) : null}
+          positionLabel={detailIndex >= 0 ? `${detailIndex + 1} / ${rows.length}` : undefined}
           onClose={() => setDetailTarget(null)}
         />
       )}

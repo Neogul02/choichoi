@@ -15,6 +15,10 @@ interface Props {
   period: PayrollPeriod
   details: StaffDayDetail[] | null
   grossPay: number | null
+  /** 기본급(시간×시급) — 보수총액이 어떻게 나왔는지 풀어서 보여준다 */
+  basePay?: number | null
+  /** 조정 항목 — 수당(+)만 보수총액에 더한다. 공제(−)는 세전 신고라 빼지 않는다 */
+  adjustments?: { label: string; amount: number }[]
 }
 
 function formatResidentId(raw: string) {
@@ -29,7 +33,7 @@ function chunkDays() {
 }
 const DAY_ROWS = chunkDays()
 
-export default function WelfareReportPanel({ staffId, name, phone, period, details, grossPay }: Props) {
+export default function WelfareReportPanel({ staffId, name, phone, period, details, grossPay, basePay = null, adjustments = [] }: Props) {
   const [residentId, setResidentId] = useState<string | null>(null)
   const [residentLoading, setResidentLoading] = useState(true)
   const [residentManual, setResidentManual] = useState('')
@@ -56,15 +60,20 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
     })
   }
 
-  const totalRawHours = details ? minutesToHours(details.reduce((s, d) => s + d.rawMinutes, 0)) : 0
+  const totalPaidHours = details ? minutesToHours(details.reduce((s, d) => s + d.paidMinutes, 0)) : 0
   const workDaysCount = workedDays.size
+  // 일평균 근로시간 = 유급(휴게 뺀) 시간 ÷ 근무일 — 예전엔 합계 시간이 그대로 들어가 있었다
+  const detailDays = details?.length ?? 0
+  const avgPaid = detailDays > 0 ? Math.round((totalPaidHours / detailDays) * 10) / 10 : 0
+  const allowances = adjustments.filter(a => a.amount > 0)
+  const allowanceTotal = allowances.reduce((s, a) => s + a.amount, 0)
 
   const [avgDailyHours, setAvgDailyHours] = useState('')
   const [paymentBaseDays, setPaymentBaseDays] = useState('')
   const [totalPayInput, setTotalPayInput] = useState('')
   const [wageTotalInput, setWageTotalInput] = useState('')
   // 근무 데이터가 로드되면 계산값으로 채워 넣는다 — 이후엔 직접 수정 가능
-  useEffect(() => { setAvgDailyHours(totalRawHours > 0 ? String(totalRawHours) : '') }, [totalRawHours])
+  useEffect(() => { setAvgDailyHours(avgPaid > 0 ? String(avgPaid) : '') }, [avgPaid])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setPaymentBaseDays(workDaysCount > 0 ? String(workDaysCount) : '') }, [autoWorkedDays])
   useEffect(() => { setTotalPayInput(grossPay != null ? String(grossPay) : '') }, [grossPay])
@@ -99,13 +108,19 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
     else showMsg('복사에 실패했습니다.')
   }
 
-  const th = 'bg-canvas-soft text-ink-muted font-semibold text-[10px] text-left align-middle px-2 py-2 border border-hairline whitespace-nowrap'
-  const td = 'border border-hairline px-2 py-1.5 align-middle text-[12px] text-ink'
-  const cellInputCls = 'w-full bg-transparent border-none outline-none text-[12px] text-ink focus:bg-primary-50 rounded px-1 py-0.5'
+  const th = 'bg-canvas-soft text-ink-muted font-semibold text-[11px] text-left align-top px-2.5 py-2.5 border border-hairline'
+  const td = 'border border-hairline px-2.5 py-2 align-top text-[13px] text-ink'
+  const cellInputCls = 'w-full min-w-0 bg-transparent border-none outline-none text-[13px] text-ink focus:bg-primary-50 rounded px-1 py-0.5'
+  const hint = 'm-0 mt-1 text-[11px] text-ink-faint leading-snug'
+  const wonFmt = (v: string) => (v ? Number(v).toLocaleString('ko-KR') : '')
+  const wonParse = (raw: string) => raw.replace(/[^0-9]/g, '')
+  const grossBreakdown = basePay != null
+    ? `기본급 ${basePay.toLocaleString('ko-KR')}원${allowances.map(a => ` + ${a.label} ${a.amount.toLocaleString('ko-KR')}원`).join('')} = ${(basePay + allowanceTotal).toLocaleString('ko-KR')}원`
+    : null
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 py-4 border-b border-hairline bg-canvas-soft flex items-center justify-between gap-2">
+      <div className="px-4 py-4 md:pr-16 border-b border-hairline bg-canvas-soft flex items-center justify-between gap-2">
         <div>
           <p className="m-0 text-[13px] font-bold text-ink">근로복지공단 단기간근로자 고용신고</p>
           <p className="m-0 text-[11px] text-ink-muted mt-0.5">{name} · 신고서 작성용</p>
@@ -121,27 +136,25 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
       <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:thin] p-4">
         <table className="w-full border-collapse table-fixed">
           <colgroup>
-            <col className="w-[30%]" />
-            <col className="w-[20%]" />
-            <col className="w-[30%]" />
-            <col className="w-[20%]" />
+            <col className="w-[34%]" />
+            <col />
           </colgroup>
           <tbody>
             <tr>
               <th className={th}>성명</th>
-              <td className={td} colSpan={3}>
+              <td className={td}>
                 <CopyText value={name} label="성명">{name}</CopyText>
               </td>
             </tr>
             <tr>
               <th className={th}>전화번호(휴대전화)</th>
-              <td className={td} colSpan={3}>
+              <td className={td}>
                 {phone ? <CopyText value={formatPhoneNumber(phone)} label="전화번호">{formatPhoneNumber(phone)}</CopyText> : <span className="text-ink-faint">미등록</span>}
               </td>
             </tr>
             <tr>
               <th className={th}>주민등록번호<br />(외국인등록번호)</th>
-              <td className={td} colSpan={3}>
+              <td className={td}>
                 {residentLoading ? (
                   <span className="text-ink-faint">불러오는 중…</span>
                 ) : residentId ? (
@@ -159,7 +172,7 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
             </tr>
             <tr>
               <th className={th}>근로일수<br />(&quot;o&quot;표시 — 클릭해서 정정)</th>
-              <td className="border border-hairline p-0" colSpan={3}>
+              <td className="border border-hairline p-0">
                 {DAY_ROWS.map((row, i) => (
                   <div key={i} className={`grid grid-cols-5 ${i !== DAY_ROWS.length - 1 ? 'border-b border-hairline' : ''}`}>
                     {row.map(day => {
@@ -187,42 +200,55 @@ export default function WelfareReportPanel({ staffId, name, phone, period, detai
             </tr>
             <tr>
               <th className={th}>근로일수</th>
-              <td className={td}>{workDaysCount}일</td>
+              <td className={td}>
+                <strong className="tabular-nums">{workDaysCount}일</strong>
+                {workDaysCount !== detailDays && <p className={hint}>근무 기록은 {detailDays}일 — 위 칸에서 직접 고친 값이에요</p>}
+              </td>
+            </tr>
+            <tr>
               <th className={th}>일평균 근로시간</th>
               <td className={td}>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={avgDailyHours} onChange={e => setAvgDailyHours(e.target.value)} className={cellInputCls} />
+                  <input type="text" inputMode="decimal" value={avgDailyHours} onChange={e => setAvgDailyHours(e.target.value)} className={`${cellInputCls} tabular-nums`} />
                   <span className="text-ink-muted shrink-0">시간</span>
                 </div>
+                {detailDays > 0 && <p className={hint}>유급 {totalPaidHours}h ÷ {detailDays}일 = {avgPaid}h (휴게 제외)</p>}
               </td>
             </tr>
             <tr>
               <th className={th}>보수지급기초일수</th>
               <td className={td}>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={paymentBaseDays} onChange={e => setPaymentBaseDays(e.target.value)} className={cellInputCls} />
+                  <input type="text" inputMode="numeric" value={paymentBaseDays} onChange={e => setPaymentBaseDays(e.target.value.replace(/[^0-9]/g, ''))} className={`${cellInputCls} tabular-nums`} />
                   <span className="text-ink-muted shrink-0">일</span>
                 </div>
-              </td>
-              <th className={th}>이직사유 코드</th>
-              <td className={td}>
-                <input type="text" value={leaveReasonCode} onChange={e => setLeaveReasonCode(e.target.value)} className={cellInputCls} />
+                <p className={hint}>보통 근로일수와 같아요</p>
               </td>
             </tr>
             <tr>
               <th className={th}>보수총액</th>
               <td className={td}>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={totalPayInput} onChange={e => setTotalPayInput(e.target.value)} className={cellInputCls} />
+                  <input type="text" inputMode="numeric" value={wonFmt(totalPayInput)} onChange={e => setTotalPayInput(wonParse(e.target.value))} className={`${cellInputCls} font-semibold tabular-nums`} />
                   <span className="text-ink-muted shrink-0">원</span>
                 </div>
+                {grossBreakdown && <p className={hint}>{grossBreakdown} · 세전(보험료·원천징수 빼기 전)</p>}
               </td>
+            </tr>
+            <tr>
               <th className={th}>임금총액</th>
               <td className={td}>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={wageTotalInput} onChange={e => setWageTotalInput(e.target.value)} className={cellInputCls} />
+                  <input type="text" inputMode="numeric" value={wonFmt(wageTotalInput)} onChange={e => setWageTotalInput(wonParse(e.target.value))} className={`${cellInputCls} font-semibold tabular-nums`} />
                   <span className="text-ink-muted shrink-0">원</span>
                 </div>
+                <p className={hint}>비과세 포함 전체 임금. 식대 같은 비과세 수당이 있으면 보수총액은 그만큼 빼서 적어요</p>
+              </td>
+            </tr>
+            <tr>
+              <th className={th}>이직사유 코드</th>
+              <td className={td}>
+                <input type="text" value={leaveReasonCode} onChange={e => setLeaveReasonCode(e.target.value)} placeholder="퇴사자만" className={cellInputCls} />
               </td>
             </tr>
           </tbody>

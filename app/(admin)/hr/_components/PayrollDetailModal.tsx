@@ -50,6 +50,11 @@ interface Props {
   missingClockIns?: MissingClockIn[]
   /** 이 달 국민연금 판정(월별 정산만) — 대상이면 공제 안내를 띄우고 카톡 복사 문구에 상태를 적는다 */
   pension?: PensionRow | null
+  /** 목록의 앞·뒤 직원으로 바로 넘긴다(없으면 버튼 비활성) — ←/→ 키도 같다 */
+  onPrev?: (() => void) | null
+  onNext?: (() => void) | null
+  /** '3 / 12' 같은 목록 안 위치 */
+  positionLabel?: string
   onClose: () => void
 }
 
@@ -60,12 +65,23 @@ function formatDate(dateStr: string) {
 
 export default function PayrollDetailModal({
   staffId, periodKey, initialAdjustments, onAdjustmentsChanged,
-  name, phone, bankName, bankAccount, hourlyRate, period, defaultDeduction, onDefaultDeductionChanged, missingClockIns = [], pension = null, onClose,
+  name, phone, bankName, bankAccount, hourlyRate, period, defaultDeduction, onDefaultDeductionChanged, missingClockIns = [], pension = null, onPrev = null, onNext = null, positionLabel, onClose,
 }: Props) {
   const missingDates = new Set(missingClockIns.map(m => m.workDate))
   useBodyScrollLock()
   const panelRef = useRef<HTMLDivElement>(null)
   useModalKeyboard({ active: true, onClose, containerRef: panelRef })
+  // ←/→ 로 앞·뒤 직원 — 입력칸에 커서가 있으면 커서 이동이 우선
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'ArrowLeft' && onPrev) onPrev()
+      if (e.key === 'ArrowRight' && onNext) onNext()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onPrev, onNext])
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const copyText = (key: string, text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -246,13 +262,29 @@ export default function PayrollDetailModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
     >
+      {/* 화면 양옆: 앞·뒤 직원으로 넘기기 */}
+      {(onPrev || onNext) && (
+        <>
+          <button
+            type="button" onClick={() => onPrev?.()} disabled={!onPrev} aria-label="이전 직원"
+            className="hidden md:flex fixed left-3 lg:left-6 top-1/2 -translate-y-1/2 z-[51] w-12 h-12 rounded-full items-center justify-center bg-canvas/95 border border-hairline shadow-level-2 text-[24px] font-bold text-ink cursor-pointer hover:bg-canvas disabled:opacity-30 disabled:cursor-default"
+          >‹</button>
+          <button
+            type="button" onClick={() => onNext?.()} disabled={!onNext} aria-label="다음 직원"
+            className="hidden md:flex fixed right-3 lg:right-6 top-1/2 -translate-y-1/2 z-[51] w-12 h-12 rounded-full items-center justify-center bg-canvas/95 border border-hairline shadow-level-2 text-[24px] font-bold text-ink cursor-pointer hover:bg-canvas disabled:opacity-30 disabled:cursor-default"
+          >›</button>
+        </>
+      )}
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        className="bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex flex-col md:flex-row overflow-hidden max-w-[960px]"
+        aria-label={`${name} ${periodLabel} 급여 세부내역`}
+        className="relative bg-canvas w-full rounded-xl shadow-level-2 border border-hairline flex flex-col md:flex-row overflow-hidden max-w-[960px]"
         style={{ maxHeight: '90vh' }}
       >
+        {/* 닫기 — 창 전체의 오른쪽 위 */}
+        <button onClick={onClose} aria-label="닫기" className="absolute top-3 right-3 z-20 w-9 h-9 flex items-center justify-center rounded-lg bg-canvas/90 border border-hairline text-ink-muted text-[20px] leading-none cursor-pointer hover:bg-canvas-strong hover:text-ink transition">×</button>
         {/* 좌측: 급여 세부내역 */}
         <div className="flex flex-col overflow-y-auto [scrollbar-width:thin] flex-1 min-w-0 md:max-w-[520px]">
         {/* 헤더 */}
@@ -261,9 +293,15 @@ export default function PayrollDetailModal({
             <h3 className="m-0 text-[16px] font-bold text-ink">
               <CopyText value={name} label="이름">{name}</CopyText>
             </h3>
-            <p className="m-0 text-[12px] text-ink-muted">{periodLabel} 급여 세부내역</p>
+            <p className="m-0 text-[12px] text-ink-muted">{periodLabel} 급여 세부내역{positionLabel && <span className="ml-1.5 text-ink-faint tabular-nums">· {positionLabel}</span>}</p>
           </div>
-          <button onClick={onClose} aria-label="닫기" className="bg-transparent border-none text-ink-faint text-[22px] cursor-pointer hover:text-ink transition leading-none w-8 h-8 flex items-center justify-center">×</button>
+          {/* 폰: 양옆 버튼 대신 헤더에서 넘긴다(닫기 버튼 자리를 비워 둔다) */}
+          {(onPrev || onNext) && (
+            <div className="flex md:hidden items-center gap-1 mr-11">
+              <button type="button" onClick={() => onPrev?.()} disabled={!onPrev} aria-label="이전 직원" className="w-9 h-9 rounded-lg border border-hairline bg-canvas text-[18px] font-bold text-ink cursor-pointer disabled:opacity-30">‹</button>
+              <button type="button" onClick={() => onNext?.()} disabled={!onNext} aria-label="다음 직원" className="w-9 h-9 rounded-lg border border-hairline bg-canvas text-[18px] font-bold text-ink cursor-pointer disabled:opacity-30">›</button>
+            </div>
+          )}
         </div>
 
         <div className="p-5 flex flex-col gap-5">
@@ -646,6 +684,8 @@ export default function PayrollDetailModal({
             period={period}
             details={details}
             grossPay={grossPay}
+            basePay={basePay}
+            adjustments={adjustments}
           />
         </div>
       </div>
